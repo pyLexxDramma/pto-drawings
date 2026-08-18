@@ -10,7 +10,7 @@ jobs:
     runs-on: [self-hosted, Windows, X64]
     steps:
       - name: Pull and publish
-        shell: pwsh
+        shell: powershell
         run: |
           Set-Location "D:\PTO\pto-app"
           powershell -ExecutionPolicy Bypass -File ".\scripts\deploy-cloudpub.ps1"
