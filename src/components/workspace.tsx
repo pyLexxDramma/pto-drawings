@@ -346,12 +346,7 @@ export function Workspace() {
           <div className="flex h-8 w-8 items-center justify-center rounded-md bg-accent text-sm font-semibold text-white">
             П
           </div>
-          <div>
-            <div className="text-sm font-semibold">PTO</div>
-            <div className="text-[11px] text-muted">
-              PDF → чертёж и текст. Инженер проверяет глазами.
-            </div>
-          </div>
+          <div className="text-sm font-semibold">PTO</div>
         </div>
         <button
           type="button"
