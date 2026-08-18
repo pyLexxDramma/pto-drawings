@@ -84,7 +84,13 @@ if (-not (Test-Path $Clo)) {
   exit 0
 }
 
-& $Clo publish --name pto-drawings http $Port
-if ($LASTEXITCODE -ne 0) {
-  Write-Host "CloudPub: выполните D:\PTO\tools\clo\clo.exe login ВАШ@EMAIL"
+$cloRunning = Get-Process clo -ErrorAction SilentlyContinue
+if ($cloRunning) {
+  Write-Host "CloudPub already running"
+} else {
+  Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{
+    CommandLine = "`"$Clo`" publish --name pto-drawings http $Port"
+    CurrentDirectory = "D:\PTO\tools\clo"
+  } | Out-Null
+  Write-Host "CloudPub started"
 }
