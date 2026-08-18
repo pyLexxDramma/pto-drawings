@@ -25,12 +25,6 @@ git checkout main
 git pull origin main
 Assert-Ok "git pull"
 
-Write-Host "Install and build"
-npm ci --no-audit --no-fund
-Assert-Ok "npm ci"
-npm run build
-Assert-Ok "npm run build"
-
 function Stop-Port {
   param([int]$ListenPort)
   $conns = Get-NetTCPConnection -LocalPort $ListenPort -State Listen -ErrorAction SilentlyContinue
@@ -46,14 +40,21 @@ function Stop-Port {
   }
 }
 
-Write-Host "Restart on port $Port"
+Write-Host "Stop port $Port"
 Stop-Port -ListenPort $Port
-Start-Sleep -Seconds 1
+Start-Sleep -Seconds 2
+
+Write-Host "Install and build"
+npm ci --no-audit --no-fund
+Assert-Ok "npm ci"
+npm run build
+Assert-Ok "npm run build"
+
+Write-Host "Start on port $Port"
 
 $nextJs = Join-Path $AppDir "node_modules\next\dist\bin\next"
-$cmd = "node `"$nextJs`" start -H 0.0.0.0 -p $Port > `"$OutLog`" 2> `"$ErrLog`""
 $created = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{
-  CommandLine = "cmd.exe /c $cmd"
+  CommandLine = "node `"$nextJs`" start -H 0.0.0.0 -p $Port"
   CurrentDirectory = $AppDir
 }
 if ($created.ReturnValue -ne 0) {
