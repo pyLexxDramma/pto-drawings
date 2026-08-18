@@ -29,4 +29,5 @@ npm run dev
 3. Self-hosted runner в `D:\PTO\actions-runner` (`run.cmd`)
 4. Прод-копия: `D:\PTO\pto-prod` (не путать с `pto-app`, где идёт разработка)
 
-Порт продакшена: **8080**.
+После перезагрузки Windows при входе в учётку сами стартуют порт 8080 и CloudPub (задача «PTO CloudPub»).
+
