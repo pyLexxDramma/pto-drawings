@@ -1,8 +1,7 @@
-import { readFile } from "fs/promises";
 import { extractPageTexts, pageToMarkdown } from "@/lib/extract";
 import {
-  filePathFor,
   getDocument,
+  readStoredPdf,
   updateDocument,
 } from "@/lib/storage";
 import type { DocumentPage } from "@/types";
@@ -26,9 +25,10 @@ export async function processDocument(id: string) {
       errorMessage: null,
     });
 
-    const buffer = await readFile(filePathFor(document.storedName));
+    const buffer = await readStoredPdf(document.storedName);
     const texts = await extractPageTexts(buffer);
     const pages: DocumentPage[] = [];
+    const pause = process.env.VERCEL ? 0 : 180;
 
     for (let index = 0; index < texts.length; index += 1) {
       const pageNumber = index + 1;
@@ -45,7 +45,7 @@ export async function processDocument(id: string) {
 
       pages.push(pageToMarkdown(pageNumber, document.originalName, texts[index]));
       await updateDocument(id, { pages: [...pages] });
-      await sleep(220);
+      if (pause) await sleep(pause);
     }
 
     await updateDocument(id, {

@@ -98,6 +98,8 @@ function uploadPdf(
       }
     };
     xhr.onerror = () => reject(new Error("Нет соединения с сервером"));
+    xhr.timeout = 120000;
+    xhr.ontimeout = () => reject(new Error("Сервер не ответил. На Vercel включите Blob Storage."));
     xhr.send(form);
   });
 }
@@ -128,9 +130,11 @@ export function Workspace() {
 
   const loadProjects = useCallback(async () => {
     const response = await fetch("/api/projects");
+    if (!response.ok) throw new Error("Не удалось загрузить проекты");
     const payload = (await response.json()) as { projects: Project[] };
-    setProjects(payload.projects);
-    return payload.projects;
+    const list = payload.projects ?? [];
+    setProjects(list);
+    return list;
   }, []);
 
   const loadDocuments = useCallback(async (id: string) => {

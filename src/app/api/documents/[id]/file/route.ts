@@ -1,8 +1,9 @@
-import { readFile } from "fs/promises";
 import { NextResponse } from "next/server";
-import { filePathFor, getDocument } from "@/lib/storage";
+import { getDocument, readStoredPdf } from "@/lib/storage";
 
 type RouteContext = { params: Promise<{ id: string }> };
+
+export const maxDuration = 60;
 
 export async function GET(_request: Request, context: RouteContext) {
   const { id } = await context.params;
@@ -12,7 +13,7 @@ export async function GET(_request: Request, context: RouteContext) {
   }
 
   try {
-    const bytes = await readFile(filePathFor(document.storedName));
+    const bytes = await readStoredPdf(document.storedName);
     const encoded = encodeURIComponent(document.originalName);
     return new NextResponse(new Uint8Array(bytes), {
       headers: {
@@ -22,6 +23,6 @@ export async function GET(_request: Request, context: RouteContext) {
       },
     });
   } catch {
-    return NextResponse.json({ error: "Файл отсутствует на диске" }, { status: 404 });
+    return NextResponse.json({ error: "Файл отсутствует в хранилище" }, { status: 404 });
   }
 }

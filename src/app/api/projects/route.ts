@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { createProject, listProjects, renameProject } from "@/lib/storage";
+import { createProject, listProjects } from "@/lib/storage";
+
+export const maxDuration = 30;
 
 export async function GET() {
   const projects = await listProjects();

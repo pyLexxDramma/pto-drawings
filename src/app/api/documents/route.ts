@@ -1,18 +1,16 @@
+import { waitUntil } from "@vercel/functions";
 import { NextResponse } from "next/server";
 import { processDocument } from "@/lib/process-document";
 import { listDocuments, savePdf } from "@/lib/storage";
 
-const MAX_BYTES = 80 * 1024 * 1024;
+export const maxDuration = 60;
+
+const MAX_BYTES = process.env.VERCEL ? 4 * 1024 * 1024 : 80 * 1024 * 1024;
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const projectId = searchParams.get("projectId") ?? undefined;
   const documents = await listDocuments(projectId);
-  for (const document of documents) {
-    if (document.status === "queued") {
-      void processDocument(document.id);
-    }
-  }
   return NextResponse.json({ documents });
 }
 
@@ -40,7 +38,14 @@ export async function POST(request: Request) {
   }
 
   if (file.size > MAX_BYTES) {
-    return NextResponse.json({ error: "Файл больше 80 МБ" }, { status: 400 });
+    return NextResponse.json(
+      {
+        error: process.env.VERCEL
+          ? "На Vercel файл должен быть до 4 МБ"
+          : "Файл больше 80 МБ",
+      },
+      { status: 400 },
+    );
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
@@ -51,7 +56,7 @@ export async function POST(request: Request) {
       originalName: file.name,
       buffer,
     });
-    void processDocument(document.id);
+    waitUntil(processDocument(document.id));
     return NextResponse.json({ document }, { status: 201 });
   } catch (error) {
     const status = (error as { status?: number }).status ?? 500;

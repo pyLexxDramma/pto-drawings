@@ -1,7 +1,12 @@
-import { mkdir, readFile, unlink, writeFile } from "fs/promises";
-import path from "path";
 import { PDFDocument } from "pdf-lib";
-import { pageToMarkdown } from "@/lib/extract";
+import {
+  blobConfigured,
+  deletePdfBytes,
+  readDbText,
+  readPdfBytes,
+  writeDbText,
+  writePdfBytes,
+} from "@/lib/persist";
 import type {
   Database,
   DocumentPage,
@@ -11,9 +16,7 @@ import type {
   Project,
 } from "@/types";
 
-const DATA_DIR = path.join(process.cwd(), "data");
-const UPLOAD_DIR = path.join(process.cwd(), "uploads");
-const DB_PATH = path.join(DATA_DIR, "db.json");
+const DEFAULT_PROJECT_ID = "11111111-1111-4111-8111-111111111111";
 
 let writeChain = Promise.resolve();
 
@@ -29,7 +32,7 @@ function withLock<T>(fn: () => Promise<T>): Promise<T> {
 const emptyDb = (): Database => ({
   projects: [
     {
-      id: crypto.randomUUID(),
+      id: DEFAULT_PROJECT_ID,
       name: "Объект 1",
       createdAt: new Date().toISOString(),
     },
@@ -60,15 +63,14 @@ function normalizeDocument(raw: Partial<DocumentRecord> & { id: string }): Docum
   };
 }
 
-async function ensureDirs() {
-  await mkdir(DATA_DIR, { recursive: true });
-  await mkdir(UPLOAD_DIR, { recursive: true });
-}
-
 async function readDb(): Promise<Database> {
-  await ensureDirs();
   try {
-    const raw = await readFile(DB_PATH, "utf8");
+    const raw = await readDbText();
+    if (!raw) {
+      const db = emptyDb();
+      await writeDb(db);
+      return db;
+    }
     const parsed = JSON.parse(raw) as Database;
     if (!Array.isArray(parsed.projects) || !Array.isArray(parsed.documents)) {
       return emptyDb();
@@ -88,8 +90,7 @@ async function readDb(): Promise<Database> {
 }
 
 async function writeDb(db: Database) {
-  await ensureDirs();
-  await writeFile(DB_PATH, JSON.stringify(db, null, 2), "utf8");
+  await writeDbText(JSON.stringify(db, null, 2));
 }
 
 export async function listProjects(): Promise<Project[]> {
@@ -129,25 +130,28 @@ export async function listDocuments(
 ): Promise<DocumentRecord[]> {
   return withLock(async () => {
     const db = await readDb();
-    let changed = false;
-    for (const record of db.documents) {
-      if (record.status !== "done") continue;
-      if (record.editLog.length > 0 || record.pages.length === 0) continue;
-      const needsRebuild = record.pages.some(
-        (page) => page.extractedText && !page.markdown.includes("**Файл:**"),
-      );
-      if (!needsRebuild) continue;
-      record.pages = record.pages.map((page) => {
-        if (!page.extractedText) return page;
-        return pageToMarkdown(
-          page.pageNumber,
-          record.originalName,
-          page.extractedText,
+    if (!process.env.VERCEL) {
+      let changed = false;
+      for (const record of db.documents) {
+        if (record.status !== "done") continue;
+        if (record.editLog.length > 0 || record.pages.length === 0) continue;
+        const needsRebuild = record.pages.some(
+          (page) => page.extractedText && !page.markdown.includes("**Файл:**"),
         );
-      });
-      changed = true;
+        if (!needsRebuild) continue;
+        const { pageToMarkdown } = await import("@/lib/extract");
+        record.pages = record.pages.map((page) => {
+          if (!page.extractedText) return page;
+          return pageToMarkdown(
+            page.pageNumber,
+            record.originalName,
+            page.extractedText,
+          );
+        });
+        changed = true;
+      }
+      if (changed) await writeDb(db);
     }
-    if (changed) await writeDb(db);
     const items = projectId
       ? db.documents.filter((doc) => doc.projectId === projectId)
       : db.documents;
@@ -163,11 +167,15 @@ export async function getDocument(id: string): Promise<DocumentRecord | null> {
   });
 }
 
-export function filePathFor(storedName: string) {
+export function assertStoredName(storedName: string) {
   if (!/^[0-9a-f-]{36}\.pdf$/i.test(storedName)) {
     throw new Error("Invalid path");
   }
-  return path.join(UPLOAD_DIR, storedName);
+}
+
+export async function readStoredPdf(storedName: string) {
+  assertStoredName(storedName);
+  return readPdfBytes(storedName);
 }
 
 export async function savePdf(input: {
@@ -175,6 +183,15 @@ export async function savePdf(input: {
   originalName: string;
   buffer: Buffer;
 }): Promise<DocumentRecord> {
+  if (process.env.VERCEL && !blobConfigured()) {
+    throw Object.assign(
+      new Error(
+        "На Vercel нет хранилища файлов. В проекте откройте Storage → Blob и создайте store.",
+      ),
+      { status: 503 },
+    );
+  }
+
   let pageCount = 0;
   try {
     const pdf = await PDFDocument.load(input.buffer, { ignoreEncryption: true });
@@ -192,7 +209,7 @@ export async function savePdf(input: {
 
     const id = crypto.randomUUID();
     const storedName = `${id}.pdf`;
-    await writeFile(filePathFor(storedName), input.buffer);
+    await writePdfBytes(storedName, input.buffer);
 
     const record: DocumentRecord = {
       id,
@@ -283,11 +300,7 @@ export async function deleteDocument(id: string): Promise<boolean> {
     if (!record) return false;
     db.documents = db.documents.filter((doc) => doc.id !== id);
     await writeDb(db);
-    try {
-      await unlink(filePathFor(record.storedName));
-    } catch {
-      // file already missing
-    }
+    await deletePdfBytes(record.storedName);
     return true;
   });
 }
