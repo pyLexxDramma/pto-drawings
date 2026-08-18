@@ -8,6 +8,7 @@ on:
 jobs:
   deploy:
     runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 8
     steps:
       - name: Pull and publish
         shell: powershell
