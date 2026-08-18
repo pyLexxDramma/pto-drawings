@@ -51,8 +51,15 @@ Stop-Port -ListenPort $Port
 Start-Sleep -Seconds 1
 
 $nextJs = Join-Path $AppDir "node_modules\next\dist\bin\next"
-$proc = Start-Process -FilePath "node" -ArgumentList @($nextJs, "start", "-H", "0.0.0.0", "-p", "$Port") -WorkingDirectory $AppDir -PassThru -WindowStyle Hidden -RedirectStandardOutput $OutLog -RedirectStandardError $ErrLog
-Set-Content -Path $PidFile -Value $proc.Id
+$cmd = "node `"$nextJs`" start -H 0.0.0.0 -p $Port > `"$OutLog`" 2> `"$ErrLog`""
+$created = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{
+  CommandLine = "cmd.exe /c $cmd"
+  CurrentDirectory = $AppDir
+}
+if ($created.ReturnValue -ne 0) {
+  throw "Failed to start PTO process: $($created.ReturnValue)"
+}
+Set-Content -Path $PidFile -Value $created.ProcessId
 
 $ready = $false
 for ($i = 0; $i -lt 40; $i++) {
