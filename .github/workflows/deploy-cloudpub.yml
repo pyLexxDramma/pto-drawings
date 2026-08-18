@@ -12,5 +12,12 @@ jobs:
       - name: Pull and publish
         shell: powershell
         run: |
-          Set-Location "D:\PTO\pto-app"
-          powershell -ExecutionPolicy Bypass -File ".\scripts\deploy-cloudpub.ps1"
+          $prod = "D:\PTO\pto-prod"
+          if (-not (Test-Path "$prod\.git")) {
+            git clone "https://github.com/pyLexxDramma/pto-drawings.git" $prod
+          }
+          Set-Location $prod
+          git fetch origin
+          git reset --hard origin/main
+          $env:PTO_APP_DIR = $prod
+          powershell -ExecutionPolicy Bypass -File "$prod\scripts\deploy-cloudpub.ps1"

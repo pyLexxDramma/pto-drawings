@@ -26,7 +26,7 @@ npm run dev
 
 1. Установите [CloudPub CLI](https://cloudpub.ru/docs/)
 2. `clo login ваш@email`
-3. Self-hosted runner уже в `D:\PTO\actions-runner` (`run.cmd`)
-4. `powershell -File scripts/deploy-cloudpub.ps1`
+3. Self-hosted runner в `D:\PTO\actions-runner` (`run.cmd`)
+4. Прод-копия: `D:\PTO\pto-prod` (не путать с `pto-app`, где идёт разработка)
 
 Порт продакшена: **8080**.
