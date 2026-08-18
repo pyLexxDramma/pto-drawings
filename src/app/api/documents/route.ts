@@ -1,5 +1,5 @@
-import { waitUntil } from "@vercel/functions";
 import { NextResponse } from "next/server";
+import { runInBackground } from "@/lib/background";
 import { processDocument } from "@/lib/process-document";
 import { listDocuments, savePdf } from "@/lib/storage";
 
@@ -56,7 +56,7 @@ export async function POST(request: Request) {
       originalName: file.name,
       buffer,
     });
-    waitUntil(processDocument(document.id));
+    runInBackground(processDocument(document.id));
     return NextResponse.json({ document }, { status: 201 });
   } catch (error) {
     const status = (error as { status?: number }).status ?? 500;

@@ -3,7 +3,8 @@ import path from "path";
 
 const ON_VERCEL = Boolean(process.env.VERCEL);
 const USE_BLOB = Boolean(process.env.BLOB_READ_WRITE_TOKEN);
-const ROOT = ON_VERCEL ? "/tmp/pto" : process.cwd();
+const ROOT =
+  process.env.DATA_ROOT || (ON_VERCEL ? "/tmp/pto" : process.cwd());
 const DATA_DIR = path.join(ROOT, "data");
 const UPLOAD_DIR = path.join(ROOT, "uploads");
 const DB_PATH = path.join(DATA_DIR, "db.json");

@@ -1,0 +1,15 @@
+node_modules
+.next
+out
+.git
+.github
+.vercel
+.env
+.env.*
+uploads
+data
+samples
+coverage
+*.md
+AGENTS.md
+CLAUDE.md
