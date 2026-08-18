@@ -5,7 +5,7 @@
 ## Ссылки
 
 - Репозиторий: https://github.com/pyLexxDramma/pto-drawings
-- Старый стенд (Vercel, лимит 4 МБ): https://pto-drawings.vercel.app
+- Команде: ссылка CloudPub после публикации (`clo ls`)
 
 Репозиторий приватный: Settings → Collaborators → пригласите ребят.
 
@@ -18,22 +18,15 @@ npm run dev
 
 Тестовые чертежи: `samples/`.
 
-## Cloud.ru
+## CloudPub + GitHub
 
-Хостинг: **Evolution → Container Apps**. PDF пишутся на диск, лимита 4 МБ нет.
+Сайт крутится на этом ПК, CloudPub даёт публичный URL. Push в `main` запускает GitHub Actions на self-hosted runner и пересобирает приложение.
 
-1. Заведите аккаунт на [cloud.ru](https://cloud.ru) и откройте **Evolution**.
-2. **Artifact Registry** → создайте реестр, скопируйте URI вида `имя.cr.cloud.ru`.
-3. Создайте персональный ключ (Key ID / Key Secret).
-4. **Object Storage** → бакет для PDF (в том же проекте).
-5. В GitHub: **Settings → Secrets and variables → Actions**
-   - Secrets: `EVO_CR_LOGIN` (Key ID), `EVO_CR_PWD` (Key Secret)
-   - Variables: `CR_URI` = `имя.cr.cloud.ru`
-6. Push в `main` соберёт образ `pto-drawings:latest`.
-7. В реестре у образа **Создать Container App**:
-   - порт **8080**
-   - публичный адрес
-   - минимум экземпляров **1** (не 0 — иначе обработка PDF оборвётся)
-   - авторазвёртывание
-   - том: бакет Object Storage → путь `/data`, запись включена
-8. Ссылку `https://….containerapps.ru` скиньте команде.
+Один раз:
+
+1. Установите [CloudPub CLI](https://cloudpub.ru/docs/)
+2. `clo login ваш@email`
+3. Self-hosted runner уже в `D:\PTO\actions-runner` (`run.cmd`)
+4. `powershell -File scripts/deploy-cloudpub.ps1`
+
+Порт продакшена: **8080**.
