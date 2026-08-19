@@ -9,11 +9,11 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const body = (await request.json()) as { name?: string };
+  const body = (await request.json()) as { name?: string; description?: string };
   const name = body.name?.trim();
   if (!name) {
     return NextResponse.json({ error: "Укажите название проекта" }, { status: 400 });
   }
-  const project = await createProject(name);
+  const project = await createProject(name, body.description?.trim() ?? "");
   return NextResponse.json({ project }, { status: 201 });
 }

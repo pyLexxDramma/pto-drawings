@@ -14,6 +14,7 @@ import type {
   EditLogEntry,
   ProcessingStep,
   Project,
+  ProjectEdit,
 } from "@/types";
 
 const DEFAULT_PROJECT_ID = "11111111-1111-4111-8111-111111111111";
@@ -34,11 +35,25 @@ const emptyDb = (): Database => ({
     {
       id: DEFAULT_PROJECT_ID,
       name: "Объект 1",
+      description: "",
+      specStoredName: null,
+      specOriginalName: null,
       createdAt: new Date().toISOString(),
     },
   ],
   documents: [],
 });
+
+function normalizeProject(raw: Partial<Project> & { id: string }): Project {
+  return {
+    id: raw.id,
+    name: raw.name ?? "Проект",
+    description: raw.description ?? "",
+    specStoredName: raw.specStoredName ?? null,
+    specOriginalName: raw.specOriginalName ?? null,
+    createdAt: raw.createdAt ?? new Date().toISOString(),
+  };
+}
 
 function normalizeDocument(raw: Partial<DocumentRecord> & { id: string }): DocumentRecord {
   return {
@@ -76,6 +91,7 @@ async function readDb(): Promise<Database> {
       return emptyDb();
     }
     parsed.documents = parsed.documents.map((doc) => normalizeDocument(doc));
+    parsed.projects = parsed.projects.map((project) => normalizeProject(project));
     if (parsed.projects.length === 0) {
       const seed = emptyDb();
       parsed.projects = seed.projects;
@@ -96,21 +112,121 @@ async function writeDb(db: Database) {
 export async function listProjects(): Promise<Project[]> {
   return withLock(async () => {
     const db = await readDb();
-    return db.projects.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return db.projects
+      .map((project) => normalizeProject(project))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   });
 }
 
-export async function createProject(name: string): Promise<Project> {
+export async function createProject(
+  name: string,
+  description = "",
+): Promise<Project> {
   return withLock(async () => {
     const db = await readDb();
     const project: Project = {
       id: crypto.randomUUID(),
       name: name.trim(),
+      description: description.trim(),
+      specStoredName: null,
+      specOriginalName: null,
       createdAt: new Date().toISOString(),
     };
     db.projects.push(project);
     await writeDb(db);
     return project;
+  });
+}
+
+export async function updateProject(
+  id: string,
+  patch: { name?: string; description?: string },
+): Promise<Project | null> {
+  return withLock(async () => {
+    const db = await readDb();
+    const project = db.projects.find((item) => item.id === id);
+    if (!project) return null;
+    if (patch.name !== undefined) project.name = patch.name.trim();
+    if (patch.description !== undefined) project.description = patch.description;
+    await writeDb(db);
+    return normalizeProject(project);
+  });
+}
+
+export async function saveProjectSpec(input: {
+  projectId: string;
+  originalName: string;
+  buffer: Buffer;
+}): Promise<Project | null> {
+  if (process.env.VERCEL && !blobConfigured()) {
+    throw Object.assign(
+      new Error(
+        "На Vercel нет хранилища файлов. В проекте откройте Storage → Blob и создайте store.",
+      ),
+      { status: 503 },
+    );
+  }
+
+  try {
+    await PDFDocument.load(input.buffer, { ignoreEncryption: true });
+  } catch {
+    throw Object.assign(new Error("Не удалось прочитать PDF"), { status: 400 });
+  }
+
+  return withLock(async () => {
+    const db = await readDb();
+    const project = db.projects.find((item) => item.id === input.projectId);
+    if (!project) return null;
+    const storedName = `spec-${project.id}.pdf`;
+    if (project.specStoredName && project.specStoredName !== storedName) {
+      await deletePdfBytes(project.specStoredName);
+    }
+    await writePdfBytes(storedName, input.buffer);
+    project.specStoredName = storedName;
+    project.specOriginalName = input.originalName;
+    await writeDb(db);
+    return normalizeProject(project);
+  });
+}
+
+export async function clearProjectSpec(id: string): Promise<Project | null> {
+  return withLock(async () => {
+    const db = await readDb();
+    const project = db.projects.find((item) => item.id === id);
+    if (!project) return null;
+    if (project.specStoredName) await deletePdfBytes(project.specStoredName);
+    project.specStoredName = null;
+    project.specOriginalName = null;
+    await writeDb(db);
+    return normalizeProject(project);
+  });
+}
+
+export async function getProject(id: string): Promise<Project | null> {
+  return withLock(async () => {
+    const db = await readDb();
+    const project = db.projects.find((item) => item.id === id);
+    return project ? normalizeProject(project) : null;
+  });
+}
+
+export async function listProjectEdits(projectId: string): Promise<ProjectEdit[]> {
+  return withLock(async () => {
+    const db = await readDb();
+    const edits: ProjectEdit[] = [];
+    for (const record of db.documents) {
+      if (record.projectId !== projectId) continue;
+      for (const entry of record.editLog) {
+        edits.push({
+          id: entry.id,
+          documentId: record.id,
+          originalName: record.originalName,
+          pageNumber: entry.pageNumber,
+          createdAt: entry.createdAt,
+        });
+      }
+    }
+    return edits.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   });
 }
 
@@ -121,7 +237,7 @@ export async function renameProject(id: string, name: string): Promise<Project |
     if (!project) return null;
     project.name = name.trim();
     await writeDb(db);
-    return project;
+    return normalizeProject(project);
   });
 }
 
@@ -168,7 +284,7 @@ export async function getDocument(id: string): Promise<DocumentRecord | null> {
 }
 
 export function assertStoredName(storedName: string) {
-  if (!/^[0-9a-f-]{36}\.pdf$/i.test(storedName)) {
+  if (!/^((spec-)?[0-9a-f-]{36})\.pdf$/i.test(storedName)) {
     throw new Error("Invalid path");
   }
 }

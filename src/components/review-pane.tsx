@@ -6,25 +6,42 @@ import remarkGfm from "remark-gfm";
 import { PageStrip } from "@/components/page-strip";
 import { PdfPage } from "@/components/pdf-page";
 import { formatDate } from "@/lib/format";
+import {
+  loadLastPage,
+  loadViewedPages,
+  saveLastPage,
+  saveViewedPages,
+} from "@/lib/review-state";
 import { KIND_LABEL, type DocumentRecord, type PageKind } from "@/types";
+
+type KindFilter = "all" | "drawing" | "table" | "text";
 
 type ReviewPaneProps = {
   document: DocumentRecord;
   focusMode: boolean;
+  openPage?: { nonce: number; page: number; documentId: string } | null;
   onToggleFocus: () => void;
   onSavePage: (pageNumber: number, markdown: string) => Promise<void>;
 };
 
 function stepLabel(document: DocumentRecord) {
   if (document.status === "queued") return "в очереди";
-  if (document.processingStep === "text") return "текст";
+  if (document.processingStep === "text") return "текст и таблицы";
   if (document.processingStep === "drawings") return "чертёж";
   return "обработка";
+}
+
+function matchesFilter(kind: PageKind | undefined, filter: KindFilter) {
+  if (filter === "all") return true;
+  if (!kind) return false;
+  if (filter === "drawing") return kind === "drawing" || kind === "mixed";
+  return kind === filter;
 }
 
 export function ReviewPane({
   document,
   focusMode,
+  openPage,
   onToggleFocus,
   onSavePage,
 }: ReviewPaneProps) {
@@ -35,6 +52,8 @@ export function ReviewPane({
   const [split, setSplit] = useState(58);
   const [query, setQuery] = useState("");
   const [showLog, setShowLog] = useState(false);
+  const [filter, setFilter] = useState<KindFilter>("all");
+  const [viewed, setViewed] = useState<number[]>([]);
   const draftRef = useRef(draft);
   const pageRef = useRef(pageNumber);
   const timerRef = useRef<number | null>(null);
@@ -52,15 +71,66 @@ export function ReviewPane({
     for (const item of document.pages) map.set(item.pageNumber, item.kind);
     return map;
   }, [document.pages]);
+  const ready = useMemo(
+    () => new Set(document.pages.map((item) => item.pageNumber)),
+    [document.pages],
+  );
+  const viewedSet = useMemo(() => new Set(viewed), [viewed]);
+  const visiblePages = useMemo(
+    () =>
+      Array.from({ length: total }, (_, index) => index + 1).filter((number) =>
+        matchesFilter(kinds.get(number), filter),
+      ),
+    [filter, kinds, total],
+  );
+  const hidden = useMemo(() => {
+    const set = new Set<number>();
+    for (let number = 1; number <= total; number += 1) {
+      if (!visiblePages.includes(number)) set.add(number);
+    }
+    return set;
+  }, [total, visiblePages]);
 
   draftRef.current = draft;
   pageRef.current = pageNumber;
 
   useEffect(() => {
-    setPageNumber(1);
+    setFilter("all");
     setMode("view");
     setQuery("");
+    setViewed(loadViewedPages(document.id));
+    setPageNumber(Math.min(Math.max(total, 1), loadLastPage(document.id)));
   }, [document.id]);
+
+  useEffect(() => {
+    setPageNumber((prev) => Math.min(Math.max(prev, 1), Math.max(total, 1)));
+  }, [total]);
+
+  useEffect(() => {
+    if (!openPage || openPage.documentId !== document.id) return;
+    setPageNumber(Math.min(Math.max(openPage.page, 1), Math.max(total, 1)));
+  }, [document.id, openPage, total]);
+
+  useEffect(() => {
+    saveLastPage(document.id, pageNumber);
+  }, [document.id, pageNumber]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setViewed((prev) => {
+        if (prev.includes(pageNumber)) return prev;
+        const next = [...prev, pageNumber];
+        saveViewedPages(document.id, next);
+        return next;
+      });
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [document.id, pageNumber]);
+
+  useEffect(() => {
+    if (visiblePages.length === 0) return;
+    if (!visiblePages.includes(pageNumber)) setPageNumber(visiblePages[0]);
+  }, [pageNumber, visiblePages]);
 
   useEffect(() => {
     setDraft(
@@ -69,6 +139,18 @@ export function ReviewPane({
     );
     setMode("view");
   }, [document.id, pageNumber]);
+
+  useEffect(() => {
+    if (mode === "edit") return;
+    setDraft(
+      document.pages.find((item) => item.pageNumber === pageNumber)?.markdown ??
+        "",
+    );
+  }, [document.pages, mode, pageNumber]);
+
+  useEffect(() => {
+    if (page?.kind === "table") setSplit(42);
+  }, [page?.kind]);
 
   async function flush(pageToSave = pageRef.current, text = draftRef.current) {
     const current = document.pages.find((item) => item.pageNumber === pageToSave);
@@ -95,6 +177,19 @@ export function ReviewPane({
     };
   }, []);
 
+  async function goToPage(next: number) {
+    if (timerRef.current) window.clearTimeout(timerRef.current);
+    await flush();
+    setPageNumber(next);
+  }
+
+  function stepVisible(delta: number) {
+    const index = visiblePages.indexOf(pageRef.current);
+    const fallback = delta > 0 ? visiblePages[0] : visiblePages[visiblePages.length - 1];
+    const target = visiblePages[index + delta] ?? fallback;
+    if (target) void goToPage(target);
+  }
+
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
       const target = event.target as HTMLElement | null;
@@ -116,22 +211,18 @@ export function ReviewPane({
 
       if (event.key === "j" || event.key === "J" || event.key === " ") {
         event.preventDefault();
-        void goToPage(Math.min(total, pageRef.current + 1));
+        stepVisible(1);
       }
       if (event.key === "k" || event.key === "K") {
         event.preventDefault();
-        void goToPage(Math.max(1, pageRef.current - 1));
+        stepVisible(-1);
       }
-      if (event.key === "ArrowLeft") {
-        void goToPage(Math.max(1, pageRef.current - 1));
-      }
-      if (event.key === "ArrowRight") {
-        void goToPage(Math.min(total, pageRef.current + 1));
-      }
+      if (event.key === "ArrowLeft") stepVisible(-1);
+      if (event.key === "ArrowRight") stepVisible(1);
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [focusMode, onToggleFocus, total, document.pages]);
+  }, [focusMode, onToggleFocus, visiblePages, document.pages]);
 
   const hits = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -140,12 +231,16 @@ export function ReviewPane({
       const source = `${item.markdown}\n${item.extractedText}`;
       const index = source.toLowerCase().indexOf(needle);
       if (index < 0) return [];
-      const snippet = source.slice(Math.max(0, index - 24), index + needle.length + 36).replace(/\s+/g, " ");
+      const snippet = source
+        .slice(Math.max(0, index - 24), index + needle.length + 36)
+        .replace(/\s+/g, " ");
       return [{ pageNumber: item.pageNumber, snippet }];
     });
   }, [document.pages, query]);
 
   const pageLogs = document.editLog.filter((item) => item.pageNumber === pageNumber);
+  const readyCount = document.pages.length;
+  const progress = Math.round((readyCount / Math.max(total, 1)) * 100);
 
   function startSplit(event: MouseEvent<HTMLDivElement>) {
     event.preventDefault();
@@ -164,11 +259,22 @@ export function ReviewPane({
     window.addEventListener("mouseup", up);
   }
 
-  async function goToPage(next: number) {
-    if (timerRef.current) window.clearTimeout(timerRef.current);
-    await flush();
-    setPageNumber(next);
+  function toggleViewed() {
+    setViewed((prev) => {
+      const next = prev.includes(pageNumber)
+        ? prev.filter((item) => item !== pageNumber)
+        : [...prev, pageNumber];
+      saveViewedPages(document.id, next);
+      return next;
+    });
   }
+
+  const filters: { id: KindFilter; label: string }[] = [
+    { id: "all", label: "Все" },
+    { id: "drawing", label: "Чертежи" },
+    { id: "table", label: "Таблицы" },
+    { id: "text", label: "Текст" },
+  ];
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -177,12 +283,28 @@ export function ReviewPane({
           <div className="truncate text-sm font-medium">{document.originalName}</div>
           <div className="text-[11px] text-muted">
             {page ? KIND_LABEL[page.kind] : "Страница"} · лист {pageNumber} из {total}
+            {viewedSet.has(pageNumber) ? " · просмотрено" : ""}
             {editedPages.has(pageNumber) ? " · правили" : ""}
             {saving ? " · сохранение" : ""}
-            {" · "}J/K, пробел, ←→, Ctrl+S
+            {" · "}
+            {viewed.length}/{total} глазками
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <a
+            href={`/api/documents/${document.id}/markdown`}
+            download
+            className="rounded-md border border-border px-2 py-1 text-xs"
+          >
+            Скачать .md
+          </a>
+          <button
+            type="button"
+            onClick={toggleViewed}
+            className="rounded-md border border-border px-2 py-1 text-xs"
+          >
+            {viewedSet.has(pageNumber) ? "Снять просмотр" : "Просмотрено"}
+          </button>
           <button
             type="button"
             onClick={onToggleFocus}
@@ -192,17 +314,17 @@ export function ReviewPane({
           </button>
           <button
             type="button"
-            onClick={() => void goToPage(Math.max(1, pageNumber - 1))}
+            onClick={() => stepVisible(-1)}
             className="rounded-md border border-border px-2 py-1 text-sm disabled:opacity-40"
-            disabled={pageNumber <= 1}
+            disabled={visiblePages[0] === pageNumber}
           >
             ←
           </button>
           <button
             type="button"
-            onClick={() => void goToPage(Math.min(total, pageNumber + 1))}
+            onClick={() => stepVisible(1)}
             className="rounded-md border border-border px-2 py-1 text-sm disabled:opacity-40"
-            disabled={pageNumber >= total}
+            disabled={visiblePages[visiblePages.length - 1] === pageNumber}
           >
             →
           </button>
@@ -211,12 +333,15 @@ export function ReviewPane({
 
       {processing ? (
         <div className="border-b border-sky-200 bg-sky-50 px-4 py-2 text-sm text-sky-800">
-          текст → чертёж
-          {document.processingPage
-            ? `, ${document.processingPage}/${document.pageCount}`
-            : ""}
-          {" · "}
-          сейчас: {stepLabel(document)}
+          <div>
+            готово {readyCount}/{total} листов
+            {document.processingPage
+              ? ` · сейчас лист ${document.processingPage}: ${stepLabel(document)}`
+              : ` · ${stepLabel(document)}`}
+          </div>
+          <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white">
+            <div className="h-full bg-sky-500 transition-all" style={{ width: `${progress}%` }} />
+          </div>
         </div>
       ) : null}
 
@@ -227,6 +352,10 @@ export function ReviewPane({
           current={pageNumber}
           kinds={kinds}
           edited={editedPages}
+          viewed={viewedSet}
+          ready={ready}
+          hidden={hidden}
+          processingPage={document.processingPage}
           onSelect={(next) => void goToPage(next)}
         />
 
@@ -238,10 +367,8 @@ export function ReviewPane({
             />
             {processing ? (
               <div className="pointer-events-none absolute bottom-3 left-3 rounded-md bg-slate-900/75 px-2.5 py-1 text-xs text-white">
-                текст → чертёж
-                {document.processingPage
-                  ? `, ${document.processingPage}/${document.pageCount}`
-                  : ""}
+                {readyCount}/{total}
+                {document.processingPage ? ` · лист ${document.processingPage}` : ""}
               </div>
             ) : null}
           </div>
@@ -254,7 +381,9 @@ export function ReviewPane({
 
           <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-white">
             <div className="flex items-center justify-between border-b border-border px-3 py-2">
-              <div className="text-xs font-medium text-muted">Markdown</div>
+              <div className="text-xs font-medium text-muted">
+                {page?.kind === "table" ? "Таблица как в PDF" : "Markdown"}
+              </div>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -271,6 +400,23 @@ export function ReviewPane({
                   {mode === "view" ? "Исправить" : "Просмотр"}
                 </button>
               </div>
+            </div>
+
+            <div className="flex flex-wrap gap-1 border-b border-border px-3 py-2">
+              {filters.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setFilter(item.id)}
+                  className={`rounded-full px-2 py-0.5 text-[11px] ${
+                    filter === item.id
+                      ? "bg-blue-50 text-text"
+                      : "text-muted hover:bg-bg"
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
             </div>
 
             <div className="border-b border-border px-3 py-2">
@@ -298,7 +444,10 @@ export function ReviewPane({
             </div>
 
             <div className="flex max-h-28 shrink-0 flex-col overflow-auto border-b border-border px-2 py-2">
-              {Array.from({ length: total }, (_, index) => index + 1).map((number) => {
+              {visiblePages.length === 0 ? (
+                <div className="px-2 py-1 text-xs text-muted">Нет листов этого типа</div>
+              ) : null}
+              {visiblePages.map((number) => {
                 const item = document.pages.find((pageItem) => pageItem.pageNumber === number);
                 const kind = item ? KIND_LABEL[item.kind] : "лист";
                 return (
@@ -311,7 +460,9 @@ export function ReviewPane({
                     }`}
                   >
                     # Лист {number} — {kind.toLowerCase()}
+                    {viewedSet.has(number) ? " · глазками" : ""}
                     {editedPages.has(number) ? " · правили" : ""}
+                    {!item ? " · ждёт текст" : ""}
                   </button>
                 );
               })}
@@ -321,7 +472,7 @@ export function ReviewPane({
               {!page ? (
                 <div className="p-6 text-sm text-muted">
                   {processing
-                    ? "Текст появится по мере обработки страниц."
+                    ? `Текст появится по мере обработки. Готово ${readyCount} из ${total}.`
                     : "Для этого листа ещё нет текста."}
                 </div>
               ) : mode === "edit" ? (
@@ -329,10 +480,14 @@ export function ReviewPane({
                   value={draft}
                   onChange={(event) => queueSave(event.target.value)}
                   spellCheck={false}
-                  className="h-full min-h-[320px] w-full resize-none bg-[#f7f8fa] p-4 font-mono text-[13px] leading-6 text-text outline-none"
+                  className={`h-full min-h-[320px] w-full resize-none bg-[#f7f8fa] p-4 font-mono text-[13px] leading-6 text-text outline-none ${
+                    page.kind === "table" ? "overflow-auto whitespace-pre" : ""
+                  }`}
                 />
               ) : (
-                <div className="markdown-body p-5">
+                <div
+                  className={`markdown-body p-5 ${page.kind === "table" ? "markdown-body--table" : ""}`}
+                >
                   <Markdown remarkPlugins={[remarkGfm]}>{page.markdown}</Markdown>
                 </div>
               )}

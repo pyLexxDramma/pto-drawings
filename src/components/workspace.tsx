@@ -15,6 +15,7 @@ import {
   type DocumentRecord,
   type DocumentStatus,
   type Project,
+  type ProjectEdit,
 } from "@/types";
 
 type UploadItem = {
@@ -39,15 +40,23 @@ const STATUS_CLASS: Record<DocumentStatus, string> = {
 };
 
 function statusLine(doc: DocumentRecord) {
-  if (doc.status === "processing" && doc.processingStep) {
-    const step = STEP_LABEL[doc.processingStep];
-    if (doc.processingPage) {
-      return `${step} · ${doc.processingPage}/${doc.pageCount}`;
+  if (doc.status === "queued" || doc.status === "processing") {
+    const ready = `${doc.pages.length}/${Math.max(doc.pageCount, 1)}`;
+    if (doc.status === "processing" && doc.processingStep) {
+      const step = STEP_LABEL[doc.processingStep];
+      if (doc.processingPage) {
+        return `${ready} · лист ${doc.processingPage}: ${step.toLowerCase()}`;
+      }
+      return `${ready} · ${step.toLowerCase()}`;
     }
-    return step;
+    return `${ready} · в очереди`;
   }
   if (doc.status === "error") return doc.errorMessage || "Ошибка";
   return STATUS_LABEL[doc.status];
+}
+
+function pageProgress(doc: DocumentRecord) {
+  return Math.round((doc.pages.length / Math.max(doc.pageCount, 1)) * 100);
 }
 
 function kindSummary(doc: DocumentRecord) {
@@ -58,7 +67,7 @@ function kindSummary(doc: DocumentRecord) {
   const tables = doc.pages.filter((page) => page.kind === "table").length;
   const texts = doc.pages.filter((page) => page.kind === "text").length;
   const parts = [
-    formatPages(doc.pageCount),
+    `${doc.pages.length}/${doc.pageCount} листов`,
     drawings ? `${drawings} чертеж.` : null,
     tables ? `${tables} табл.` : null,
     texts ? `${texts} текст` : null,
@@ -115,12 +124,22 @@ export function Workspace() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [newProjectName, setNewProjectName] = useState("");
+  const [newProjectDescription, setNewProjectDescription] = useState("");
   const [creatingProject, setCreatingProject] = useState(false);
   const [showNewProject, setShowNewProject] = useState(false);
   const [filesCollapsed, setFilesCollapsed] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
   const [renameId, setRenameId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [descriptionDraft, setDescriptionDraft] = useState("");
+  const [edits, setEdits] = useState<ProjectEdit[]>([]);
+  const [showEdits, setShowEdits] = useState(false);
+  const [openPage, setOpenPage] = useState<{
+    nonce: number;
+    page: number;
+    documentId: string;
+  } | null>(null);
+  const specInputRef = useRef<HTMLInputElement>(null);
 
   const selected = documents.find((doc) => doc.id === selectedId) ?? null;
   const currentProject = projects.find((item) => item.id === projectId);
@@ -144,6 +163,16 @@ export function Workspace() {
     return payload.documents;
   }, []);
 
+  const loadEdits = useCallback(async (id: string) => {
+    const response = await fetch(`/api/projects/${id}/edits`);
+    if (!response.ok) {
+      setEdits([]);
+      return;
+    }
+    const payload = (await response.json()) as { edits: ProjectEdit[] };
+    setEdits(payload.edits ?? []);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -151,7 +180,8 @@ export function Workspace() {
         const list = await loadProjects();
         if (cancelled || list.length === 0) return;
         setProjectId(list[0].id);
-        await loadDocuments(list[0].id);
+        setDescriptionDraft(list[0].description ?? "");
+        await Promise.all([loadDocuments(list[0].id), loadEdits(list[0].id)]);
       } catch {
         if (!cancelled) setError("Не удалось загрузить данные");
       } finally {
@@ -161,7 +191,7 @@ export function Workspace() {
     return () => {
       cancelled = true;
     };
-  }, [loadDocuments, loadProjects]);
+  }, [loadDocuments, loadEdits, loadProjects]);
 
   useEffect(() => {
     if (!projectId || !busy) return;
@@ -177,7 +207,10 @@ export function Workspace() {
     setFilesCollapsed(false);
     setFocusMode(false);
     setError(null);
-    await loadDocuments(id);
+    const project = projects.find((item) => item.id === id);
+    setDescriptionDraft(project?.description ?? "");
+    setShowEdits(false);
+    await Promise.all([loadDocuments(id), loadEdits(id)]);
   }
 
   async function handleCreateProject(event: FormEvent) {
@@ -189,7 +222,10 @@ export function Workspace() {
       const response = await fetch("/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({
+          name,
+          description: newProjectDescription.trim(),
+        }),
       });
       const payload = (await response.json()) as {
         project?: Project;
@@ -197,6 +233,7 @@ export function Workspace() {
       };
       if (!payload.project) throw new Error(payload.error || "Ошибка");
       setNewProjectName("");
+      setNewProjectDescription("");
       setShowNewProject(false);
       await loadProjects();
       await selectProject(payload.project.id);
@@ -218,6 +255,50 @@ export function Workspace() {
       body: JSON.stringify({ name }),
     });
     if (response.ok) await loadProjects();
+  }
+
+  async function commitDescription() {
+    if (!projectId) return;
+    const description = descriptionDraft;
+    if ((currentProject?.description ?? "") === description) return;
+    const response = await fetch(`/api/projects/${projectId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ description }),
+    });
+    if (response.ok) await loadProjects();
+  }
+
+  async function handleSpecFile(fileList: FileList | null) {
+    if (!projectId || !fileList?.[0]) return;
+    const form = new FormData();
+    form.append("file", fileList[0]);
+    const response = await fetch(`/api/projects/${projectId}/spec`, {
+      method: "POST",
+      body: form,
+    });
+    const payload = (await response.json()) as { project?: Project; error?: string };
+    if (!payload.project) {
+      setError(payload.error || "Не удалось загрузить ТЗ");
+      return;
+    }
+    setError(null);
+    setProjects((prev) =>
+      prev.map((item) => (item.id === payload.project!.id ? payload.project! : item)),
+    );
+  }
+
+  async function handleClearSpec() {
+    if (!projectId) return;
+    const response = await fetch(`/api/projects/${projectId}/spec`, { method: "DELETE" });
+    const payload = (await response.json()) as { project?: Project; error?: string };
+    if (!payload.project) {
+      setError(payload.error || "Не удалось удалить ТЗ");
+      return;
+    }
+    setProjects((prev) =>
+      prev.map((item) => (item.id === payload.project!.id ? payload.project! : item)),
+    );
   }
 
   const handleFiles = useCallback(
@@ -292,6 +373,7 @@ export function Workspace() {
       setDocuments((prev) =>
         prev.map((doc) => (doc.id === payload.document!.id ? payload.document! : doc)),
       );
+      if (projectId) void loadEdits(projectId);
     }
   }
 
@@ -303,6 +385,7 @@ export function Workspace() {
     }
     setDocuments((prev) => prev.filter((doc) => doc.id !== id));
     if (selectedId === id) setSelectedId(null);
+    if (projectId) void loadEdits(projectId);
   }
 
   async function handleRetry(id: string) {
@@ -383,20 +466,28 @@ export function Workspace() {
                 </button>
               </div>
               {showNewProject || projects.length === 0 ? (
-                <form onSubmit={handleCreateProject} className="flex gap-1">
+                <form onSubmit={handleCreateProject} className="space-y-1">
+                  <div className="flex gap-1">
+                    <input
+                      value={newProjectName}
+                      onChange={(event) => setNewProjectName(event.target.value)}
+                      placeholder="Новый объект"
+                      className="min-w-0 flex-1 rounded-md border border-border bg-white px-2 py-1.5 text-sm outline-none placeholder:text-muted focus:border-accent"
+                    />
+                    <button
+                      type="submit"
+                      disabled={creatingProject}
+                      className="rounded-md border border-border px-2 text-sm text-muted hover:text-text"
+                    >
+                      OK
+                    </button>
+                  </div>
                   <input
-                    value={newProjectName}
-                    onChange={(event) => setNewProjectName(event.target.value)}
-                    placeholder="Новый объект"
-                    className="min-w-0 flex-1 rounded-md border border-border bg-white px-2 py-1.5 text-sm outline-none placeholder:text-muted focus:border-accent"
+                    value={newProjectDescription}
+                    onChange={(event) => setNewProjectDescription(event.target.value)}
+                    placeholder="Описание (необязательно)"
+                    className="w-full rounded-md border border-border bg-white px-2 py-1.5 text-sm outline-none placeholder:text-muted focus:border-accent"
                   />
-                  <button
-                    type="submit"
-                    disabled={creatingProject}
-                    className="rounded-md border border-border px-2 text-sm text-muted hover:text-text"
-                  >
-                    OK
-                  </button>
                 </form>
               ) : null}
             </div>
@@ -435,6 +526,11 @@ export function Workspace() {
                     title="Ещё раз нажмите, чтобы переименовать"
                   >
                     <span className="block truncate">{project.name}</span>
+                    {project.description ? (
+                      <span className="mt-0.5 block truncate text-[11px] font-normal text-muted">
+                        {project.description}
+                      </span>
+                    ) : null}
                   </button>
                 ),
               )}
@@ -473,6 +569,102 @@ export function Workspace() {
                 </button>
               ) : null}
             </div>
+
+            {currentProject ? (
+              <div className="space-y-2 border-b border-border px-3 py-3">
+                <textarea
+                  value={descriptionDraft}
+                  onChange={(event) => setDescriptionDraft(event.target.value)}
+                  onBlur={() => void commitDescription()}
+                  rows={2}
+                  placeholder="Описание комплекта"
+                  className="w-full resize-none rounded-md border border-border bg-bg px-2 py-1.5 text-xs outline-none placeholder:text-muted focus:border-accent"
+                />
+                <div className="rounded-md border border-border bg-bg px-2 py-2">
+                  <div className="text-[11px] font-medium text-muted">ТЗ (PDF)</div>
+                  {currentProject.specOriginalName ? (
+                    <div className="mt-1 flex items-center justify-between gap-2">
+                      <a
+                        href={`/api/projects/${currentProject.id}/spec/file`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="truncate text-xs text-accent hover:underline"
+                      >
+                        {currentProject.specOriginalName}
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => void handleClearSpec()}
+                        className="shrink-0 text-[11px] text-red-600 hover:underline"
+                      >
+                        Убрать
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => specInputRef.current?.click()}
+                      className="mt-1 text-xs text-accent hover:underline"
+                    >
+                      Загрузить PDF
+                    </button>
+                  )}
+                  <input
+                    ref={specInputRef}
+                    type="file"
+                    accept="application/pdf,.pdf"
+                    className="hidden"
+                    onChange={(event) => {
+                      void handleSpecFile(event.target.files);
+                      event.target.value = "";
+                    }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEdits((value) => {
+                      const next = !value;
+                      if (next && projectId) void loadEdits(projectId);
+                      return next;
+                    });
+                  }}
+                  className="text-[11px] text-muted hover:text-text"
+                >
+                  Правки по объекту: {edits.length}
+                </button>
+                {showEdits ? (
+                  <div className="max-h-36 space-y-1 overflow-auto">
+                    {edits.length === 0 ? (
+                      <div className="text-[11px] text-muted">Пока никто не правил текст.</div>
+                    ) : (
+                      edits.slice(0, 40).map((entry) => (
+                        <button
+                          key={entry.id}
+                          type="button"
+                          onClick={() => {
+                            setOpenPage({
+                              nonce: Date.now(),
+                              page: entry.pageNumber,
+                              documentId: entry.documentId,
+                            });
+                            setSelectedId(entry.documentId);
+                            setFilesCollapsed(true);
+                          }}
+                          className="block w-full rounded bg-white px-2 py-1 text-left text-[11px] hover:bg-blue-50"
+                        >
+                          <span className="font-medium">{entry.originalName}</span>
+                          <span className="text-muted">
+                            {" "}
+                            · лист {entry.pageNumber} · {formatDate(entry.createdAt)}
+                          </span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
 
             <button
               type="button"
@@ -533,6 +725,7 @@ export function Workspace() {
                     type="button"
                     onClick={() => {
                       setSelectedId(doc.id);
+                      setOpenPage(null);
                       setFilesCollapsed(true);
                     }}
                     className="w-full px-3 py-2.5 text-left"
@@ -548,17 +741,11 @@ export function Workspace() {
                         {statusLine(doc)}
                       </span>
                     </div>
-                    {doc.status === "processing" ? (
+                    {doc.status === "processing" || doc.status === "queued" ? (
                       <div className="mt-2 h-1 overflow-hidden rounded-full bg-white">
                         <div
                           className="h-full bg-accent transition-all"
-                          style={{
-                            width: `${Math.round(
-                              ((doc.processingPage ?? 0) /
-                                Math.max(doc.pageCount, 1)) *
-                                100,
-                            )}%`,
-                          }}
+                          style={{ width: `${pageProgress(doc)}%` }}
                         />
                       </div>
                     ) : null}
@@ -594,6 +781,7 @@ export function Workspace() {
           <ReviewPane
             document={selected}
             focusMode={focusMode}
+            openPage={openPage}
             onToggleFocus={() => setFocusMode((value) => !value)}
             onSavePage={handleSavePage}
           />

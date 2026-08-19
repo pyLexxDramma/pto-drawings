@@ -7,6 +7,17 @@ export type PageKind = "drawing" | "text" | "table" | "mixed";
 export type Project = {
   id: string;
   name: string;
+  description: string;
+  specStoredName: string | null;
+  specOriginalName: string | null;
+  createdAt: string;
+};
+
+export type ProjectEdit = {
+  id: string;
+  documentId: string;
+  originalName: string;
+  pageNumber: number;
   createdAt: string;
 };
 
