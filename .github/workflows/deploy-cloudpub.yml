@@ -10,15 +10,12 @@ jobs:
     runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 8
     steps:
-      - name: Pull and publish
+      - name: Pull and serve live
         shell: powershell
         run: |
-          $prod = "D:\PTO\pto-prod"
-          if (-not (Test-Path "$prod\.git")) {
-            git clone "https://github.com/pyLexxDramma/pto-drawings.git" $prod
+          $app = "D:\PTO\pto-app"
+          if (-not (Test-Path "$app\.git")) {
+            git clone "https://github.com/pyLexxDramma/pto-drawings.git" $app
           }
-          Set-Location $prod
-          git fetch origin
-          git reset --hard origin/main
-          $env:PTO_APP_DIR = $prod
-          powershell -ExecutionPolicy Bypass -File "$prod\scripts\deploy-cloudpub.ps1"
+          $env:PTO_APP_DIR = $app
+          powershell -ExecutionPolicy Bypass -File "$app\scripts\deploy-cloudpub.ps1"

@@ -3,9 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --webpack",
+    "dev": "next dev --webpack -H 0.0.0.0 -p 8080",
     "build": "next build --webpack",
     "start": "next start -H 0.0.0.0 -p 8080",
+    "live": "powershell -ExecutionPolicy Bypass -File ./scripts/serve-live.ps1",
     "lint": "eslint"
   },
   "dependencies": {

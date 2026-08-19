@@ -116,7 +116,7 @@ export function PdfPage({ url, pageNumber }: PdfPageProps) {
           По ширине
         </button>
         <span className="ml-auto text-[11px] text-muted">
-          {Math.round(scale * 100)}% · колесо зум · рука
+          {Math.round(scale * 100)} % Zoom
         </span>
       </div>
       <div
