@@ -16,6 +16,8 @@ export type PipelineHealth = {
   };
   reachable: boolean;
   error?: string;
+  /** Суммарный расход токенов по документам в базе фронта. */
+  usage?: Record<string, number>;
 };
 
 export type PipelineJob = {
@@ -89,6 +91,21 @@ export async function cancelPipelineJob(jobId: string): Promise<PipelineJob> {
     throw new Error(`Не удалось отменить задачу (${response.status})`);
   }
   return (await response.json()) as PipelineJob;
+}
+
+export function mergePipelineUsage(
+  ...items: Array<Record<string, number> | null | undefined>
+): Record<string, number> {
+  const result: Record<string, number> = {};
+  for (const item of items) {
+    if (!item) continue;
+    for (const [key, value] of Object.entries(item)) {
+      if (typeof value === "number" && Number.isFinite(value)) {
+        result[key] = (result[key] ?? 0) + value;
+      }
+    }
+  }
+  return result;
 }
 
 export function formatPipelineUsage(usage: Record<string, number> | null | undefined) {

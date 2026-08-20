@@ -13,7 +13,7 @@ import { ReviewPane } from "@/components/review-pane";
 import { PtoLogo } from "@/components/pto-logo";
 import { UsersPanel } from "@/components/users-panel";
 import { formatBytes, formatDate, formatPages } from "@/lib/format";
-import { type PipelineHealth } from "@/lib/pipeline";
+import { formatPipelineUsage, type PipelineHealth } from "@/lib/pipeline";
 import {
   KIND_LABEL,
   ROLE_LABEL,
@@ -675,6 +675,7 @@ export function Workspace({
     : filesCollapsed
       ? "grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[220px_44px_minmax(0,1fr)]"
       : "grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[220px_280px_minmax(0,1fr)]";
+  const pipelineUsageLabel = formatPipelineUsage(pipelineHealth?.usage);
 
   return (
     <div
@@ -796,6 +797,7 @@ export function Workspace({
             ? ` · ${pipelineHealth.profile.provider}`
             : ""}
           {pipelineHealth.profile.model ? ` · модель ${pipelineHealth.profile.model}` : ""}
+          {pipelineUsageLabel ? ` · ${pipelineUsageLabel}` : ""}
         </div>
       ) : null}
 
