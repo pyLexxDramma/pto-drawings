@@ -314,7 +314,9 @@ export function Workspace({
       window.clearTimeout(timeout);
       ac.abort();
     };
-  }, [loadDocuments, loadEdits, loadNotes, loadProjects]);
+    // Только первый заход в workspace — иначе сброс projectId / remount input ломает выбор файла.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!projectId || !busy) return;
@@ -397,21 +399,25 @@ export function Workspace({
 
   async function handleSpecFile(fileList: FileList | null) {
     if (!projectId || !fileList?.[0]) return;
-    const form = new FormData();
-    form.append("file", fileList[0]);
-    const response = await fetch(`/api/projects/${projectId}/spec`, {
-      method: "POST",
-      body: form,
-    });
-    const payload = (await response.json()) as { project?: Project; error?: string };
-    if (!payload.project) {
-      setError(payload.error || "Не удалось загрузить ТЗ");
-      return;
+    try {
+      const form = new FormData();
+      form.append("file", fileList[0]);
+      const response = await fetch(`/api/projects/${projectId}/spec`, {
+        method: "POST",
+        body: form,
+      });
+      const payload = (await response.json()) as { project?: Project; error?: string };
+      if (!payload.project) {
+        setError(payload.error || "Не удалось загрузить ТЗ");
+        return;
+      }
+      setError(null);
+      setProjects((prev) =>
+        prev.map((item) => (item.id === payload.project!.id ? payload.project! : item)),
+      );
+    } catch {
+      setError("Не удалось загрузить ТЗ");
     }
-    setError(null);
-    setProjects((prev) =>
-      prev.map((item) => (item.id === payload.project!.id ? payload.project! : item)),
-    );
   }
 
   async function handleClearSpec() {
@@ -435,7 +441,11 @@ export function Workspace({
         setProjectId(targetProject);
       }
       if (!targetProject) {
-        setError("Сначала создайте проект");
+        setError(
+          projects.length > 0
+            ? "Выберите проект слева, затем загрузите PDF"
+            : "Сначала создайте проект",
+        );
         return;
       }
       const files = Array.from(fileList).filter(
@@ -604,22 +614,23 @@ export function Workspace({
           >
             Выйти
           </button>
-          <button
-            type="button"
-            onClick={() => inputRef.current?.click()}
-            className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-[#1d4ed8]"
+          <label
+            htmlFor="pto-drawing-upload"
+            className="cursor-pointer rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-[#1d4ed8]"
           >
             Загрузить PDF
-          </button>
+          </label>
         </div>
         <input
+          id="pto-drawing-upload"
           ref={inputRef}
           type="file"
           accept="application/pdf,.pdf"
           multiple
-          className="hidden"
+          className="absolute h-px w-px overflow-hidden opacity-0"
           onChange={(event) => {
-            if (event.target.files) void handleFiles(event.target.files);
+            const list = event.target.files;
+            if (list && list.length > 0) void handleFiles(list);
             event.target.value = "";
           }}
         />
@@ -782,19 +793,19 @@ export function Workspace({
                       </button>
                     </div>
                   ) : (
-                    <button
-                      type="button"
-                      onClick={() => specInputRef.current?.click()}
-                      className="mt-1 text-xs text-accent hover:underline"
+                    <label
+                      htmlFor="pto-spec-upload"
+                      className="mt-1 inline-block cursor-pointer text-xs text-accent hover:underline"
                     >
-                      Загрузить PDF
-                    </button>
+                      Прикрепить ТЗ
+                    </label>
                   )}
                   <input
+                    id="pto-spec-upload"
                     ref={specInputRef}
                     type="file"
                     accept="application/pdf,.pdf"
-                    className="hidden"
+                    className="absolute h-px w-px overflow-hidden opacity-0"
                     onChange={(event) => {
                       void handleSpecFile(event.target.files);
                       event.target.value = "";
@@ -928,16 +939,15 @@ export function Workspace({
               </div>
             ) : null}
 
-            <button
-              type="button"
-              onClick={() => inputRef.current?.click()}
-              className={`mx-3 mt-3 rounded-lg border border-dashed px-3 py-4 text-center ${
+            <label
+              htmlFor="pto-drawing-upload"
+              className={`mx-3 mt-3 block cursor-pointer rounded-lg border border-dashed px-3 py-4 text-center ${
                 dragOver ? "border-accent bg-blue-50" : "border-border bg-bg"
               }`}
             >
-              <div className="text-sm font-medium">Перетащите PDF сюда</div>
-              <div className="mt-1 text-[11px] text-muted">Обработка начнётся сразу</div>
-            </button>
+              <div className="text-sm font-medium">Перетащите PDF сюда или нажмите</div>
+              <div className="mt-1 text-[11px] text-muted">Чертежи проекта · обработка начнётся сразу</div>
+            </label>
 
             {error ? (
               <div className="mx-3 mt-3 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { LoginForm } from "@/components/login-form";
 import { Workspace } from "@/components/workspace";
 import type { PublicUser } from "@/types";
@@ -9,6 +9,9 @@ export function AppShell() {
   const [user, setUser] = useState<PublicUser | null>(null);
   const [ready, setReady] = useState(false);
   const [defaultPassword, setDefaultPassword] = useState(false);
+
+  const handleLogout = useCallback(() => setUser(null), []);
+  const handlePasswordChanged = useCallback(() => setDefaultPassword(false), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -63,8 +66,8 @@ export function AppShell() {
     <Workspace
       user={user}
       defaultPasswordWarning={defaultPassword}
-      onPasswordChanged={() => setDefaultPassword(false)}
-      onLogout={() => setUser(null)}
+      onPasswordChanged={handlePasswordChanged}
+      onLogout={handleLogout}
     />
   );
 }
