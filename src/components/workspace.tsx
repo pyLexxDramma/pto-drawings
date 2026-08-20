@@ -79,6 +79,17 @@ function kindSummary(doc: DocumentRecord) {
   return parts.join(" · ");
 }
 
+function newClientId() {
+  try {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+      return crypto.randomUUID();
+    }
+  } catch {
+    // HTTP на IP: Secure Context нет, randomUUID недоступен
+  }
+  return `id-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 function uploadPdf(
   file: File,
   projectId: string,
@@ -435,63 +446,67 @@ export function Workspace({
 
   const handleFiles = useCallback(
     async (fileList: FileList | File[]) => {
-      let targetProject = projectId;
-      if (!targetProject && projects.length === 1) {
-        targetProject = projects[0].id;
-        setProjectId(targetProject);
-      }
-      if (!targetProject) {
-        setError(
-          projects.length > 0
-            ? "Выберите проект слева, затем загрузите PDF"
-            : "Сначала создайте проект",
+      try {
+        let targetProject = projectId;
+        if (!targetProject && projects.length === 1) {
+          targetProject = projects[0].id;
+          setProjectId(targetProject);
+        }
+        if (!targetProject) {
+          setError(
+            projects.length > 0
+              ? "Выберите проект слева, затем загрузите PDF"
+              : "Сначала создайте проект",
+          );
+          return;
+        }
+        const files = Array.from(fileList).filter(
+          (file) =>
+            file.type === "application/pdf" ||
+            file.name.toLowerCase().endsWith(".pdf"),
         );
-        return;
-      }
-      const files = Array.from(fileList).filter(
-        (file) =>
-          file.type === "application/pdf" ||
-          file.name.toLowerCase().endsWith(".pdf"),
-      );
-      if (files.length === 0) {
-        setError("Можно загружать только PDF");
-        return;
-      }
-      setError(null);
-      const items: UploadItem[] = files.map((file) => ({
-        tempId: crypto.randomUUID(),
-        name: file.name,
-        progress: 0,
-      }));
-      setUploads((prev) => [...items, ...prev]);
+        if (files.length === 0) {
+          setError("Можно загружать только PDF");
+          return;
+        }
+        setError(null);
+        const items: UploadItem[] = files.map((file) => ({
+          tempId: newClientId(),
+          name: file.name,
+          progress: 0,
+        }));
+        setUploads((prev) => [...items, ...prev]);
 
-      await Promise.all(
-        files.map(async (file, index) => {
-          const tempId = items[index].tempId;
-          try {
-            const document = await uploadPdf(file, targetProject, (progress) => {
+        await Promise.all(
+          files.map(async (file, index) => {
+            const tempId = items[index].tempId;
+            try {
+              const document = await uploadPdf(file, targetProject, (progress) => {
+                setUploads((prev) =>
+                  prev.map((item) =>
+                    item.tempId === tempId ? { ...item, progress } : item,
+                  ),
+                );
+              });
+              setUploads((prev) => prev.filter((item) => item.tempId !== tempId));
+              setDocuments((prev) => [
+                document,
+                ...prev.filter((doc) => doc.id !== document.id),
+              ]);
+              void openDocument(document.id);
+            } catch (err) {
+              const message = err instanceof Error ? err.message : "Ошибка загрузки";
               setUploads((prev) =>
                 prev.map((item) =>
-                  item.tempId === tempId ? { ...item, progress } : item,
+                  item.tempId === tempId ? { ...item, error: message } : item,
                 ),
               );
-            });
-            setUploads((prev) => prev.filter((item) => item.tempId !== tempId));
-            setDocuments((prev) => [
-              document,
-              ...prev.filter((doc) => doc.id !== document.id),
-            ]);
-            void openDocument(document.id);
-          } catch (err) {
-            const message = err instanceof Error ? err.message : "Ошибка загрузки";
-            setUploads((prev) =>
-              prev.map((item) =>
-                item.tempId === tempId ? { ...item, error: message } : item,
-              ),
-            );
-          }
-        }),
-      );
+            }
+          }),
+        );
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Ошибка загрузки");
+      }
     },
     [openDocument, projectId, projects],
   );
