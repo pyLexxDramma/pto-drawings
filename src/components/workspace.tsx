@@ -713,7 +713,7 @@ export function Workspace({
         <div className="flex shrink-0 items-center gap-2">
           <div className="hidden text-right text-[11px] sm:block">
             <div className="font-medium text-text">{user.displayName}</div>
-            <div className="text-muted">{ROLE_LABEL[user.role]}</div>
+            <div className="text-muted">роль: {ROLE_LABEL[user.role]}</div>
           </div>
           {user.role === "admin" ? (
             <button
