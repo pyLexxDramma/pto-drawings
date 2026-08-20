@@ -50,6 +50,8 @@ ssh root@ВАШ_IP 'bash /root/setup-vps.sh ВАШ_ДОМЕН'
 
 Пока секреты не заданы, workflow пропускает деплой (не падает).
 
+CloudPub и автозапуск на Windows больше не используются: прод только на этом VPS.
+
 ## Переменные на сервере
 
 Файл `/var/www/pto/.env.local` (создаёт `setup-vps.sh`):

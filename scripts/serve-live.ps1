@@ -1,13 +1,13 @@
 $ErrorActionPreference = "Stop"
 
-# CloudPub = production next start на 8080 (быстро).
-# Локальная разработка: npm run dev → http://localhost:3000
+# Локальный production на 8080 (без CloudPub).
+# Разработка: npm run dev → http://localhost:3000
+# Прод для команды: Timeweb VPS, автодеплой с GitHub.
 
 $AppDir = if ($env:PTO_APP_DIR) { $env:PTO_APP_DIR } else { "D:\PTO\pto-app" }
 $Port = 8080
 $Logs = Join-Path $AppDir "logs"
 $PidFile = Join-Path $Logs "pto.pid"
-$Clo = "D:\PTO\tools\clo\clo.exe"
 $NextJs = Join-Path $AppDir "node_modules\next\dist\bin\next"
 $SkipBuild = ($env:PTO_SKIP_BUILD -eq "1")
 
@@ -27,7 +27,6 @@ function Stop-Port {
     }
     Remove-Item $PidFile -Force -ErrorAction SilentlyContinue
   }
-  # next start / orphan node на этом порту
   Get-CimInstance Win32_Process -Filter "name='node.exe'" -ErrorAction SilentlyContinue | ForEach-Object {
     if ($_.CommandLine -and $_.CommandLine -match [regex]::Escape($AppDir) -and $_.CommandLine -match "next" -and $_.CommandLine -match "-p $ListenPort") {
       Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
@@ -51,7 +50,6 @@ if (-not (Test-Path $NextJs)) {
   if ($LASTEXITCODE -ne 0) { throw "npm ci failed" }
 }
 
-# В production секрет сессии обязателен: создаём .env.local, если его ещё нет.
 node ./scripts/init-env.mjs
 if ($LASTEXITCODE -ne 0) { throw "init-env failed" }
 
@@ -90,21 +88,6 @@ if (-not $ready) {
   throw "next did not start on $Port"
 }
 
-Write-Host "CloudPub origin: http://127.0.0.1:$Port (production)"
-Write-Host "Local dev: npm run dev → http://localhost:3000"
-
-if (-not (Test-Path $Clo)) {
-  Write-Host "CloudPub CLI not found at $Clo"
-  exit 0
-}
-
-$cloRunning = Get-Process clo -ErrorAction SilentlyContinue
-if ($cloRunning) {
-  Write-Host "CloudPub already running"
-} else {
-  Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{
-    CommandLine = "`"$Clo`" publish --name pto-drawings http $Port"
-    CurrentDirectory = "D:\PTO\tools\clo"
-  } | Out-Null
-  Write-Host "CloudPub started"
-}
+Write-Host "Local production: http://127.0.0.1:$Port"
+Write-Host "Dev: npm run dev → http://localhost:3000"
+Write-Host "Team URL: http://201.24.50.177 (Timeweb VPS, auto-deploy from GitHub)"

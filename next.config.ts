@@ -2,11 +2,6 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   agentRules: false,
-  // next dev за CloudPub / другим хостом — иначе браузерные запросы к /_next/* режутся
-  allowedDevOrigins: [
-    "responsibly-brisk-oryx.cloudpub.ru",
-    "*.cloudpub.ru",
-  ],
   serverExternalPackages: ["unpdf", "pdfjs-dist"],
   experimental: {
     serverActions: {
