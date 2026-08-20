@@ -5,6 +5,7 @@ import { MarkdownView } from "@/components/markdown-view";
 import { PageStrip } from "@/components/page-strip";
 import { PdfPage } from "@/components/pdf-page";
 import { formatDate } from "@/lib/format";
+import { formatElapsed, formatPipelineUsage } from "@/lib/pipeline";
 import {
   cacheProgress,
   fetchProgress,
@@ -26,6 +27,8 @@ type ReviewPaneProps = {
   document: DocumentRecord;
   focusMode: boolean;
   openPage?: { nonce: number; page: number; documentId: string } | null;
+  canceling?: boolean;
+  onCancel?: () => void;
   onToggleFocus: () => void;
   onBackToProjects: () => void;
   onSavePage: (pageNumber: number, markdown: string) => Promise<void>;
@@ -43,6 +46,8 @@ export function ReviewPane({
   document,
   focusMode,
   openPage,
+  canceling = false,
+  onCancel,
   onToggleFocus,
   onBackToProjects,
   onSavePage,
@@ -423,12 +428,33 @@ export function ReviewPane({
   const filterLabel =
     filters.find((item) => item.id === filter)?.label.toLowerCase() ?? "этот тип";
   const openNotes = notes.filter((item) => item.status === "open").length;
+  const usageLabel = formatPipelineUsage(document.pipelineUsage);
+  const elapsedLabel = formatElapsed(document.pipelineElapsedSec);
+  const pageError = document.pageErrors?.[String(pageNumber)] ?? null;
+  const isMockPage = Boolean(page?.markdown.includes("[MOCK]"));
+  const showMock =
+    document.pipelineMode === "mock" ||
+    isMockPage ||
+    document.pages.some((item) => item.markdown.includes("[MOCK]"));
+  const errorCount = Object.keys(document.pageErrors ?? {}).length;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-border bg-surface px-3">
         <div className="min-w-0">
-          <div className="truncate text-sm font-medium">{document.originalName}</div>
+          <div className="truncate text-sm font-medium">
+            {document.originalName}
+            {showMock ? (
+              <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-900">
+                mock
+              </span>
+            ) : null}
+            {document.pipelineMode === "real" ? (
+              <span className="ml-2 rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-800">
+                real
+              </span>
+            ) : null}
+          </div>
           <div className="text-[11px] text-muted">
             {page ? KIND_LABEL[page.kind] : "Страница"} · лист {pageNumber} из {total}
             {viewedSet.has(pageNumber) ? " · просмотрен" : ""}
@@ -437,6 +463,8 @@ export function ReviewPane({
             {" · "}
             {viewed.length}/{total} просмотрено
             {openNotes ? ` · ${openNotes} замечаний` : ""}
+            {elapsedLabel ? ` · ${elapsedLabel}` : ""}
+            {usageLabel ? ` · ${usageLabel}` : ""}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -503,15 +531,44 @@ export function ReviewPane({
 
       {processing ? (
         <div className="border-b border-sky-200 bg-sky-50 px-4 py-2 text-sm text-sky-800">
-          <div>
-            готово {readyCount}/{total} листов
-            {document.processingPage
-              ? ` · сейчас лист ${document.processingPage}: ${stepLabel(document)}`
-              : ` · ${stepLabel(document)}`}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              готово {readyCount}/{total} листов
+              {document.processingPage
+                ? ` · сейчас лист ${document.processingPage}: ${stepLabel(document)}`
+                : ` · ${stepLabel(document)}`}
+              {elapsedLabel ? ` · ${elapsedLabel}` : ""}
+              {usageLabel ? ` · ${usageLabel}` : ""}
+              {errorCount ? ` · ошибок листов: ${errorCount}` : ""}
+            </div>
+            {onCancel ? (
+              <button
+                type="button"
+                disabled={canceling}
+                onClick={onCancel}
+                className="rounded-md border border-sky-300 bg-white px-2.5 py-1 text-xs text-sky-900 hover:bg-sky-100 disabled:opacity-50"
+              >
+                {canceling ? "Отмена…" : "Отменить обработку"}
+              </button>
+            ) : null}
           </div>
           <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white">
             <div className="h-full bg-sky-500 transition-all" style={{ width: `${progress}%` }} />
           </div>
+        </div>
+      ) : null}
+
+      {!processing && (elapsedLabel || usageLabel || errorCount || showMock) ? (
+        <div className="border-b border-border bg-bg px-4 py-1.5 text-[11px] text-muted">
+          {showMock ? <span className="mr-2 text-amber-800">[MOCK]</span> : null}
+          {document.pipelineMode === "real" ? (
+            <span className="mr-2 text-red-800">режим real</span>
+          ) : null}
+          {elapsedLabel ? <span className="mr-2">время: {elapsedLabel}</span> : null}
+          {usageLabel ? <span className="mr-2">токены: {usageLabel}</span> : null}
+          {errorCount ? (
+            <span className="text-red-700">листов с ошибкой: {errorCount}</span>
+          ) : null}
         </div>
       ) : null}
 
@@ -707,6 +764,7 @@ export function ReviewPane({
                     {editedPages.has(number) ? " · правки" : ""}
                     {flaggedPages.has(number) ? " · замечание" : ""}
                     {!item ? " · ждёт текст" : ""}
+                    {document.pageErrors?.[String(number)] ? " · ошибка" : ""}
                   </button>
                 );
               })}
@@ -723,7 +781,9 @@ export function ReviewPane({
                 <div className="p-6 text-sm text-muted">
                   {processing
                     ? `Текст появится по мере обработки. Готово ${readyCount} из ${total}.`
-                    : "Для этого листа ещё нет текста."}
+                    : pageError
+                      ? `Лист не обработан: ${pageError}`
+                      : "Для этого листа ещё нет текста."}
                 </div>
               ) : mode === "edit" ? (
                 <textarea
@@ -738,6 +798,16 @@ export function ReviewPane({
                 <div
                   className={`markdown-body p-5 ${page.kind === "table" ? "markdown-body--table" : ""}`}
                 >
+                  {pageError ? (
+                    <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+                      Ошибка листа: {pageError}
+                    </div>
+                  ) : null}
+                  {isMockPage ? (
+                    <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+                      Это ответ режима [MOCK], не работа модели.
+                    </div>
+                  ) : null}
                   <MarkdownView>{page.markdown}</MarkdownView>
                 </div>
               )}
