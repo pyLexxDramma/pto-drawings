@@ -791,13 +791,11 @@ export function Workspace({
 
       {pipelineHealth?.reachable && pipelineHealth.mode === "real" ? (
         <div className="shrink-0 border-b border-red-200 bg-red-50 px-4 py-2 text-xs text-red-900">
-          Режим <span className="font-semibold">real</span>: листы уходят стороннему
-          провайдеру
+          Режим <span className="font-semibold">real</span>
           {pipelineHealth.profile.provider
-            ? ` (${pipelineHealth.profile.provider})`
+            ? ` · ${pipelineHealth.profile.provider}`
             : ""}
-          {pipelineHealth.profile.model ? `, модель ${pipelineHealth.profile.model}` : ""}
-          . Не гоняйте через него PDF заказчика, пока нет локальной модели.
+          {pipelineHealth.profile.model ? ` · модель ${pipelineHealth.profile.model}` : ""}
         </div>
       ) : null}
 
