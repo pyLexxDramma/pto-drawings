@@ -100,6 +100,8 @@ export type PageProgress = {
 
 export type KindCounts = Record<PageKind, number>;
 
+export type PipelineMode = "mock" | "real";
+
 /** Шапка документа: лежит в индексе data/db.json. */
 export type DocumentMeta = {
   id: string;
@@ -118,6 +120,11 @@ export type DocumentMeta = {
   openAnnotations: number;
   /** Сколько листов просмотрел каждый пользователь: нужно для списка файлов без чтения тела. */
   viewedCounts: Record<string, number>;
+  /** Режим конвейера на момент прогона (mock / real). */
+  pipelineMode: PipelineMode | null;
+  pipelineElapsedSec: number | null;
+  pipelineUsage: Record<string, number>;
+  pageErrors: Record<string, string>;
   createdAt: string;
 };
 

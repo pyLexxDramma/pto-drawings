@@ -13,6 +13,7 @@ import { ReviewPane } from "@/components/review-pane";
 import { PtoLogo } from "@/components/pto-logo";
 import { UsersPanel } from "@/components/users-panel";
 import { formatBytes, formatDate, formatPages } from "@/lib/format";
+import { type PipelineHealth } from "@/lib/pipeline";
 import {
   KIND_LABEL,
   ROLE_LABEL,
@@ -166,6 +167,10 @@ export function Workspace({
   const [searching, setSearching] = useState(false);
   const [notes, setNotes] = useState<ProjectAnnotation[]>([]);
   const [showNotes, setShowNotes] = useState(false);
+  const [pipelineHealth, setPipelineHealth] = useState<PipelineHealth | null>(
+    null,
+  );
+  const [cancelingId, setCancelingId] = useState<string | null>(null);
   const [openPage, setOpenPage] = useState<{
     nonce: number;
     page: number;
@@ -192,6 +197,29 @@ export function Workspace({
     return list;
   }, [onLogout]);
 
+  const applyFullDocument = useCallback((document: DocumentRecord) => {
+    setDocuments((prev) => {
+      const exists = prev.some((doc) => doc.id === document.id);
+      if (!exists) return [document, ...prev];
+      return prev.map((doc) => (doc.id === document.id ? document : doc));
+    });
+  }, []);
+
+  const refreshDocument = useCallback(
+    async (id: string, signal?: AbortSignal) => {
+      try {
+        const response = await fetch(`/api/documents/${id}`, { signal });
+        if (!response.ok) return;
+        const payload = (await response.json()) as { document?: DocumentRecord };
+        if (!payload.document) return;
+        applyFullDocument(payload.document);
+      } catch {
+        // список уже есть; полный текст подтянется при повторе
+      }
+    },
+    [applyFullDocument],
+  );
+
   const loadDocuments = useCallback(async (id: string, signal?: AbortSignal) => {
     const response = await fetch(
       `/api/documents?projectId=${encodeURIComponent(id)}&lite=1`,
@@ -203,11 +231,8 @@ export function Workspace({
       const prevById = new Map(prev.map((doc) => [doc.id, doc]));
       return list.map((lite) => {
         const existing = prevById.get(lite.id);
-        if (
-          existing &&
-          existing.status === lite.status &&
-          existing.pages.some((page) => page.markdown.length > 0)
-        ) {
+        // lite без страниц — не затираем уже подтянутый markdown при смене статуса
+        if (existing?.pages.some((page) => page.markdown.length > 0)) {
           return {
             ...lite,
             pages: existing.pages,
@@ -222,26 +247,15 @@ export function Workspace({
     return list;
   }, []);
 
-  const openDocument = useCallback(async (id: string) => {
-    setSelectedId(id);
-    setOpenPage(null);
-    setFilesCollapsed(true);
-    try {
-      const response = await fetch(`/api/documents/${id}`);
-      if (!response.ok) return;
-      const payload = (await response.json()) as { document?: DocumentRecord };
-      if (!payload.document) return;
-      setDocuments((prev) => {
-        const exists = prev.some((doc) => doc.id === payload.document!.id);
-        if (!exists) return [payload.document!, ...prev];
-        return prev.map((doc) =>
-          doc.id === payload.document!.id ? payload.document! : doc,
-        );
-      });
-    } catch {
-      // список уже есть; полный текст подтянется при повторе
-    }
-  }, []);
+  const openDocument = useCallback(
+    async (id: string) => {
+      setSelectedId(id);
+      setOpenPage(null);
+      setFilesCollapsed(true);
+      await refreshDocument(id);
+    },
+    [refreshDocument],
+  );
 
   const loadEdits = useCallback(async (id: string, signal?: AbortSignal) => {
     const response = await fetch(`/api/projects/${id}/edits`, { signal });
@@ -336,6 +350,55 @@ export function Workspace({
     }, 900);
     return () => clearInterval(timer);
   }, [busy, loadDocuments, projectId]);
+
+  // lite-опрос не несёт страницы — пока идёт обработка, тянем полный документ
+  useEffect(() => {
+    if (!selectedId || !busy) return;
+    void refreshDocument(selectedId);
+    const timer = setInterval(() => {
+      void refreshDocument(selectedId);
+    }, 1500);
+    return () => clearInterval(timer);
+  }, [busy, refreshDocument, selectedId]);
+
+  // после done lite мог оставить пустые pages — один раз догружаем текст
+  useEffect(() => {
+    if (!selectedId) return;
+    const doc = documents.find((item) => item.id === selectedId);
+    if (!doc) return;
+    if (doc.status === "queued" || doc.status === "processing") return;
+    if (doc.pageCount <= 0) return;
+    if (doc.pages.some((page) => page.markdown.length > 0)) return;
+    void refreshDocument(selectedId);
+  }, [documents, refreshDocument, selectedId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const response = await fetch("/api/pipeline/health");
+        if (!response.ok) return;
+        const payload = (await response.json()) as PipelineHealth;
+        if (!cancelled) setPipelineHealth(payload);
+      } catch {
+        if (!cancelled) {
+          setPipelineHealth({
+            ok: false,
+            mode: "unknown",
+            profile: {},
+            reachable: false,
+            error: "unreachable",
+          });
+        }
+      }
+    };
+    void load();
+    const timer = window.setInterval(() => void load(), 15000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, []);
 
   async function selectProject(id: string) {
     setProjectId(id);
@@ -580,6 +643,27 @@ export function Workspace({
     }
   }
 
+  async function handleCancel(id: string) {
+    setCancelingId(id);
+    try {
+      const response = await fetch(`/api/documents/${id}/cancel`, {
+        method: "POST",
+      });
+      const payload = (await response.json()) as {
+        document?: DocumentRecord;
+        error?: string;
+      };
+      if (!response.ok || !payload.document) {
+        setError(payload.error || "Не удалось отменить обработку");
+        return;
+      }
+      setError(null);
+      applyFullDocument(payload.document);
+    } finally {
+      setCancelingId(null);
+    }
+  }
+
   function onDrop(event: DragEvent) {
     event.preventDefault();
     setDragOver(false);
@@ -686,6 +770,34 @@ export function Workspace({
         <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900">
           У аккаунта <span className="font-medium">admin</span> всё ещё стандартный
           пароль. Смените его кнопкой «Пароль» до выдачи доступов команде.
+        </div>
+      ) : null}
+
+      {pipelineHealth && !pipelineHealth.reachable ? (
+        <div className="shrink-0 border-b border-slate-200 bg-slate-100 px-4 py-2 text-xs text-slate-800">
+          Конвейер ПТО недоступен ({pipelineHealth.error ?? "нет связи"}). Загрузка PDF
+          сохранит файл, но разбор листов не начнётся, пока сервис не поднимется на{" "}
+          <code className="rounded bg-white px-1">:8000</code>.
+        </div>
+      ) : null}
+
+      {pipelineHealth?.reachable && pipelineHealth.mode === "mock" ? (
+        <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-950">
+          Режим <span className="font-semibold">[MOCK]</span> — имитация без модели.
+          Каждая страница помечена; это не результат ИИ. Для настоящей обработки
+          переключите бэкенд на профиль <code className="rounded bg-white px-1">real</code>.
+        </div>
+      ) : null}
+
+      {pipelineHealth?.reachable && pipelineHealth.mode === "real" ? (
+        <div className="shrink-0 border-b border-red-200 bg-red-50 px-4 py-2 text-xs text-red-900">
+          Режим <span className="font-semibold">real</span>: листы уходят стороннему
+          провайдеру
+          {pipelineHealth.profile.provider
+            ? ` (${pipelineHealth.profile.provider})`
+            : ""}
+          {pipelineHealth.profile.model ? `, модель ${pipelineHealth.profile.model}` : ""}
+          . Не гоняйте через него PDF заказчика, пока нет локальной модели.
         </div>
       ) : null}
 
@@ -1086,6 +1198,16 @@ export function Workspace({
                   <div className="flex justify-between px-3 pb-2 text-[11px] text-muted">
                     <span>{formatDate(doc.createdAt)}</span>
                     <span className="flex gap-2">
+                      {doc.status === "processing" || doc.status === "queued" ? (
+                        <button
+                          type="button"
+                          disabled={cancelingId === doc.id}
+                          onClick={() => void handleCancel(doc.id)}
+                          className="text-amber-700 hover:underline disabled:opacity-50"
+                        >
+                          {cancelingId === doc.id ? "Отмена…" : "Отменить"}
+                        </button>
+                      ) : null}
                       {doc.status === "error" ? (
                         <button
                           type="button"
@@ -1116,6 +1238,8 @@ export function Workspace({
             document={selected}
             focusMode={focusMode}
             openPage={openPage}
+            canceling={cancelingId === selected.id}
+            onCancel={() => void handleCancel(selected.id)}
             onToggleFocus={() => setFocusMode((value) => !value)}
             onBackToProjects={() => {
               setSelectedId(null);

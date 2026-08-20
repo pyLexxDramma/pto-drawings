@@ -238,6 +238,28 @@ function normalizeMeta(raw: Partial<DocumentMeta> & { id: string }): DocumentMet
     kindCounts: { ...emptyKindCounts(), ...(raw.kindCounts ?? {}) },
     openAnnotations: raw.openAnnotations ?? 0,
     viewedCounts: raw.viewedCounts ?? {},
+    pipelineMode:
+      raw.pipelineMode === "mock" || raw.pipelineMode === "real"
+        ? raw.pipelineMode
+        : null,
+    pipelineElapsedSec:
+      typeof raw.pipelineElapsedSec === "number" ? raw.pipelineElapsedSec : null,
+    pipelineUsage:
+      raw.pipelineUsage && typeof raw.pipelineUsage === "object"
+        ? Object.fromEntries(
+            Object.entries(raw.pipelineUsage).filter(
+              ([, value]) => typeof value === "number",
+            ),
+          )
+        : {},
+    pageErrors:
+      raw.pageErrors && typeof raw.pageErrors === "object"
+        ? Object.fromEntries(
+            Object.entries(raw.pageErrors).filter(
+              ([, value]) => typeof value === "string",
+            ),
+          )
+        : {},
     createdAt: raw.createdAt ?? new Date().toISOString(),
   };
 }
@@ -734,6 +756,10 @@ export async function savePdf(input: {
       kindCounts: emptyKindCounts(),
       openAnnotations: 0,
       viewedCounts: {},
+      pipelineMode: null,
+      pipelineElapsedSec: null,
+      pipelineUsage: {},
+      pageErrors: {},
       createdAt: new Date().toISOString(),
     };
 
@@ -777,6 +803,10 @@ export type DocumentPatch = {
   errorMessage?: string | null;
   pageCount?: number;
   pages?: DocumentPage[];
+  pipelineMode?: DocumentMeta["pipelineMode"];
+  pipelineElapsedSec?: number | null;
+  pipelineUsage?: Record<string, number>;
+  pageErrors?: Record<string, string>;
 };
 
 export async function updateDocument(
@@ -793,6 +823,12 @@ export async function updateDocument(
     if (patch.processingPage !== undefined) meta.processingPage = patch.processingPage;
     if (patch.errorMessage !== undefined) meta.errorMessage = patch.errorMessage;
     if (patch.pageCount !== undefined) meta.pageCount = patch.pageCount;
+    if (patch.pipelineMode !== undefined) meta.pipelineMode = patch.pipelineMode;
+    if (patch.pipelineElapsedSec !== undefined) {
+      meta.pipelineElapsedSec = patch.pipelineElapsedSec;
+    }
+    if (patch.pipelineUsage !== undefined) meta.pipelineUsage = patch.pipelineUsage;
+    if (patch.pageErrors !== undefined) meta.pageErrors = patch.pageErrors;
 
     let body: DocumentBody | null = null;
     if (patch.pages !== undefined) {
