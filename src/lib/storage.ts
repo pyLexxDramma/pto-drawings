@@ -348,12 +348,16 @@ async function readIndex(): Promise<Database> {
     changed = true;
   }
 
-  let projects = (Array.isArray(parsed.projects) ? parsed.projects : []).map((project) =>
-    normalizeProject(project as Partial<Project> & { id: string }),
-  );
-  if (projects.length === 0) {
+  let projects: Project[];
+  if (!Array.isArray(parsed.projects)) {
+    // Старые базы без поля projects — один раз засеем дефолт.
     projects = emptyDb().projects;
     changed = true;
+  } else {
+    // Пустой список валиден: пользователь удалил все проекты.
+    projects = parsed.projects.map((project) =>
+      normalizeProject(project as Partial<Project> & { id: string }),
+    );
   }
 
   const db: Database = { users, projects, documents };
