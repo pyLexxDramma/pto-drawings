@@ -11,12 +11,18 @@ import {
 import { PasswordPanel } from "@/components/password-panel";
 import { ReviewPane } from "@/components/review-pane";
 import { PtoLogo } from "@/components/pto-logo";
+import {
+  ActionMenu,
+  ProgressTrack,
+  Spinner,
+  menuItemClass,
+} from "@/components/ui-chrome";
+import { UserMenu } from "@/components/user-menu";
 import { UsersPanel } from "@/components/users-panel";
 import { formatBytes, formatDate, formatPages } from "@/lib/format";
 import { formatPipelineUsage, type PipelineHealth } from "@/lib/pipeline";
 import {
   KIND_LABEL,
-  ROLE_LABEL,
   STEP_LABEL,
   type DocumentRecord,
   type DocumentStatus,
@@ -47,22 +53,6 @@ const STATUS_CLASS: Record<DocumentStatus, string> = {
   done: "bg-emerald-50 text-emerald-700",
   error: "bg-red-50 text-red-700",
 };
-
-function statusLine(doc: DocumentRecord) {
-  if (doc.status === "queued" || doc.status === "processing") {
-    const ready = `${doc.readyPages}/${Math.max(doc.pageCount, 1)}`;
-    if (doc.status === "processing" && doc.processingStep) {
-      const step = STEP_LABEL[doc.processingStep];
-      if (doc.processingPage) {
-        return `${ready} · лист ${doc.processingPage}: ${step.toLowerCase()}`;
-      }
-      return `${ready} · ${step.toLowerCase()}`;
-    }
-    return `${ready} · в очереди`;
-  }
-  if (doc.status === "error") return doc.errorMessage || "Ошибка";
-  return STATUS_LABEL[doc.status];
-}
 
 function pageProgress(doc: DocumentRecord) {
   return Math.round((doc.readyPages / Math.max(doc.pageCount, 1)) * 100);
@@ -176,6 +166,7 @@ export function Workspace({
     page: number;
     documentId: string;
   } | null>(null);
+  const autoReadyJumpRef = useRef<string | null>(null);
   const specInputRef = useRef<HTMLInputElement>(null);
 
   const selected = documents.find((doc) => doc.id === selectedId) ?? null;
@@ -251,6 +242,7 @@ export function Workspace({
     async (id: string) => {
       setSelectedId(id);
       setOpenPage(null);
+      autoReadyJumpRef.current = null;
       setFilesCollapsed(true);
       await refreshDocument(id);
     },
@@ -371,6 +363,22 @@ export function Workspace({
     if (doc.pages.some((page) => page.markdown.length > 0)) return;
     void refreshDocument(selectedId);
   }, [documents, refreshDocument, selectedId]);
+
+  // первый готовый лист — открыть автоматически (один раз на документ)
+  useEffect(() => {
+    if (!selectedId) return;
+    if (autoReadyJumpRef.current === selectedId) return;
+    const doc = documents.find((item) => item.id === selectedId);
+    if (!doc || doc.readyPages < 1) return;
+    const firstReady =
+      doc.pages.find((page) => page.markdown.length > 0)?.pageNumber ?? 1;
+    autoReadyJumpRef.current = selectedId;
+    setOpenPage({
+      nonce: Date.now(),
+      page: firstReady,
+      documentId: selectedId,
+    });
+  }, [documents, selectedId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -591,12 +599,15 @@ export function Workspace({
   }
 
   async function handleDelete(id: string) {
+    const doc = documents.find((item) => item.id === id);
+    const label = doc?.originalName ?? "файл";
+    if (!window.confirm(`Удалить файл «${label}»?`)) return;
     const response = await fetch(`/api/documents/${id}`, { method: "DELETE" });
     if (!response.ok) {
       setError("Не удалось удалить файл");
       return;
     }
-    setDocuments((prev) => prev.filter((doc) => doc.id !== id));
+    setDocuments((prev) => prev.filter((item) => item.id !== id));
     if (selectedId === id) setSelectedId(null);
     if (projectId) void loadEdits(projectId);
   }
@@ -676,6 +687,36 @@ export function Workspace({
       ? "grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[220px_44px_minmax(0,1fr)]"
       : "grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[220px_280px_minmax(0,1fr)]";
   const pipelineUsageLabel = formatPipelineUsage(pipelineHealth?.usage);
+  const pipelineChip = (() => {
+    if (!pipelineHealth) return null;
+    if (!pipelineHealth.reachable) {
+      return {
+        className: "border-slate-200 bg-slate-100 text-slate-800",
+        text: `Конвейер недоступен${pipelineHealth.error ? ` · ${pipelineHealth.error}` : ""}`,
+      };
+    }
+    if (pipelineHealth.mode === "mock") {
+      return {
+        className: "border-amber-200 bg-amber-50 text-amber-950",
+        text: "Режим [MOCK] · без модели",
+      };
+    }
+    if (pipelineHealth.mode === "real") {
+      const parts = [
+        "Режим real",
+        pipelineHealth.profile.provider,
+        pipelineHealth.profile.model
+          ? `модель ${pipelineHealth.profile.model}`
+          : null,
+        pipelineUsageLabel,
+      ].filter(Boolean);
+      return {
+        className: "border-slate-200 bg-slate-50 text-slate-800",
+        text: parts.join(" · "),
+      };
+    }
+    return null;
+  })();
 
   return (
     <div
@@ -710,41 +751,28 @@ export function Workspace({
             </div>
           </div>
         </button>
-        <div className="flex shrink-0 items-center gap-2">
-          <div className="hidden text-right text-[11px] sm:block">
-            <div className="font-medium text-text">{user.displayName}</div>
-            <div className="text-muted">роль: {ROLE_LABEL[user.role]}</div>
-          </div>
-          {user.role === "admin" ? (
-            <button
-              type="button"
-              onClick={() => setShowUsers(true)}
-              className="rounded-md border border-border px-2.5 py-1.5 text-xs hover:bg-bg"
+        <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
+          {pipelineChip ? (
+            <div
+              className={`hidden min-w-0 max-w-xl items-center gap-1.5 truncate rounded-md border px-2.5 py-1 text-[11px] md:flex ${pipelineChip.className}`}
+              title={pipelineChip.text}
             >
-              Пользователи
-            </button>
+              {busy ? <Spinner className="h-3 w-3 opacity-80" /> : null}
+              <span className="truncate">{pipelineChip.text}</span>
+            </div>
           ) : null}
-          <button
-            type="button"
-            onClick={() => setShowPassword(true)}
-            className={`rounded-md border px-2.5 py-1.5 text-xs hover:bg-bg ${
-              defaultPasswordWarning ? "border-amber-400 bg-amber-50 text-amber-800" : "border-border"
-            }`}
-          >
-            Пароль
-          </button>
-          <button
-            type="button"
-            onClick={() => {
+          <UserMenu
+            user={user}
+            defaultPasswordWarning={defaultPasswordWarning}
+            onUsers={user.role === "admin" ? () => setShowUsers(true) : undefined}
+            onPassword={() => setShowPassword(true)}
+            onLogout={() => {
               void (async () => {
                 await fetch("/api/auth/logout", { method: "POST" });
                 onLogout();
               })();
             }}
-            className="rounded-md border border-border px-2.5 py-1.5 text-xs hover:bg-bg"
-          >
-            Выйти
-          </button>
+          />
           <label
             htmlFor="pto-drawing-upload"
             className="cursor-pointer rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-[#1d4ed8]"
@@ -770,34 +798,7 @@ export function Workspace({
       {defaultPasswordWarning ? (
         <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900">
           У аккаунта <span className="font-medium">admin</span> всё ещё стандартный
-          пароль. Смените его кнопкой «Пароль» до выдачи доступов команде.
-        </div>
-      ) : null}
-
-      {pipelineHealth && !pipelineHealth.reachable ? (
-        <div className="shrink-0 border-b border-slate-200 bg-slate-100 px-4 py-2 text-xs text-slate-800">
-          Конвейер ПТО недоступен ({pipelineHealth.error ?? "нет связи"}). Загрузка PDF
-          сохранит файл, но разбор листов не начнётся, пока сервис не поднимется на{" "}
-          <code className="rounded bg-white px-1">:8000</code>.
-        </div>
-      ) : null}
-
-      {pipelineHealth?.reachable && pipelineHealth.mode === "mock" ? (
-        <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-950">
-          Режим <span className="font-semibold">[MOCK]</span> — имитация без модели.
-          Каждая страница помечена; это не результат ИИ. Для настоящей обработки
-          переключите бэкенд на профиль <code className="rounded bg-white px-1">real</code>.
-        </div>
-      ) : null}
-
-      {pipelineHealth?.reachable && pipelineHealth.mode === "real" ? (
-        <div className="shrink-0 border-b border-red-200 bg-red-50 px-4 py-2 text-xs text-red-900">
-          Режим <span className="font-semibold">real</span>
-          {pipelineHealth.profile.provider
-            ? ` · ${pipelineHealth.profile.provider}`
-            : ""}
-          {pipelineHealth.profile.model ? ` · модель ${pipelineHealth.profile.model}` : ""}
-          {pipelineUsageLabel ? ` · ${pipelineUsageLabel}` : ""}
+          пароль. Смените его в меню профиля («Пароль») до выдачи доступов команде.
         </div>
       ) : null}
 
@@ -900,8 +901,8 @@ export function Workspace({
         ) : (
           <section className="flex min-h-0 flex-col border-b border-border bg-white md:border-r md:border-b-0">
             <div className="flex items-start justify-between border-b border-border px-3 py-3">
-              <div>
-                <div className="text-sm font-medium">
+              <div className="min-w-0 pr-2">
+                <div className="truncate text-sm font-medium">
                   {currentProject?.name ?? "Проект"}
                 </div>
                 <div className="text-[11px] text-muted">
@@ -909,15 +910,18 @@ export function Workspace({
                   {documents.length} файл(ах)
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex shrink-0 items-center gap-2">
                 {currentProject ? (
-                  <button
-                    type="button"
-                    onClick={() => void handleDeleteProject(currentProject.id)}
-                    className="text-[11px] text-red-600 hover:underline"
-                  >
-                    Удалить проект
-                  </button>
+                  <ActionMenu label="Действия проекта">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className={menuItemClass(true)}
+                      onClick={() => void handleDeleteProject(currentProject.id)}
+                    >
+                      Удалить проект
+                    </button>
+                  </ActionMenu>
                 ) : null}
                 {selected ? (
                   <button
@@ -932,7 +936,16 @@ export function Workspace({
             </div>
 
             {currentProject ? (
-              <div className="space-y-2 border-b border-border px-3 py-3">
+              <details
+                className="border-b border-border px-3 py-2"
+                open={Boolean(
+                  currentProject.description || currentProject.specOriginalName,
+                )}
+              >
+                <summary className="cursor-pointer select-none text-[11px] font-medium text-muted hover:text-text">
+                  О проекте
+                </summary>
+                <div className="mt-2 space-y-2">
                 <textarea
                   value={descriptionDraft}
                   onChange={(event) => setDescriptionDraft(event.target.value)}
@@ -1105,7 +1118,8 @@ export function Workspace({
                     )}
                   </div>
                 ) : null}
-              </div>
+                </div>
+              </details>
             ) : null}
 
             <label
@@ -1162,69 +1176,93 @@ export function Workspace({
                       : "border-transparent bg-bg hover:border-border"
                   }`}
                 >
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void openDocument(doc.id);
-                    }}
-                    className="w-full px-3 py-2.5 text-left"
-                  >
-                    <div className="truncate text-sm">{doc.originalName}</div>
-                    <div className="mt-1 flex items-center justify-between gap-2">
-                      <span className="text-[11px] text-muted">
-                        {kindSummary(doc)} · {formatBytes(doc.sizeBytes)}
-                        {doc.viewedCounts[user.id]
-                          ? ` · просмотрено ${doc.viewedCounts[user.id]}/${Math.max(doc.pageCount, 1)}`
-                          : ""}
-                        {doc.openAnnotations
-                          ? ` · ${doc.openAnnotations} замечаний`
-                          : ""}
-                      </span>
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-[11px] ${STATUS_CLASS[doc.status]}`}
-                      >
-                        {statusLine(doc)}
-                      </span>
-                    </div>
-                    {doc.status === "processing" || doc.status === "queued" ? (
-                      <div className="mt-2 h-1 overflow-hidden rounded-full bg-white">
-                        <div
-                          className="h-full bg-accent transition-all"
-                          style={{ width: `${pageProgress(doc)}%` }}
-                        />
+                  <div className="flex items-start gap-1 px-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void openDocument(doc.id);
+                      }}
+                      className="min-w-0 flex-1 px-1 pb-1 text-left"
+                    >
+                      <div className="truncate text-sm font-medium">{doc.originalName}</div>
+                      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] ${STATUS_CLASS[doc.status]}`}
+                        >
+                          {doc.status === "processing" || doc.status === "queued" ? (
+                            <Spinner className="h-2.5 w-2.5" />
+                          ) : null}
+                          {STATUS_LABEL[doc.status]}
+                        </span>
+                        <span className="text-[11px] text-muted">
+                          {kindSummary(doc)} · {formatBytes(doc.sizeBytes)}
+                        </span>
                       </div>
-                    ) : null}
-                  </button>
-                  <div className="flex justify-between px-3 pb-2 text-[11px] text-muted">
-                    <span>{formatDate(doc.createdAt)}</span>
-                    <span className="flex gap-2">
+                      {(doc.status === "processing" || doc.status === "queued") &&
+                      doc.processingPage ? (
+                        <div className="mt-1 text-[11px] text-sky-800">
+                          лист {doc.processingPage}
+                          {doc.processingStep
+                            ? `: ${STEP_LABEL[doc.processingStep].toLowerCase()}`
+                            : ""}
+                        </div>
+                      ) : null}
+                      {doc.status === "error" && doc.errorMessage ? (
+                        <div className="mt-1 truncate text-[11px] text-red-700">
+                          {doc.errorMessage}
+                        </div>
+                      ) : null}
+                      {doc.viewedCounts[user.id] || doc.openAnnotations ? (
+                        <div className="mt-1 text-[11px] text-muted">
+                          {doc.viewedCounts[user.id]
+                            ? `просмотрено ${doc.viewedCounts[user.id]}/${Math.max(doc.pageCount, 1)}`
+                            : null}
+                          {doc.viewedCounts[user.id] && doc.openAnnotations ? " · " : null}
+                          {doc.openAnnotations
+                            ? `${doc.openAnnotations} замечаний`
+                            : null}
+                        </div>
+                      ) : null}
+                      {doc.status === "processing" || doc.status === "queued" ? (
+                        <div className="mt-2">
+                          <ProgressTrack value={pageProgress(doc)} className="h-1" />
+                        </div>
+                      ) : null}
+                    </button>
+                    <ActionMenu label="Действия файла">
                       {doc.status === "processing" || doc.status === "queued" ? (
                         <button
                           type="button"
+                          role="menuitem"
                           disabled={cancelingId === doc.id}
+                          className={`${menuItemClass()} disabled:opacity-50`}
                           onClick={() => void handleCancel(doc.id)}
-                          className="text-amber-700 hover:underline disabled:opacity-50"
                         >
-                          {cancelingId === doc.id ? "Отмена…" : "Отменить"}
+                          {cancelingId === doc.id ? "Отмена…" : "Отменить обработку"}
                         </button>
                       ) : null}
                       {doc.status === "error" ? (
                         <button
                           type="button"
+                          role="menuitem"
+                          className={menuItemClass()}
                           onClick={() => void handleRetry(doc.id)}
-                          className="text-accent hover:underline"
                         >
                           Повтор
                         </button>
                       ) : null}
                       <button
                         type="button"
+                        role="menuitem"
+                        className={menuItemClass(true)}
                         onClick={() => void handleDelete(doc.id)}
-                        className="text-red-600 hover:underline"
                       >
                         Удалить
                       </button>
-                    </span>
+                    </ActionMenu>
+                  </div>
+                  <div className="px-3 pb-2 text-[11px] text-muted">
+                    {formatDate(doc.createdAt)}
                   </div>
                 </div>
               ))}
@@ -1256,8 +1294,24 @@ export function Workspace({
             }}
           />
         ) : (
-          <div className="flex min-h-0 items-center justify-center bg-[#f7f8fa] p-8 text-center text-sm text-muted">
-            Загрузите PDF — слева появится чертёж, справа текст этого листа.
+          <div className="flex min-h-0 flex-col items-center justify-center gap-3 bg-[#f7f8fa] p-8 text-center">
+            <div className="text-sm font-medium text-text">
+              {currentProject
+                ? "Загрузите PDF в проект"
+                : "Выберите или создайте проект"}
+            </div>
+            <div className="max-w-sm text-sm text-muted">
+              Чертёж откроется слева, текст листа — справа. Можно перетащить файл
+              сюда или нажать «Загрузить PDF».
+            </div>
+            {currentProject ? (
+              <label
+                htmlFor="pto-drawing-upload"
+                className="cursor-pointer rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-[#1d4ed8]"
+              >
+                Загрузить PDF
+              </label>
+            ) : null}
           </div>
         )}
       </div>

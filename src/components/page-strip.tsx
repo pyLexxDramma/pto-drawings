@@ -181,7 +181,9 @@ export function PageStrip({
             className={`mb-1.5 rounded-md border p-1 text-left ${
               current === pageNumber
                 ? "border-accent bg-white"
-                : "border-transparent hover:border-border hover:bg-white"
+                : isWorking
+                  ? "pto-page-working border-sky-400 bg-white"
+                  : "border-transparent hover:border-border hover:bg-white"
             }`}
           >
             {/* Постоянная высота места под миниатюру: иначе все листы сразу попадают в кадр. */}
@@ -198,7 +200,10 @@ export function PageStrip({
               <span className="text-[10px] font-medium">{pageNumber}</span>
               <span className="flex items-center gap-0.5">
                 {isWorking ? (
-                  <span className="h-1.5 w-1.5 rounded-full bg-sky-500" title="Сейчас обрабатывается" />
+                  <span
+                    className="h-1.5 w-1.5 animate-pulse rounded-full bg-sky-500 motion-reduce:animate-none"
+                    title="Сейчас обрабатывается"
+                  />
                 ) : isReady ? (
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" title="Текст готов" />
                 ) : (

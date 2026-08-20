@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { MarkdownView } from "@/components/markdown-view";
 import { PageStrip } from "@/components/page-strip";
 import { PdfPage } from "@/components/pdf-page";
+import { ProgressTrack, Spinner } from "@/components/ui-chrome";
 import { formatDate } from "@/lib/format";
 import { formatElapsed, formatPipelineUsage } from "@/lib/pipeline";
 import {
@@ -532,7 +533,9 @@ export function ReviewPane({
       {processing ? (
         <div className="border-b border-sky-200 bg-sky-50 px-4 py-2 text-sm text-sky-800">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
+            <div className="flex min-w-0 items-center gap-2">
+              <Spinner className="h-3.5 w-3.5 text-sky-700" />
+              <div>
               готово {readyCount}/{total} листов
               {document.processingPage
                 ? ` · сейчас лист ${document.processingPage}: ${stepLabel(document)}`
@@ -540,6 +543,7 @@ export function ReviewPane({
               {elapsedLabel ? ` · ${elapsedLabel}` : ""}
               {usageLabel ? ` · ${usageLabel}` : ""}
               {errorCount ? ` · ошибок листов: ${errorCount}` : ""}
+              </div>
             </div>
             {onCancel ? (
               <button
@@ -552,8 +556,8 @@ export function ReviewPane({
               </button>
             ) : null}
           </div>
-          <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white">
-            <div className="h-full bg-sky-500 transition-all" style={{ width: `${progress}%` }} />
+          <div className="mt-1.5">
+            <ProgressTrack value={progress} tone="sky" className="h-1.5" />
           </div>
         </div>
       ) : null}
