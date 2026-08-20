@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isPublicUser, requireUser } from "@/lib/auth";
-import { updateProject } from "@/lib/storage";
+import { deleteProject, updateProject } from "@/lib/storage";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -21,4 +21,15 @@ export async function PATCH(request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Проект не найден" }, { status: 404 });
   }
   return NextResponse.json({ project });
+}
+
+export async function DELETE(request: Request, context: RouteContext) {
+  const user = await requireUser(request);
+  if (!isPublicUser(user)) return user;
+  const { id } = await context.params;
+  const ok = await deleteProject(id);
+  if (!ok) {
+    return NextResponse.json({ error: "Проект не найден" }, { status: 404 });
+  }
+  return NextResponse.json({ ok: true });
 }

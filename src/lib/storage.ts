@@ -435,6 +435,26 @@ export async function clearProjectSpec(id: string): Promise<Project | null> {
   });
 }
 
+export async function deleteProject(id: string): Promise<boolean> {
+  return withDataLock(async () => {
+    const db = await readIndex();
+    const project = db.projects.find((item) => item.id === id);
+    if (!project) return false;
+
+    const docs = db.documents.filter((doc) => doc.projectId === id);
+    for (const meta of docs) {
+      await deleteDocumentFile(meta.id);
+      await deletePdfBytes(meta.storedName);
+    }
+    if (project.specStoredName) await deletePdfBytes(project.specStoredName);
+
+    db.documents = db.documents.filter((doc) => doc.projectId !== id);
+    db.projects = db.projects.filter((item) => item.id !== id);
+    await writeIndex(db);
+    return true;
+  });
+}
+
 export async function listProjectEdits(projectId: string): Promise<ProjectEdit[]> {
   return withDataLock(async () => {
     const db = await readIndex();

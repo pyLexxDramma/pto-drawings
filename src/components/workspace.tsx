@@ -538,6 +538,37 @@ export function Workspace({
     if (projectId) void loadEdits(projectId);
   }
 
+  async function handleDeleteProject(id: string) {
+    const project = projects.find((item) => item.id === id);
+    const label = project?.name ?? "проект";
+    if (
+      !window.confirm(
+        `Удалить проект «${label}» вместе со всеми PDF, правками и замечаниями?`,
+      )
+    ) {
+      return;
+    }
+    const response = await fetch(`/api/projects/${id}`, { method: "DELETE" });
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      setError(payload.error || "Не удалось удалить проект");
+      return;
+    }
+    setError(null);
+    const list = await loadProjects();
+    setSelectedId(null);
+    setDocuments([]);
+    setEdits([]);
+    setNotes([]);
+    if (list.length === 0) {
+      setProjectId("");
+      setDescriptionDraft("");
+      return;
+    }
+    const next = list.find((item) => item.id !== id) ?? list[0];
+    await selectProject(next.id);
+  }
+
   async function handleRetry(id: string) {
     const response = await fetch(`/api/documents/${id}/process`, { method: "POST" });
     const payload = (await response.json()) as { document?: DocumentRecord };
@@ -766,15 +797,26 @@ export function Workspace({
                   {documents.length} файл(ах)
                 </div>
               </div>
-              {selected ? (
-                <button
-                  type="button"
-                  onClick={() => setFilesCollapsed(true)}
-                  className="text-[11px] text-muted hover:text-text"
-                >
-                  Скрыть
-                </button>
-              ) : null}
+              <div className="flex items-center gap-2">
+                {currentProject ? (
+                  <button
+                    type="button"
+                    onClick={() => void handleDeleteProject(currentProject.id)}
+                    className="text-[11px] text-red-600 hover:underline"
+                  >
+                    Удалить проект
+                  </button>
+                ) : null}
+                {selected ? (
+                  <button
+                    type="button"
+                    onClick={() => setFilesCollapsed(true)}
+                    className="text-[11px] text-muted hover:text-text"
+                  >
+                    Скрыть
+                  </button>
+                ) : null}
+              </div>
             </div>
 
             {currentProject ? (
