@@ -11,6 +11,10 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "PTO — проверка чертежей",
   description: "Загрузка PDF, чертёж слева, текст справа",
+  icons: {
+    icon: [{ url: "/icon.svg", type: "image/svg+xml" }, { url: "/favicon.png" }],
+    apple: "/pto-logo.png",
+  },
 };
 
 export default function RootLayout({

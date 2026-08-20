@@ -1,13 +1,33 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { AnnotationRect, PageAnnotation } from "@/types";
 
 type PdfPageProps = {
   url: string;
   pageNumber: number;
+  annotations?: PageAnnotation[];
+  markMode?: boolean;
+  activeAnnotationId?: string | null;
+  onMarkRect?: (rect: AnnotationRect) => void;
+  onSelectAnnotation?: (id: string) => void;
+  onCancelMark?: () => void;
 };
 
-export function PdfPage({ url, pageNumber }: PdfPageProps) {
+type DrawState = { x0: number; y0: number; x1: number; y1: number };
+
+const MIN_SIDE = 0.012;
+
+export function PdfPage({
+  url,
+  pageNumber,
+  annotations = [],
+  markMode = false,
+  activeAnnotationId = null,
+  onMarkRect,
+  onSelectAnnotation,
+  onCancelMark,
+}: PdfPageProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const dragRef = useRef<{
@@ -22,6 +42,7 @@ export function PdfPage({ url, pageNumber }: PdfPageProps) {
   const [scale, setScale] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [grabbing, setGrabbing] = useState(false);
+  const [draw, setDraw] = useState<DrawState | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -98,6 +119,56 @@ export function PdfPage({ url, pageNumber }: PdfPageProps) {
     return () => wrap.removeEventListener("wheel", onWheelNative);
   }, []);
 
+  useEffect(() => {
+    if (!markMode) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onCancelMark?.();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [markMode, onCancelMark]);
+
+  /** Экранная точка -> доля от размера листа, чтобы метка не зависела от зума. */
+  function toPagePoint(clientX: number, clientY: number) {
+    const wrap = wrapRef.current;
+    if (!wrap) return { x: 0, y: 0 };
+    const rect = wrap.getBoundingClientRect();
+    const x = (clientX - rect.left - pan.x) / scale / natural.w;
+    const y = (clientY - rect.top - pan.y) / scale / natural.h;
+    return {
+      x: Math.min(1, Math.max(0, x)),
+      y: Math.min(1, Math.max(0, y)),
+    };
+  }
+
+  function finishDraw(state: DrawState) {
+    const x = Math.min(state.x0, state.x1);
+    const y = Math.min(state.y0, state.y1);
+    let w = Math.abs(state.x1 - state.x0);
+    let h = Math.abs(state.y1 - state.y0);
+    if (w < MIN_SIDE && h < MIN_SIDE) {
+      w = 0.05;
+      h = 0.05;
+    }
+    onMarkRect?.({
+      x,
+      y,
+      w: Math.min(1 - x, Math.max(MIN_SIDE, w)),
+      h: Math.min(1 - y, Math.max(MIN_SIDE, h)),
+    });
+  }
+
+  const preview = markMode && draw
+    ? {
+        x: Math.min(draw.x0, draw.x1),
+        y: Math.min(draw.y0, draw.y1),
+        w: Math.abs(draw.x1 - draw.x0),
+        h: Math.abs(draw.y1 - draw.y0),
+      }
+    : null;
+
+  const cursor = markMode ? "cursor-crosshair" : grabbing ? "cursor-grabbing" : "cursor-grab";
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex shrink-0 items-center gap-1 border-b border-border bg-white px-2 py-1">
@@ -115,18 +186,26 @@ export function PdfPage({ url, pageNumber }: PdfPageProps) {
         >
           По ширине
         </button>
+        {markMode ? (
+          <span className="ml-2 rounded bg-red-50 px-2 py-0.5 text-[11px] text-red-700">
+            Обведите место на чертеже · Esc — отмена
+          </span>
+        ) : null}
         <span className="ml-auto text-[11px] text-muted">
           {Math.round(scale * 100)} % Zoom
         </span>
       </div>
       <div
         ref={wrapRef}
-        className={`relative min-h-0 flex-1 overflow-hidden bg-[#eceff3] ${
-          grabbing ? "cursor-grabbing" : "cursor-grab"
-        }`}
+        className={`relative min-h-0 flex-1 overflow-hidden bg-[#eceff3] ${cursor}`}
         onWheel={(event) => event.preventDefault()}
         onMouseDown={(event) => {
           if (event.button !== 0) return;
+          if (markMode) {
+            const point = toPagePoint(event.clientX, event.clientY);
+            setDraw({ x0: point.x, y0: point.y, x1: point.x, y1: point.y });
+            return;
+          }
           setGrabbing(true);
           dragRef.current = {
             x: event.clientX,
@@ -136,6 +215,12 @@ export function PdfPage({ url, pageNumber }: PdfPageProps) {
           };
         }}
         onMouseMove={(event) => {
+          if (markMode) {
+            if (!draw) return;
+            const point = toPagePoint(event.clientX, event.clientY);
+            setDraw({ ...draw, x1: point.x, y1: point.y });
+            return;
+          }
           const drag = dragRef.current;
           if (!drag) return;
           setPan({
@@ -144,12 +229,18 @@ export function PdfPage({ url, pageNumber }: PdfPageProps) {
           });
         }}
         onMouseUp={() => {
+          if (markMode) {
+            if (draw) finishDraw(draw);
+            setDraw(null);
+            return;
+          }
           dragRef.current = null;
           setGrabbing(false);
         }}
         onMouseLeave={() => {
           dragRef.current = null;
           setGrabbing(false);
+          setDraw(null);
         }}
       >
         {loading ? (
@@ -164,13 +255,78 @@ export function PdfPage({ url, pageNumber }: PdfPageProps) {
             className="h-full w-full border-0 bg-white"
           />
         ) : (
-          <canvas
-            ref={canvasRef}
-            className="origin-top-left bg-white shadow-[0_8px_30px_rgba(15,23,42,0.12)]"
+          // Метки лежат в том же трансформированном слое, что и canvas, поэтому едут вместе с чертежом.
+          <div
+            className="absolute left-0 top-0 origin-top-left"
             style={{
+              width: natural.w,
+              height: natural.h,
               transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`,
             }}
-          />
+          >
+            <canvas
+              ref={canvasRef}
+              className="block bg-white shadow-[0_8px_30px_rgba(15,23,42,0.12)]"
+            />
+            {annotations.map((annotation, index) => {
+              const isActive = annotation.id === activeAnnotationId;
+              const isOpen = annotation.status === "open";
+              return (
+                <button
+                  key={annotation.id}
+                  type="button"
+                  title={annotation.comment}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onSelectAnnotation?.(annotation.id);
+                  }}
+                  onMouseDown={(event) => event.stopPropagation()}
+                  className="absolute"
+                  style={{
+                    left: `${annotation.rect.x * 100}%`,
+                    top: `${annotation.rect.y * 100}%`,
+                    width: `${annotation.rect.w * 100}%`,
+                    height: `${annotation.rect.h * 100}%`,
+                    borderStyle: "solid",
+                    borderWidth: Math.max(1, 2 / scale),
+                    borderColor: isOpen ? "#dc2626" : "#059669",
+                    background: isActive
+                      ? "rgba(220,38,38,0.16)"
+                      : "rgba(220,38,38,0.05)",
+                  }}
+                >
+                  <span
+                    className="absolute font-semibold text-white"
+                    style={{
+                      left: 0,
+                      top: 0,
+                      transform: "translate(-2%, -105%)",
+                      background: isOpen ? "#dc2626" : "#059669",
+                      padding: `${1 / scale}px ${4 / scale}px`,
+                      borderRadius: 3 / scale,
+                      fontSize: Math.max(6, 13 / scale),
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    {index + 1}
+                  </span>
+                </button>
+              );
+            })}
+            {preview ? (
+              <div
+                className="pointer-events-none absolute"
+                style={{
+                  left: `${preview.x * 100}%`,
+                  top: `${preview.y * 100}%`,
+                  width: `${preview.w * 100}%`,
+                  height: `${preview.h * 100}%`,
+                  border: `${Math.max(1, 2 / scale)}px dashed #dc2626`,
+                  background: "rgba(220,38,38,0.1)",
+                }}
+              />
+            ) : null}
+          </div>
         )}
       </div>
     </div>

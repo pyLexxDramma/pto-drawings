@@ -1,13 +1,16 @@
 import { NextResponse } from "next/server";
+import { isPublicUser, requireUser } from "@/lib/auth";
 import { clearProjectSpec, getProject, saveProjectSpec } from "@/lib/storage";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 export const maxDuration = 60;
 
-const MAX_BYTES = process.env.VERCEL ? 4 * 1024 * 1024 : 80 * 1024 * 1024;
+const MAX_BYTES = 80 * 1024 * 1024;
 
 export async function POST(request: Request, context: RouteContext) {
+  const user = await requireUser(request);
+  if (!isPublicUser(user)) return user;
   const { id } = await context.params;
   const form = await request.formData();
   const file = form.get("file");
@@ -43,7 +46,9 @@ export async function POST(request: Request, context: RouteContext) {
   }
 }
 
-export async function DELETE(_request: Request, context: RouteContext) {
+export async function DELETE(request: Request, context: RouteContext) {
+  const user = await requireUser(request);
+  if (!isPublicUser(user)) return user;
   const { id } = await context.params;
   const project = await clearProjectSpec(id);
   if (!project) {
@@ -52,7 +57,9 @@ export async function DELETE(_request: Request, context: RouteContext) {
   return NextResponse.json({ project });
 }
 
-export async function GET(_request: Request, context: RouteContext) {
+export async function GET(request: Request, context: RouteContext) {
+  const user = await requireUser(request);
+  if (!isPublicUser(user)) return user;
   const { id } = await context.params;
   const project = await getProject(id);
   if (!project) {

@@ -1,14 +1,19 @@
 import { NextResponse } from "next/server";
+import { isPublicUser, requireUser } from "@/lib/auth";
 import { createProject, listProjects } from "@/lib/storage";
 
 export const maxDuration = 30;
 
-export async function GET() {
+export async function GET(request: Request) {
+  const user = await requireUser(request);
+  if (!isPublicUser(user)) return user;
   const projects = await listProjects();
   return NextResponse.json({ projects });
 }
 
 export async function POST(request: Request) {
+  const user = await requireUser(request);
+  if (!isPublicUser(user)) return user;
   const body = (await request.json()) as { name?: string; description?: string };
   const name = body.name?.trim();
   if (!name) {

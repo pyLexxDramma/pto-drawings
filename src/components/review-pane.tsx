@@ -1,27 +1,35 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
-import Markdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { MarkdownView } from "@/components/markdown-view";
 import { PageStrip } from "@/components/page-strip";
 import { PdfPage } from "@/components/pdf-page";
 import { formatDate } from "@/lib/format";
 import {
-  loadLastPage,
-  loadViewedPages,
-  saveLastPage,
-  saveViewedPages,
+  cacheProgress,
+  fetchProgress,
+  loadCachedProgress,
+  pushProgress,
 } from "@/lib/review-state";
-import { KIND_LABEL, type DocumentRecord, type PageKind } from "@/types";
+import {
+  KIND_LABEL,
+  SOURCE_LABEL,
+  type AnnotationRect,
+  type DocumentRecord,
+  type PageAnnotation,
+  type PageKind,
+} from "@/types";
 
-type KindFilter = "all" | "drawing" | "table" | "text";
+type KindFilter = "all" | "drawing" | "table" | "text" | "flagged";
 
 type ReviewPaneProps = {
   document: DocumentRecord;
   focusMode: boolean;
   openPage?: { nonce: number; page: number; documentId: string } | null;
   onToggleFocus: () => void;
+  onBackToProjects: () => void;
   onSavePage: (pageNumber: number, markdown: string) => Promise<void>;
+  onAnnotationsChanged?: () => void;
 };
 
 function stepLabel(document: DocumentRecord) {
@@ -31,21 +39,16 @@ function stepLabel(document: DocumentRecord) {
   return "обработка";
 }
 
-function matchesFilter(kind: PageKind | undefined, filter: KindFilter) {
-  if (filter === "all") return true;
-  if (!kind) return false;
-  if (filter === "drawing") return kind === "drawing" || kind === "mixed";
-  return kind === filter;
-}
-
 export function ReviewPane({
   document,
   focusMode,
   openPage,
   onToggleFocus,
+  onBackToProjects,
   onSavePage,
+  onAnnotationsChanged,
 }: ReviewPaneProps) {
-  const [pageNumber, setPageNumber] = useState(1);
+  const [rawPage, setRawPage] = useState(() => loadCachedProgress(document.id).lastPage);
   const [mode, setMode] = useState<"view" | "edit">("view");
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
@@ -53,13 +56,22 @@ export function ReviewPane({
   const [query, setQuery] = useState("");
   const [showLog, setShowLog] = useState(false);
   const [filter, setFilter] = useState<KindFilter>("all");
-  const [viewed, setViewed] = useState<number[]>([]);
+  const [viewed, setViewed] = useState<number[]>(
+    () => loadCachedProgress(document.id).viewed,
+  );
+  const [notes, setNotes] = useState<PageAnnotation[]>([]);
+  const [markMode, setMarkMode] = useState(false);
+  const [pendingRect, setPendingRect] = useState<AnnotationRect | null>(null);
+  const [noteComment, setNoteComment] = useState("");
+  const [noteExpected, setNoteExpected] = useState("");
+  const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
+  const [noteError, setNoteError] = useState<string | null>(null);
   const draftRef = useRef(draft);
-  const pageRef = useRef(pageNumber);
+  const pageRef = useRef(rawPage);
   const timerRef = useRef<number | null>(null);
+  const navigatedRef = useRef(false);
 
   const total = Math.max(document.pageCount, document.pages.length, 1);
-  const page = document.pages.find((item) => item.pageNumber === pageNumber);
   const processing =
     document.status === "queued" || document.status === "processing";
   const editedPages = useMemo(
@@ -76,79 +88,133 @@ export function ReviewPane({
     [document.pages],
   );
   const viewedSet = useMemo(() => new Set(viewed), [viewed]);
+  const flaggedPages = useMemo(
+    () => new Set(notes.filter((item) => item.status === "open").map((item) => item.pageNumber)),
+    [notes],
+  );
+  const annotatedPages = useMemo(
+    () => new Set(notes.map((item) => item.pageNumber)),
+    [notes],
+  );
+  const matchesFilter = useMemo(() => {
+    return (number: number) => {
+      if (filter === "all") return true;
+      if (filter === "flagged") return flaggedPages.has(number);
+      const kind = kinds.get(number);
+      if (!kind) return false;
+      if (filter === "drawing") return kind === "drawing" || kind === "mixed";
+      return kind === filter;
+    };
+  }, [filter, flaggedPages, kinds]);
+
+  const filterCounts = useMemo(() => {
+    const counts: Record<KindFilter, number> = {
+      all: total,
+      drawing: 0,
+      table: 0,
+      text: 0,
+      flagged: flaggedPages.size,
+    };
+    for (let number = 1; number <= total; number += 1) {
+      const kind = kinds.get(number);
+      if (kind === "drawing" || kind === "mixed") counts.drawing += 1;
+      if (kind === "table") counts.table += 1;
+      if (kind === "text") counts.text += 1;
+    }
+    return counts;
+  }, [flaggedPages.size, kinds, total]);
+
   const visiblePages = useMemo(
     () =>
       Array.from({ length: total }, (_, index) => index + 1).filter((number) =>
-        matchesFilter(kinds.get(number), filter),
+        matchesFilter(number),
       ),
-    [filter, kinds, total],
+    [matchesFilter, total],
   );
+  const filterEmpty = filter !== "all" && visiblePages.length === 0;
   const hidden = useMemo(() => {
+    const visible = new Set(visiblePages);
     const set = new Set<number>();
     for (let number = 1; number <= total; number += 1) {
-      if (!visiblePages.includes(number)) set.add(number);
+      if (!visible.has(number)) set.add(number);
     }
     return set;
   }, [total, visiblePages]);
 
-  draftRef.current = draft;
-  pageRef.current = pageNumber;
+  // Номер листа выводим из состояния: так он сам держится в границах комплекта
+  // и текущего фильтра, без эффектов-подгонок.
+  const clampedPage = Math.min(Math.max(rawPage, 1), Math.max(total, 1));
+  const pageNumber =
+    visiblePages.length === 0 || visiblePages.includes(clampedPage)
+      ? clampedPage
+      : visiblePages[0];
+  const page = document.pages.find((item) => item.pageNumber === pageNumber);
+  const pageNotes = notes.filter((item) => item.pageNumber === pageNumber);
 
   useEffect(() => {
-    setFilter("all");
-    setMode("view");
-    setQuery("");
-    setViewed(loadViewedPages(document.id));
-    setPageNumber(Math.min(Math.max(total, 1), loadLastPage(document.id)));
+    draftRef.current = draft;
+  }, [draft]);
+
+  useEffect(() => {
+    pageRef.current = pageNumber;
+  }, [pageNumber]);
+
+  useEffect(() => {
+    const ac = new AbortController();
+    void (async () => {
+      const server = await fetchProgress(document.id, ac.signal);
+      if (!server || ac.signal.aborted) return;
+      setViewed(server.viewed);
+      // Если инженер уже листает, не выдёргиваем его на сохранённый лист.
+      if (!navigatedRef.current) setRawPage(server.lastPage);
+    })();
+    return () => ac.abort();
   }, [document.id]);
 
   useEffect(() => {
-    setPageNumber((prev) => Math.min(Math.max(prev, 1), Math.max(total, 1)));
-  }, [total]);
+    const ac = new AbortController();
+    void (async () => {
+      try {
+        const response = await fetch(`/api/documents/${document.id}/annotations`, {
+          signal: ac.signal,
+        });
+        if (!response.ok) return;
+        const payload = (await response.json()) as { annotations?: PageAnnotation[] };
+        setNotes(payload.annotations ?? []);
+      } catch {
+        // прервано при смене документа
+      }
+    })();
+    return () => ac.abort();
+  }, [document.id]);
 
   useEffect(() => {
     if (!openPage || openPage.documentId !== document.id) return;
-    setPageNumber(Math.min(Math.max(openPage.page, 1), Math.max(total, 1)));
-  }, [document.id, openPage, total]);
+    navigatedRef.current = true;
+    // Переход из фида проекта: внешнее событие, поэтому состояние двигаем здесь.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setRawPage(openPage.page);
+    setMode("view");
+  }, [document.id, openPage]);
 
   useEffect(() => {
-    saveLastPage(document.id, pageNumber);
-  }, [document.id, pageNumber]);
+    cacheProgress(document.id, { viewed, lastPage: pageNumber });
+    const timer = window.setTimeout(() => {
+      void pushProgress(document.id, { viewed, lastPage: pageNumber });
+    }, 600);
+    return () => window.clearTimeout(timer);
+  }, [document.id, pageNumber, viewed]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      setViewed((prev) => {
-        if (prev.includes(pageNumber)) return prev;
-        const next = [...prev, pageNumber];
-        saveViewedPages(document.id, next);
-        return next;
-      });
+      setViewed((prev) => (prev.includes(pageNumber) ? prev : [...prev, pageNumber]));
     }, 700);
     return () => window.clearTimeout(timer);
   }, [document.id, pageNumber]);
 
   useEffect(() => {
-    if (visiblePages.length === 0) return;
-    if (!visiblePages.includes(pageNumber)) setPageNumber(visiblePages[0]);
-  }, [pageNumber, visiblePages]);
-
-  useEffect(() => {
-    setDraft(
-      document.pages.find((item) => item.pageNumber === pageNumber)?.markdown ??
-        "",
-    );
-    setMode("view");
-  }, [document.id, pageNumber]);
-
-  useEffect(() => {
-    if (mode === "edit") return;
-    setDraft(
-      document.pages.find((item) => item.pageNumber === pageNumber)?.markdown ??
-        "",
-    );
-  }, [document.pages, mode, pageNumber]);
-
-  useEffect(() => {
+    // Таблицы читаются шире, чем чертёж: отдаём им больше правой панели.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (page?.kind === "table") setSplit(42);
   }, [page?.kind]);
 
@@ -179,8 +245,10 @@ export function ReviewPane({
 
   async function goToPage(next: number) {
     if (timerRef.current) window.clearTimeout(timerRef.current);
+    navigatedRef.current = true;
     await flush();
-    setPageNumber(next);
+    setMode("view");
+    setRawPage(next);
   }
 
   function stepVisible(delta: number) {
@@ -193,8 +261,7 @@ export function ReviewPane({
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
       const target = event.target as HTMLElement | null;
-      const typing =
-        target && ["INPUT", "TEXTAREA"].includes(target.tagName);
+      const typing = target && ["INPUT", "TEXTAREA"].includes(target.tagName);
 
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
         event.preventDefault();
@@ -202,8 +269,14 @@ export function ReviewPane({
         return;
       }
 
-      if (event.key === "Escape" && focusMode) {
-        onToggleFocus();
+      if (event.key === "Escape") {
+        if (markMode || pendingRect) {
+          setMarkMode(false);
+          setPendingRect(null);
+          return;
+        }
+        if (focusMode) onToggleFocus();
+        else onBackToProjects();
         return;
       }
 
@@ -222,7 +295,8 @@ export function ReviewPane({
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [focusMode, onToggleFocus, visiblePages, document.pages]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusMode, markMode, pendingRect, onBackToProjects, onToggleFocus, visiblePages, document.pages]);
 
   const hits = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -260,13 +334,83 @@ export function ReviewPane({
   }
 
   function toggleViewed() {
-    setViewed((prev) => {
-      const next = prev.includes(pageNumber)
+    setViewed((prev) =>
+      prev.includes(pageNumber)
         ? prev.filter((item) => item !== pageNumber)
-        : [...prev, pageNumber];
-      saveViewedPages(document.id, next);
-      return next;
+        : [...prev, pageNumber],
+    );
+  }
+
+  async function submitNote() {
+    if (!pendingRect) return;
+    const comment = noteComment.trim();
+    if (!comment) {
+      setNoteError("Опишите, что неверно");
+      return;
+    }
+    setNoteError(null);
+    const response = await fetch(`/api/documents/${document.id}/annotations`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        pageNumber,
+        rect: pendingRect,
+        comment,
+        expected: noteExpected.trim(),
+      }),
     });
+    const payload = (await response.json()) as {
+      annotation?: PageAnnotation;
+      error?: string;
+    };
+    if (!payload.annotation) {
+      setNoteError(payload.error ?? "Не удалось сохранить замечание");
+      return;
+    }
+    setNotes((prev) => [payload.annotation!, ...prev]);
+    setPendingRect(null);
+    setMarkMode(false);
+    setNoteComment("");
+    setNoteExpected("");
+    onAnnotationsChanged?.();
+  }
+
+  async function toggleNoteStatus(note: PageAnnotation) {
+    const next = note.status === "open" ? "fixed" : "open";
+    const response = await fetch(
+      `/api/documents/${document.id}/annotations/${note.id}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: next }),
+      },
+    );
+    const payload = (await response.json()) as {
+      annotation?: PageAnnotation;
+      error?: string;
+    };
+    if (!payload.annotation) {
+      setNoteError(payload.error ?? "Не удалось обновить замечание");
+      return;
+    }
+    setNotes((prev) =>
+      prev.map((item) => (item.id === note.id ? payload.annotation! : item)),
+    );
+    onAnnotationsChanged?.();
+  }
+
+  async function removeNote(note: PageAnnotation) {
+    const response = await fetch(
+      `/api/documents/${document.id}/annotations/${note.id}`,
+      { method: "DELETE" },
+    );
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      setNoteError(payload.error ?? "Не удалось удалить замечание");
+      return;
+    }
+    setNotes((prev) => prev.filter((item) => item.id !== note.id));
+    onAnnotationsChanged?.();
   }
 
   const filters: { id: KindFilter; label: string }[] = [
@@ -274,7 +418,11 @@ export function ReviewPane({
     { id: "drawing", label: "Чертежи" },
     { id: "table", label: "Таблицы" },
     { id: "text", label: "Текст" },
+    { id: "flagged", label: "С замечаниями" },
   ];
+  const filterLabel =
+    filters.find((item) => item.id === filter)?.label.toLowerCase() ?? "этот тип";
+  const openNotes = notes.filter((item) => item.status === "open").length;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -283,14 +431,22 @@ export function ReviewPane({
           <div className="truncate text-sm font-medium">{document.originalName}</div>
           <div className="text-[11px] text-muted">
             {page ? KIND_LABEL[page.kind] : "Страница"} · лист {pageNumber} из {total}
-            {viewedSet.has(pageNumber) ? " · просмотрено" : ""}
-            {editedPages.has(pageNumber) ? " · правили" : ""}
+            {viewedSet.has(pageNumber) ? " · просмотрен" : ""}
+            {editedPages.has(pageNumber) ? " · правки" : ""}
             {saving ? " · сохранение" : ""}
             {" · "}
-            {viewed.length}/{total} глазками
+            {viewed.length}/{total} просмотрено
+            {openNotes ? ` · ${openNotes} замечаний` : ""}
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onBackToProjects}
+            className="rounded-md border border-border px-2 py-1 text-xs"
+          >
+            К проектам
+          </button>
           <a
             href={`/api/documents/${document.id}/markdown`}
             download
@@ -298,6 +454,20 @@ export function ReviewPane({
           >
             Скачать .md
           </a>
+          <button
+            type="button"
+            onClick={() => {
+              setPendingRect(null);
+              setMarkMode((value) => !value);
+            }}
+            className={`rounded-md border px-2 py-1 text-xs ${
+              markMode
+                ? "border-red-500 bg-red-50 text-red-700"
+                : "border-border"
+            }`}
+          >
+            {markMode ? "Отмена" : "Отметить ошибку"}
+          </button>
           <button
             type="button"
             onClick={toggleViewed}
@@ -310,7 +480,7 @@ export function ReviewPane({
             onClick={onToggleFocus}
             className="rounded-md border border-border px-2 py-1 text-xs"
           >
-            {focusMode ? "К проектам" : "Чертёж на весь экран"}
+            {focusMode ? "Обычный вид" : "Чертёж на весь экран"}
           </button>
           <button
             type="button"
@@ -354,6 +524,7 @@ export function ReviewPane({
           edited={editedPages}
           viewed={viewedSet}
           ready={ready}
+          annotated={annotatedPages}
           hidden={hidden}
           processingPage={document.processingPage}
           onSelect={(next) => void goToPage(next)}
@@ -364,6 +535,15 @@ export function ReviewPane({
             <PdfPage
               url={`/api/documents/${document.id}/file`}
               pageNumber={pageNumber}
+              annotations={pageNotes}
+              markMode={markMode}
+              activeAnnotationId={activeNoteId}
+              onMarkRect={(rect) => setPendingRect(rect)}
+              onSelectAnnotation={(id) => setActiveNoteId(id)}
+              onCancelMark={() => {
+                setMarkMode(false);
+                setPendingRect(null);
+              }}
             />
             {processing ? (
               <div className="pointer-events-none absolute bottom-3 left-3 rounded-md bg-slate-900/75 px-2.5 py-1 text-xs text-white">
@@ -383,6 +563,7 @@ export function ReviewPane({
             <div className="flex items-center justify-between border-b border-border px-3 py-2">
               <div className="text-xs font-medium text-muted">
                 {page?.kind === "table" ? "Таблица как в PDF" : "Markdown"}
+                {page ? ` · ${SOURCE_LABEL[page.source]}` : ""}
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -402,6 +583,61 @@ export function ReviewPane({
               </div>
             </div>
 
+            {page && page.warnings.length > 0 ? (
+              <div className="border-b border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
+                {page.warnings.map((warning) => (
+                  <div key={warning}>{warning}</div>
+                ))}
+              </div>
+            ) : null}
+
+            {pendingRect ? (
+              <div className="border-b border-red-200 bg-red-50 px-3 py-2">
+                <div className="text-[11px] font-medium text-red-700">
+                  Новое замечание на листе {pageNumber}
+                </div>
+                <textarea
+                  autoFocus
+                  value={noteComment}
+                  onChange={(event) => setNoteComment(event.target.value)}
+                  rows={2}
+                  placeholder="Что неверно"
+                  className="mt-1 w-full resize-none rounded-md border border-border bg-white px-2 py-1.5 text-xs outline-none focus:border-accent"
+                />
+                <textarea
+                  value={noteExpected}
+                  onChange={(event) => setNoteExpected(event.target.value)}
+                  rows={2}
+                  placeholder="Как должно быть (необязательно)"
+                  className="mt-1 w-full resize-none rounded-md border border-border bg-white px-2 py-1.5 text-xs outline-none focus:border-accent"
+                />
+                {noteError ? (
+                  <div className="mt-1 text-[11px] text-red-700">{noteError}</div>
+                ) : null}
+                <div className="mt-1.5 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void submitNote()}
+                    className="rounded-md bg-accent px-2.5 py-1 text-xs font-medium text-white"
+                  >
+                    Сохранить
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPendingRect(null);
+                      setNoteComment("");
+                      setNoteExpected("");
+                      setNoteError(null);
+                    }}
+                    className="rounded-md border border-border px-2.5 py-1 text-xs"
+                  >
+                    Отмена
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
             <div className="flex flex-wrap gap-1 border-b border-border px-3 py-2">
               {filters.map((item) => (
                 <button
@@ -415,6 +651,9 @@ export function ReviewPane({
                   }`}
                 >
                   {item.label}
+                  <span className="ml-1 tabular-nums text-muted">
+                    {filterCounts[item.id]}
+                  </span>
                 </button>
               ))}
             </div>
@@ -423,7 +662,7 @@ export function ReviewPane({
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Поиск по комплекту: PSV, 210 кг, позиция…"
+                placeholder="Поиск по этому файлу: PSV, 210 кг, позиция…"
                 className="w-full rounded-md border border-border bg-bg px-2 py-1.5 text-sm outline-none focus:border-accent"
               />
               {hits.length > 0 ? (
@@ -444,8 +683,12 @@ export function ReviewPane({
             </div>
 
             <div className="flex max-h-28 shrink-0 flex-col overflow-auto border-b border-border px-2 py-2">
-              {visiblePages.length === 0 ? (
-                <div className="px-2 py-1 text-xs text-muted">Нет листов этого типа</div>
+              {filterEmpty ? (
+                <div className="px-2 py-2 text-xs text-muted">
+                  {filter === "flagged"
+                    ? "Замечаний по этому файлу пока нет."
+                    : `В комплекте нет листов типа «${filterLabel}» (0 из ${total}). Классификация по извлечённому тексту листа.`}
+                </div>
               ) : null}
               {visiblePages.map((number) => {
                 const item = document.pages.find((pageItem) => pageItem.pageNumber === number);
@@ -460,8 +703,9 @@ export function ReviewPane({
                     }`}
                   >
                     # Лист {number} — {kind.toLowerCase()}
-                    {viewedSet.has(number) ? " · глазками" : ""}
-                    {editedPages.has(number) ? " · правили" : ""}
+                    {viewedSet.has(number) ? " · просмотрен" : ""}
+                    {editedPages.has(number) ? " · правки" : ""}
+                    {flaggedPages.has(number) ? " · замечание" : ""}
                     {!item ? " · ждёт текст" : ""}
                   </button>
                 );
@@ -469,7 +713,13 @@ export function ReviewPane({
             </div>
 
             <div className="min-h-0 flex-1 overflow-auto">
-              {!page ? (
+              {filterEmpty ? (
+                <div className="p-6 text-sm text-muted">
+                  {filter === "flagged"
+                    ? "Отметьте ошибку на чертеже — лист появится в этом списке."
+                    : `Нет листов типа «${filterLabel}» в этом комплекте. Выберите «Все» или вкладку с ненулевым счётчиком.`}
+                </div>
+              ) : !page ? (
                 <div className="p-6 text-sm text-muted">
                   {processing
                     ? `Текст появится по мере обработки. Готово ${readyCount} из ${total}.`
@@ -488,9 +738,65 @@ export function ReviewPane({
                 <div
                   className={`markdown-body p-5 ${page.kind === "table" ? "markdown-body--table" : ""}`}
                 >
-                  <Markdown remarkPlugins={[remarkGfm]}>{page.markdown}</Markdown>
+                  <MarkdownView>{page.markdown}</MarkdownView>
                 </div>
               )}
+            </div>
+
+            <div className="border-t border-border px-3 py-2">
+              <div className="text-xs font-medium text-muted">
+                Замечания по листу: {pageNotes.length}
+              </div>
+              <div className="mt-1 max-h-40 space-y-1.5 overflow-auto">
+                {pageNotes.length === 0 ? (
+                  <div className="text-[11px] text-muted">
+                    Нажмите «Отметить ошибку» и обведите место на чертеже.
+                  </div>
+                ) : (
+                  pageNotes.map((note, index) => (
+                    <div
+                      key={note.id}
+                      onMouseEnter={() => setActiveNoteId(note.id)}
+                      onMouseLeave={() => setActiveNoteId(null)}
+                      className={`rounded-md border px-2 py-1.5 text-[11px] ${
+                        note.status === "open"
+                          ? "border-red-200 bg-red-50"
+                          : "border-emerald-200 bg-emerald-50"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium">
+                          {index + 1}. {note.status === "open" ? "открыто" : "исправлено"}
+                        </span>
+                        <span className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => void toggleNoteStatus(note)}
+                            className="text-accent hover:underline"
+                          >
+                            {note.status === "open" ? "Исправлено" : "Вернуть"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void removeNote(note)}
+                            className="text-red-600 hover:underline"
+                          >
+                            Удалить
+                          </button>
+                        </span>
+                      </div>
+                      <div className="mt-0.5">{note.comment}</div>
+                      {note.expected ? (
+                        <div className="mt-0.5 text-muted">Должно быть: {note.expected}</div>
+                      ) : null}
+                      <div className="mt-0.5 text-muted">
+                        {note.userName ? `${note.userName} · ` : ""}
+                        {formatDate(note.createdAt)}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
 
             <div className="border-t border-border px-3 py-2">
@@ -510,6 +816,7 @@ export function ReviewPane({
                     pageLogs.map((entry) => (
                       <div key={entry.id} className="rounded-md bg-surface-2 px-2 py-1.5 text-[11px] text-muted">
                         {formatDate(entry.createdAt)} · лист {entry.pageNumber}
+                        {entry.userName ? ` · ${entry.userName}` : ""}
                       </div>
                     ))
                   )}

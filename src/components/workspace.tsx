@@ -8,14 +8,22 @@ import {
   type DragEvent,
   type FormEvent,
 } from "react";
+import { PasswordPanel } from "@/components/password-panel";
 import { ReviewPane } from "@/components/review-pane";
+import { PtoLogo } from "@/components/pto-logo";
+import { UsersPanel } from "@/components/users-panel";
 import { formatBytes, formatDate, formatPages } from "@/lib/format";
 import {
+  KIND_LABEL,
+  ROLE_LABEL,
   STEP_LABEL,
   type DocumentRecord,
   type DocumentStatus,
   type Project,
+  type ProjectAnnotation,
   type ProjectEdit,
+  type PublicUser,
+  type SearchHit,
 } from "@/types";
 
 type UploadItem = {
@@ -41,7 +49,7 @@ const STATUS_CLASS: Record<DocumentStatus, string> = {
 
 function statusLine(doc: DocumentRecord) {
   if (doc.status === "queued" || doc.status === "processing") {
-    const ready = `${doc.pages.length}/${Math.max(doc.pageCount, 1)}`;
+    const ready = `${doc.readyPages}/${Math.max(doc.pageCount, 1)}`;
     if (doc.status === "processing" && doc.processingStep) {
       const step = STEP_LABEL[doc.processingStep];
       if (doc.processingPage) {
@@ -56,21 +64,17 @@ function statusLine(doc: DocumentRecord) {
 }
 
 function pageProgress(doc: DocumentRecord) {
-  return Math.round((doc.pages.length / Math.max(doc.pageCount, 1)) * 100);
+  return Math.round((doc.readyPages / Math.max(doc.pageCount, 1)) * 100);
 }
 
 function kindSummary(doc: DocumentRecord) {
-  if (doc.pages.length === 0) return formatPages(doc.pageCount);
-  const drawings = doc.pages.filter(
-    (page) => page.kind === "drawing" || page.kind === "mixed",
-  ).length;
-  const tables = doc.pages.filter((page) => page.kind === "table").length;
-  const texts = doc.pages.filter((page) => page.kind === "text").length;
+  if (doc.readyPages === 0) return formatPages(doc.pageCount);
+  const drawings = doc.kindCounts.drawing + doc.kindCounts.mixed;
   const parts = [
-    `${doc.pages.length}/${doc.pageCount} листов`,
+    `${doc.readyPages}/${doc.pageCount} листов`,
     drawings ? `${drawings} чертеж.` : null,
-    tables ? `${tables} табл.` : null,
-    texts ? `${texts} текст` : null,
+    doc.kindCounts.table ? `${doc.kindCounts.table} табл.` : null,
+    doc.kindCounts.text ? `${doc.kindCounts.text} текст` : null,
   ].filter(Boolean);
   return parts.join(" · ");
 }
@@ -108,12 +112,22 @@ function uploadPdf(
     };
     xhr.onerror = () => reject(new Error("Нет соединения с сервером"));
     xhr.timeout = 120000;
-    xhr.ontimeout = () => reject(new Error("Сервер не ответил. На Vercel включите Blob Storage."));
+    xhr.ontimeout = () => reject(new Error("Сервер не ответил"));
     xhr.send(form);
   });
 }
 
-export function Workspace() {
+export function Workspace({
+  user,
+  defaultPasswordWarning = false,
+  onPasswordChanged,
+  onLogout,
+}: {
+  user: PublicUser;
+  defaultPasswordWarning?: boolean;
+  onPasswordChanged?: () => void;
+  onLogout: () => void;
+}) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
@@ -134,6 +148,13 @@ export function Workspace() {
   const [descriptionDraft, setDescriptionDraft] = useState("");
   const [edits, setEdits] = useState<ProjectEdit[]>([]);
   const [showEdits, setShowEdits] = useState(false);
+  const [showUsers, setShowUsers] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [projectQuery, setProjectQuery] = useState("");
+  const [hits, setHits] = useState<SearchHit[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [notes, setNotes] = useState<ProjectAnnotation[]>([]);
+  const [showNotes, setShowNotes] = useState(false);
   const [openPage, setOpenPage] = useState<{
     nonce: number;
     page: number;
@@ -147,24 +168,72 @@ export function Workspace() {
     (doc) => doc.status === "queued" || doc.status === "processing",
   );
 
-  const loadProjects = useCallback(async () => {
-    const response = await fetch("/api/projects");
+  const loadProjects = useCallback(async (signal?: AbortSignal) => {
+    const response = await fetch("/api/projects", { signal });
+    if (response.status === 401) {
+      onLogout();
+      throw new Error("Нужен вход");
+    }
     if (!response.ok) throw new Error("Не удалось загрузить проекты");
     const payload = (await response.json()) as { projects: Project[] };
     const list = payload.projects ?? [];
     setProjects(list);
     return list;
-  }, []);
+  }, [onLogout]);
 
-  const loadDocuments = useCallback(async (id: string) => {
-    const response = await fetch(`/api/documents?projectId=${encodeURIComponent(id)}`);
+  const loadDocuments = useCallback(async (id: string, signal?: AbortSignal) => {
+    const response = await fetch(
+      `/api/documents?projectId=${encodeURIComponent(id)}&lite=1`,
+      { signal },
+    );
     const payload = (await response.json()) as { documents: DocumentRecord[] };
-    setDocuments(payload.documents);
-    return payload.documents;
+    const list = payload.documents ?? [];
+    setDocuments((prev) => {
+      const prevById = new Map(prev.map((doc) => [doc.id, doc]));
+      return list.map((lite) => {
+        const existing = prevById.get(lite.id);
+        if (
+          existing &&
+          existing.status === lite.status &&
+          existing.pages.some((page) => page.markdown.length > 0)
+        ) {
+          return {
+            ...lite,
+            pages: existing.pages,
+            editLog: existing.editLog,
+            annotations: existing.annotations,
+            progress: existing.progress,
+          };
+        }
+        return lite;
+      });
+    });
+    return list;
   }, []);
 
-  const loadEdits = useCallback(async (id: string) => {
-    const response = await fetch(`/api/projects/${id}/edits`);
+  const openDocument = useCallback(async (id: string) => {
+    setSelectedId(id);
+    setOpenPage(null);
+    setFilesCollapsed(true);
+    try {
+      const response = await fetch(`/api/documents/${id}`);
+      if (!response.ok) return;
+      const payload = (await response.json()) as { document?: DocumentRecord };
+      if (!payload.document) return;
+      setDocuments((prev) => {
+        const exists = prev.some((doc) => doc.id === payload.document!.id);
+        if (!exists) return [payload.document!, ...prev];
+        return prev.map((doc) =>
+          doc.id === payload.document!.id ? payload.document! : doc,
+        );
+      });
+    } catch {
+      // список уже есть; полный текст подтянется при повторе
+    }
+  }, []);
+
+  const loadEdits = useCallback(async (id: string, signal?: AbortSignal) => {
+    const response = await fetch(`/api/projects/${id}/edits`, { signal });
     if (!response.ok) {
       setEdits([]);
       return;
@@ -173,25 +242,79 @@ export function Workspace() {
     setEdits(payload.edits ?? []);
   }, []);
 
+  const loadNotes = useCallback(async (id: string, signal?: AbortSignal) => {
+    const response = await fetch(`/api/projects/${id}/annotations`, { signal });
+    if (!response.ok) {
+      setNotes([]);
+      return;
+    }
+    const payload = (await response.json()) as { annotations: ProjectAnnotation[] };
+    setNotes(payload.annotations ?? []);
+  }, []);
+
+  const jumpToPage = useCallback(
+    (documentId: string, page: number) => {
+      setOpenPage({ nonce: Date.now(), page, documentId });
+      void openDocument(documentId);
+    },
+    [openDocument],
+  );
+
   useEffect(() => {
-    let cancelled = false;
+    const query = projectQuery.trim();
+    if (!projectId || query.length < 2) return;
+    const ac = new AbortController();
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const response = await fetch(
+            `/api/projects/${projectId}/search?q=${encodeURIComponent(query)}`,
+            { signal: ac.signal },
+          );
+          if (!response.ok) return;
+          const payload = (await response.json()) as { hits?: SearchHit[] };
+          setHits(payload.hits ?? []);
+        } catch {
+          // запрос отменён при новом вводе
+        } finally {
+          setSearching(false);
+        }
+      })();
+    }, 350);
+    return () => {
+      window.clearTimeout(timer);
+      ac.abort();
+    };
+  }, [projectId, projectQuery]);
+
+  useEffect(() => {
+    const ac = new AbortController();
+    const timeout = window.setTimeout(() => ac.abort(), 20000);
     (async () => {
       try {
-        const list = await loadProjects();
-        if (cancelled || list.length === 0) return;
+        const list = await loadProjects(ac.signal);
+        if (ac.signal.aborted) return;
+        if (list.length === 0) return;
         setProjectId(list[0].id);
         setDescriptionDraft(list[0].description ?? "");
-        await Promise.all([loadDocuments(list[0].id), loadEdits(list[0].id)]);
+        await Promise.all([
+          loadDocuments(list[0].id, ac.signal),
+          loadEdits(list[0].id, ac.signal),
+          loadNotes(list[0].id, ac.signal),
+        ]);
       } catch {
-        if (!cancelled) setError("Не удалось загрузить данные");
+        if (ac.signal.aborted) return;
+        setError("Не удалось загрузить данные");
       } finally {
-        if (!cancelled) setLoading(false);
+        window.clearTimeout(timeout);
+        setLoading(false);
       }
     })();
     return () => {
-      cancelled = true;
+      window.clearTimeout(timeout);
+      ac.abort();
     };
-  }, [loadDocuments, loadEdits, loadProjects]);
+  }, [loadDocuments, loadEdits, loadNotes, loadProjects]);
 
   useEffect(() => {
     if (!projectId || !busy) return;
@@ -210,7 +333,10 @@ export function Workspace() {
     const project = projects.find((item) => item.id === id);
     setDescriptionDraft(project?.description ?? "");
     setShowEdits(false);
-    await Promise.all([loadDocuments(id), loadEdits(id)]);
+    setShowNotes(false);
+    setProjectQuery("");
+    setHits([]);
+    await Promise.all([loadDocuments(id), loadEdits(id), loadNotes(id)]);
   }
 
   async function handleCreateProject(event: FormEvent) {
@@ -345,8 +471,7 @@ export function Workspace() {
               document,
               ...prev.filter((doc) => doc.id !== document.id),
             ]);
-            setSelectedId(document.id);
-            setFilesCollapsed(true);
+            void openDocument(document.id);
           } catch (err) {
             const message = err instanceof Error ? err.message : "Ошибка загрузки";
             setUploads((prev) =>
@@ -358,7 +483,7 @@ export function Workspace() {
         }),
       );
     },
-    [projectId, projects],
+    [openDocument, projectId, projects],
   );
 
   async function handleSavePage(pageNumber: number, markdown: string) {
@@ -395,7 +520,7 @@ export function Workspace() {
       setDocuments((prev) =>
         prev.map((doc) => (doc.id === payload.document!.id ? payload.document! : doc)),
       );
-      setSelectedId(id);
+      void openDocument(id);
     }
   }
 
@@ -424,20 +549,69 @@ export function Workspace() {
       }}
       onDrop={onDrop}
     >
-      <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-surface px-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-accent text-sm font-semibold text-white">
-            П
-          </div>
-          <div className="text-sm font-semibold">PTO</div>
-        </div>
+      <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border bg-surface px-4">
         <button
           type="button"
-          onClick={() => inputRef.current?.click()}
-          className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-[#1d4ed8]"
+          onClick={() => {
+            setSelectedId(null);
+            setFocusMode(false);
+            setFilesCollapsed(false);
+            setOpenPage(null);
+          }}
+          className="flex min-w-0 items-center gap-3 text-left"
+          title="К списку проектов"
         >
-          Загрузить PDF
+          <PtoLogo className="h-8 w-8 shrink-0" title="PTO — проверка чертежей" />
+          <div className="min-w-0">
+            <div className="text-sm font-semibold leading-none tracking-tight">PTO</div>
+            <div className="mt-0.5 text-[10px] leading-none text-muted">
+              проверка чертежей
+            </div>
+          </div>
         </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <div className="hidden text-right text-[11px] sm:block">
+            <div className="font-medium text-text">{user.displayName}</div>
+            <div className="text-muted">{ROLE_LABEL[user.role]}</div>
+          </div>
+          {user.role === "admin" ? (
+            <button
+              type="button"
+              onClick={() => setShowUsers(true)}
+              className="rounded-md border border-border px-2.5 py-1.5 text-xs hover:bg-bg"
+            >
+              Пользователи
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => setShowPassword(true)}
+            className={`rounded-md border px-2.5 py-1.5 text-xs hover:bg-bg ${
+              defaultPasswordWarning ? "border-amber-400 bg-amber-50 text-amber-800" : "border-border"
+            }`}
+          >
+            Пароль
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              void (async () => {
+                await fetch("/api/auth/logout", { method: "POST" });
+                onLogout();
+              })();
+            }}
+            className="rounded-md border border-border px-2.5 py-1.5 text-xs hover:bg-bg"
+          >
+            Выйти
+          </button>
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-[#1d4ed8]"
+          >
+            Загрузить PDF
+          </button>
+        </div>
         <input
           ref={inputRef}
           type="file"
@@ -450,6 +624,13 @@ export function Workspace() {
           }}
         />
       </header>
+
+      {defaultPasswordWarning ? (
+        <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900">
+          У аккаунта <span className="font-medium">admin</span> всё ещё стандартный
+          пароль. Смените его кнопкой «Пароль» до выдачи доступов команде.
+        </div>
+      ) : null}
 
       <div className={gridClass}>
         {focusMode ? null : (
@@ -620,6 +801,46 @@ export function Workspace() {
                     }}
                   />
                 </div>
+                <div>
+                  <input
+                    value={projectQuery}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setProjectQuery(value);
+                      setHits([]);
+                      setSearching(value.trim().length >= 2);
+                    }}
+                    placeholder="Поиск по всем листам проекта"
+                    className="w-full rounded-md border border-border bg-bg px-2 py-1.5 text-xs outline-none placeholder:text-muted focus:border-accent"
+                  />
+                  {projectQuery.trim().length >= 2 ? (
+                    <div className="mt-1 max-h-44 space-y-1 overflow-auto">
+                      {searching ? (
+                        <div className="text-[11px] text-muted">Ищем…</div>
+                      ) : hits.length === 0 ? (
+                        <div className="text-[11px] text-muted">Ничего не нашли.</div>
+                      ) : (
+                        hits.map((hit) => (
+                          <button
+                            key={`${hit.documentId}-${hit.pageNumber}`}
+                            type="button"
+                            onClick={() => jumpToPage(hit.documentId, hit.pageNumber)}
+                            className="block w-full rounded bg-white px-2 py-1 text-left text-[11px] hover:bg-blue-50"
+                          >
+                            <span className="font-medium">{hit.originalName}</span>
+                            <span className="text-muted">
+                              {" "}
+                              · лист {hit.pageNumber} · {KIND_LABEL[hit.kind].toLowerCase()}
+                            </span>
+                            <span className="mt-0.5 block truncate text-muted">
+                              {hit.snippet}
+                            </span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  ) : null}
+                </div>
                 <button
                   type="button"
                   onClick={() => {
@@ -642,22 +863,63 @@ export function Workspace() {
                         <button
                           key={entry.id}
                           type="button"
-                          onClick={() => {
-                            setOpenPage({
-                              nonce: Date.now(),
-                              page: entry.pageNumber,
-                              documentId: entry.documentId,
-                            });
-                            setSelectedId(entry.documentId);
-                            setFilesCollapsed(true);
-                          }}
+                          onClick={() => jumpToPage(entry.documentId, entry.pageNumber)}
                           className="block w-full rounded bg-white px-2 py-1 text-left text-[11px] hover:bg-blue-50"
                         >
                           <span className="font-medium">{entry.originalName}</span>
                           <span className="text-muted">
                             {" "}
-                            · лист {entry.pageNumber} · {formatDate(entry.createdAt)}
+                            · лист {entry.pageNumber}
+                            {entry.userName ? ` · ${entry.userName}` : ""}
+                            {" · "}
+                            {formatDate(entry.createdAt)}
                           </span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowNotes((value) => {
+                      const next = !value;
+                      if (next && projectId) void loadNotes(projectId);
+                      return next;
+                    });
+                  }}
+                  className="text-[11px] text-muted hover:text-text"
+                >
+                  Замечания: {notes.filter((item) => item.status === "open").length} открытых
+                  {notes.length ? ` из ${notes.length}` : ""}
+                </button>
+                {showNotes ? (
+                  <div className="max-h-36 space-y-1 overflow-auto">
+                    {notes.length === 0 ? (
+                      <div className="text-[11px] text-muted">
+                        Замечаний нет. Отметьте ошибку прямо на чертеже.
+                      </div>
+                    ) : (
+                      notes.slice(0, 40).map((note) => (
+                        <button
+                          key={note.id}
+                          type="button"
+                          onClick={() => jumpToPage(note.documentId, note.pageNumber)}
+                          className="block w-full rounded bg-white px-2 py-1 text-left text-[11px] hover:bg-blue-50"
+                        >
+                          <span
+                            className={
+                              note.status === "open" ? "text-red-600" : "text-emerald-600"
+                            }
+                          >
+                            {note.status === "open" ? "открыто" : "исправлено"}
+                          </span>
+                          <span className="text-muted">
+                            {" · "}
+                            {note.originalName} · лист {note.pageNumber}
+                            {note.userName ? ` · ${note.userName}` : ""}
+                          </span>
+                          <span className="mt-0.5 block truncate">{note.comment}</span>
                         </button>
                       ))
                     )}
@@ -724,9 +986,7 @@ export function Workspace() {
                   <button
                     type="button"
                     onClick={() => {
-                      setSelectedId(doc.id);
-                      setOpenPage(null);
-                      setFilesCollapsed(true);
+                      void openDocument(doc.id);
                     }}
                     className="w-full px-3 py-2.5 text-left"
                   >
@@ -734,6 +994,12 @@ export function Workspace() {
                     <div className="mt-1 flex items-center justify-between gap-2">
                       <span className="text-[11px] text-muted">
                         {kindSummary(doc)} · {formatBytes(doc.sizeBytes)}
+                        {doc.viewedCounts[user.id]
+                          ? ` · просмотрено ${doc.viewedCounts[user.id]}/${Math.max(doc.pageCount, 1)}`
+                          : ""}
+                        {doc.openAnnotations
+                          ? ` · ${doc.openAnnotations} замечаний`
+                          : ""}
                       </span>
                       <span
                         className={`rounded-full px-2 py-0.5 text-[11px] ${STATUS_CLASS[doc.status]}`}
@@ -779,11 +1045,24 @@ export function Workspace() {
 
         {selected ? (
           <ReviewPane
+            key={selected.id}
             document={selected}
             focusMode={focusMode}
             openPage={openPage}
             onToggleFocus={() => setFocusMode((value) => !value)}
+            onBackToProjects={() => {
+              setSelectedId(null);
+              setFocusMode(false);
+              setFilesCollapsed(false);
+              setOpenPage(null);
+            }}
             onSavePage={handleSavePage}
+            onAnnotationsChanged={() => {
+              if (projectId) {
+                void loadNotes(projectId);
+                void loadDocuments(projectId);
+              }
+            }}
           />
         ) : (
           <div className="flex min-h-0 items-center justify-center bg-[#f7f8fa] p-8 text-center text-sm text-muted">
@@ -804,6 +1083,20 @@ export function Workspace() {
           </div>
         </div>
       ) : null}
+
+      {user.role === "admin" ? (
+        <UsersPanel
+          open={showUsers}
+          currentUserId={user.id}
+          onClose={() => setShowUsers(false)}
+        />
+      ) : null}
+
+      <PasswordPanel
+        open={showPassword}
+        onClose={() => setShowPassword(false)}
+        onChanged={() => onPasswordChanged?.()}
+      />
     </div>
   );
 }

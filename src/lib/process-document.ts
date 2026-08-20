@@ -1,14 +1,17 @@
 import { extractPageTexts, pageToMarkdown } from "@/lib/extract";
-import {
-  getDocument,
-  readStoredPdf,
-  updateDocument,
-} from "@/lib/storage";
+import { getDocument, readStoredPdf, updateDocument } from "@/lib/storage";
 import type { DocumentPage } from "@/types";
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
 const running = new Set<string>();
+
+/** Идентификаторы документов, которые реально обрабатываются в этом процессе. */
+export function activeDocumentIds() {
+  return new Set(running);
+}
+
+// Тело документа пишем пачками: иначе каждая страница тянет за собой запись файла.
+const PAGE_BATCH = 10;
+const BATCH_INTERVAL_MS = 1000;
 
 export async function processDocument(id: string) {
   if (running.has(id)) return;
@@ -28,24 +31,29 @@ export async function processDocument(id: string) {
     const buffer = await readStoredPdf(document.storedName);
     const texts = await extractPageTexts(buffer);
     const pages: DocumentPage[] = [];
-    const pause = process.env.VERCEL ? 0 : 180;
+    const drawingsFrom = Math.max(1, Math.floor(texts.length * 0.4));
+    let lastFlush = Date.now();
+    let pendingSince = 0;
 
     for (let index = 0; index < texts.length; index += 1) {
       const pageNumber = index + 1;
-      const step =
-        pageNumber > Math.max(1, Math.floor(texts.length * 0.4))
-          ? "drawings"
-          : "text";
-
-      await updateDocument(id, {
-        status: "processing",
-        processingStep: step,
-        processingPage: pageNumber,
-      });
-
       pages.push(pageToMarkdown(pageNumber, document.originalName, texts[index]));
-      await updateDocument(id, { pages: [...pages] });
-      if (pause) await sleep(pause);
+      pendingSince += 1;
+
+      const isLast = pageNumber === texts.length;
+      const dueByCount = pendingSince >= PAGE_BATCH;
+      const dueByTime = Date.now() - lastFlush >= BATCH_INTERVAL_MS;
+
+      if (isLast || dueByCount || dueByTime) {
+        await updateDocument(id, {
+          status: "processing",
+          processingStep: pageNumber > drawingsFrom ? "drawings" : "text",
+          processingPage: pageNumber,
+          pages: [...pages],
+        });
+        pendingSince = 0;
+        lastFlush = Date.now();
+      }
     }
 
     await updateDocument(id, {

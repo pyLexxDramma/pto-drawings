@@ -1,29 +1,71 @@
-const viewedKey = (id: string) => `pto:viewed:${id}`;
-const lastKey = (id: string) => `pto:lastPage:${id}`;
+export type ReviewProgress = {
+  viewed: number[];
+  lastPage: number;
+};
 
-export function loadViewedPages(documentId: string): number[] {
-  if (typeof window === "undefined") return [];
+const cacheKey = (documentId: string) => `pto:progress:${documentId}`;
+
+const emptyProgress = (): ReviewProgress => ({ viewed: [], lastPage: 1 });
+
+/** Локальный кэш нужен только чтобы интерфейс не мигал до ответа сервера. */
+export function loadCachedProgress(documentId: string): ReviewProgress {
+  if (typeof window === "undefined") return emptyProgress();
   try {
-    const raw = window.localStorage.getItem(viewedKey(documentId));
-    const parsed = raw ? (JSON.parse(raw) as number[]) : [];
-    return parsed.filter((n) => Number.isInteger(n) && n > 0);
+    const raw = window.localStorage.getItem(cacheKey(documentId));
+    if (!raw) return emptyProgress();
+    const parsed = JSON.parse(raw) as Partial<ReviewProgress>;
+    return normalize(parsed);
   } catch {
-    return [];
+    return emptyProgress();
   }
 }
 
-export function saveViewedPages(documentId: string, pages: number[]) {
+export function cacheProgress(documentId: string, progress: ReviewProgress) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(viewedKey(documentId), JSON.stringify([...new Set(pages)]));
+  try {
+    window.localStorage.setItem(cacheKey(documentId), JSON.stringify(progress));
+  } catch {
+    // приватный режим браузера — не критично
+  }
 }
 
-export function loadLastPage(documentId: string): number {
-  if (typeof window === "undefined") return 1;
-  const value = Number(window.localStorage.getItem(lastKey(documentId)) ?? "1");
-  return Number.isFinite(value) && value >= 1 ? value : 1;
+export async function fetchProgress(
+  documentId: string,
+  signal?: AbortSignal,
+): Promise<ReviewProgress | null> {
+  try {
+    const response = await fetch(`/api/documents/${documentId}/progress`, { signal });
+    if (!response.ok) return null;
+    const payload = (await response.json()) as { progress?: Partial<ReviewProgress> };
+    if (!payload.progress) return null;
+    const progress = normalize(payload.progress);
+    cacheProgress(documentId, progress);
+    return progress;
+  } catch {
+    return null;
+  }
 }
 
-export function saveLastPage(documentId: string, page: number) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(lastKey(documentId), String(page));
+export async function pushProgress(
+  documentId: string,
+  patch: Partial<ReviewProgress>,
+): Promise<void> {
+  try {
+    await fetch(`/api/documents/${documentId}/progress`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+  } catch {
+    // офлайн: значения остаются в локальном кэше
+  }
+}
+
+function normalize(raw: Partial<ReviewProgress>): ReviewProgress {
+  const viewed = Array.isArray(raw.viewed)
+    ? raw.viewed.filter((page) => Number.isInteger(page) && page > 0)
+    : [];
+  const lastPage =
+    Number.isInteger(raw.lastPage) && (raw.lastPage ?? 0) > 0 ? raw.lastPage! : 1;
+  return { viewed: [...new Set(viewed)].sort((a, b) => a - b), lastPage };
 }

@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
+import { isPublicUser, requireUser } from "@/lib/auth";
 import { getDocument, readStoredPdf } from "@/lib/storage";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 export const maxDuration = 60;
 
-export async function GET(_request: Request, context: RouteContext) {
+export async function GET(request: Request, context: RouteContext) {
+  const user = await requireUser(request);
+  if (!isPublicUser(user)) return user;
   const { id } = await context.params;
   const document = await getDocument(id);
   if (!document) {
@@ -19,7 +22,7 @@ export async function GET(_request: Request, context: RouteContext) {
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `inline; filename*=UTF-8''${encoded}`,
-        "Cache-Control": "private, max-age=0, must-revalidate",
+        "Cache-Control": "private, max-age=3600",
       },
     });
   } catch {

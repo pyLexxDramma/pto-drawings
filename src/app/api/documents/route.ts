@@ -1,20 +1,34 @@
 import { NextResponse } from "next/server";
+import { isPublicUser, requireUser } from "@/lib/auth";
 import { runInBackground } from "@/lib/background";
-import { processDocument } from "@/lib/process-document";
-import { listDocuments, savePdf } from "@/lib/storage";
+import { activeDocumentIds, processDocument } from "@/lib/process-document";
+import { listDocuments, resetStuckDocuments, savePdf } from "@/lib/storage";
 
 export const maxDuration = 60;
 
-const MAX_BYTES = process.env.VERCEL ? 4 * 1024 * 1024 : 80 * 1024 * 1024;
+const MAX_BYTES = 80 * 1024 * 1024;
 
 export async function GET(request: Request) {
+  const user = await requireUser(request);
+  if (!isPublicUser(user)) return user;
   const { searchParams } = new URL(request.url);
   const projectId = searchParams.get("projectId") ?? undefined;
-  const documents = await listDocuments(projectId);
-  return NextResponse.json({ documents });
+  const lite = searchParams.get("lite") !== "0";
+  await resetStuckDocuments(activeDocumentIds());
+  const documents = await listDocuments(projectId, { lite });
+  return NextResponse.json(
+    { documents },
+    {
+      headers: {
+        "Cache-Control": "private, max-age=0, must-revalidate",
+      },
+    },
+  );
 }
 
 export async function POST(request: Request) {
+  const user = await requireUser(request);
+  if (!isPublicUser(user)) return user;
   const form = await request.formData();
   const file = form.get("file");
   const projectId = String(form.get("projectId") ?? "");
@@ -38,14 +52,7 @@ export async function POST(request: Request) {
   }
 
   if (file.size > MAX_BYTES) {
-    return NextResponse.json(
-      {
-        error: process.env.VERCEL
-          ? "На Vercel файл должен быть до 4 МБ"
-          : "Файл больше 80 МБ",
-      },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "Файл больше 80 МБ" }, { status: 400 });
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
