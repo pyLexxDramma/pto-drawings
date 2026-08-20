@@ -102,10 +102,15 @@ export function parseSessionToken(token: string | undefined | null): string | nu
 }
 
 export function sessionCookieOptions(maxAgeSeconds = SESSION_DAYS * 24 * 60 * 60) {
+  // Secure-cookie только по явному флагу: пока сайт на http://IP, иначе браузер
+  // выкидывает сессию и возвращает на форму входа.
+  const secure =
+    process.env.PTO_COOKIE_SECURE === "1" ||
+    process.env.PTO_COOKIE_SECURE === "true";
   return {
     httpOnly: true,
     sameSite: "lax" as const,
-    secure: process.env.NODE_ENV === "production",
+    secure,
     path: "/",
     maxAge: maxAgeSeconds,
   };
