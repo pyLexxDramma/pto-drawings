@@ -118,7 +118,7 @@ export function formatPipelineUsage(usage: Record<string, number> | null | undef
       ? usage.prompt_tokens + usage.completion_tokens
       : null);
   if (typeof total === "number" && Number.isFinite(total)) {
-    return `${Math.round(total).toLocaleString("ru-RU")} ток.`;
+    return `${Math.round(total).toLocaleString("ru-RU")} токенов`;
   }
   const parts = Object.entries(usage)
     .filter(([, value]) => typeof value === "number")
