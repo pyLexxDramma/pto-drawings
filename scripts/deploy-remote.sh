@@ -20,7 +20,7 @@ run_as_app() {
 
 run_as_app git fetch --all --prune
 run_as_app git reset --hard "origin/$BRANCH"
-run_as_app npm ci --omit=dev
+run_as_app npm ci
 run_as_app npm run build
 
 if command -v systemctl >/dev/null 2>&1; then
