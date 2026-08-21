@@ -4,7 +4,11 @@ import { hasDefaultAdminPassword } from "@/lib/storage";
 
 export async function GET(request: Request) {
   const user = await getSessionUser(request);
-  const defaultAdminPassword =
-    user?.role === "admin" ? await hasDefaultAdminPassword() : false;
-  return NextResponse.json({ user, defaultAdminPassword });
+  // На экране входа нужно знать, светить ли стартовый пароль.
+  const defaultAdminPassword = await hasDefaultAdminPassword();
+  return NextResponse.json({
+    user,
+    defaultAdminPassword:
+      user?.role === "admin" || !user ? defaultAdminPassword : false,
+  });
 }

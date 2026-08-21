@@ -48,6 +48,7 @@ export function AppShell() {
   if (!user) {
     return (
       <LoginForm
+        showBootstrapHint={defaultPassword}
         onSuccess={(next) => {
           setUser(next);
           void (async () => {

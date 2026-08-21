@@ -6,9 +6,14 @@ import type { PublicUser } from "@/types";
 
 type LoginFormProps = {
   onSuccess: (user: PublicUser) => void;
+  /** true — на сервере ещё заводской пароль admin123 */
+  showBootstrapHint?: boolean;
 };
 
-export function LoginForm({ onSuccess }: LoginFormProps) {
+export function LoginForm({
+  onSuccess,
+  showBootstrapHint = false,
+}: LoginFormProps) {
   const [login, setLogin] = useState("admin");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -89,9 +94,18 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
         </button>
 
         <p className="mt-4 text-[11px] leading-relaxed text-muted">
-          Первый запуск: логин <span className="font-medium text-text">admin</span>,
-          пароль <span className="font-medium text-text">admin123</span>. Админ
-          создаёт аккаунты инженеров в приложении.
+          {showBootstrapHint ? (
+            <>
+              Первый запуск: логин{" "}
+              <span className="font-medium text-text">admin</span>, пароль{" "}
+              <span className="font-medium text-text">admin123</span>. Админ
+              создаёт аккаунты инженеров в приложении.
+            </>
+          ) : (
+            <>
+              Доступ выдаёт администратор. Пароль не публикуется на экране входа.
+            </>
+          )}
         </p>
       </form>
     </div>
