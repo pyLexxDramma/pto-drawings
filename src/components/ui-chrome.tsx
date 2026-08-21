@@ -32,6 +32,69 @@ export function ProgressTrack({
   );
 }
 
+type SegmentOption<T extends string> = {
+  id: T;
+  label: ReactNode;
+  title?: string;
+};
+
+/** Единый вид табов: сегмент с явным активным состоянием. */
+export function SegmentedTabs<T extends string>({
+  value,
+  options,
+  onChange,
+  size = "sm",
+  tone = "light",
+  className = "",
+}: {
+  value: T;
+  options: SegmentOption<T>[];
+  onChange: (id: T) => void;
+  size?: "sm" | "xs";
+  tone?: "light" | "dark";
+  className?: string;
+}) {
+  const pad = size === "xs" ? "px-2 py-0.5 text-[11px]" : "px-2.5 py-1 text-xs";
+  const shell =
+    tone === "dark"
+      ? "border-[#3a4454] bg-[#12161c]"
+      : "border-border bg-surface-2";
+  const idle =
+    tone === "dark"
+      ? "text-[#8b93a3] hover:bg-[#252b36] hover:text-[#e8eaef]"
+      : "text-muted hover:bg-white hover:text-text";
+  const active =
+    tone === "dark"
+      ? "bg-[#2a3342] text-white shadow-sm ring-1 ring-sky-400/50"
+      : "bg-white text-text shadow-sm ring-1 ring-accent/40";
+
+  return (
+    <div
+      role="tablist"
+      className={`inline-flex max-w-full flex-wrap items-center gap-0.5 rounded-md border p-0.5 ${shell} ${className}`}
+    >
+      {options.map((option) => {
+        const selected = option.id === value;
+        return (
+          <button
+            key={option.id}
+            type="button"
+            role="tab"
+            aria-selected={selected}
+            title={option.title}
+            onClick={() => onChange(option.id)}
+            className={`rounded-[5px] font-medium transition-colors ${pad} ${
+              selected ? active : idle
+            }`}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function ActionMenu({
   label = "Действия",
   align = "right",
@@ -46,16 +109,17 @@ export function ActionMenu({
 
   useEffect(() => {
     if (!open) return;
+    // click, не mousedown: иначе пункт меню размонтируется до click и onClick не срабатывает
     function onPointer(event: MouseEvent) {
       if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
     }
     function onKey(event: KeyboardEvent) {
       if (event.key === "Escape") setOpen(false);
     }
-    document.addEventListener("mousedown", onPointer);
+    document.addEventListener("click", onPointer);
     document.addEventListener("keydown", onKey);
     return () => {
-      document.removeEventListener("mousedown", onPointer);
+      document.removeEventListener("click", onPointer);
       document.removeEventListener("keydown", onKey);
     };
   }, [open]);
@@ -81,6 +145,7 @@ export function ActionMenu({
           className={`absolute z-30 mt-1 min-w-[10rem] rounded-md border border-border bg-white py-1 shadow-md ${
             align === "right" ? "right-0" : "left-0"
           }`}
+          onMouseDown={(event) => event.stopPropagation()}
         >
           <div
             onClick={() => setOpen(false)}

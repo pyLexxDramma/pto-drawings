@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { SegmentedTabs } from "@/components/ui-chrome";
 import type { AnnotationRect, PageAnnotation } from "@/types";
 
 type PdfPageProps = {
@@ -11,12 +12,19 @@ type PdfPageProps = {
   activeAnnotationId?: string | null;
   /** Смена значения — сброс вида и короткая вспышка «якорь». */
   highlightNonce?: number;
+  /** Подсветка совпадений поиска на чертеже (текст PDF). */
+  highlightQuery?: string;
+  /** Синхронный скролл с markdown: колёсико панорамирует, ratio 0..1. */
+  scrollSync?: boolean;
+  scrollRatio?: number | null;
+  onScrollRatioChange?: (ratio: number) => void;
   onMarkRect?: (rect: AnnotationRect) => void;
   onSelectAnnotation?: (id: string) => void;
   onCancelMark?: () => void;
 };
 
 type DrawState = { x0: number; y0: number; x1: number; y1: number };
+type TextHit = { x: number; y: number; w: number; h: number };
 
 const MIN_SIDE = 0.012;
 
@@ -27,6 +35,10 @@ export function PdfPage({
   markMode = false,
   activeAnnotationId = null,
   highlightNonce = 0,
+  highlightQuery = "",
+  scrollSync = false,
+  scrollRatio = null,
+  onScrollRatioChange,
   onMarkRect,
   onSelectAnnotation,
   onCancelMark,
@@ -39,6 +51,10 @@ export function PdfPage({
     panX: number;
     panY: number;
   } | null>(null);
+  const applyingSync = useRef(false);
+  const panRef = useRef({ x: 0, y: 0 });
+  const scaleRef = useRef(1);
+  const naturalRef = useRef({ w: 800, h: 1100 });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [natural, setNatural] = useState({ w: 800, h: 1100 });
@@ -47,6 +63,18 @@ export function PdfPage({
   const [grabbing, setGrabbing] = useState(false);
   const [draw, setDraw] = useState<DrawState | null>(null);
   const [anchorFlash, setAnchorFlash] = useState(false);
+  const [searchHits, setSearchHits] = useState<TextHit[]>([]);
+  const [fitMode, setFitMode] = useState<"page" | "width">("page");
+
+  useEffect(() => {
+    panRef.current = pan;
+  }, [pan]);
+  useEffect(() => {
+    scaleRef.current = scale;
+  }, [scale]);
+  useEffect(() => {
+    naturalRef.current = natural;
+  }, [natural]);
 
   useEffect(() => {
     let cancelled = false;
@@ -55,6 +83,7 @@ export function PdfPage({
     (async () => {
       setLoading(true);
       setError(null);
+      setSearchHits([]);
       try {
         const pdfjs = await import("pdfjs-dist");
         pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
@@ -76,6 +105,35 @@ export function PdfPage({
           canvasContext: context,
           viewport,
         }).promise;
+
+        const needle = highlightQuery.trim().toLowerCase();
+        if (needle.length >= 2) {
+          const content = await page.getTextContent();
+          const hits: TextHit[] = [];
+          const vt = viewport.transform;
+          for (const item of content.items) {
+            if (!("str" in item) || !item.str) continue;
+            if (!item.str.toLowerCase().includes(needle)) continue;
+            const t = item.transform;
+            // viewport.transform × item.transform
+            const a = vt[0] * t[0] + vt[2] * t[1];
+            const b = vt[1] * t[0] + vt[3] * t[1];
+            const c = vt[0] * t[2] + vt[2] * t[3];
+            const d = vt[1] * t[2] + vt[3] * t[3];
+            const e = vt[0] * t[4] + vt[2] * t[5] + vt[4];
+            const f = vt[1] * t[4] + vt[3] * t[5] + vt[5];
+            const fontHeight = Math.max(1, Math.hypot(c, d));
+            const width = Math.max(1, (item.width ?? 0) * Math.hypot(a, b));
+            hits.push({
+              x: e / viewport.width,
+              y: (f - fontHeight) / viewport.height,
+              w: Math.max(0.01, width / viewport.width),
+              h: Math.max(0.01, fontHeight / viewport.height),
+            });
+          }
+          if (!cancelled) setSearchHits(hits);
+        }
+
         if (!cancelled) setLoading(false);
       } catch {
         if (!cancelled) {
@@ -89,7 +147,7 @@ export function PdfPage({
       cancelled = true;
       destroy?.();
     };
-  }, [url, pageNumber]);
+  }, [url, pageNumber, highlightQuery]);
 
   function fit(mode: "page" | "width") {
     const wrap = wrapRef.current;
@@ -102,8 +160,20 @@ export function PdfPage({
             (wrap.clientWidth - pad) / natural.w,
             (wrap.clientHeight - pad) / natural.h,
           );
+    setFitMode(mode);
     setScale(Math.max(0.15, next));
     setPan({ x: pad / 2, y: pad / 2 });
+  }
+
+  function emitScrollRatio(nextPan: { x: number; y: number }, nextScale = scale) {
+    if (!onScrollRatioChange || applyingSync.current) return;
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    const contentH = natural.h * nextScale;
+    const maxPan = Math.max(1, contentH - wrap.clientHeight);
+    const pad = 8;
+    const ratio = Math.min(1, Math.max(0, (pad - nextPan.y) / maxPan));
+    onScrollRatioChange(ratio);
   }
 
   useEffect(() => {
@@ -121,16 +191,42 @@ export function PdfPage({
   }, [highlightNonce]);
 
   useEffect(() => {
+    if (!scrollSync || scrollRatio == null) return;
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    applyingSync.current = true;
+    const contentH = natural.h * scale;
+    const maxPan = Math.max(0, contentH - wrap.clientHeight);
+    const pad = 8;
+    setPan((prev) => ({
+      ...prev,
+      y: pad - scrollRatio * maxPan,
+    }));
+    requestAnimationFrame(() => {
+      applyingSync.current = false;
+    });
+  }, [scrollRatio, natural.h, scale, scrollSync]);
+
+  useEffect(() => {
     const wrap = wrapRef.current;
     if (!wrap) return;
     const onWheelNative = (event: WheelEvent) => {
       event.preventDefault();
+      if (scrollSync && !event.ctrlKey && !event.metaKey) {
+        setPan((prev) => {
+          const next = { ...prev, y: prev.y - event.deltaY };
+          emitScrollRatio(next, scaleRef.current);
+          return next;
+        });
+        return;
+      }
       const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
       setScale((value) => Math.min(8, Math.max(0.15, value * factor)));
     };
     wrap.addEventListener("wheel", onWheelNative, { passive: false });
     return () => wrap.removeEventListener("wheel", onWheelNative);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onScrollRatioChange, natural.h, scrollSync]);
 
   useEffect(() => {
     if (!markMode) return;
@@ -184,33 +280,35 @@ export function PdfPage({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex shrink-0 items-center gap-1 border-b border-border bg-white px-2 py-1">
-        <button
-          type="button"
-          onClick={() => fit("page")}
-          className="rounded border border-border px-2 py-0.5 text-[11px] hover:bg-bg"
-        >
-          Страница
-        </button>
-        <button
-          type="button"
-          onClick={() => fit("width")}
-          className="rounded border border-border px-2 py-0.5 text-[11px] hover:bg-bg"
-        >
-          По ширине
-        </button>
+      <div className="flex shrink-0 items-center gap-2 border-b border-border bg-[#1a1f28] px-2 py-1 text-[#c8d0dc]">
+        <SegmentedTabs
+          tone="dark"
+          size="xs"
+          value={fitMode}
+          onChange={(mode) => fit(mode)}
+          options={[
+            { id: "page", label: "Страница" },
+            { id: "width", label: "По ширине" },
+          ]}
+        />
         {markMode ? (
-          <span className="ml-2 rounded bg-red-50 px-2 py-0.5 text-[11px] text-red-700">
+          <span className="ml-1 rounded bg-red-950/80 px-2 py-0.5 text-[11px] text-red-200">
             Обведите место на чертеже · Esc — отмена
           </span>
         ) : null}
-        <span className="ml-auto text-[11px] text-muted">
-          {Math.round(scale * 100)} % Zoom
+        {searchHits.length > 0 ? (
+          <span className="rounded bg-amber-900/50 px-2 py-0.5 text-[11px] text-amber-100">
+            найдено: {searchHits.length}
+          </span>
+        ) : null}
+        <span className="ml-auto text-[11px] text-[#8b93a3]">
+          {Math.round(scale * 100)} %
+          {scrollSync ? " · sync · Ctrl+колёсико — зум" : " Zoom"}
         </span>
       </div>
       <div
         ref={wrapRef}
-        className={`relative min-h-0 flex-1 overflow-hidden bg-[#eceff3] ${cursor}`}
+        className={`relative min-h-0 flex-1 overflow-hidden bg-[#12161c] ${cursor}`}
         onWheel={(event) => event.preventDefault()}
         onMouseDown={(event) => {
           if (event.button !== 0) return;
@@ -236,10 +334,12 @@ export function PdfPage({
           }
           const drag = dragRef.current;
           if (!drag) return;
-          setPan({
+          const next = {
             x: drag.panX + (event.clientX - drag.x),
             y: drag.panY + (event.clientY - drag.y),
-          });
+          };
+          setPan(next);
+          emitScrollRatio(next);
         }}
         onMouseUp={() => {
           if (markMode) {
@@ -257,7 +357,7 @@ export function PdfPage({
         }}
       >
         {loading ? (
-          <div className="absolute inset-0 z-10 flex items-center justify-center text-sm text-muted">
+          <div className="absolute inset-0 z-10 flex items-center justify-center text-sm text-[#8b93a3]">
             Страница загружается…
           </div>
         ) : null}
@@ -282,8 +382,20 @@ export function PdfPage({
           >
             <canvas
               ref={canvasRef}
-              className="block bg-white shadow-[0_8px_30px_rgba(15,23,42,0.12)]"
+              className="block bg-white shadow-[0_12px_40px_rgba(0,0,0,0.45)]"
             />
+            {searchHits.map((hit, index) => (
+              <div
+                key={`q-${index}`}
+                className="pointer-events-none absolute bg-amber-300/45 outline outline-1 outline-amber-500/80"
+                style={{
+                  left: `${hit.x * 100}%`,
+                  top: `${hit.y * 100}%`,
+                  width: `${hit.w * 100}%`,
+                  height: `${hit.h * 100}%`,
+                }}
+              />
+            ))}
             {annotations.map((annotation, index) => {
               const isActive = annotation.id === activeAnnotationId;
               const isOpen = annotation.status === "open";

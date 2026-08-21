@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { MarkdownView } from "@/components/markdown-view";
 import { PageStrip } from "@/components/page-strip";
 import { PdfPage } from "@/components/pdf-page";
-import { ProgressTrack, Spinner } from "@/components/ui-chrome";
+import { ProgressTrack, SegmentedTabs, Spinner } from "@/components/ui-chrome";
 import { formatDate } from "@/lib/format";
 import { formatElapsed, formatPipelineUsage } from "@/lib/pipeline";
 import {
@@ -23,6 +23,7 @@ import {
 } from "@/types";
 
 type KindFilter = "all" | "drawing" | "table" | "text" | "flagged";
+type PaneSolo = null | "pdf" | "md";
 
 type ReviewPaneProps = {
   document: DocumentRecord;
@@ -80,10 +81,16 @@ export function ReviewPane({
   const [noteError, setNoteError] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const [pdfHighlight, setPdfHighlight] = useState(0);
+  const [paneSolo, setPaneSolo] = useState<PaneSolo>(null);
+  const [scrollSync, setScrollSync] = useState(true);
+  const [scrollRatio, setScrollRatio] = useState<number | null>(null);
   const draftRef = useRef(draft);
   const pageRef = useRef(rawPage);
   const timerRef = useRef<number | null>(null);
   const navigatedRef = useRef(false);
+  const mdScrollRef = useRef<HTMLDivElement>(null);
+  const syncLockRef = useRef(false);
+  const deferredQuery = useDeferredValue(query);
 
   const total = Math.max(document.pageCount, document.pages.length, 1);
   const processing =
@@ -293,6 +300,10 @@ export function ReviewPane({
           setPendingRect(null);
           return;
         }
+        if (paneSolo) {
+          setPaneSolo(null);
+          return;
+        }
         if (focusMode) onToggleFocus();
         else onBackToProjects();
         return;
@@ -303,6 +314,12 @@ export function ReviewPane({
       if (event.key === "?" || (event.shiftKey && event.key === "/")) {
         event.preventDefault();
         setShowHelp((value) => !value);
+        return;
+      }
+
+      if (event.key === "f" || event.key === "F") {
+        event.preventDefault();
+        setPaneSolo((prev) => (prev === null ? "pdf" : prev === "pdf" ? "md" : null));
         return;
       }
 
@@ -320,7 +337,7 @@ export function ReviewPane({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusMode, markMode, pendingRect, onBackToProjects, onToggleFocus, visiblePages, document.pages, showHelp]);
+  }, [focusMode, markMode, pendingRect, onBackToProjects, onToggleFocus, visiblePages, document.pages, showHelp, paneSolo]);
 
   const hits = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -457,6 +474,36 @@ export function ReviewPane({
     document.pages.some((item) => item.markdown.includes("[MOCK]"));
   const errorCount = Object.keys(document.pageErrors ?? {}).length;
 
+  function onMarkdownScroll() {
+    if (!scrollSync || syncLockRef.current || paneSolo === "pdf") return;
+    const el = mdScrollRef.current;
+    if (!el) return;
+    const max = el.scrollHeight - el.clientHeight;
+    const ratio = max <= 0 ? 0 : el.scrollTop / max;
+    syncLockRef.current = true;
+    setScrollRatio(ratio);
+    requestAnimationFrame(() => {
+      syncLockRef.current = false;
+    });
+  }
+
+  function onPdfScrollRatio(ratio: number) {
+    if (!scrollSync || syncLockRef.current || paneSolo === "md") return;
+    const el = mdScrollRef.current;
+    if (el) {
+      syncLockRef.current = true;
+      const max = el.scrollHeight - el.clientHeight;
+      el.scrollTop = ratio * Math.max(0, max);
+      requestAnimationFrame(() => {
+        syncLockRef.current = false;
+      });
+    }
+    setScrollRatio(ratio);
+  }
+
+  const soloLabel =
+    paneSolo === "pdf" ? "Только чертёж" : paneSolo === "md" ? "Только текст" : null;
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-border bg-surface px-3">
@@ -548,6 +595,28 @@ export function ReviewPane({
           </button>
           <button
             type="button"
+            title="F — цикл: сплит → чертёж → текст"
+            onClick={() =>
+              setPaneSolo((prev) => (prev === null ? "pdf" : prev === "pdf" ? "md" : null))
+            }
+            className={`rounded-md border px-2 py-1 text-xs ${
+              paneSolo ? "border-accent bg-blue-50 text-accent" : "border-border"
+            }`}
+          >
+            {soloLabel ?? "Сплит F"}
+          </button>
+          <button
+            type="button"
+            title="Синхронный скролл PDF ↔ текст"
+            onClick={() => setScrollSync((value) => !value)}
+            className={`rounded-md border px-2 py-1 text-xs ${
+              scrollSync ? "border-accent bg-blue-50 text-accent" : "border-border"
+            }`}
+          >
+            Sync
+          </button>
+          <button
+            type="button"
             title="Горячие клавиши (?)"
             onClick={() => setShowHelp(true)}
             className="rounded-md border border-border px-2 py-1 text-xs"
@@ -574,11 +643,32 @@ export function ReviewPane({
       </div>
 
       {processing ? (
-        <div className="border-b border-sky-200 bg-sky-50 px-4 py-2 text-sm text-sky-800">
+        <div
+          className={`border-b px-4 py-2 text-sm ${
+            document.errorMessage?.startsWith("Отмена")
+              ? "border-amber-200 bg-amber-50 text-amber-950"
+              : "border-sky-200 bg-sky-50 text-sky-800"
+          }`}
+        >
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2">
-              <Spinner className="h-3.5 w-3.5 text-sky-700" />
+              <Spinner
+                className={`h-3.5 w-3.5 ${
+                  document.errorMessage?.startsWith("Отмена")
+                    ? "text-amber-800"
+                    : "text-sky-700"
+                }`}
+              />
               <div>
+              {document.errorMessage?.startsWith("Отмена") ? (
+                <>
+                  {document.errorMessage}
+                  {document.processingPage
+                    ? ` · сейчас лист ${document.processingPage}`
+                    : ""}
+                </>
+              ) : (
+                <>
               готово {readyCount}/{total} листов
               {document.processingPage
                 ? ` · сейчас лист ${document.processingPage}: ${stepLabel(document)}`
@@ -586,9 +676,11 @@ export function ReviewPane({
               {elapsedLabel ? ` · ${elapsedLabel}` : ""}
               {usageLabel ? ` · ${usageLabel}` : ""}
               {errorCount ? ` · ошибок листов: ${errorCount}` : ""}
+                </>
+              )}
               </div>
             </div>
-            {onCancel ? (
+            {onCancel && !document.errorMessage?.startsWith("Отмена") ? (
               <button
                 type="button"
                 disabled={canceling}
@@ -597,6 +689,8 @@ export function ReviewPane({
               >
                 {canceling ? "Отмена…" : "Отменить обработку"}
               </button>
+            ) : document.errorMessage?.startsWith("Отмена") ? (
+              <span className="text-xs text-amber-900">Ожидаем остановку…</span>
             ) : null}
           </div>
           <div className="mt-1.5">
@@ -635,35 +729,47 @@ export function ReviewPane({
         />
 
         <div className="flex min-h-0 min-w-0 flex-1">
-          <div className="relative min-h-0 min-w-0" style={{ width: `${split}%` }}>
-            <PdfPage
-              url={`/api/documents/${document.id}/file`}
-              pageNumber={pageNumber}
-              annotations={pageNotes}
-              markMode={markMode && !readOnly}
-              activeAnnotationId={activeNoteId}
-              highlightNonce={pdfHighlight}
-              onMarkRect={(rect) => setPendingRect(rect)}
-              onSelectAnnotation={(id) => setActiveNoteId(id)}
-              onCancelMark={() => {
-                setMarkMode(false);
-                setPendingRect(null);
-              }}
+          {paneSolo !== "md" ? (
+            <div
+              className="relative min-h-0 min-w-0"
+              style={{ width: paneSolo === "pdf" ? "100%" : `${split}%` }}
+            >
+              <PdfPage
+                url={`/api/documents/${document.id}/file`}
+                pageNumber={pageNumber}
+                annotations={pageNotes}
+                markMode={markMode && !readOnly}
+                activeAnnotationId={activeNoteId}
+                highlightNonce={pdfHighlight}
+                highlightQuery={deferredQuery}
+                scrollSync={scrollSync && paneSolo !== "pdf"}
+                scrollRatio={scrollSync ? scrollRatio : null}
+                onScrollRatioChange={onPdfScrollRatio}
+                onMarkRect={(rect) => setPendingRect(rect)}
+                onSelectAnnotation={(id) => setActiveNoteId(id)}
+                onCancelMark={() => {
+                  setMarkMode(false);
+                  setPendingRect(null);
+                }}
+              />
+              {processing ? (
+                <div className="pointer-events-none absolute bottom-3 left-3 rounded-md bg-slate-900/75 px-2.5 py-1 text-xs text-white">
+                  {readyCount}/{total}
+                  {document.processingPage ? ` · лист ${document.processingPage}` : ""}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          {paneSolo === null ? (
+            <div
+              role="separator"
+              onMouseDown={startSplit}
+              className="w-1.5 shrink-0 cursor-col-resize bg-border hover:bg-accent"
             />
-            {processing ? (
-              <div className="pointer-events-none absolute bottom-3 left-3 rounded-md bg-slate-900/75 px-2.5 py-1 text-xs text-white">
-                {readyCount}/{total}
-                {document.processingPage ? ` · лист ${document.processingPage}` : ""}
-              </div>
-            ) : null}
-          </div>
+          ) : null}
 
-          <div
-            role="separator"
-            onMouseDown={startSplit}
-            className="w-1.5 shrink-0 cursor-col-resize bg-border hover:bg-accent"
-          />
-
+          {paneSolo !== "pdf" ? (
           <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-white">
             <div className="flex items-center justify-between border-b border-border px-3 py-2">
               <div className="text-xs font-medium text-muted">
@@ -672,20 +778,20 @@ export function ReviewPane({
               </div>
               <div className="flex items-center gap-2">
                 {!readOnly ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (mode === "view") {
+                  <SegmentedTabs
+                    size="xs"
+                    value={mode}
+                    onChange={(next) => {
+                      if (next === "edit") {
                         setDraft(page?.markdown ?? "");
-                        setMode("edit");
-                      } else {
-                        setMode("view");
                       }
+                      setMode(next);
                     }}
-                    className="rounded-md border border-border px-2.5 py-1 text-xs"
-                  >
-                    {mode === "view" ? "Исправить" : "Просмотр"}
-                  </button>
+                    options={[
+                      { id: "view", label: "Просмотр" },
+                      { id: "edit", label: "Исправить" },
+                    ]}
+                  />
                 ) : null}
               </div>
             </div>
@@ -768,24 +874,23 @@ export function ReviewPane({
               </div>
             ) : null}
 
-            <div className="flex flex-wrap gap-1 border-b border-border px-3 py-2">
-              {filters.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setFilter(item.id)}
-                  className={`rounded-full px-2 py-0.5 text-[11px] ${
-                    filter === item.id
-                      ? "bg-blue-50 text-text"
-                      : "text-muted hover:bg-bg"
-                  }`}
-                >
-                  {item.label}
-                  <span className="ml-1 tabular-nums text-muted">
-                    {filterCounts[item.id]}
-                  </span>
-                </button>
-              ))}
+            <div className="border-b border-border px-3 py-2">
+              <SegmentedTabs
+                size="xs"
+                value={filter}
+                onChange={setFilter}
+                options={filters.map((item) => ({
+                  id: item.id,
+                  label: (
+                    <>
+                      {item.label}
+                      <span className="ml-1 tabular-nums opacity-70">
+                        {filterCounts[item.id]}
+                      </span>
+                    </>
+                  ),
+                }))}
+              />
             </div>
 
             <div className="border-b border-border px-3 py-2">
@@ -843,7 +948,11 @@ export function ReviewPane({
               })}
             </div>
 
-            <div className="min-h-0 flex-1 overflow-auto">
+            <div
+              ref={mdScrollRef}
+              onScroll={onMarkdownScroll}
+              className="min-h-0 flex-1 overflow-auto"
+            >
               {filterEmpty ? (
                 <div className="p-6 text-sm text-muted">
                   {filter === "flagged"
@@ -882,6 +991,7 @@ export function ReviewPane({
                     </div>
                   ) : null}
                   <MarkdownView
+                    highlightQuery={deferredQuery}
                     onAnchor={({ pageHint }) => {
                       if (pageHint && pageHint !== pageNumber) {
                         void goToPage(pageHint);
@@ -976,6 +1086,7 @@ export function ReviewPane({
               ) : null}
             </div>
           </div>
+          ) : null}
         </div>
       </div>
 
@@ -1030,9 +1141,15 @@ export function ReviewPane({
               </li>
               <li>
                 <kbd className="rounded border border-border bg-bg px-1.5 py-0.5 font-mono text-text">
+                  F
+                </kbd>{" "}
+                — сплит → только чертёж → только текст
+              </li>
+              <li>
+                <kbd className="rounded border border-border bg-bg px-1.5 py-0.5 font-mono text-text">
                   Esc
                 </kbd>{" "}
-                — отмена отметки / выход из фокуса / к проектам
+                — отмена отметки / выход из solo / фокуса / к проектам
               </li>
               <li>
                 <kbd className="rounded border border-border bg-bg px-1.5 py-0.5 font-mono text-text">
@@ -1040,6 +1157,7 @@ export function ReviewPane({
                 </kbd>{" "}
                 — эта справка
               </li>
+              <li>Sync — синхронный скролл PDF ↔ markdown (на PDF: колёсико = pan)</li>
             </ul>
           </div>
         </div>

@@ -244,6 +244,10 @@ function normalizeMeta(raw: Partial<DocumentMeta> & { id: string }): DocumentMet
         : null,
     pipelineElapsedSec:
       typeof raw.pipelineElapsedSec === "number" ? raw.pipelineElapsedSec : null,
+    pipelineFinishedAt:
+      typeof raw.pipelineFinishedAt === "string" && raw.pipelineFinishedAt
+        ? raw.pipelineFinishedAt
+        : null,
     pipelineUsage:
       raw.pipelineUsage && typeof raw.pipelineUsage === "object"
         ? Object.fromEntries(
@@ -762,6 +766,7 @@ export async function savePdf(input: {
       viewedCounts: {},
       pipelineMode: null,
       pipelineElapsedSec: null,
+      pipelineFinishedAt: null,
       pipelineUsage: {},
       pageErrors: {},
       createdAt: new Date().toISOString(),
@@ -809,6 +814,7 @@ export type DocumentPatch = {
   pages?: DocumentPage[];
   pipelineMode?: DocumentMeta["pipelineMode"];
   pipelineElapsedSec?: number | null;
+  pipelineFinishedAt?: string | null;
   pipelineUsage?: Record<string, number>;
   pageErrors?: Record<string, string>;
 };
@@ -830,6 +836,9 @@ export async function updateDocument(
     if (patch.pipelineMode !== undefined) meta.pipelineMode = patch.pipelineMode;
     if (patch.pipelineElapsedSec !== undefined) {
       meta.pipelineElapsedSec = patch.pipelineElapsedSec;
+    }
+    if (patch.pipelineFinishedAt !== undefined) {
+      meta.pipelineFinishedAt = patch.pipelineFinishedAt;
     }
     if (patch.pipelineUsage !== undefined) meta.pipelineUsage = patch.pipelineUsage;
     if (patch.pageErrors !== undefined) meta.pageErrors = patch.pageErrors;

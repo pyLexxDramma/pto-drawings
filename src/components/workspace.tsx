@@ -19,12 +19,13 @@ import {
 import {
   ActionMenu,
   ProgressTrack,
+  SegmentedTabs,
   Spinner,
   menuItemClass,
 } from "@/components/ui-chrome";
 import { UserMenu } from "@/components/user-menu";
 import { UsersPanel } from "@/components/users-panel";
-import { formatBytes, formatDate, formatPages } from "@/lib/format";
+import { formatBytes, formatDate, formatDateOnly, formatPages, formatTimeOnly } from "@/lib/format";
 import {
   formatElapsed,
   formatPipelineUsage,
@@ -81,6 +82,67 @@ const STATUS_DOT: Record<DocumentStatus, string> = {
 
 function pageProgress(doc: DocumentRecord) {
   return Math.round((doc.readyPages / Math.max(doc.pageCount, 1)) * 100);
+}
+
+/** Сводка для тонкой полосы под шапкой: % и стадия по активным файлам. */
+function processingOverview(
+  documents: DocumentRecord[],
+  selectedId: string | null,
+  uploads: UploadItem[],
+) {
+  const active = documents.filter(
+    (doc) => doc.status === "queued" || doc.status === "processing",
+  );
+  const uploading = uploads.filter((item) => !item.error);
+
+  if (active.length === 0 && uploading.length === 0) return null;
+
+  if (active.length === 0) {
+    const avg = Math.round(
+      uploading.reduce((sum, item) => sum + item.progress, 0) / uploading.length,
+    );
+    return {
+      percent: avg,
+      canceling: false,
+      label: `Загрузка PDF… ${avg}%`,
+    };
+  }
+
+  const primary =
+    active.find((doc) => doc.id === selectedId) ??
+    active.find((doc) => doc.status === "processing") ??
+    active[0];
+
+  const ready = active.reduce((sum, doc) => sum + doc.readyPages, 0);
+  const total = active.reduce(
+    (sum, doc) => sum + Math.max(doc.pageCount, doc.readyPages, 1),
+    0,
+  );
+  const percent = Math.min(100, Math.round((ready / total) * 100));
+  const canceling = active.some((doc) =>
+    doc.errorMessage?.startsWith("Отмена"),
+  );
+  const step =
+    primary.processingStep && STEP_LABEL[primary.processingStep]
+      ? STEP_LABEL[primary.processingStep].toLowerCase()
+      : primary.status === "queued"
+        ? "в очереди"
+        : "обработка";
+  const pageHint = primary.processingPage
+    ? `лист ${primary.processingPage}`
+    : null;
+  const fileHint =
+    active.length > 1
+      ? `${active.length} файла`
+      : primary.originalName;
+
+  return {
+    percent,
+    canceling,
+    label: canceling
+      ? `Отмена… ${percent}%`
+      : [fileHint, `${percent}%`, pageHint, step].filter(Boolean).join(" · "),
+  };
 }
 
 function kindSummary(doc: DocumentRecord) {
@@ -238,6 +300,7 @@ export function Workspace({
   const [creatingProject, setCreatingProject] = useState(false);
   const [showNewProject, setShowNewProject] = useState(false);
   const [filesCollapsed, setFilesCollapsed] = useState(false);
+  const [compactFiles, setCompactFiles] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
   const [renameId, setRenameId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
@@ -346,7 +409,8 @@ export function Workspace({
           : null,
       );
       autoReadyJumpRef.current = page && page > 0 ? id : null;
-      setFilesCollapsed(true);
+      // Не сворачиваем список файлов автоматически: иначе «Стоп»/отмена
+      // оказываются за узкой полоской «Файлы» во время обработки.
       await refreshDocument(id);
     },
     [refreshDocument],
@@ -794,6 +858,19 @@ export function Workspace({
 
   async function handleCancel(id: string) {
     setCancelingId(id);
+    setError(null);
+    // Сразу в UI — не ждём ответ API, иначе кажется, что кнопка мёртвая.
+    setDocuments((prev) =>
+      prev.map((doc) =>
+        doc.id === id
+          ? {
+              ...doc,
+              processingStep: null,
+              errorMessage: "Отмена… останавливаем после текущего листа.",
+            }
+          : doc,
+      ),
+    );
     try {
       const response = await fetch(`/api/documents/${id}/cancel`, {
         method: "POST",
@@ -806,8 +883,9 @@ export function Workspace({
         setError(payload.error || "Не удалось отменить обработку");
         return;
       }
-      setError(null);
       applyFullDocument(payload.document);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось отменить обработку");
     } finally {
       setCancelingId(null);
     }
@@ -826,6 +904,7 @@ export function Workspace({
       : "grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[220px_280px_minmax(0,1fr)]";
   const pipelineUsageLabel = formatPipelineUsage(pipelineHealth?.usage);
   const summaryLine = projectSummaryLine(documents, notes);
+  const processBar = processingOverview(documents, selectedId, uploads);
   const filteredNotes = notes.filter((note) => {
     if (notesFilter === "all") return true;
     if (notesFilter === "open") return note.status === "open";
@@ -941,6 +1020,46 @@ export function Workspace({
           }}
         />
       </header>
+
+      {processBar ? (
+        <div
+          className={`flex h-6 shrink-0 items-center gap-3 border-b px-4 ${
+            processBar.canceling
+              ? "border-amber-300 bg-amber-100"
+              : "border-emerald-200 bg-emerald-50"
+          }`}
+          role="progressbar"
+          data-testid="global-process-bar"
+          aria-valuenow={processBar.percent}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label={processBar.label}
+        >
+          <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-emerald-100">
+            <div
+              className={`h-full rounded-full transition-[width] duration-500 ease-out ${
+                processBar.canceling
+                  ? "bg-amber-600"
+                  : "bg-emerald-500 pto-progress__bar"
+              }`}
+              style={{
+                width: `${Math.max(
+                  processBar.percent,
+                  processBar.percent === 0 ? 6 : 2,
+                )}%`,
+              }}
+            />
+          </div>
+          <span
+            className={`max-w-[60%] shrink-0 truncate text-[11px] font-semibold tabular-nums ${
+              processBar.canceling ? "text-amber-950" : "text-emerald-950"
+            }`}
+            title={processBar.label}
+          >
+            {processBar.label}
+          </span>
+        </div>
+      ) : null}
 
       {defaultPasswordWarning ? (
         <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900">
@@ -1068,6 +1187,10 @@ export function Workspace({
                     title="Ещё раз нажмите, чтобы переименовать"
                   >
                     <span className="block truncate">{project.name}</span>
+                    <span className="mt-0.5 block truncate text-[10px] font-normal text-muted">
+                      создан {formatDateOnly(project.createdAt)} в{" "}
+                      {formatTimeOnly(project.createdAt)}
+                    </span>
                     {project.description ? (
                       <span className="mt-0.5 block truncate text-[11px] font-normal text-muted">
                         {project.description}
@@ -1081,14 +1204,29 @@ export function Workspace({
         )}
 
         {focusMode ? null : filesCollapsed ? (
-          <button
-            type="button"
-            onClick={() => setFilesCollapsed(false)}
-            className="border-b border-border bg-white text-xs text-muted hover:bg-bg md:border-r md:border-b-0"
-            title="Показать файлы"
-          >
-            <span className="inline-block px-1 py-3 [writing-mode:vertical-rl]">Файлы</span>
-          </button>
+          <div className="flex flex-col border-b border-border bg-white md:border-r md:border-b-0">
+            <button
+              type="button"
+              onClick={() => setFilesCollapsed(false)}
+              className="flex-1 text-xs text-muted hover:bg-bg"
+              title="Показать файлы"
+            >
+              <span className="inline-block px-1 py-3 [writing-mode:vertical-rl]">Файлы</span>
+            </button>
+            {selected &&
+            (selected.status === "processing" || selected.status === "queued") &&
+            !selected.errorMessage?.startsWith("Отмена") ? (
+              <button
+                type="button"
+                disabled={cancelingId === selected.id}
+                onClick={() => void handleCancel(selected.id)}
+                className="border-t border-amber-200 bg-amber-50 px-1 py-2 text-[10px] font-medium text-amber-950 hover:bg-amber-100 disabled:opacity-50 [writing-mode:vertical-rl]"
+                title="Отменить обработку"
+              >
+                {cancelingId === selected.id ? "…" : "Стоп"}
+              </button>
+            ) : null}
+          </div>
         ) : (
           <section className="flex min-h-0 flex-col border-b border-border bg-white md:border-r md:border-b-0">
             <div className="flex items-start justify-between border-b border-border px-3 py-3">
@@ -1096,6 +1234,12 @@ export function Workspace({
                 <div className="truncate text-sm font-medium">
                   {currentProject?.name ?? "Проект"}
                 </div>
+                {currentProject ? (
+                  <div className="mt-0.5 text-[11px] text-muted">
+                    создан {formatDateOnly(currentProject.createdAt)} в{" "}
+                    {formatTimeOnly(currentProject.createdAt)}
+                  </div>
+                ) : null}
                 <div className="mt-0.5 text-[11px] leading-snug text-muted">
                   {summaryLine}
                 </div>
@@ -1122,6 +1266,18 @@ export function Workspace({
                     Скрыть
                   </button>
                 ) : null}
+                <button
+                  type="button"
+                  title="Компактный список файлов"
+                  onClick={() => setCompactFiles((value) => !value)}
+                  className={`text-[11px] ${
+                    compactFiles
+                      ? "font-medium text-accent"
+                      : "text-muted hover:text-text"
+                  }`}
+                >
+                  {compactFiles ? "Плотно" : "Список"}
+                </button>
                 <button
                   type="button"
                   onClick={() => setViewOnly((value) => !value)}
@@ -1325,43 +1481,26 @@ export function Workspace({
                   ) : null}
                 </div>
                 {showNotes ? (
-                  <div className="mt-2 space-y-2">
-                    <div className="flex flex-wrap gap-1">
-                      {(
-                        [
-                          ["open", "Открытые"],
-                          ["all", "Все"],
-                        ] as const
-                      ).map(([id, label]) => (
-                        <button
-                          key={id}
-                          type="button"
-                          onClick={() => setNotesFilter(id)}
-                          className={`rounded border px-1.5 py-0.5 text-[10px] ${
-                            notesFilter === id
-                              ? "border-accent bg-blue-50 text-accent"
-                              : "border-border text-muted hover:text-text"
-                          }`}
-                        >
-                          {label}
-                        </button>
-                      ))}
-                      {noteFileOptions.map(([id, name]) => (
-                        <button
-                          key={id}
-                          type="button"
-                          title={name}
-                          onClick={() => setNotesFilter(id)}
-                          className={`max-w-[7rem] truncate rounded border px-1.5 py-0.5 text-[10px] ${
-                            notesFilter === id
-                              ? "border-accent bg-blue-50 text-accent"
-                              : "border-border text-muted hover:text-text"
-                          }`}
-                        >
-                          {name}
-                        </button>
-                      ))}
-                    </div>
+                    <div className="mt-2 space-y-2">
+                    <SegmentedTabs
+                      size="xs"
+                      className="w-full"
+                      value={notesFilter}
+                      onChange={setNotesFilter}
+                      options={[
+                        { id: "open", label: "Открытые" },
+                        { id: "all", label: "Все" },
+                        ...noteFileOptions.map(([id, name]) => ({
+                          id,
+                          label: (
+                            <span className="inline-block max-w-[6.5rem] truncate align-bottom">
+                              {name}
+                            </span>
+                          ),
+                          title: name,
+                        })),
+                      ]}
+                    />
                     <div className="max-h-40 space-y-1 overflow-auto">
                       {filteredNotes.length === 0 ? (
                         <div className="text-[11px] text-muted">
@@ -1453,13 +1592,15 @@ export function Workspace({
               {documents.map((doc) => (
                 <div
                   key={doc.id}
-                  className={`mb-2 rounded-md border ${
+                  className={`group mb-2 rounded-md border transition-[opacity,box-shadow] ${
                     selectedId === doc.id
-                      ? "border-accent bg-blue-50"
-                      : "border-transparent bg-bg hover:border-border"
+                      ? "border-accent bg-blue-50 shadow-[0_0_0_1px_rgba(37,99,235,0.2)]"
+                      : selectedId
+                        ? "border-transparent bg-bg opacity-55 hover:border-border hover:opacity-100"
+                        : "border-transparent bg-bg hover:border-border"
                   }`}
                 >
-                  <div className="flex items-start gap-1 px-2 pt-2">
+                  <div className={`flex items-start gap-1 ${compactFiles ? "px-2 py-1.5" : "px-2 pt-2"}`}>
                     <button
                       type="button"
                       onClick={() => {
@@ -1476,9 +1617,35 @@ export function Workspace({
                           setRecent(loadRecentProjects());
                         }
                       }}
-                      className="min-w-0 flex-1 px-1 pb-1 text-left"
+                      className={`min-w-0 flex-1 px-1 text-left ${compactFiles ? "py-0" : "pb-1"}`}
                     >
-                      <div className="truncate text-sm font-medium">{doc.originalName}</div>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_DOT[doc.status]}`}
+                          title={STATUS_LABEL[doc.status]}
+                          aria-hidden
+                        />
+                        <div className="truncate text-sm font-medium">{doc.originalName}</div>
+                        {doc.status === "processing" || doc.status === "queued" ? (
+                          <Spinner className="h-2.5 w-2.5 shrink-0 text-sky-700" />
+                        ) : null}
+                      </div>
+                      {compactFiles ? (
+                        <div className="mt-0.5 truncate pl-3.5 text-[10px] text-muted opacity-70 group-hover:opacity-100">
+                          {doc.errorMessage?.startsWith("Отмена")
+                            ? "Отмена…"
+                            : STATUS_LABEL[doc.status]}
+                          {doc.status === "done" && formatElapsed(doc.pipelineElapsedSec)
+                            ? ` · ${formatElapsed(doc.pipelineElapsedSec)}`
+                            : null}
+                          {doc.status === "done" && doc.pipelineFinishedAt
+                            ? ` · ${formatDateOnly(doc.pipelineFinishedAt)} ${formatTimeOnly(doc.pipelineFinishedAt)}`
+                            : null}
+                          {` · ${formatDateOnly(doc.createdAt)}`}
+                          {doc.openAnnotations ? ` · ${doc.openAnnotations} зам.` : ""}
+                        </div>
+                      ) : (
+                        <>
                       <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
                         <span
                           className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium ${STATUS_CLASS[doc.status]}`}
@@ -1497,8 +1664,39 @@ export function Workspace({
                           {kindSummary(doc)} · {formatBytes(doc.sizeBytes)}
                         </span>
                       </div>
-                      {formatElapsed(doc.pipelineElapsedSec) ||
-                      formatPipelineUsage(doc.pipelineUsage) ? (
+                      <div className="mt-1 space-y-0.5 text-[11px] text-muted">
+                        <div>
+                          создан {formatDateOnly(doc.createdAt)} в{" "}
+                          {formatTimeOnly(doc.createdAt)}
+                        </div>
+                      </div>
+                      {doc.status === "done" ? (
+                        <div className="mt-1 space-y-0.5 text-[11px] text-muted">
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                            <span>
+                              обработано
+                              {formatElapsed(doc.pipelineElapsedSec)
+                                ? ` за ${formatElapsed(doc.pipelineElapsedSec)}`
+                                : ""}
+                            </span>
+                            {doc.pipelineMode === "real" ? (
+                              <span className="text-red-700">real</span>
+                            ) : doc.pipelineMode === "mock" ? (
+                              <span className="text-amber-700">mock</span>
+                            ) : null}
+                            {formatPipelineUsage(doc.pipelineUsage) ? (
+                              <span>{formatPipelineUsage(doc.pipelineUsage)}</span>
+                            ) : null}
+                          </div>
+                          {doc.pipelineFinishedAt ? (
+                            <div>
+                              {formatDateOnly(doc.pipelineFinishedAt)} · завершено в{" "}
+                              {formatTimeOnly(doc.pipelineFinishedAt)}
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : formatElapsed(doc.pipelineElapsedSec) ||
+                        formatPipelineUsage(doc.pipelineUsage) ? (
                         <div className="mt-1 text-[11px] text-muted">
                           {doc.pipelineMode === "real" ? (
                             <span className="mr-1 text-red-700">real</span>
@@ -1543,10 +1741,31 @@ export function Workspace({
                         </div>
                       ) : null}
                       {doc.status === "processing" || doc.status === "queued" ? (
-                        <div className="mt-2">
-                          <ProgressTrack value={pageProgress(doc)} className="h-1" />
-                        </div>
+                        doc.errorMessage?.startsWith("Отмена") ? (
+                          <div className="mt-1 text-[11px] text-amber-800">
+                            {doc.errorMessage}
+                          </div>
+                        ) : (
+                          <div className="mt-2 flex items-center gap-2">
+                            <div className="min-w-0 flex-1">
+                              <ProgressTrack value={pageProgress(doc)} className="h-1" />
+                            </div>
+                            <button
+                              type="button"
+                              disabled={cancelingId === doc.id}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                void handleCancel(doc.id);
+                              }}
+                              className="shrink-0 rounded border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] text-amber-950 hover:bg-amber-100 disabled:opacity-50"
+                            >
+                              {cancelingId === doc.id ? "Отмена…" : "Стоп"}
+                            </button>
+                          </div>
+                        )
                       ) : null}
+                        </>
+                      )}
                     </button>
                     <ActionMenu label="Действия файла">
                       <button
@@ -1575,21 +1794,32 @@ export function Workspace({
                         <button
                           type="button"
                           role="menuitem"
-                          disabled={cancelingId === doc.id}
+                          disabled={
+                            cancelingId === doc.id ||
+                            Boolean(doc.errorMessage?.startsWith("Отмена"))
+                          }
                           className={`${menuItemClass()} disabled:opacity-50`}
-                          onClick={() => void handleCancel(doc.id)}
+                          onPointerDown={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            void handleCancel(doc.id);
+                          }}
                         >
-                          {cancelingId === doc.id ? "Отмена…" : "Отменить обработку"}
+                          {cancelingId === doc.id
+                            ? "Отмена…"
+                            : doc.errorMessage?.startsWith("Отмена")
+                              ? "Останавливаем…"
+                              : "Отменить обработку"}
                         </button>
                       ) : null}
-                      {doc.status === "error" ? (
+                      {doc.status === "done" || doc.status === "error" ? (
                         <button
                           type="button"
                           role="menuitem"
                           className={menuItemClass()}
                           onClick={() => void handleRetry(doc.id)}
                         >
-                          Повтор
+                          Обработать заново
                         </button>
                       ) : null}
                       <button
@@ -1602,9 +1832,23 @@ export function Workspace({
                       </button>
                     </ActionMenu>
                   </div>
-                  <div className="px-3 pb-2 text-[11px] text-muted">
-                    версия от {formatDate(doc.createdAt)}
-                  </div>
+                  {!compactFiles ? (
+                    <div className="flex items-center justify-between gap-2 px-3 pb-2">
+                      <div className="min-w-0 truncate text-[11px] text-muted">
+                        создан {formatDateOnly(doc.createdAt)} в{" "}
+                        {formatTimeOnly(doc.createdAt)}
+                      </div>
+                      {doc.status === "done" || doc.status === "error" ? (
+                        <button
+                          type="button"
+                          onClick={() => void handleRetry(doc.id)}
+                          className="shrink-0 rounded border border-border bg-white px-2 py-0.5 text-[11px] text-muted hover:border-accent hover:text-accent"
+                        >
+                          Заново
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
               ))}
             </div>

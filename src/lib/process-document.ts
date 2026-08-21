@@ -39,6 +39,8 @@ const MAX_CONSECUTIVE_FAILURES = Number(process.env.PTO_MAX_FAILURES ?? 20);
 const ROOT = process.env.DATA_ROOT || process.cwd();
 const UPLOAD_DIR = path.join(ROOT, "uploads");
 
+const CANCEL_PENDING = "Отмена… останавливаем после текущего листа.";
+
 type BackendStatus = "queued" | "processing" | "done" | "error" | "canceled";
 
 type BackendJob = {
@@ -66,6 +68,8 @@ type BackendPage = {
 };
 
 const running = new Set<string>();
+/** Отмена запрошена из UI — поллер не должен возвращать документ в «активную» обработку. */
+const canceling = new Set<string>();
 
 /** Идентификаторы документов, которые реально обрабатываются в этом процессе. */
 export function activeDocumentIds() {
@@ -73,6 +77,10 @@ export function activeDocumentIds() {
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function isCancelMessage(message: string | null | undefined) {
+  return Boolean(message && message.startsWith("Отмена"));
+}
 
 /** Ошибка, которую нет смысла повторять (неверный запрос, нет задачи). */
 class PermanentError extends Error {}
@@ -124,6 +132,17 @@ async function findExistingJob(documentId: string): Promise<BackendJob | null> {
   );
 }
 
+async function findActiveJob(documentId: string): Promise<BackendJob | null> {
+  const payload = await api<{ jobs: BackendJob[] }>(
+    `/jobs?documentId=${encodeURIComponent(documentId)}`,
+  );
+  return (
+    (payload.jobs ?? []).find(
+      (job) => job.status === "processing" || job.status === "queued",
+    ) ?? null
+  );
+}
+
 async function createJob(document: DocumentRecord): Promise<BackendJob> {
   // Файл не пересылается: бэкенд стоит рядом и читает его из той же папки
   // uploads по пути. Поэтому сервису нужен PTO_ALLOWED_PDF_ROOTS на неё.
@@ -163,13 +182,19 @@ function stepFor(job: BackendJob): ProcessingStep | null {
   return null;
 }
 
-function pipelinePatch(job: BackendJob) {
+function pipelinePatch(job: BackendJob, options?: { finished?: boolean }) {
   const mode = job.profile?.mode;
+  const finished =
+    options?.finished ??
+    (job.status === "done" ||
+      job.status === "error" ||
+      job.status === "canceled");
   return {
     pipelineMode:
       mode === "mock" || mode === "real" ? (mode as "mock" | "real") : null,
     pipelineElapsedSec:
       typeof job.elapsedSec === "number" ? job.elapsedSec : null,
+    ...(finished ? { pipelineFinishedAt: new Date().toISOString() } : {}),
     pipelineUsage: job.usage ?? {},
     pageErrors: job.pageErrors ?? {},
   };
@@ -183,31 +208,57 @@ function cancelMessage(job: BackendJob | null) {
 }
 
 export async function cancelDocument(id: string) {
-  const job = await findExistingJob(id);
-  if (!job) {
-    return updateDocument(id, {
-      status: "error",
-      processingStep: null,
-      processingPage: null,
-      errorMessage: "Активная задача конвейера не найдена.",
-    });
-  }
+  canceling.add(id);
 
-  if (job.status === "queued" || job.status === "processing") {
-    await api<BackendJob>(`/jobs/${job.id}/cancel`, { method: "POST" });
-  }
-
-  const current = await api<BackendJob>(`/jobs/${job.id}`);
-  return updateDocument(id, {
-    status: mapStatus(current.status === "canceled" ? "canceled" : current.status),
+  // Сразу в БД — UI и поллер увидят отмену даже если бэкенд тормозит / HMR сбросил Set.
+  const pending = await updateDocument(id, {
     processingStep: null,
-    processingPage: null,
-    errorMessage:
-      current.status === "canceled" || current.cancelRequested
-        ? cancelMessage(current)
-        : current.errorMessage,
-    ...pipelinePatch(current),
+    errorMessage: CANCEL_PENDING,
   });
+
+  try {
+    const active = await findActiveJob(id);
+    if (!active) {
+      canceling.delete(id);
+      const any = await findExistingJob(id);
+      return (
+        (await updateDocument(id, {
+          status: "error",
+          processingStep: null,
+          processingPage: null,
+          pipelineFinishedAt: new Date().toISOString(),
+          errorMessage: any
+            ? cancelMessage(any)
+            : "Обработка отменена. Активная задача конвейера не найдена.",
+        })) ?? pending
+      );
+    }
+
+    await api<BackendJob>(`/jobs/${active.id}/cancel`, { method: "POST" });
+    const current = await api<BackendJob>(`/jobs/${active.id}`);
+    const stopped = current.status === "canceled";
+    if (stopped) canceling.delete(id);
+
+    return (
+      (await updateDocument(id, {
+        status: stopped ? "error" : "processing",
+        processingStep: null,
+        processingPage: stopped ? null : current.processingPage,
+        errorMessage: stopped ? cancelMessage(current) : CANCEL_PENDING,
+        ...pipelinePatch(current, { finished: stopped }),
+      })) ?? pending
+    );
+  } catch (error) {
+    // Флаг в БД уже стоит — поллер/processDocument продолжат дожимать отмену.
+    const message =
+      error instanceof Error ? error.message : "Не удалось связаться с конвейером";
+    return (
+      (await updateDocument(id, {
+        processingStep: null,
+        errorMessage: `${CANCEL_PENDING} (${message})`,
+      })) ?? pending
+    );
+  }
 }
 
 export async function processDocument(id: string) {
@@ -224,6 +275,8 @@ export async function processDocument(id: string) {
       processingPage: null,
       errorMessage: null,
       pageErrors: {},
+      pipelineFinishedAt: null,
+      pipelineElapsedSec: null,
     });
 
     const job = (await findExistingJob(id)) ?? (await createJob(document));
@@ -235,6 +288,7 @@ export async function processDocument(id: string) {
     // базу каждые POLL_MS без причины.
     let lastSignature = "";
     let failures = 0;
+    let cancelPosted = false;
 
     for (;;) {
       let current: BackendJob;
@@ -270,10 +324,35 @@ export async function processDocument(id: string) {
         continue;
       }
 
+      const snap = await getDocument(id);
+      const wantsCancel =
+        canceling.has(id) ||
+        isCancelMessage(snap?.errorMessage) ||
+        Boolean(current.cancelRequested);
+
+      if (
+        wantsCancel &&
+        !cancelPosted &&
+        (current.status === "queued" || current.status === "processing") &&
+        !current.cancelRequested
+      ) {
+        try {
+          await api<BackendJob>(`/jobs/${job.id}/cancel`, { method: "POST" });
+          cancelPosted = true;
+          current = await api<BackendJob>(`/jobs/${job.id}`);
+        } catch (error) {
+          console.warn(
+            "[pto] не удалось отправить cancel на конвейер:",
+            error instanceof Error ? error.message : error,
+          );
+        }
+      }
+
       const finished =
         current.status === "done" ||
         current.status === "error" ||
         current.status === "canceled";
+      const canceled = current.status === "canceled";
       const failedPages = Object.keys(current.pageErrors ?? {}).length;
       const usageKey = Object.entries(current.usage ?? {})
         .map(([key, value]) => `${key}:${value}`)
@@ -287,28 +366,41 @@ export async function processDocument(id: string) {
         failedPages,
         Math.floor(current.elapsedSec ?? 0),
         usageKey,
+        wantsCancel ? "cancel" : "",
+        canceled ? "stopped" : "",
       ].join("|");
 
       if (signature !== lastSignature) {
         lastSignature = signature;
-        const canceled = current.status === "canceled";
         await updateDocument(id, {
-          status: mapStatus(current.status),
-          processingStep: canceled ? null : stepFor(current),
+          status: canceled
+            ? "error"
+            : wantsCancel
+              ? "processing"
+              : mapStatus(current.status),
+          processingStep:
+            canceled || wantsCancel ? null : stepFor(current),
           processingPage: canceled ? null : current.processingPage,
           pageCount: current.pageCount || document.pageCount,
           pages: [...pages.values()].sort((a, b) => a.pageNumber - b.pageNumber),
           errorMessage: canceled
             ? cancelMessage(current)
-            : current.errorMessage ??
-              (finished && failedPages
-                ? `Не удалось обработать листов: ${failedPages}`
-                : null),
-          ...pipelinePatch(current),
+            : wantsCancel
+              ? CANCEL_PENDING
+              : current.errorMessage ??
+                (finished && failedPages
+                  ? `Не удалось обработать листов: ${failedPages}`
+                  : null),
+          ...pipelinePatch(current, {
+            finished: canceled || (finished && !wantsCancel),
+          }),
         });
       }
 
-      if (finished) return;
+      if (canceled || finished) {
+        canceling.delete(id);
+        return;
+      }
       await sleep(POLL_MS);
     }
   } catch (error) {
@@ -321,9 +413,11 @@ export async function processDocument(id: string) {
       status: "error",
       processingStep: null,
       processingPage: null,
+      pipelineFinishedAt: new Date().toISOString(),
       errorMessage: `${message}. Нажмите «Обработать заново» — готовые листы подтянутся без пересчёта.`,
     });
   } finally {
     running.delete(id);
+    canceling.delete(id);
   }
 }

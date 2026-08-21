@@ -22,6 +22,8 @@ export async function POST(request: Request, context: RouteContext) {
     processingStep: "queued",
     processingPage: null,
     errorMessage: null,
+    pipelineFinishedAt: null,
+    pipelineElapsedSec: null,
   });
   runInBackground(processDocument(id));
   const queued = await getDocument(id);

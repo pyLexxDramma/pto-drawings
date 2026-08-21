@@ -123,6 +123,8 @@ export type DocumentMeta = {
   /** Режим конвейера на момент прогона (mock / real). */
   pipelineMode: PipelineMode | null;
   pipelineElapsedSec: number | null;
+  /** Когда прогон завершился (done / отмена / ошибка конвейера). */
+  pipelineFinishedAt: string | null;
   pipelineUsage: Record<string, number>;
   pageErrors: Record<string, string>;
   createdAt: string;

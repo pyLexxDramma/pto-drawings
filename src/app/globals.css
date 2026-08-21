@@ -88,9 +88,10 @@ body {
 .markdown-body table {
   width: max-content;
   min-width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   margin: 0.8em 0;
-  font-size: 12px;
+  font-size: 13px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
@@ -105,14 +106,33 @@ body {
 .markdown-body th,
 .markdown-body td {
   border: 1px solid var(--border);
-  padding: 5px 8px;
+  border-top: none;
+  border-left: none;
+  padding: 7px 10px;
   text-align: left;
   white-space: nowrap;
 }
 
-.markdown-body th {
-  background: var(--surface-2);
-  font-weight: 600;
+.markdown-body tr > :first-child {
+  border-left: 1px solid var(--border);
+}
+
+.markdown-body thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #e8eef6;
+  font-weight: 650;
+  border-top: 1px solid var(--border);
+  box-shadow: 0 1px 0 var(--border);
+}
+
+.markdown-body tbody tr:nth-child(even) td {
+  background: #f7f9fc;
+}
+
+.markdown-body tbody tr:hover td {
+  background: #eef5ff;
 }
 
 .markdown-body mark {

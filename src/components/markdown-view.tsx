@@ -5,12 +5,15 @@ import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
+import { highlightNodes } from "@/lib/highlight-text";
 import { markdownSanitizeSchema } from "@/lib/markdown-schema";
 
 type MarkdownViewProps = {
   children: string;
   /** Клик по заголовку / номеру листа — якорь к PDF. */
   onAnchor?: (payload: { text: string; pageHint: number | null }) => void;
+  /** Подсветка совпадений поиска в тексте. */
+  highlightQuery?: string;
 };
 
 function pageHintFromText(text: string): number | null {
@@ -24,12 +27,15 @@ function AnchorHeading({
   tag: Tag,
   children,
   onAnchor,
+  highlightQuery,
 }: {
   tag: "h1" | "h2" | "h3";
   children: ReactNode;
   onAnchor?: MarkdownViewProps["onAnchor"];
+  highlightQuery?: string;
 }) {
   const text = flattenText(children);
+  const body = highlightQuery ? highlightNodes(children, highlightQuery) : children;
   return (
     <Tag>
       <button
@@ -38,7 +44,7 @@ function AnchorHeading({
         title="Показать на чертеже"
         onClick={() => onAnchor?.({ text, pageHint: pageHintFromText(text) })}
       >
-        {children}
+        {body}
       </button>
     </Tag>
   );
@@ -55,33 +61,48 @@ function flattenText(node: ReactNode): string {
   return "";
 }
 
+function wrapText(
+  Tag: "p" | "li" | "td" | "th" | "span",
+  children: ReactNode,
+  highlightQuery?: string,
+  extra?: Record<string, unknown>,
+) {
+  const body = highlightQuery ? highlightNodes(children, highlightQuery) : children;
+  return <Tag {...extra}>{body}</Tag>;
+}
+
 /** Единственное место, где markdown листа превращается в HTML. */
-export function MarkdownView({ children, onAnchor }: MarkdownViewProps) {
+export function MarkdownView({
+  children,
+  onAnchor,
+  highlightQuery = "",
+}: MarkdownViewProps) {
+  const q = highlightQuery.trim().length >= 2 ? highlightQuery : "";
   return (
     <Markdown
       remarkPlugins={[remarkGfm]}
       rehypePlugins={[rehypeRaw, [rehypeSanitize, markdownSanitizeSchema]]}
-      components={
-        onAnchor
-          ? {
-              h1: ({ children: c }) => (
-                <AnchorHeading tag="h1" onAnchor={onAnchor}>
-                  {c}
-                </AnchorHeading>
-              ),
-              h2: ({ children: c }) => (
-                <AnchorHeading tag="h2" onAnchor={onAnchor}>
-                  {c}
-                </AnchorHeading>
-              ),
-              h3: ({ children: c }) => (
-                <AnchorHeading tag="h3" onAnchor={onAnchor}>
-                  {c}
-                </AnchorHeading>
-              ),
-            }
-          : undefined
-      }
+      components={{
+        h1: ({ children: c }) => (
+          <AnchorHeading tag="h1" onAnchor={onAnchor} highlightQuery={q}>
+            {c}
+          </AnchorHeading>
+        ),
+        h2: ({ children: c }) => (
+          <AnchorHeading tag="h2" onAnchor={onAnchor} highlightQuery={q}>
+            {c}
+          </AnchorHeading>
+        ),
+        h3: ({ children: c }) => (
+          <AnchorHeading tag="h3" onAnchor={onAnchor} highlightQuery={q}>
+            {c}
+          </AnchorHeading>
+        ),
+        p: ({ children: c }) => wrapText("p", c, q),
+        li: ({ children: c }) => wrapText("li", c, q),
+        td: ({ children: c }) => wrapText("td", c, q),
+        th: ({ children: c }) => wrapText("th", c, q),
+      }}
     >
       {children}
     </Markdown>

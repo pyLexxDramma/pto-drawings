@@ -178,12 +178,12 @@ export function PageStrip({
               }
             }}
             onClick={() => onSelect(pageNumber)}
-            className={`mb-1.5 rounded-md border p-1 text-left ${
+            className={`mb-1.5 rounded-md border p-1 text-left transition-[opacity,transform,box-shadow] duration-150 ${
               current === pageNumber
-                ? "border-accent bg-white"
+                ? "z-[1] scale-[1.02] border-accent bg-white shadow-[0_0_0_2px_rgba(37,99,235,0.25)]"
                 : isWorking
-                  ? "pto-page-working border-sky-400 bg-white"
-                  : "border-transparent hover:border-border hover:bg-white"
+                  ? "pto-page-working border-sky-400 bg-white opacity-90"
+                  : "border-transparent opacity-45 hover:border-border hover:bg-white hover:opacity-100"
             }`}
           >
             {/* Постоянная высота места под миниатюру: иначе все листы сразу попадают в кадр. */}
