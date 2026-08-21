@@ -1531,6 +1531,26 @@ export function Workspace({
                           {kindSummary(doc)} · {formatBytes(doc.sizeBytes)}
                         </span>
                       </div>
+                      {formatElapsed(doc.pipelineElapsedSec) ||
+                      formatPipelineUsage(doc.pipelineUsage) ? (
+                        <div className="mt-1 text-[11px] text-muted">
+                          {doc.pipelineMode === "real" ? (
+                            <span className="mr-1 text-red-700">real</span>
+                          ) : doc.pipelineMode === "mock" ? (
+                            <span className="mr-1 text-amber-700">mock</span>
+                          ) : null}
+                          {formatElapsed(doc.pipelineElapsedSec)
+                            ? `время ${formatElapsed(doc.pipelineElapsedSec)}`
+                            : null}
+                          {formatElapsed(doc.pipelineElapsedSec) &&
+                          formatPipelineUsage(doc.pipelineUsage)
+                            ? " · "
+                            : null}
+                          {formatPipelineUsage(doc.pipelineUsage)
+                            ? formatPipelineUsage(doc.pipelineUsage)
+                            : null}
+                        </div>
+                      ) : null}
                       {(doc.status === "processing" || doc.status === "queued") &&
                       doc.processingPage ? (
                         <div className="mt-1 text-[11px] text-sky-800">

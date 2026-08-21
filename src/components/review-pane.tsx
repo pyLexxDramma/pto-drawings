@@ -73,6 +73,7 @@ export function ReviewPane({
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
   const [noteError, setNoteError] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
+  const [pdfHighlight, setPdfHighlight] = useState(0);
   const draftRef = useRef(draft);
   const pageRef = useRef(rawPage);
   const timerRef = useRef<number | null>(null);
@@ -618,6 +619,7 @@ export function ReviewPane({
               annotations={pageNotes}
               markMode={markMode}
               activeAnnotationId={activeNoteId}
+              highlightNonce={pdfHighlight}
               onMarkRect={(rect) => setPendingRect(rect)}
               onSelectAnnotation={(id) => setActiveNoteId(id)}
               onCancelMark={() => {
@@ -684,6 +686,29 @@ export function ReviewPane({
                   placeholder="Что неверно"
                   className="mt-1 w-full resize-none rounded-md border border-border bg-white px-2 py-1.5 text-xs outline-none focus:border-accent"
                 />
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  {[
+                    "Нет размера",
+                    "Неверная спецификация",
+                    "Ошибка в штампе",
+                    "Нет позиции",
+                    "Неверный масштаб",
+                    "Расхождение с ТЗ",
+                  ].map((label) => (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={() =>
+                        setNoteComment((prev) =>
+                          prev.trim() ? `${prev.trim()}. ${label}` : label,
+                        )
+                      }
+                      className="rounded-full border border-red-200 bg-white px-2 py-0.5 text-[10px] text-red-800 hover:bg-red-100"
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
                 <textarea
                   value={noteExpected}
                   onChange={(event) => setNoteExpected(event.target.value)}
@@ -831,7 +856,16 @@ export function ReviewPane({
                       Это ответ режима [MOCK], не работа модели.
                     </div>
                   ) : null}
-                  <MarkdownView>{page.markdown}</MarkdownView>
+                  <MarkdownView
+                    onAnchor={({ pageHint }) => {
+                      if (pageHint && pageHint !== pageNumber) {
+                        void goToPage(pageHint);
+                      }
+                      setPdfHighlight((value) => value + 1);
+                    }}
+                  >
+                    {page.markdown}
+                  </MarkdownView>
                 </div>
               )}
             </div>

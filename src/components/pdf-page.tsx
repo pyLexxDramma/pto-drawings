@@ -9,6 +9,8 @@ type PdfPageProps = {
   annotations?: PageAnnotation[];
   markMode?: boolean;
   activeAnnotationId?: string | null;
+  /** Смена значения — сброс вида и короткая вспышка «якорь». */
+  highlightNonce?: number;
   onMarkRect?: (rect: AnnotationRect) => void;
   onSelectAnnotation?: (id: string) => void;
   onCancelMark?: () => void;
@@ -24,6 +26,7 @@ export function PdfPage({
   annotations = [],
   markMode = false,
   activeAnnotationId = null,
+  highlightNonce = 0,
   onMarkRect,
   onSelectAnnotation,
   onCancelMark,
@@ -43,6 +46,7 @@ export function PdfPage({
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [grabbing, setGrabbing] = useState(false);
   const [draw, setDraw] = useState<DrawState | null>(null);
+  const [anchorFlash, setAnchorFlash] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -106,6 +110,15 @@ export function PdfPage({
     if (!loading && !error) fit("page");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, error, natural.w, natural.h, pageNumber]);
+
+  useEffect(() => {
+    if (!highlightNonce) return;
+    fit("page");
+    setAnchorFlash(true);
+    const timer = window.setTimeout(() => setAnchorFlash(false), 900);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlightNonce]);
 
   useEffect(() => {
     const wrap = wrapRef.current;
@@ -247,6 +260,9 @@ export function PdfPage({
           <div className="absolute inset-0 z-10 flex items-center justify-center text-sm text-muted">
             Страница загружается…
           </div>
+        ) : null}
+        {anchorFlash ? (
+          <div className="pointer-events-none absolute inset-0 z-20 animate-pulse border-4 border-sky-400/80 bg-sky-300/10" />
         ) : null}
         {error ? (
           <iframe
