@@ -1043,7 +1043,7 @@ export function Workspace({
                       return next;
                     });
                   }}
-                  className="text-[11px] text-muted hover:text-text"
+                  className="block text-[11px] text-muted hover:text-text"
                 >
                   Правки по объекту: {edits.length}
                 </button>
@@ -1081,7 +1081,7 @@ export function Workspace({
                       return next;
                     });
                   }}
-                  className="text-[11px] text-muted hover:text-text"
+                  className="block text-[11px] text-muted hover:text-text"
                 >
                   Замечания: {notes.filter((item) => item.status === "open").length} открытых
                   {notes.length ? ` из ${notes.length}` : ""}
