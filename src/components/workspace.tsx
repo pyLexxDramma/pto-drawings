@@ -1415,19 +1415,6 @@ export function Workspace({
               <div className="mt-1 text-[11px] text-muted">Чертежи проекта · обработка начнётся сразу</div>
             </label>
 
-            {currentProject ? (
-              <div className="mx-3 mt-2">
-                <button
-                  type="button"
-                  disabled={demoBusy}
-                  onClick={() => void handleOpenDemo()}
-                  className="w-full rounded-md border border-border bg-white px-3 py-2 text-xs text-muted hover:border-accent hover:text-accent disabled:opacity-50"
-                >
-                  {demoBusy ? "Готовим демо…" : "Открыть демо-лист (без модели)"}
-                </button>
-              </div>
-            ) : null}
-
             {error ? (
               <div className="mx-3 mt-3 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
                 {error}
