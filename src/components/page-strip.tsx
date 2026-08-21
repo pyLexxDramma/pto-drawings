@@ -15,6 +15,7 @@ type PageStripProps = {
   annotated?: Set<number>;
   hidden?: Set<number>;
   processingPage: number | null;
+  width?: number;
   onSelect: (page: number) => void;
 };
 
@@ -32,6 +33,7 @@ export function PageStrip({
   annotated,
   hidden,
   processingPage,
+  width = 108,
   onSelect,
 }: PageStripProps) {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -150,7 +152,8 @@ export function PageStrip({
   return (
     <div
       ref={rootRef}
-      className="flex h-full w-[108px] shrink-0 flex-col overflow-y-auto border-r border-border bg-surface-2 p-1.5"
+      className="flex h-full shrink-0 flex-col overflow-y-auto border-r border-border bg-surface-2 p-1.5"
+      style={{ width }}
     >
       {pages.map((pageNumber) => {
         const kind = kinds.get(pageNumber);

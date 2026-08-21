@@ -58,7 +58,7 @@ export function SegmentedTabs<T extends string>({
   const shell =
     tone === "dark"
       ? "border-[#3a4454] bg-[#12161c]"
-      : "border-border bg-surface-2";
+      : "border-slate-300 bg-slate-100";
   const idle =
     tone === "dark"
       ? "text-[#8b93a3] hover:bg-[#252b36] hover:text-[#e8eaef]"
@@ -66,7 +66,7 @@ export function SegmentedTabs<T extends string>({
   const active =
     tone === "dark"
       ? "bg-[#2a3342] text-white shadow-sm ring-1 ring-sky-400/50"
-      : "bg-white text-text shadow-sm ring-1 ring-accent/40";
+      : "bg-white text-text font-semibold shadow-sm ring-1 ring-accent/50";
 
   return (
     <div
@@ -98,10 +98,12 @@ export function SegmentedTabs<T extends string>({
 export function ActionMenu({
   label = "Действия",
   align = "right",
+  triggerClassName,
   children,
 }: {
   label?: string;
   align?: "left" | "right";
+  triggerClassName?: string;
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -135,14 +137,17 @@ export function ActionMenu({
           event.stopPropagation();
           setOpen((value) => !value);
         }}
-        className="rounded border border-border px-1.5 py-0.5 text-[11px] leading-none text-muted hover:bg-bg hover:text-text"
+        className={
+          triggerClassName ??
+          "rounded border border-border px-1.5 py-0.5 text-[11px] leading-none text-muted hover:bg-bg hover:text-text"
+        }
       >
         ⋯
       </button>
       {open ? (
         <div
           role="menu"
-          className={`absolute z-30 mt-1 min-w-[10rem] rounded-md border border-border bg-white py-1 shadow-md ${
+          className={`absolute z-30 mt-1 min-w-[11rem] rounded-md border border-slate-300 bg-white py-1 shadow-md ${
             align === "right" ? "right-0" : "left-0"
           }`}
           onMouseDown={(event) => event.stopPropagation()}

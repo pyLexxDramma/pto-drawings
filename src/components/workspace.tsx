@@ -9,6 +9,7 @@ import {
   type FormEvent,
 } from "react";
 import { PasswordPanel } from "@/components/password-panel";
+import { ColumnResizer, clamp } from "@/components/column-resizer";
 import { ReviewPane } from "@/components/review-pane";
 import { PtoLogo } from "@/components/pto-logo";
 import {
@@ -300,7 +301,7 @@ export function Workspace({
   const [creatingProject, setCreatingProject] = useState(false);
   const [showNewProject, setShowNewProject] = useState(false);
   const [filesCollapsed, setFilesCollapsed] = useState(false);
-  const [compactFiles, setCompactFiles] = useState(false);
+  const [compactFiles, setCompactFiles] = useState(true);
   const [focusMode, setFocusMode] = useState(false);
   const [renameId, setRenameId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
@@ -320,6 +321,8 @@ export function Workspace({
   );
   const [cancelingId, setCancelingId] = useState<string | null>(null);
   const [viewOnly, setViewOnly] = useState(false);
+  const [projectsWidth, setProjectsWidth] = useState(220);
+  const [filesWidth, setFilesWidth] = useState(300);
   const [recent, setRecent] = useState<RecentProject[]>([]);
   const [openPage, setOpenPage] = useState<{
     nonce: number;
@@ -443,6 +446,33 @@ export function Workspace({
     },
     [openDocument],
   );
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("pto-column-widths");
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { projects?: number; files?: number };
+      if (typeof parsed.projects === "number") {
+        setProjectsWidth(clamp(parsed.projects, 160, 420));
+      }
+      if (typeof parsed.files === "number") {
+        setFilesWidth(clamp(parsed.files, 200, 520));
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        "pto-column-widths",
+        JSON.stringify({ projects: projectsWidth, files: filesWidth }),
+      );
+    } catch {
+      // ignore
+    }
+  }, [projectsWidth, filesWidth]);
 
   useEffect(() => {
     const query = projectQuery.trim();
@@ -897,11 +927,7 @@ export function Workspace({
     if (event.dataTransfer.files.length) void handleFiles(event.dataTransfer.files);
   }
 
-  const gridClass = focusMode
-    ? "grid min-h-0 flex-1 grid-cols-1"
-    : filesCollapsed
-      ? "grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[220px_44px_minmax(0,1fr)]"
-      : "grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[220px_280px_minmax(0,1fr)]";
+  const gridClass = "flex min-h-0 flex-1 flex-col md:flex-row";
   const pipelineUsageLabel = formatPipelineUsage(pipelineHealth?.usage);
   const summaryLine = projectSummaryLine(documents, notes);
   const processBar = processingOverview(documents, selectedId, uploads);
@@ -1070,7 +1096,10 @@ export function Workspace({
 
       <div className={gridClass}>
         {focusMode ? null : (
-          <aside className="flex min-h-0 flex-col border-b border-border bg-surface md:border-r md:border-b-0">
+          <aside
+            className="flex min-h-0 shrink-0 flex-col border-b border-border bg-surface md:border-b-0"
+            style={{ width: projectsWidth, maxWidth: "100%" }}
+          >
             <div className="border-b border-border px-3 py-3">
               <div className="mb-2 flex items-center justify-between text-[11px] font-medium uppercase tracking-wider text-muted">
                 Проекты
@@ -1203,8 +1232,15 @@ export function Workspace({
           </aside>
         )}
 
+        {focusMode ? null : (
+          <ColumnResizer
+            className="hidden md:block"
+            onDelta={(dx) => setProjectsWidth((w) => clamp(w + dx, 160, 420))}
+          />
+        )}
+
         {focusMode ? null : filesCollapsed ? (
-          <div className="flex flex-col border-b border-border bg-white md:border-r md:border-b-0">
+          <div className="flex w-11 shrink-0 flex-col border-b border-border bg-white md:border-b-0">
             <button
               type="button"
               onClick={() => setFilesCollapsed(false)}
@@ -1228,7 +1264,10 @@ export function Workspace({
             ) : null}
           </div>
         ) : (
-          <section className="flex min-h-0 flex-col border-b border-border bg-white md:border-r md:border-b-0">
+          <section
+            className="flex min-h-0 shrink-0 flex-col border-b border-border bg-white md:border-b-0"
+            style={{ width: filesWidth, maxWidth: "100%" }}
+          >
             <div className="flex items-start justify-between border-b border-border px-3 py-3">
               <div className="min-w-0 pr-2">
                 <div className="truncate text-sm font-medium">
@@ -1430,7 +1469,7 @@ export function Workspace({
               </details>
             ) : null}
 
-            {currentProject ? (
+            {currentProject && documents.length > 0 ? (
               <div className="border-b border-border px-3 py-2">
                 <div className="flex items-center justify-between gap-2">
                   <button
@@ -1547,12 +1586,22 @@ export function Workspace({
 
             <label
               htmlFor="pto-drawing-upload"
-              className={`mx-3 mt-3 block cursor-pointer rounded-lg border border-dashed px-3 py-4 text-center ${
-                dragOver ? "border-accent bg-blue-50" : "border-border bg-bg"
+              className={`mx-3 mt-3 block cursor-pointer rounded-xl border border-dashed text-center transition-colors ${
+                documents.length === 0
+                  ? "px-4 py-10"
+                  : "px-3 py-4"
+              } ${
+                dragOver ? "border-accent bg-blue-50" : "border-slate-300 bg-[#fafbfc] hover:border-accent/60 hover:bg-blue-50/40"
               }`}
             >
-              <div className="text-sm font-medium">Перетащите PDF сюда или нажмите</div>
-              <div className="mt-1 text-[11px] text-muted">Чертежи проекта · обработка начнётся сразу</div>
+              <div className={`font-semibold text-text ${documents.length === 0 ? "text-base" : "text-sm"}`}>
+                {documents.length === 0 ? "Перетащите PDF сюда" : "Перетащите PDF сюда или нажмите"}
+              </div>
+              <div className="mt-1.5 text-[11px] text-muted">
+                {documents.length === 0
+                  ? "Чертежи проекта · обработка начнётся сразу"
+                  : "Добавить ещё файлы в проект"}
+              </div>
             </label>
 
             {error ? (
@@ -1639,10 +1688,7 @@ export function Workspace({
                           {doc.status === "done" && formatElapsed(doc.pipelineElapsedSec)
                             ? ` · ${formatElapsed(doc.pipelineElapsedSec)}`
                             : null}
-                          {doc.status === "done" && doc.pipelineFinishedAt
-                            ? ` · ${formatDateOnly(doc.pipelineFinishedAt)} ${formatTimeOnly(doc.pipelineFinishedAt)}`
-                            : null}
-                          {` · ${formatDateOnly(doc.createdAt)}`}
+                          {` · ${formatDateOnly(doc.createdAt)} ${formatTimeOnly(doc.createdAt)}`}
                           {doc.openAnnotations ? ` · ${doc.openAnnotations} зам.` : ""}
                         </div>
                       ) : (
@@ -1857,7 +1903,15 @@ export function Workspace({
           </section>
         )}
 
+        {focusMode || filesCollapsed ? null : (
+          <ColumnResizer
+            className="hidden md:block"
+            onDelta={(dx) => setFilesWidth((w) => clamp(w + dx, 200, 520))}
+          />
+        )}
+
         {selected ? (
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <ReviewPane
             key={selected.id}
             document={selected}
@@ -1887,25 +1941,29 @@ export function Workspace({
               }
             }}
           />
+          </div>
         ) : (
-          <div className="flex min-h-0 flex-col items-center justify-center gap-3 bg-[#f7f8fa] p-8 text-center">
-            <div className="text-sm font-medium text-text">
-              {currentProject
-                ? "Загрузите PDF в проект"
-                : "Выберите или создайте проект"}
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-4 bg-[#f4f6f9] p-10 text-center">
+            <div className="max-w-md rounded-2xl border border-slate-200 bg-white px-8 py-10 shadow-sm">
+              <div className="text-lg font-semibold tracking-tight text-text">
+                {currentProject
+                  ? "Загрузите PDF в проект"
+                  : "Выберите или создайте проект"}
+              </div>
+              <div className="mt-2 text-sm leading-relaxed text-muted">
+                {currentProject
+                  ? "Чертёж слева, текст справа. Перетащите файл в колонку слева или нажмите кнопку ниже."
+                  : "Слева — список проектов. Создайте объект, затем загрузите комплекты чертежей."}
+              </div>
+              {currentProject ? (
+                <label
+                  htmlFor="pto-drawing-upload"
+                  className="mt-5 inline-flex cursor-pointer rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-[#1d4ed8]"
+                >
+                  Загрузить PDF
+                </label>
+              ) : null}
             </div>
-            <div className="max-w-sm text-sm text-muted">
-              Чертёж откроется слева, текст листа — справа. Можно перетащить файл
-              сюда или нажать «Загрузить PDF».
-            </div>
-            {currentProject ? (
-              <label
-                htmlFor="pto-drawing-upload"
-                className="cursor-pointer rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-[#1d4ed8]"
-              >
-                Загрузить PDF
-              </label>
-            ) : null}
           </div>
         )}
       </div>

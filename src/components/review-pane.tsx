@@ -1,10 +1,21 @@
 "use client";
 
 import { useDeferredValue, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { ColumnResizer, clamp } from "@/components/column-resizer";
 import { MarkdownView } from "@/components/markdown-view";
 import { PageStrip } from "@/components/page-strip";
 import { PdfPage } from "@/components/pdf-page";
-import { ProgressTrack, SegmentedTabs, Spinner } from "@/components/ui-chrome";
+import { ProgressTrack, SegmentedTabs, Spinner, ActionMenu, menuItemClass } from "@/components/ui-chrome";
+import {
+  IconBack,
+  IconCheck,
+  IconDoc,
+  IconDownload,
+  IconExpand,
+  IconMark,
+  IconSplit,
+  IconSync,
+} from "@/components/tool-icons";
 import { formatDate } from "@/lib/format";
 import { formatElapsed, formatPipelineUsage } from "@/lib/pipeline";
 import {
@@ -66,6 +77,7 @@ export function ReviewPane({
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
   const [split, setSplit] = useState(58);
+  const [stripWidth, setStripWidth] = useState(108);
   const [query, setQuery] = useState("");
   const [showLog, setShowLog] = useState(false);
   const [filter, setFilter] = useState<KindFilter>("all");
@@ -84,6 +96,7 @@ export function ReviewPane({
   const [paneSolo, setPaneSolo] = useState<PaneSolo>(null);
   const [scrollSync, setScrollSync] = useState(true);
   const [scrollRatio, setScrollRatio] = useState<number | null>(null);
+  const [sidePanel, setSidePanel] = useState<"text" | "notes">("text");
   const draftRef = useRef(draft);
   const pageRef = useRef(rawPage);
   const timerRef = useRef<number | null>(null);
@@ -361,12 +374,18 @@ export function ReviewPane({
     event.preventDefault();
     const parent = event.currentTarget.parentElement;
     if (!parent) return;
+    const prevCursor = window.document.body.style.cursor;
+    const prevSelect = window.document.body.style.userSelect;
+    window.document.body.style.cursor = "col-resize";
+    window.document.body.style.userSelect = "none";
     const move = (moveEvent: globalThis.MouseEvent) => {
       const rect = parent.getBoundingClientRect();
       const next = ((moveEvent.clientX - rect.left) / rect.width) * 100;
-      setSplit(Math.min(78, Math.max(32, next)));
+      setSplit(clamp(next, 22, 82));
     };
     const up = () => {
+      window.document.body.style.cursor = prevCursor;
+      window.document.body.style.userSelect = prevSelect;
       window.removeEventListener("mousemove", move);
       window.removeEventListener("mouseup", up);
     };
@@ -468,10 +487,6 @@ export function ReviewPane({
   const elapsedLabel = formatElapsed(document.pipelineElapsedSec);
   const pageError = document.pageErrors?.[String(pageNumber)] ?? null;
   const isMockPage = Boolean(page?.markdown.includes("[MOCK]"));
-  const showMock =
-    document.pipelineMode === "mock" ||
-    isMockPage ||
-    document.pages.some((item) => item.markdown.includes("[MOCK]"));
   const errorCount = Object.keys(document.pageErrors ?? {}).length;
 
   function onMarkdownScroll() {
@@ -501,157 +516,299 @@ export function ReviewPane({
     setScrollRatio(ratio);
   }
 
+  useEffect(() => {
+    if (pendingRect) setSidePanel("notes");
+  }, [pendingRect]);
+
   const soloLabel =
     paneSolo === "pdf" ? "Только чертёж" : paneSolo === "md" ? "Только текст" : null;
 
-  return (
+  const toolBtn =
+    "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 text-[11px] font-semibold text-text shadow-sm hover:border-slate-400 hover:bg-slate-50";
+  const toolBtnIcon =
+    "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-slate-300 bg-white text-text shadow-sm hover:border-slate-400 hover:bg-slate-50";
+  const toolBtnActive =
+    "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-accent bg-blue-50 text-accent shadow-sm";
+  const toolBtnActiveWide =
+    "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-accent bg-blue-50 px-2.5 text-[11px] font-semibold text-accent shadow-sm";
+  const toolBtnDanger =
+    "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-red-500 bg-red-50 px-2.5 text-[11px] font-semibold text-red-700 shadow-sm";
+  const toolBtnPrimary =
+    "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-accent bg-accent px-2.5 text-[11px] font-semibold text-white shadow-sm hover:bg-[#1d4ed8]";
+
+  const notesPanel = (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-border bg-surface px-3">
-        <div className="min-w-0">
-          <div className="truncate text-sm font-medium">
-            {document.originalName}
-            {showMock ? (
-              <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-900">
-                mock
-              </span>
-            ) : null}
-            {document.pipelineMode === "real" ? (
-              <span className="ml-2 rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-800">
-                real
-              </span>
-            ) : null}
+      {pendingRect ? (
+        <div className="shrink-0 border-b border-red-200 bg-red-50 px-3 py-2">
+          <div className="text-[11px] font-medium text-red-700">Новое замечание</div>
+          <textarea
+            autoFocus
+            value={noteComment}
+            onChange={(event) => setNoteComment(event.target.value)}
+            rows={2}
+            placeholder="Что неверно"
+            className="mt-1 w-full resize-none rounded-md border border-border bg-white px-2 py-1.5 text-xs outline-none focus:border-accent"
+          />
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {[
+              "Нет размера",
+              "Неверная спецификация",
+              "Ошибка в штампе",
+              "Нет позиции",
+              "Неверный масштаб",
+              "Расхождение с ТЗ",
+            ].map((label) => (
+              <button
+                key={label}
+                type="button"
+                onClick={() =>
+                  setNoteComment((prev) =>
+                    prev.trim() ? `${prev.trim()}. ${label}` : label,
+                  )
+                }
+                className="rounded-full border border-red-200 bg-white px-2 py-0.5 text-[10px] text-red-800 hover:bg-red-100"
+              >
+                {label}
+              </button>
+            ))}
           </div>
-          <div className="text-[11px] text-muted">
-            {page ? KIND_LABEL[page.kind] : "Страница"} · лист {pageNumber} из {total}
-            {viewedSet.has(pageNumber) ? " · просмотрен" : ""}
-            {editedPages.has(pageNumber) ? " · правки" : ""}
-            {saving ? " · сохранение" : ""}
-            {" · "}
-            {viewed.length}/{total} просмотрено
-            {openNotes ? ` · ${openNotes} замечаний` : ""}
-            {elapsedLabel ? ` · ${elapsedLabel}` : ""}
-            {usageLabel ? ` · ${usageLabel}` : ""}
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onBackToProjects}
-            className="rounded-md border border-border px-2 py-1 text-xs"
-          >
-            К проектам
-          </button>
-          <a
-            href={`/api/documents/${document.id}/markdown`}
-            download
-            className="rounded-md border border-border px-2 py-1 text-xs"
-          >
-            Скачать .md
-          </a>
-          {specHref ? (
-            <a
-              href={specHref}
-              target="_blank"
-              rel="noreferrer"
-              className="rounded-md border border-border px-2 py-1 text-xs"
-              title={specName ?? "ТЗ"}
-            >
-              ТЗ
-            </a>
+          <textarea
+            value={noteExpected}
+            onChange={(event) => setNoteExpected(event.target.value)}
+            rows={2}
+            placeholder="Как должно быть (необязательно)"
+            className="mt-1 w-full resize-none rounded-md border border-border bg-white px-2 py-1.5 text-xs outline-none focus:border-accent"
+          />
+          {noteError ? (
+            <div className="mt-1 text-[11px] text-red-700">{noteError}</div>
           ) : null}
-          {!readOnly ? (
+          <div className="mt-1.5 flex gap-2">
+            <button
+              type="button"
+              onClick={() => void submitNote()}
+              className="rounded-md bg-accent px-2.5 py-1 text-xs font-medium text-white"
+            >
+              Сохранить
+            </button>
             <button
               type="button"
               onClick={() => {
                 setPendingRect(null);
-                setMarkMode((value) => !value);
+                setNoteComment("");
+                setNoteExpected("");
+                setNoteError(null);
               }}
-              className={`rounded-md border px-2 py-1 text-xs ${
-                markMode
-                  ? "border-red-500 bg-red-50 text-red-700"
-                  : "border-border"
-              }`}
+              className="rounded-md border border-slate-300 px-2.5 py-1 text-xs"
             >
-              {markMode ? "Отмена" : "Отметить ошибку"}
+              Отмена
+            </button>
+          </div>
+        </div>
+      ) : null}
+      <div className="min-h-0 flex-1 space-y-1.5 overflow-auto p-3">
+        {pageNotes.length === 0 ? (
+          <div className="rounded-md border border-dashed border-slate-300 bg-[#fafbfc] px-3 py-8 text-center text-[12px] leading-relaxed text-muted">
+            Нажмите «Ошибка» и обведите место на чертеже
+          </div>
+        ) : (
+          pageNotes.map((note, index) => (
+            <div
+              key={note.id}
+              onMouseEnter={() => setActiveNoteId(note.id)}
+              onMouseLeave={() => setActiveNoteId(null)}
+              className={`rounded-md border px-2.5 py-2 text-[11px] ${
+                note.status === "open"
+                  ? "border-red-200 bg-red-50"
+                  : "border-emerald-200 bg-emerald-50"
+              } ${activeNoteId === note.id ? "ring-1 ring-accent/50" : ""}`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold">
+                  {index + 1}. {note.status === "open" ? "открыто" : "исправлено"}
+                </span>
+                <span className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void toggleNoteStatus(note)}
+                    className="text-accent hover:underline"
+                  >
+                    {note.status === "open" ? "Исправлено" : "Вернуть"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void removeNote(note)}
+                    className="text-red-600 hover:underline"
+                  >
+                    Удалить
+                  </button>
+                </span>
+              </div>
+              <div className="mt-0.5">{note.comment}</div>
+              {note.expected ? (
+                <div className="mt-0.5 text-muted">Должно быть: {note.expected}</div>
+              ) : null}
+              <div className="mt-0.5 text-[10px] text-muted">
+                {note.userName ? `${note.userName} · ` : ""}
+                {formatDate(note.createdAt)}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-border bg-white px-3">
+        <div className="min-w-0">
+          <div className="truncate text-sm font-semibold tracking-tight">
+            {document.originalName}
+          </div>
+          <div className="mt-0.5 text-[11px] text-muted">
+            {page ? KIND_LABEL[page.kind] : "Страница"} · лист {pageNumber} из {total}
+            {viewedSet.has(pageNumber) ? " · ✓" : ""}
+            {openNotes ? ` · ${openNotes} зам.` : ""}
+            {saving ? " · сохранение…" : ""}
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <button
+            type="button"
+            title="К проектам (Esc)"
+            onClick={onBackToProjects}
+            className={toolBtnIcon}
+          >
+            <IconBack />
+          </button>
+          {!readOnly ? (
+            <button
+              type="button"
+              title={markMode ? "Отмена разметки (Esc)" : "Отметить ошибку"}
+              onClick={() => {
+                setPendingRect(null);
+                setMarkMode((value) => {
+                  const next = !value;
+                  if (next) setSidePanel("notes");
+                  return next;
+                });
+              }}
+              className={markMode ? toolBtnDanger : toolBtnPrimary}
+            >
+              <IconMark className="h-3.5 w-3.5" />
+              {markMode ? "Отмена" : "Ошибка"}
             </button>
           ) : (
-            <span className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-900">
-              Только просмотр
+            <span className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-[10px] font-semibold text-amber-900">
+              Просмотр
             </span>
           )}
           <button
             type="button"
+            title={viewedSet.has(pageNumber) ? "Снять просмотр" : "Отметить просмотренным"}
             onClick={toggleViewed}
-            className="rounded-md border border-border px-2 py-1 text-xs"
+            className={viewedSet.has(pageNumber) ? toolBtnActiveWide : toolBtn}
           >
-            {viewedSet.has(pageNumber) ? "Снять просмотр" : "Просмотрено"}
+            <IconCheck />
+            {viewedSet.has(pageNumber) ? "Снять" : "Просмотрено"}
           </button>
           <button
             type="button"
-            onClick={onToggleFocus}
-            className="rounded-md border border-border px-2 py-1 text-xs"
-          >
-            {focusMode ? "Обычный вид" : "Чертёж на весь экран"}
-          </button>
-          <button
-            type="button"
-            title="F — цикл: сплит → чертёж → текст"
-            onClick={() =>
-              setPaneSolo((prev) => (prev === null ? "pdf" : prev === "pdf" ? "md" : null))
-            }
-            className={`rounded-md border px-2 py-1 text-xs ${
-              paneSolo ? "border-accent bg-blue-50 text-accent" : "border-border"
-            }`}
-          >
-            {soloLabel ?? "Сплит F"}
-          </button>
-          <button
-            type="button"
-            title="Синхронный скролл PDF ↔ текст"
-            onClick={() => setScrollSync((value) => !value)}
-            className={`rounded-md border px-2 py-1 text-xs ${
-              scrollSync ? "border-accent bg-blue-50 text-accent" : "border-border"
-            }`}
-          >
-            Sync
-          </button>
-          <button
-            type="button"
-            title="Горячие клавиши (?)"
-            onClick={() => setShowHelp(true)}
-            className="rounded-md border border-border px-2 py-1 text-xs"
-          >
-            ?
-          </button>
-          <button
-            type="button"
+            title="Предыдущий лист"
             onClick={() => stepVisible(-1)}
-            className="rounded-md border border-border px-2 py-1 text-sm disabled:opacity-40"
+            className={`${toolBtnIcon} disabled:opacity-40`}
             disabled={visiblePages[0] === pageNumber}
           >
             ←
           </button>
           <button
             type="button"
+            title="Следующий лист"
             onClick={() => stepVisible(1)}
-            className="rounded-md border border-border px-2 py-1 text-sm disabled:opacity-40"
+            className={`${toolBtnIcon} disabled:opacity-40`}
             disabled={visiblePages[visiblePages.length - 1] === pageNumber}
           >
             →
           </button>
+          <button
+            type="button"
+            title={focusMode ? "Обычный вид" : "Чертёж на весь экран"}
+            onClick={onToggleFocus}
+            className={focusMode ? toolBtnActive : toolBtnIcon}
+          >
+            <IconExpand />
+          </button>
+          <button
+            type="button"
+            title="F — сплит / чертёж / текст"
+            onClick={() =>
+              setPaneSolo((prev) => (prev === null ? "pdf" : prev === "pdf" ? "md" : null))
+            }
+            className={paneSolo ? toolBtnActive : toolBtnIcon}
+          >
+            <IconSplit />
+          </button>
+          <button
+            type="button"
+            title="Синхронный скролл PDF ↔ текст"
+            onClick={() => setScrollSync((value) => !value)}
+            className={scrollSync ? toolBtnActive : toolBtnIcon}
+          >
+            <IconSync />
+          </button>
+          <ActionMenu
+            label="Ещё"
+            triggerClassName={toolBtnIcon}
+          >
+            <a
+              href={`/api/documents/${document.id}/markdown`}
+              download
+              role="menuitem"
+              className={menuItemClass()}
+            >
+              <span className="inline-flex items-center gap-2">
+                <IconDownload /> Скачать .md
+              </span>
+            </a>
+            {specHref ? (
+              <a
+                href={specHref}
+                target="_blank"
+                rel="noreferrer"
+                role="menuitem"
+                className={menuItemClass()}
+                title={specName ?? "ТЗ"}
+              >
+                <span className="inline-flex items-center gap-2">
+                  <IconDoc /> Открыть ТЗ
+                </span>
+              </a>
+            ) : null}
+            <button
+              type="button"
+              role="menuitem"
+              className={menuItemClass()}
+              onClick={() => setShowHelp(true)}
+            >
+              Горячие клавиши…
+            </button>
+            {soloLabel ? (
+              <div className="px-3 py-1.5 text-[10px] text-muted">Режим: {soloLabel}</div>
+            ) : null}
+          </ActionMenu>
         </div>
       </div>
 
       {processing ? (
         <div
-          className={`border-b px-4 py-2 text-sm ${
+          className={`border-b px-4 py-2.5 ${
             document.errorMessage?.startsWith("Отмена")
               ? "border-amber-200 bg-amber-50 text-amber-950"
-              : "border-sky-200 bg-sky-50 text-sky-800"
+              : "border-sky-100 bg-sky-50/80 text-sky-900"
           }`}
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex min-w-0 items-center gap-2">
+            <div className="flex min-w-0 items-center gap-2 text-sm font-medium">
               <Spinner
                 className={`h-3.5 w-3.5 ${
                   document.errorMessage?.startsWith("Отмена")
@@ -659,56 +816,38 @@ export function ReviewPane({
                     : "text-sky-700"
                 }`}
               />
-              <div>
-              {document.errorMessage?.startsWith("Отмена") ? (
-                <>
-                  {document.errorMessage}
-                  {document.processingPage
-                    ? ` · сейчас лист ${document.processingPage}`
-                    : ""}
-                </>
-              ) : (
-                <>
-              готово {readyCount}/{total} листов
-              {document.processingPage
-                ? ` · сейчас лист ${document.processingPage}: ${stepLabel(document)}`
-                : ` · ${stepLabel(document)}`}
-              {elapsedLabel ? ` · ${elapsedLabel}` : ""}
-              {usageLabel ? ` · ${usageLabel}` : ""}
-              {errorCount ? ` · ошибок листов: ${errorCount}` : ""}
-                </>
-              )}
-              </div>
+              <span>
+                {document.errorMessage?.startsWith("Отмена")
+                  ? document.errorMessage
+                  : `Лист ${document.processingPage ?? (readyCount || 1)} из ${total} · ${stepLabel(document)}`}
+                {!document.errorMessage?.startsWith("Отмена") && elapsedLabel
+                  ? ` · ${elapsedLabel}`
+                  : ""}
+              </span>
             </div>
             {onCancel && !document.errorMessage?.startsWith("Отмена") ? (
               <button
                 type="button"
                 disabled={canceling}
                 onClick={onCancel}
-                className="rounded-md border border-sky-300 bg-white px-2.5 py-1 text-xs text-sky-900 hover:bg-sky-100 disabled:opacity-50"
+                className="rounded-md border border-sky-300 bg-white px-2.5 py-1 text-xs font-semibold text-sky-900 hover:bg-sky-100 disabled:opacity-50"
               >
-                {canceling ? "Отмена…" : "Отменить обработку"}
+                {canceling ? "Отмена…" : "Стоп"}
               </button>
-            ) : document.errorMessage?.startsWith("Отмена") ? (
-              <span className="text-xs text-amber-900">Ожидаем остановку…</span>
             ) : null}
           </div>
-          <div className="mt-1.5">
-            <ProgressTrack value={progress} tone="sky" className="h-1.5" />
+          <div className="mt-2">
+            <ProgressTrack value={progress} tone="sky" className="h-2" />
           </div>
         </div>
       ) : null}
 
-      {!processing && (elapsedLabel || usageLabel || errorCount || showMock) ? (
-        <div className="border-b border-border bg-bg px-4 py-1.5 text-[11px] text-muted">
-          {showMock ? <span className="mr-2 text-amber-800">[MOCK]</span> : null}
-          {document.pipelineMode === "real" ? (
-            <span className="mr-2 text-red-800">режим real</span>
-          ) : null}
-          {elapsedLabel ? <span className="mr-2">время: {elapsedLabel}</span> : null}
-          {usageLabel ? <span className="mr-2">токены: {usageLabel}</span> : null}
+      {!processing && (elapsedLabel || usageLabel) ? (
+        <div className="border-b border-border bg-[#fafbfc] px-4 py-1 text-[10px] text-muted">
+          {elapsedLabel ? <span>обработано за {elapsedLabel}</span> : null}
+          {usageLabel ? <span className="ml-2">{usageLabel}</span> : null}
           {errorCount ? (
-            <span className="text-red-700">листов с ошибкой: {errorCount}</span>
+            <span className="ml-2 text-red-700">ошибок листов: {errorCount}</span>
           ) : null}
         </div>
       ) : null}
@@ -725,7 +864,11 @@ export function ReviewPane({
           annotated={annotatedPages}
           hidden={hidden}
           processingPage={document.processingPage}
+          width={stripWidth}
           onSelect={(next) => void goToPage(next)}
+        />
+        <ColumnResizer
+          onDelta={(dx) => setStripWidth((w) => clamp(w + dx, 72, 220))}
         />
 
         <div className="flex min-h-0 min-w-0 flex-1">
@@ -764,20 +907,49 @@ export function ReviewPane({
           {paneSolo === null ? (
             <div
               role="separator"
+              title="Потяните, чтобы изменить ширину чертежа и расшифровки"
               onMouseDown={startSplit}
-              className="w-1.5 shrink-0 cursor-col-resize bg-border hover:bg-accent"
-            />
+              className="group relative z-10 w-1.5 shrink-0 cursor-col-resize bg-border transition-colors hover:bg-accent active:bg-accent"
+            >
+              <div className="absolute inset-y-0 -left-1 -right-1" />
+              <div className="pointer-events-none absolute left-1/2 top-1/2 h-8 w-0.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-slate-400 opacity-0 group-hover:opacity-100" />
+            </div>
           ) : null}
 
           {paneSolo !== "pdf" ? (
           <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-white">
-            <div className="flex items-center justify-between border-b border-border px-3 py-2">
-              <div className="text-xs font-medium text-muted">
-                {page?.kind === "table" ? "Таблица как в PDF" : "Markdown"}
-                {page ? ` · ${SOURCE_LABEL[page.source]}` : ""}
-              </div>
+            <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
+              <SegmentedTabs
+                size="xs"
+                value={sidePanel}
+                onChange={setSidePanel}
+                options={[
+                  {
+                    id: "text",
+                    label: page?.kind === "table" ? "Таблица" : "Расшифровка",
+                  },
+                  {
+                    id: "notes",
+                    label: (
+                      <>
+                        Замечания
+                        {pageNotes.length ? (
+                          <span className="ml-1 tabular-nums opacity-70">
+                            {pageNotes.length}
+                          </span>
+                        ) : null}
+                      </>
+                    ),
+                  },
+                ]}
+              />
               <div className="flex items-center gap-2">
-                {!readOnly ? (
+                {sidePanel === "text" && page ? (
+                  <span className="text-[10px] text-muted">
+                    {SOURCE_LABEL[page.source]}
+                  </span>
+                ) : null}
+                {sidePanel === "text" && !readOnly ? (
                   <SegmentedTabs
                     size="xs"
                     value={mode}
@@ -796,81 +968,15 @@ export function ReviewPane({
               </div>
             </div>
 
+            {sidePanel === "notes" ? (
+              notesPanel
+            ) : (
+              <>
             {page && page.warnings.length > 0 ? (
               <div className="border-b border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
                 {page.warnings.map((warning) => (
                   <div key={warning}>{warning}</div>
                 ))}
-              </div>
-            ) : null}
-
-            {pendingRect ? (
-              <div className="border-b border-red-200 bg-red-50 px-3 py-2">
-                <div className="text-[11px] font-medium text-red-700">
-                  Новое замечание на листе {pageNumber}
-                </div>
-                <textarea
-                  autoFocus
-                  value={noteComment}
-                  onChange={(event) => setNoteComment(event.target.value)}
-                  rows={2}
-                  placeholder="Что неверно"
-                  className="mt-1 w-full resize-none rounded-md border border-border bg-white px-2 py-1.5 text-xs outline-none focus:border-accent"
-                />
-                <div className="mt-1.5 flex flex-wrap gap-1">
-                  {[
-                    "Нет размера",
-                    "Неверная спецификация",
-                    "Ошибка в штампе",
-                    "Нет позиции",
-                    "Неверный масштаб",
-                    "Расхождение с ТЗ",
-                  ].map((label) => (
-                    <button
-                      key={label}
-                      type="button"
-                      onClick={() =>
-                        setNoteComment((prev) =>
-                          prev.trim() ? `${prev.trim()}. ${label}` : label,
-                        )
-                      }
-                      className="rounded-full border border-red-200 bg-white px-2 py-0.5 text-[10px] text-red-800 hover:bg-red-100"
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                <textarea
-                  value={noteExpected}
-                  onChange={(event) => setNoteExpected(event.target.value)}
-                  rows={2}
-                  placeholder="Как должно быть (необязательно)"
-                  className="mt-1 w-full resize-none rounded-md border border-border bg-white px-2 py-1.5 text-xs outline-none focus:border-accent"
-                />
-                {noteError ? (
-                  <div className="mt-1 text-[11px] text-red-700">{noteError}</div>
-                ) : null}
-                <div className="mt-1.5 flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void submitNote()}
-                    className="rounded-md bg-accent px-2.5 py-1 text-xs font-medium text-white"
-                  >
-                    Сохранить
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPendingRect(null);
-                      setNoteComment("");
-                      setNoteExpected("");
-                      setNoteError(null);
-                    }}
-                    className="rounded-md border border-border px-2.5 py-1 text-xs"
-                  >
-                    Отмена
-                  </button>
-                </div>
               </div>
             ) : null}
 
@@ -897,7 +1003,7 @@ export function ReviewPane({
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Поиск по этому файлу: PSV, 210 кг, позиция…"
+                placeholder="Поиск по расшифровке: PSV, 210 кг, позиция…"
                 className="w-full rounded-md border border-border bg-bg px-2 py-1.5 text-sm outline-none focus:border-accent"
               />
               {hits.length > 0 ? (
@@ -1006,62 +1112,6 @@ export function ReviewPane({
             </div>
 
             <div className="border-t border-border px-3 py-2">
-              <div className="text-xs font-medium text-muted">
-                Замечания по листу: {pageNotes.length}
-              </div>
-              <div className="mt-1 max-h-40 space-y-1.5 overflow-auto">
-                {pageNotes.length === 0 ? (
-                  <div className="text-[11px] text-muted">
-                    Нажмите «Отметить ошибку» и обведите место на чертеже.
-                  </div>
-                ) : (
-                  pageNotes.map((note, index) => (
-                    <div
-                      key={note.id}
-                      onMouseEnter={() => setActiveNoteId(note.id)}
-                      onMouseLeave={() => setActiveNoteId(null)}
-                      className={`rounded-md border px-2 py-1.5 text-[11px] ${
-                        note.status === "open"
-                          ? "border-red-200 bg-red-50"
-                          : "border-emerald-200 bg-emerald-50"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-medium">
-                          {index + 1}. {note.status === "open" ? "открыто" : "исправлено"}
-                        </span>
-                        <span className="flex gap-2">
-                          <button
-                            type="button"
-                            onClick={() => void toggleNoteStatus(note)}
-                            className="text-accent hover:underline"
-                          >
-                            {note.status === "open" ? "Исправлено" : "Вернуть"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void removeNote(note)}
-                            className="text-red-600 hover:underline"
-                          >
-                            Удалить
-                          </button>
-                        </span>
-                      </div>
-                      <div className="mt-0.5">{note.comment}</div>
-                      {note.expected ? (
-                        <div className="mt-0.5 text-muted">Должно быть: {note.expected}</div>
-                      ) : null}
-                      <div className="mt-0.5 text-muted">
-                        {note.userName ? `${note.userName} · ` : ""}
-                        {formatDate(note.createdAt)}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            <div className="border-t border-border px-3 py-2">
               <button
                 type="button"
                 onClick={() => setShowLog((value) => !value)}
@@ -1085,9 +1135,30 @@ export function ReviewPane({
                 </div>
               ) : null}
             </div>
+              </>
+            )}
           </div>
           ) : null}
         </div>
+      </div>
+
+      <div className="flex h-7 shrink-0 items-center gap-3 border-t border-border bg-[#fafbfc] px-3 text-[10px] text-muted">
+        <span>
+          <kbd className="rounded border border-slate-300 bg-white px-1 font-mono text-[9px]">←</kbd>
+          <kbd className="ml-0.5 rounded border border-slate-300 bg-white px-1 font-mono text-[9px]">→</kbd>
+          {" "}лист
+        </span>
+        <span>
+          <kbd className="rounded border border-slate-300 bg-white px-1 font-mono text-[9px]">F</kbd>
+          {" "}сплит
+        </span>
+        <span>
+          <kbd className="rounded border border-slate-300 bg-white px-1 font-mono text-[9px]">Esc</kbd>
+          {" "}отмена / назад
+        </span>
+        <span className="ml-auto tabular-nums">
+          {viewed.length}/{total} просмотрено
+        </span>
       </div>
 
       {showHelp ? (
