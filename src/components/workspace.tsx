@@ -1293,6 +1293,7 @@ export function Workspace({
               </div>
             </div>
 
+            <div className="min-h-0 flex-1 overflow-y-auto">
             {currentProject ? (
               <details className="border-b border-border px-3 py-2">
                 <summary className="cursor-pointer select-none text-[11px] font-medium text-muted hover:text-text">
@@ -1560,7 +1561,7 @@ export function Workspace({
               </div>
             ) : null}
 
-            <div className="min-h-0 flex-1 overflow-y-auto p-3">
+            <div className="p-3">
               {loading ? <div className="text-sm text-muted">Загрузка…</div> : null}
 
               {uploads.map((item) => (
@@ -1851,6 +1852,7 @@ export function Workspace({
                   ) : null}
                 </div>
               ))}
+            </div>
             </div>
           </section>
         )}

@@ -280,9 +280,8 @@ export function PdfPage({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex shrink-0 items-center gap-2 border-b border-border bg-[#1a1f28] px-2 py-1 text-[#c8d0dc]">
+      <div className="flex shrink-0 items-center gap-2 border-b border-border bg-white px-2 py-1 text-muted">
         <SegmentedTabs
-          tone="dark"
           size="xs"
           value={fitMode}
           onChange={(mode) => fit(mode)}
@@ -292,23 +291,23 @@ export function PdfPage({
           ]}
         />
         {markMode ? (
-          <span className="ml-1 rounded bg-red-950/80 px-2 py-0.5 text-[11px] text-red-200">
+          <span className="ml-1 rounded bg-red-50 px-2 py-0.5 text-[11px] text-red-700">
             Обведите место на чертеже · Esc — отмена
           </span>
         ) : null}
         {searchHits.length > 0 ? (
-          <span className="rounded bg-amber-900/50 px-2 py-0.5 text-[11px] text-amber-100">
+          <span className="rounded bg-amber-50 px-2 py-0.5 text-[11px] text-amber-800">
             найдено: {searchHits.length}
           </span>
         ) : null}
-        <span className="ml-auto text-[11px] text-[#8b93a3]">
+        <span className="ml-auto text-[11px] text-muted">
           {Math.round(scale * 100)} %
           {scrollSync ? " · sync · Ctrl+колёсико — зум" : " Zoom"}
         </span>
       </div>
       <div
         ref={wrapRef}
-        className={`relative min-h-0 flex-1 overflow-hidden bg-[#12161c] ${cursor}`}
+        className={`relative min-h-0 flex-1 overflow-hidden bg-[#f7f8fa] ${cursor}`}
         onWheel={(event) => event.preventDefault()}
         onMouseDown={(event) => {
           if (event.button !== 0) return;
