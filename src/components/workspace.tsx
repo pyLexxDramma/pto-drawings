@@ -12,6 +12,11 @@ import { PasswordPanel } from "@/components/password-panel";
 import { ReviewPane } from "@/components/review-pane";
 import { PtoLogo } from "@/components/pto-logo";
 import {
+  ToastHost,
+  notifyIfHidden,
+  useToasts,
+} from "@/components/toast";
+import {
   ActionMenu,
   ProgressTrack,
   Spinner,
@@ -20,7 +25,20 @@ import {
 import { UserMenu } from "@/components/user-menu";
 import { UsersPanel } from "@/components/users-panel";
 import { formatBytes, formatDate, formatPages } from "@/lib/format";
-import { formatPipelineUsage, type PipelineHealth } from "@/lib/pipeline";
+import {
+  formatElapsed,
+  formatPipelineUsage,
+  mergePipelineUsage,
+  type PipelineHealth,
+} from "@/lib/pipeline";
+import {
+  loadRecentProjects,
+  printNotesReport,
+  rememberContinue,
+  touchRecentProject,
+  type RecentProject,
+} from "@/lib/recent";
+import { loadCachedProgress } from "@/lib/review-state";
 import {
   KIND_LABEL,
   STEP_LABEL,
@@ -48,10 +66,17 @@ const STATUS_LABEL: Record<DocumentStatus, string> = {
 };
 
 const STATUS_CLASS: Record<DocumentStatus, string> = {
-  queued: "bg-amber-50 text-amber-700",
-  processing: "bg-sky-50 text-sky-700",
-  done: "bg-emerald-50 text-emerald-700",
-  error: "bg-red-50 text-red-700",
+  queued: "bg-amber-50 text-amber-800",
+  processing: "bg-sky-50 text-sky-800",
+  done: "bg-emerald-50 text-emerald-800",
+  error: "bg-red-50 text-red-800",
+};
+
+const STATUS_DOT: Record<DocumentStatus, string> = {
+  queued: "bg-amber-500",
+  processing: "bg-sky-500",
+  done: "bg-emerald-500",
+  error: "bg-red-500",
 };
 
 function pageProgress(doc: DocumentRecord) {
@@ -68,6 +93,75 @@ function kindSummary(doc: DocumentRecord) {
     doc.kindCounts.text ? `${doc.kindCounts.text} текст` : null,
   ].filter(Boolean);
   return parts.join(" · ");
+}
+
+function projectSummaryLine(
+  documents: DocumentRecord[],
+  notes: ProjectAnnotation[],
+) {
+  const pages = documents.reduce((sum, doc) => sum + doc.pageCount, 0);
+  const openNotes = notes.filter((item) => item.status === "open").length;
+  const usage = mergePipelineUsage(
+    ...documents.map((doc) => doc.pipelineUsage),
+  );
+  const usageLabel = formatPipelineUsage(usage);
+  let maxElapsed: number | null = null;
+  for (const doc of documents) {
+    if (
+      typeof doc.pipelineElapsedSec === "number" &&
+      Number.isFinite(doc.pipelineElapsedSec)
+    ) {
+      maxElapsed =
+        maxElapsed == null
+          ? doc.pipelineElapsedSec
+          : Math.max(maxElapsed, doc.pipelineElapsedSec);
+    }
+  }
+  const elapsedLabel = formatElapsed(maxElapsed);
+  const parts = [
+    `${documents.length} файл(ов)`,
+    formatPages(pages),
+    `${openNotes} откр. замечаний`,
+    usageLabel,
+    elapsedLabel ? `прогон ${elapsedLabel}` : null,
+  ].filter(Boolean);
+  return parts.join(" · ");
+}
+
+function exportNotesCsv(notes: ProjectAnnotation[], projectName: string) {
+  const header = [
+    "файл",
+    "лист",
+    "статус",
+    "комментарий",
+    "ожидалось",
+    "автор",
+    "создано",
+    "исправлено",
+  ];
+  const rows = notes.map((note) => [
+    note.originalName,
+    String(note.pageNumber),
+    note.status === "open" ? "открыто" : "исправлено",
+    note.comment,
+    note.expected,
+    note.userName ?? "",
+    note.createdAt,
+    note.resolvedAt ?? "",
+  ]);
+  const escape = (value: string) => `"${value.replace(/"/g, '""')}"`;
+  const csv = [header, ...rows]
+    .map((row) => row.map((cell) => escape(cell)).join(";"))
+    .join("\n");
+  const blob = new Blob(["\uFEFF" + csv], {
+    type: "text/csv;charset=utf-8",
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `замечания-${projectName || "проект"}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 function newClientId() {
@@ -156,18 +250,23 @@ export function Workspace({
   const [hits, setHits] = useState<SearchHit[]>([]);
   const [searching, setSearching] = useState(false);
   const [notes, setNotes] = useState<ProjectAnnotation[]>([]);
-  const [showNotes, setShowNotes] = useState(false);
+  const [showNotes, setShowNotes] = useState(true);
+  const [notesFilter, setNotesFilter] = useState<"all" | "open" | string>("open");
   const [pipelineHealth, setPipelineHealth] = useState<PipelineHealth | null>(
     null,
   );
   const [cancelingId, setCancelingId] = useState<string | null>(null);
+  const [demoBusy, setDemoBusy] = useState(false);
+  const [recent, setRecent] = useState<RecentProject[]>([]);
   const [openPage, setOpenPage] = useState<{
     nonce: number;
     page: number;
     documentId: string;
   } | null>(null);
   const autoReadyJumpRef = useRef<string | null>(null);
+  const statusPrevRef = useRef<Map<string, DocumentStatus>>(new Map());
   const specInputRef = useRef<HTMLInputElement>(null);
+  const { items: toasts, push: pushToast, dismiss: dismissToast } = useToasts();
 
   const selected = documents.find((doc) => doc.id === selectedId) ?? null;
   const currentProject = projects.find((item) => item.id === projectId);
@@ -239,10 +338,14 @@ export function Workspace({
   }, []);
 
   const openDocument = useCallback(
-    async (id: string) => {
+    async (id: string, page?: number) => {
       setSelectedId(id);
-      setOpenPage(null);
-      autoReadyJumpRef.current = null;
+      setOpenPage(
+        page && page > 0
+          ? { nonce: Date.now(), page, documentId: id }
+          : null,
+      );
+      autoReadyJumpRef.current = page && page > 0 ? id : null;
       setFilesCollapsed(true);
       await refreshDocument(id);
     },
@@ -380,6 +483,36 @@ export function Workspace({
     });
   }, [documents, selectedId]);
 
+  // тост при завершении / ошибке обработки
+  useEffect(() => {
+    const prev = statusPrevRef.current;
+    const next = new Map<string, DocumentStatus>();
+    for (const doc of documents) {
+      next.set(doc.id, doc.status);
+      const was = prev.get(doc.id);
+      if (!was) continue;
+      if (
+        (was === "queued" || was === "processing") &&
+        (doc.status === "done" || doc.status === "error")
+      ) {
+        const ok = doc.status === "done";
+        const message = ok
+          ? `Готово: ${doc.originalName}`
+          : `Ошибка: ${doc.originalName}${doc.errorMessage ? ` — ${doc.errorMessage}` : ""}`;
+        pushToast(message, ok ? "ok" : "error");
+        notifyIfHidden(
+          ok ? "PTO: разбор готов" : "PTO: ошибка разбора",
+          doc.originalName,
+        );
+      }
+    }
+    statusPrevRef.current = next;
+  }, [documents, pushToast]);
+
+  useEffect(() => {
+    setRecent(loadRecentProjects());
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
@@ -417,10 +550,48 @@ export function Workspace({
     const project = projects.find((item) => item.id === id);
     setDescriptionDraft(project?.description ?? "");
     setShowEdits(false);
-    setShowNotes(false);
+    setShowNotes(true);
+    setNotesFilter("open");
     setProjectQuery("");
     setHits([]);
+    if (project) {
+      touchRecentProject({ id: project.id, name: project.name, at: new Date().toISOString() });
+      setRecent(loadRecentProjects());
+    }
     await Promise.all([loadDocuments(id), loadEdits(id), loadNotes(id)]);
+  }
+
+  async function handleOpenDemo() {
+    if (!projectId) {
+      setError("Сначала выберите или создайте проект");
+      return;
+    }
+    setDemoBusy(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/demo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId }),
+      });
+      const payload = (await response.json()) as {
+        document?: DocumentRecord;
+        error?: string;
+      };
+      if (!response.ok || !payload.document) {
+        throw new Error(payload.error || "Не удалось открыть демо");
+      }
+      setDocuments((prev) => [
+        payload.document!,
+        ...prev.filter((doc) => doc.id !== payload.document!.id),
+      ]);
+      pushToast("Демо-лист готов (без модели)", "ok");
+      await openDocument(payload.document.id, 1);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Ошибка демо");
+    } finally {
+      setDemoBusy(false);
+    }
   }
 
   async function handleCreateProject(event: FormEvent) {
@@ -687,6 +858,15 @@ export function Workspace({
       ? "grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[220px_44px_minmax(0,1fr)]"
       : "grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[220px_280px_minmax(0,1fr)]";
   const pipelineUsageLabel = formatPipelineUsage(pipelineHealth?.usage);
+  const summaryLine = projectSummaryLine(documents, notes);
+  const filteredNotes = notes.filter((note) => {
+    if (notesFilter === "all") return true;
+    if (notesFilter === "open") return note.status === "open";
+    return note.documentId === notesFilter;
+  });
+  const noteFileOptions = Array.from(
+    new Map(notes.map((note) => [note.documentId, note.originalName])).entries(),
+  );
   const pipelineChip = (() => {
     if (!pipelineHealth) return null;
     if (!pipelineHealth.reachable) {
@@ -843,6 +1023,50 @@ export function Workspace({
               ) : null}
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto p-2">
+              {recent.length > 0 ? (
+                <div className="mb-3">
+                  <div className="mb-1 px-1 text-[10px] font-medium uppercase tracking-wider text-muted">
+                    Недавние
+                  </div>
+                  {recent.slice(0, 5).map((item) => {
+                    const exists = projects.some((p) => p.id === item.id);
+                    if (!exists) return null;
+                    return (
+                      <button
+                        key={`recent-${item.id}`}
+                        type="button"
+                        onClick={() => {
+                          void (async () => {
+                            await selectProject(item.id);
+                            if (item.documentId) {
+                              const page =
+                                item.page ??
+                                loadCachedProgress(item.documentId).lastPage;
+                              await openDocument(item.documentId, page);
+                            }
+                          })();
+                        }}
+                        className="mb-1 w-full rounded-md px-2.5 py-1.5 text-left text-xs text-muted hover:bg-surface-2 hover:text-text"
+                        title={
+                          item.documentName
+                            ? `Продолжить: ${item.documentName}, лист ${item.page ?? 1}`
+                            : item.name
+                        }
+                      >
+                        <span className="block truncate font-medium text-text">
+                          {item.name}
+                        </span>
+                        {item.documentName ? (
+                          <span className="mt-0.5 block truncate text-[10px]">
+                            → {item.documentName}
+                            {item.page ? ` · лист ${item.page}` : ""}
+                          </span>
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
               {projects.map((project) =>
                 renameId === project.id ? (
                   <input
@@ -905,9 +1129,8 @@ export function Workspace({
                 <div className="truncate text-sm font-medium">
                   {currentProject?.name ?? "Проект"}
                 </div>
-                <div className="text-[11px] text-muted">
-                  {formatPages(documents.reduce((sum, doc) => sum + doc.pageCount, 0))} в{" "}
-                  {documents.length} файл(ах)
+                <div className="mt-0.5 text-[11px] leading-snug text-muted">
+                  {summaryLine}
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-2">
@@ -936,12 +1159,7 @@ export function Workspace({
             </div>
 
             {currentProject ? (
-              <details
-                className="border-b border-border px-3 py-2"
-                open={Boolean(
-                  currentProject.description || currentProject.specOriginalName,
-                )}
-              >
+              <details className="border-b border-border px-3 py-2">
                 <summary className="cursor-pointer select-none text-[11px] font-medium text-muted hover:text-text">
                   О проекте
                 </summary>
@@ -1072,54 +1290,140 @@ export function Workspace({
                     )}
                   </div>
                 ) : null}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowNotes((value) => {
-                      const next = !value;
-                      if (next && projectId) void loadNotes(projectId);
-                      return next;
-                    });
-                  }}
-                  className="block text-[11px] text-muted hover:text-text"
-                >
-                  Замечания: {notes.filter((item) => item.status === "open").length} открытых
-                  {notes.length ? ` из ${notes.length}` : ""}
-                </button>
-                {showNotes ? (
-                  <div className="max-h-36 space-y-1 overflow-auto">
-                    {notes.length === 0 ? (
-                      <div className="text-[11px] text-muted">
-                        Замечаний нет. Отметьте ошибку прямо на чертеже.
-                      </div>
-                    ) : (
-                      notes.slice(0, 40).map((note) => (
-                        <button
-                          key={note.id}
-                          type="button"
-                          onClick={() => jumpToPage(note.documentId, note.pageNumber)}
-                          className="block w-full rounded bg-white px-2 py-1 text-left text-[11px] hover:bg-blue-50"
-                        >
-                          <span
-                            className={
-                              note.status === "open" ? "text-red-600" : "text-emerald-600"
-                            }
-                          >
-                            {note.status === "open" ? "открыто" : "исправлено"}
-                          </span>
-                          <span className="text-muted">
-                            {" · "}
-                            {note.originalName} · лист {note.pageNumber}
-                            {note.userName ? ` · ${note.userName}` : ""}
-                          </span>
-                          <span className="mt-0.5 block truncate">{note.comment}</span>
-                        </button>
-                      ))
-                    )}
-                  </div>
-                ) : null}
                 </div>
               </details>
+            ) : null}
+
+            {currentProject ? (
+              <div className="border-b border-border px-3 py-2">
+                <div className="flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowNotes((value) => {
+                        const next = !value;
+                        if (next && projectId) void loadNotes(projectId);
+                        return next;
+                      });
+                    }}
+                    className="text-[11px] font-medium text-muted hover:text-text"
+                  >
+                    Замечания
+                    {notes.length
+                      ? ` · ${notes.filter((n) => n.status === "open").length} откр.`
+                      : ""}
+                    <span className="ml-1 text-[10px]">{showNotes ? "▾" : "▸"}</span>
+                  </button>
+                  {notes.length > 0 ? (
+                    <span className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const ok = printNotesReport({
+                            projectName: currentProject.name,
+                            notes,
+                          });
+                          if (!ok) {
+                            setError(
+                              "Разрешите всплывающие окна для печати отчёта",
+                            );
+                          }
+                        }}
+                        className="text-[11px] text-accent hover:underline"
+                      >
+                        Печать
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          exportNotesCsv(notes, currentProject.name)
+                        }
+                        className="text-[11px] text-accent hover:underline"
+                      >
+                        CSV
+                      </button>
+                    </span>
+                  ) : null}
+                </div>
+                {showNotes ? (
+                  <div className="mt-2 space-y-2">
+                    <div className="flex flex-wrap gap-1">
+                      {(
+                        [
+                          ["open", "Открытые"],
+                          ["all", "Все"],
+                        ] as const
+                      ).map(([id, label]) => (
+                        <button
+                          key={id}
+                          type="button"
+                          onClick={() => setNotesFilter(id)}
+                          className={`rounded border px-1.5 py-0.5 text-[10px] ${
+                            notesFilter === id
+                              ? "border-accent bg-blue-50 text-accent"
+                              : "border-border text-muted hover:text-text"
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                      {noteFileOptions.map(([id, name]) => (
+                        <button
+                          key={id}
+                          type="button"
+                          title={name}
+                          onClick={() => setNotesFilter(id)}
+                          className={`max-w-[7rem] truncate rounded border px-1.5 py-0.5 text-[10px] ${
+                            notesFilter === id
+                              ? "border-accent bg-blue-50 text-accent"
+                              : "border-border text-muted hover:text-text"
+                          }`}
+                        >
+                          {name}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="max-h-40 space-y-1 overflow-auto">
+                      {filteredNotes.length === 0 ? (
+                        <div className="text-[11px] text-muted">
+                          {notes.length === 0
+                            ? "Замечаний нет. Отметьте ошибку на чертеже."
+                            : "Нет замечаний по фильтру."}
+                        </div>
+                      ) : (
+                        filteredNotes.slice(0, 60).map((note) => (
+                          <button
+                            key={note.id}
+                            type="button"
+                            onClick={() =>
+                              jumpToPage(note.documentId, note.pageNumber)
+                            }
+                            className="block w-full rounded bg-bg px-2 py-1 text-left text-[11px] hover:bg-blue-50"
+                          >
+                            <span
+                              className={
+                                note.status === "open"
+                                  ? "text-red-600"
+                                  : "text-emerald-600"
+                              }
+                            >
+                              {note.status === "open" ? "открыто" : "исправлено"}
+                            </span>
+                            <span className="text-muted">
+                              {" · "}
+                              {note.originalName} · лист {note.pageNumber}
+                              {note.userName ? ` · ${note.userName}` : ""}
+                            </span>
+                            <span className="mt-0.5 block truncate">
+                              {note.comment}
+                            </span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
             ) : null}
 
             <label
@@ -1131,6 +1435,19 @@ export function Workspace({
               <div className="text-sm font-medium">Перетащите PDF сюда или нажмите</div>
               <div className="mt-1 text-[11px] text-muted">Чертежи проекта · обработка начнётся сразу</div>
             </label>
+
+            {currentProject ? (
+              <div className="mx-3 mt-2">
+                <button
+                  type="button"
+                  disabled={demoBusy}
+                  onClick={() => void handleOpenDemo()}
+                  className="w-full rounded-md border border-border bg-white px-3 py-2 text-xs text-muted hover:border-accent hover:text-accent disabled:opacity-50"
+                >
+                  {demoBusy ? "Готовим демо…" : "Открыть демо-лист (без модели)"}
+                </button>
+              </div>
+            ) : null}
 
             {error ? (
               <div className="mx-3 mt-3 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
@@ -1181,17 +1498,33 @@ export function Workspace({
                       type="button"
                       onClick={() => {
                         void openDocument(doc.id);
+                        if (currentProject) {
+                          const cached = loadCachedProgress(doc.id);
+                          rememberContinue(
+                            currentProject.id,
+                            currentProject.name,
+                            doc.id,
+                            doc.originalName,
+                            cached.lastPage || 1,
+                          );
+                          setRecent(loadRecentProjects());
+                        }
                       }}
                       className="min-w-0 flex-1 px-1 pb-1 text-left"
                     >
                       <div className="truncate text-sm font-medium">{doc.originalName}</div>
                       <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
                         <span
-                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] ${STATUS_CLASS[doc.status]}`}
+                          className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium ${STATUS_CLASS[doc.status]}`}
                         >
                           {doc.status === "processing" || doc.status === "queued" ? (
                             <Spinner className="h-2.5 w-2.5" />
-                          ) : null}
+                          ) : (
+                            <span
+                              className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[doc.status]}`}
+                              aria-hidden
+                            />
+                          )}
                           {STATUS_LABEL[doc.status]}
                         </span>
                         <span className="text-[11px] text-muted">
@@ -1230,6 +1563,28 @@ export function Workspace({
                       ) : null}
                     </button>
                     <ActionMenu label="Действия файла">
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className={menuItemClass()}
+                        onClick={() => {
+                          const cached = loadCachedProgress(doc.id);
+                          void openDocument(doc.id, cached.lastPage || 1);
+                          if (currentProject) {
+                            rememberContinue(
+                              currentProject.id,
+                              currentProject.name,
+                              doc.id,
+                              doc.originalName,
+                              cached.lastPage || 1,
+                            );
+                            setRecent(loadRecentProjects());
+                          }
+                        }}
+                      >
+                        Продолжить с листа{" "}
+                        {loadCachedProgress(doc.id).lastPage || 1}
+                      </button>
                       {doc.status === "processing" || doc.status === "queued" ? (
                         <button
                           type="button"
@@ -1342,6 +1697,8 @@ export function Workspace({
         onClose={() => setShowPassword(false)}
         onChanged={() => onPasswordChanged?.()}
       />
+
+      <ToastHost items={toasts} onDismiss={dismissToast} />
     </div>
   );
 }

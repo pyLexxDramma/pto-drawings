@@ -45,16 +45,37 @@ export function LoginForm({
   }
 
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-bg px-4">
+    <div className="relative flex min-h-dvh items-center justify-center overflow-hidden px-4">
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(ellipse 80% 60% at 50% -10%, #dbeafe 0%, transparent 55%), radial-gradient(ellipse 50% 40% at 100% 100%, #e2e8f0 0%, transparent 45%), #f4f6f8",
+        }}
+      />
+      <div
+        className="pointer-events-none absolute inset-0 opacity-[0.35]"
+        style={{
+          backgroundImage:
+            "linear-gradient(#cbd5e1 1px, transparent 1px), linear-gradient(90deg, #cbd5e1 1px, transparent 1px)",
+          backgroundSize: "32px 32px",
+          maskImage:
+            "radial-gradient(ellipse 70% 60% at 50% 40%, black 20%, transparent 75%)",
+        }}
+      />
+
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-sm rounded-xl border border-border bg-surface p-6 shadow-sm"
+        className="relative w-full max-w-sm rounded-2xl border border-border/80 bg-white/95 p-7 shadow-[0_20px_50px_-24px_rgba(15,23,42,0.35)] backdrop-blur-sm"
       >
-        <div className="mb-5 flex items-center gap-3">
-          <PtoLogo className="h-10 w-10" />
-          <div>
-            <div className="text-base font-semibold">PTO</div>
-            <div className="text-xs text-muted">Вход в проверку чертежей</div>
+        <div className="mb-6 flex flex-col items-center text-center">
+          <PtoLogo className="h-14 w-14" title="PTO — проверка чертежей" />
+          <div className="mt-3 text-2xl font-semibold tracking-tight text-text">
+            PTO
+          </div>
+          <div className="mt-1 max-w-[16rem] text-sm leading-snug text-muted">
+            Проверка чертежей: загрузите PDF, смотрите разбор листа и отмечайте
+            замечания
           </div>
         </div>
 
@@ -88,12 +109,12 @@ export function LoginForm({
         <button
           type="submit"
           disabled={busy}
-          className="w-full rounded-md bg-accent px-3 py-2 text-sm font-medium text-white hover:bg-[#1d4ed8] disabled:opacity-60"
+          className="w-full rounded-md bg-accent px-3 py-2.5 text-sm font-medium text-white hover:bg-[#1d4ed8] disabled:opacity-60"
         >
           {busy ? "Вход…" : "Войти"}
         </button>
 
-        <p className="mt-4 text-[11px] leading-relaxed text-muted">
+        <p className="mt-4 text-center text-[11px] leading-relaxed text-muted">
           {showBootstrapHint ? (
             <>
               Первый запуск: логин{" "}
@@ -102,9 +123,7 @@ export function LoginForm({
               создаёт аккаунты инженеров в приложении.
             </>
           ) : (
-            <>
-              Доступ выдаёт администратор. Пароль не публикуется на экране входа.
-            </>
+            <>Доступ выдаёт администратор.</>
           )}
         </p>
       </form>

@@ -72,6 +72,7 @@ export function ReviewPane({
   const [noteExpected, setNoteExpected] = useState("");
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
   const [noteError, setNoteError] = useState<string | null>(null);
+  const [showHelp, setShowHelp] = useState(false);
   const draftRef = useRef(draft);
   const pageRef = useRef(rawPage);
   const timerRef = useRef<number | null>(null);
@@ -276,6 +277,10 @@ export function ReviewPane({
       }
 
       if (event.key === "Escape") {
+        if (showHelp) {
+          setShowHelp(false);
+          return;
+        }
         if (markMode || pendingRect) {
           setMarkMode(false);
           setPendingRect(null);
@@ -287,6 +292,12 @@ export function ReviewPane({
       }
 
       if (typing) return;
+
+      if (event.key === "?" || (event.shiftKey && event.key === "/")) {
+        event.preventDefault();
+        setShowHelp((value) => !value);
+        return;
+      }
 
       if (event.key === "j" || event.key === "J" || event.key === " ") {
         event.preventDefault();
@@ -302,7 +313,7 @@ export function ReviewPane({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusMode, markMode, pendingRect, onBackToProjects, onToggleFocus, visiblePages, document.pages]);
+  }, [focusMode, markMode, pendingRect, onBackToProjects, onToggleFocus, visiblePages, document.pages, showHelp]);
 
   const hits = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -510,6 +521,14 @@ export function ReviewPane({
             className="rounded-md border border-border px-2 py-1 text-xs"
           >
             {focusMode ? "Обычный вид" : "Чертёж на весь экран"}
+          </button>
+          <button
+            type="button"
+            title="Горячие клавиши (?)"
+            onClick={() => setShowHelp(true)}
+            className="rounded-md border border-border px-2 py-1 text-xs"
+          >
+            ?
           </button>
           <button
             type="button"
@@ -900,6 +919,72 @@ export function ReviewPane({
           </div>
         </div>
       </div>
+
+      {showHelp ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Горячие клавиши"
+          onClick={() => setShowHelp(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-lg border border-border bg-white p-4 shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <div className="text-sm font-medium">Горячие клавиши</div>
+              <button
+                type="button"
+                className="text-xs text-muted hover:text-text"
+                onClick={() => setShowHelp(false)}
+              >
+                Закрыть
+              </button>
+            </div>
+            <ul className="space-y-1.5 text-xs text-muted">
+              <li>
+                <kbd className="rounded border border-border bg-bg px-1.5 py-0.5 font-mono text-text">
+                  J
+                </kbd>{" "}
+                /{" "}
+                <kbd className="rounded border border-border bg-bg px-1.5 py-0.5 font-mono text-text">
+                  →
+                </kbd>{" "}
+                / пробел — следующий лист
+              </li>
+              <li>
+                <kbd className="rounded border border-border bg-bg px-1.5 py-0.5 font-mono text-text">
+                  K
+                </kbd>{" "}
+                /{" "}
+                <kbd className="rounded border border-border bg-bg px-1.5 py-0.5 font-mono text-text">
+                  ←
+                </kbd>{" "}
+                — предыдущий лист
+              </li>
+              <li>
+                <kbd className="rounded border border-border bg-bg px-1.5 py-0.5 font-mono text-text">
+                  Ctrl+S
+                </kbd>{" "}
+                — сохранить правки текста
+              </li>
+              <li>
+                <kbd className="rounded border border-border bg-bg px-1.5 py-0.5 font-mono text-text">
+                  Esc
+                </kbd>{" "}
+                — отмена отметки / выход из фокуса / к проектам
+              </li>
+              <li>
+                <kbd className="rounded border border-border bg-bg px-1.5 py-0.5 font-mono text-text">
+                  ?
+                </kbd>{" "}
+                — эта справка
+              </li>
+            </ul>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
