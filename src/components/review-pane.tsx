@@ -29,6 +29,9 @@ type ReviewPaneProps = {
   focusMode: boolean;
   openPage?: { nonce: number; page: number; documentId: string } | null;
   canceling?: boolean;
+  readOnly?: boolean;
+  specHref?: string | null;
+  specName?: string | null;
   onCancel?: () => void;
   onToggleFocus: () => void;
   onBackToProjects: () => void;
@@ -48,6 +51,9 @@ export function ReviewPane({
   focusMode,
   openPage,
   canceling = false,
+  readOnly = false,
+  specHref = null,
+  specName = null,
   onCancel,
   onToggleFocus,
   onBackToProjects,
@@ -495,20 +501,37 @@ export function ReviewPane({
           >
             Скачать .md
           </a>
-          <button
-            type="button"
-            onClick={() => {
-              setPendingRect(null);
-              setMarkMode((value) => !value);
-            }}
-            className={`rounded-md border px-2 py-1 text-xs ${
-              markMode
-                ? "border-red-500 bg-red-50 text-red-700"
-                : "border-border"
-            }`}
-          >
-            {markMode ? "Отмена" : "Отметить ошибку"}
-          </button>
+          {specHref ? (
+            <a
+              href={specHref}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-md border border-border px-2 py-1 text-xs"
+              title={specName ?? "ТЗ"}
+            >
+              ТЗ
+            </a>
+          ) : null}
+          {!readOnly ? (
+            <button
+              type="button"
+              onClick={() => {
+                setPendingRect(null);
+                setMarkMode((value) => !value);
+              }}
+              className={`rounded-md border px-2 py-1 text-xs ${
+                markMode
+                  ? "border-red-500 bg-red-50 text-red-700"
+                  : "border-border"
+              }`}
+            >
+              {markMode ? "Отмена" : "Отметить ошибку"}
+            </button>
+          ) : (
+            <span className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-900">
+              Только просмотр
+            </span>
+          )}
           <button
             type="button"
             onClick={toggleViewed}
@@ -617,7 +640,7 @@ export function ReviewPane({
               url={`/api/documents/${document.id}/file`}
               pageNumber={pageNumber}
               annotations={pageNotes}
-              markMode={markMode}
+              markMode={markMode && !readOnly}
               activeAnnotationId={activeNoteId}
               highlightNonce={pdfHighlight}
               onMarkRect={(rect) => setPendingRect(rect)}
@@ -648,20 +671,22 @@ export function ReviewPane({
                 {page ? ` · ${SOURCE_LABEL[page.source]}` : ""}
               </div>
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (mode === "view") {
-                      setDraft(page?.markdown ?? "");
-                      setMode("edit");
-                    } else {
-                      setMode("view");
-                    }
-                  }}
-                  className="rounded-md border border-border px-2.5 py-1 text-xs"
-                >
-                  {mode === "view" ? "Исправить" : "Просмотр"}
-                </button>
+                {!readOnly ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (mode === "view") {
+                        setDraft(page?.markdown ?? "");
+                        setMode("edit");
+                      } else {
+                        setMode("view");
+                      }
+                    }}
+                    className="rounded-md border border-border px-2.5 py-1 text-xs"
+                  >
+                    {mode === "view" ? "Исправить" : "Просмотр"}
+                  </button>
+                ) : null}
               </div>
             </div>
 

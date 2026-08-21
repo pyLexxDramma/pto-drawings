@@ -257,6 +257,7 @@ export function Workspace({
   );
   const [cancelingId, setCancelingId] = useState<string | null>(null);
   const [demoBusy, setDemoBusy] = useState(false);
+  const [viewOnly, setViewOnly] = useState(false);
   const [recent, setRecent] = useState<RecentProject[]>([]);
   const [openPage, setOpenPage] = useState<{
     nonce: number;
@@ -1155,6 +1156,18 @@ export function Workspace({
                     Скрыть
                   </button>
                 ) : null}
+                <button
+                  type="button"
+                  onClick={() => setViewOnly((value) => !value)}
+                  className={`text-[11px] ${
+                    viewOnly
+                      ? "font-medium text-amber-800"
+                      : "text-muted hover:text-text"
+                  }`}
+                  title="Без правок текста и новых замечаний"
+                >
+                  {viewOnly ? "Просмотр ✓" : "Просмотр"}
+                </button>
               </div>
             </div>
 
@@ -1637,7 +1650,7 @@ export function Workspace({
                     </ActionMenu>
                   </div>
                   <div className="px-3 pb-2 text-[11px] text-muted">
-                    {formatDate(doc.createdAt)}
+                    версия от {formatDate(doc.createdAt)}
                   </div>
                 </div>
               ))}
@@ -1652,6 +1665,13 @@ export function Workspace({
             focusMode={focusMode}
             openPage={openPage}
             canceling={cancelingId === selected.id}
+            readOnly={viewOnly}
+            specHref={
+              currentProject?.specStoredName
+                ? `/api/projects/${currentProject.id}/spec/file`
+                : null
+            }
+            specName={currentProject?.specOriginalName ?? null}
             onCancel={() => void handleCancel(selected.id)}
             onToggleFocus={() => setFocusMode((value) => !value)}
             onBackToProjects={() => {
