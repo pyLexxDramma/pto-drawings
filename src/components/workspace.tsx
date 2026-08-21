@@ -256,7 +256,6 @@ export function Workspace({
     null,
   );
   const [cancelingId, setCancelingId] = useState<string | null>(null);
-  const [demoBusy, setDemoBusy] = useState(false);
   const [viewOnly, setViewOnly] = useState(false);
   const [recent, setRecent] = useState<RecentProject[]>([]);
   const [openPage, setOpenPage] = useState<{
@@ -560,39 +559,6 @@ export function Workspace({
       setRecent(loadRecentProjects());
     }
     await Promise.all([loadDocuments(id), loadEdits(id), loadNotes(id)]);
-  }
-
-  async function handleOpenDemo() {
-    if (!projectId) {
-      setError("Сначала выберите или создайте проект");
-      return;
-    }
-    setDemoBusy(true);
-    setError(null);
-    try {
-      const response = await fetch("/api/demo", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId }),
-      });
-      const payload = (await response.json()) as {
-        document?: DocumentRecord;
-        error?: string;
-      };
-      if (!response.ok || !payload.document) {
-        throw new Error(payload.error || "Не удалось открыть демо");
-      }
-      setDocuments((prev) => [
-        payload.document!,
-        ...prev.filter((doc) => doc.id !== payload.document!.id),
-      ]);
-      pushToast("Демо-лист готов (без модели)", "ok");
-      await openDocument(payload.document.id, 1);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Ошибка демо");
-    } finally {
-      setDemoBusy(false);
-    }
   }
 
   async function handleCreateProject(event: FormEvent) {
