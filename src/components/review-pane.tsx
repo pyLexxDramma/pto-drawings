@@ -909,10 +909,9 @@ export function ReviewPane({
               role="separator"
               title="Потяните, чтобы изменить ширину чертежа и расшифровки"
               onMouseDown={startSplit}
-              className="group relative z-10 w-1.5 shrink-0 cursor-col-resize bg-border transition-colors hover:bg-accent active:bg-accent"
+              className="relative z-10 w-1 shrink-0 cursor-col-resize bg-border"
             >
-              <div className="absolute inset-y-0 -left-1 -right-1" />
-              <div className="pointer-events-none absolute left-1/2 top-1/2 h-8 w-0.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-slate-400 opacity-0 group-hover:opacity-100" />
+              <div className="absolute inset-y-0 -left-1.5 -right-1.5" />
             </div>
           ) : null}
 
