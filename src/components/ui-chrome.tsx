@@ -166,7 +166,7 @@ export function ActionMenu({
 }
 
 export function menuItemClass(danger = false) {
-  return `block w-full px-3 py-1.5 text-left text-xs hover:bg-bg ${
+  return `flex w-full items-center justify-between gap-4 px-3 py-1.5 text-left text-xs hover:bg-bg ${
     danger ? "text-red-600" : "text-text"
   }`;
 }

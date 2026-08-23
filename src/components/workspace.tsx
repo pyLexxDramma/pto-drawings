@@ -953,7 +953,9 @@ export function Workspace({
         text: "Режим [MOCK] · без модели",
       };
     }
+    // Профиль модели и расход токенов — техника администратора, инженеру не нужна.
     if (pipelineHealth.mode === "real") {
+      if (user.role !== "admin") return null;
       const parts = [
         "Режим real",
         pipelineHealth.profile.provider,
@@ -1919,6 +1921,7 @@ export function Workspace({
             openPage={openPage}
             canceling={cancelingId === selected.id}
             readOnly={viewOnly}
+            showTech={user.role === "admin"}
             specHref={
               currentProject?.specStoredName
                 ? `/api/projects/${currentProject.id}/spec/file`

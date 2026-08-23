@@ -13,6 +13,7 @@ import {
   IconDownload,
   IconExpand,
   IconMark,
+  IconSearch,
   IconSplit,
   IconSync,
 } from "@/components/tool-icons";
@@ -42,6 +43,8 @@ type ReviewPaneProps = {
   openPage?: { nonce: number; page: number; documentId: string } | null;
   canceling?: boolean;
   readOnly?: boolean;
+  /** Технические метрики прогона (токены, режим) — только для админа. */
+  showTech?: boolean;
   specHref?: string | null;
   specName?: string | null;
   onCancel?: () => void;
@@ -64,6 +67,7 @@ export function ReviewPane({
   openPage,
   canceling = false,
   readOnly = false,
+  showTech = false,
   specHref = null,
   specName = null,
   onCancel,
@@ -97,6 +101,8 @@ export function ReviewPane({
   const [scrollSync, setScrollSync] = useState(true);
   const [scrollRatio, setScrollRatio] = useState<number | null>(null);
   const [sidePanel, setSidePanel] = useState<"text" | "notes">("text");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
   const draftRef = useRef(draft);
   const pageRef = useRef(rawPage);
   const timerRef = useRef<number | null>(null);
@@ -292,6 +298,27 @@ export function ReviewPane({
     if (target) void goToPage(target);
   }
 
+  function openSearch() {
+    setSidePanel("text");
+    setSearchOpen(true);
+    requestAnimationFrame(() => searchRef.current?.focus());
+  }
+
+  function closeSearch() {
+    setSearchOpen(false);
+    setQuery("");
+  }
+
+  function toggleMark() {
+    if (readOnly) return;
+    setPendingRect(null);
+    setMarkMode((value) => {
+      const next = !value;
+      if (next) setSidePanel("notes");
+      return next;
+    });
+  }
+
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
       const target = event.target as HTMLElement | null;
@@ -303,9 +330,19 @@ export function ReviewPane({
         return;
       }
 
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
+        event.preventDefault();
+        openSearch();
+        return;
+      }
+
       if (event.key === "Escape") {
         if (showHelp) {
           setShowHelp(false);
+          return;
+        }
+        if (searchOpen && (target === searchRef.current || !markMode)) {
+          closeSearch();
           return;
         }
         if (markMode || pendingRect) {
@@ -324,23 +361,45 @@ export function ReviewPane({
 
       if (typing) return;
 
-      if (event.key === "?" || (event.shiftKey && event.key === "/")) {
+      if (event.key === "?" || (event.shiftKey && event.code === "Slash")) {
         event.preventDefault();
         setShowHelp((value) => !value);
         return;
       }
 
-      if (event.key === "f" || event.key === "F") {
+      // Дальше — одиночные клавиши: не перехватываем системные сочетания.
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+
+      // Сравниваем по event.code: работает и на русской раскладке.
+      if (event.code === "Slash") {
+        event.preventDefault();
+        openSearch();
+        return;
+      }
+
+      if (event.code === "KeyF") {
         event.preventDefault();
         setPaneSolo((prev) => (prev === null ? "pdf" : prev === "pdf" ? "md" : null));
         return;
       }
 
-      if (event.key === "j" || event.key === "J" || event.key === " ") {
+      if (event.code === "KeyV") {
+        event.preventDefault();
+        toggleViewed();
+        return;
+      }
+
+      if (event.code === "KeyE") {
+        event.preventDefault();
+        toggleMark();
+        return;
+      }
+
+      if (event.code === "KeyJ" || event.code === "Space") {
         event.preventDefault();
         stepVisible(1);
       }
-      if (event.key === "k" || event.key === "K") {
+      if (event.code === "KeyK") {
         event.preventDefault();
         stepVisible(-1);
       }
@@ -350,7 +409,7 @@ export function ReviewPane({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusMode, markMode, pendingRect, onBackToProjects, onToggleFocus, visiblePages, document.pages, showHelp, paneSolo]);
+  }, [focusMode, markMode, pendingRect, onBackToProjects, onToggleFocus, visiblePages, document.pages, showHelp, paneSolo, searchOpen, readOnly]);
 
   const hits = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -684,15 +743,8 @@ export function ReviewPane({
           {!readOnly ? (
             <button
               type="button"
-              title={markMode ? "Отмена разметки (Esc)" : "Отметить ошибку"}
-              onClick={() => {
-                setPendingRect(null);
-                setMarkMode((value) => {
-                  const next = !value;
-                  if (next) setSidePanel("notes");
-                  return next;
-                });
-              }}
+              title={markMode ? "Отмена разметки (Esc)" : "Отметить ошибку (E)"}
+              onClick={toggleMark}
               className={markMode ? toolBtnDanger : toolBtnPrimary}
             >
               <IconMark className="h-3.5 w-3.5" />
@@ -705,7 +757,7 @@ export function ReviewPane({
           )}
           <button
             type="button"
-            title={viewedSet.has(pageNumber) ? "Снять просмотр" : "Отметить просмотренным"}
+            title={viewedSet.has(pageNumber) ? "Снять просмотр (V)" : "Отметить просмотренным (V)"}
             onClick={toggleViewed}
             className={viewedSet.has(pageNumber) ? toolBtnActiveWide : toolBtn}
           >
@@ -732,34 +784,56 @@ export function ReviewPane({
           </button>
           <button
             type="button"
-            title={focusMode ? "Обычный вид" : "Чертёж на весь экран"}
-            onClick={onToggleFocus}
-            className={focusMode ? toolBtnActive : toolBtnIcon}
+            title="Поиск по этому файлу (/)"
+            onClick={() => (searchOpen ? closeSearch() : openSearch())}
+            className={searchOpen ? toolBtnActive : toolBtnIcon}
           >
-            <IconExpand />
-          </button>
-          <button
-            type="button"
-            title="F — сплит / чертёж / текст"
-            onClick={() =>
-              setPaneSolo((prev) => (prev === null ? "pdf" : prev === "pdf" ? "md" : null))
-            }
-            className={paneSolo ? toolBtnActive : toolBtnIcon}
-          >
-            <IconSplit />
-          </button>
-          <button
-            type="button"
-            title="Синхронный скролл PDF ↔ текст"
-            onClick={() => setScrollSync((value) => !value)}
-            className={scrollSync ? toolBtnActive : toolBtnIcon}
-          >
-            <IconSync />
+            <IconSearch />
           </button>
           <ActionMenu
             label="Ещё"
             triggerClassName={toolBtnIcon}
           >
+            <div className="px-3 pb-1 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
+              Вид
+            </div>
+            <button
+              type="button"
+              role="menuitem"
+              className={menuItemClass()}
+              onClick={() =>
+                setPaneSolo((prev) => (prev === null ? "pdf" : prev === "pdf" ? "md" : null))
+              }
+            >
+              <span className="inline-flex items-center gap-2">
+                <IconSplit /> {soloLabel ? `Вид: ${soloLabel}` : "Вид: чертёж и текст"}
+              </span>
+              <span className="text-[10px] text-muted">F</span>
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className={menuItemClass()}
+              onClick={onToggleFocus}
+            >
+              <span className="inline-flex items-center gap-2">
+                <IconExpand /> {focusMode ? "Свернуть на весь экран" : "Развернуть на весь экран"}
+              </span>
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className={menuItemClass()}
+              onClick={() => setScrollSync((value) => !value)}
+            >
+              <span className="inline-flex items-center gap-2">
+                <IconSync /> Синхронный скролл
+              </span>
+              <span className="text-[10px] text-muted">
+                {scrollSync ? "вкл" : "выкл"}
+              </span>
+            </button>
+            <div className="my-1 border-t border-border" />
             <a
               href={`/api/documents/${document.id}/markdown`}
               download
@@ -842,13 +916,15 @@ export function ReviewPane({
         </div>
       ) : null}
 
-      {!processing && (elapsedLabel || usageLabel) ? (
+      {!processing && (errorCount || (showTech && (elapsedLabel || usageLabel))) ? (
         <div className="border-b border-border bg-[#fafbfc] px-4 py-1 text-[10px] text-muted">
-          {elapsedLabel ? <span>обработано за {elapsedLabel}</span> : null}
-          {usageLabel ? <span className="ml-2">{usageLabel}</span> : null}
           {errorCount ? (
-            <span className="ml-2 text-red-700">ошибок листов: {errorCount}</span>
+            <span className="text-red-700">ошибок листов: {errorCount}</span>
           ) : null}
+          {showTech && elapsedLabel ? (
+            <span className={errorCount ? "ml-2" : ""}>обработано за {elapsedLabel}</span>
+          ) : null}
+          {showTech && usageLabel ? <span className="ml-2">{usageLabel}</span> : null}
         </div>
       ) : null}
 
@@ -865,6 +941,26 @@ export function ReviewPane({
           hidden={hidden}
           processingPage={document.processingPage}
           width={stripWidth}
+          emptyLabel={
+            filter === "flagged"
+              ? "Замечаний по этому файлу пока нет."
+              : `Листов типа «${filterLabel}» в комплекте нет.`
+          }
+          header={
+            <select
+              value={filter}
+              onChange={(event) => setFilter(event.target.value as KindFilter)}
+              title="Фильтр листов по типу"
+              aria-label="Фильтр листов по типу"
+              className="w-full cursor-pointer rounded border border-slate-300 bg-white px-1 py-1 text-[10px] font-semibold text-text outline-none focus:border-accent"
+            >
+              {filters.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.label} · {filterCounts[item.id]}
+                </option>
+              ))}
+            </select>
+          }
           onSelect={(next) => void goToPage(next)}
         />
         <ColumnResizer
@@ -979,79 +1075,48 @@ export function ReviewPane({
               </div>
             ) : null}
 
-            <div className="border-b border-border px-3 py-2">
-              <SegmentedTabs
-                size="xs"
-                value={filter}
-                onChange={setFilter}
-                options={filters.map((item) => ({
-                  id: item.id,
-                  label: (
-                    <>
-                      {item.label}
-                      <span className="ml-1 tabular-nums opacity-70">
-                        {filterCounts[item.id]}
-                      </span>
-                    </>
-                  ),
-                }))}
-              />
-            </div>
-
-            <div className="border-b border-border px-3 py-2">
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Поиск по расшифровке: PSV, 210 кг, позиция…"
-                className="w-full rounded-md border border-border bg-bg px-2 py-1.5 text-sm outline-none focus:border-accent"
-              />
-              {hits.length > 0 ? (
-                <div className="mt-2 max-h-28 space-y-1 overflow-auto">
-                  {hits.map((hit) => (
-                    <button
-                      key={`${hit.pageNumber}-${hit.snippet}`}
-                      type="button"
-                      onClick={() => void goToPage(hit.pageNumber)}
-                      className="block w-full rounded bg-bg px-2 py-1 text-left text-[11px] hover:bg-blue-50"
-                    >
-                      <span className="font-medium">Лист {hit.pageNumber}</span>
-                      <span className="text-muted"> · {hit.snippet}</span>
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-
-            <div className="flex max-h-28 shrink-0 flex-col overflow-auto border-b border-border px-2 py-2">
-              {filterEmpty ? (
-                <div className="px-2 py-2 text-xs text-muted">
-                  {filter === "flagged"
-                    ? "Замечаний по этому файлу пока нет."
-                    : `В комплекте нет листов типа «${filterLabel}» (0 из ${total}). Классификация по извлечённому тексту листа.`}
-                </div>
-              ) : null}
-              {visiblePages.map((number) => {
-                const item = document.pages.find((pageItem) => pageItem.pageNumber === number);
-                const kind = item ? KIND_LABEL[item.kind] : "лист";
-                return (
+            {searchOpen ? (
+              <div className="border-b border-border px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <input
+                    ref={searchRef}
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    placeholder="Поиск по этому файлу: PSV, 210 кг, позиция…"
+                    className="min-w-0 flex-1 rounded-md border border-border bg-bg px-2 py-1.5 text-sm outline-none focus:border-accent"
+                  />
                   <button
-                    key={number}
                     type="button"
-                    onClick={() => void goToPage(number)}
-                    className={`rounded px-2 py-1 text-left text-xs ${
-                      number === pageNumber ? "bg-blue-50 text-text" : "text-muted hover:bg-bg"
-                    }`}
+                    onClick={closeSearch}
+                    title="Закрыть поиск (Esc)"
+                    className="shrink-0 rounded border border-border px-2 py-1 text-[11px] text-muted hover:bg-bg hover:text-text"
                   >
-                    # Лист {number} — {kind.toLowerCase()}
-                    {viewedSet.has(number) ? " · просмотрен" : ""}
-                    {editedPages.has(number) ? " · правки" : ""}
-                    {flaggedPages.has(number) ? " · замечание" : ""}
-                    {!item ? " · ждёт текст" : ""}
-                    {document.pageErrors?.[String(number)] ? " · ошибка" : ""}
+                    Esc
                   </button>
-                );
-              })}
-            </div>
+                </div>
+                {query.trim().length >= 2 ? (
+                  hits.length > 0 ? (
+                    <div className="mt-2 max-h-32 space-y-1 overflow-auto">
+                      {hits.map((hit) => (
+                        <button
+                          key={`${hit.pageNumber}-${hit.snippet}`}
+                          type="button"
+                          onClick={() => void goToPage(hit.pageNumber)}
+                          className="block w-full rounded bg-bg px-2 py-1 text-left text-[11px] hover:bg-blue-50"
+                        >
+                          <span className="font-medium">Лист {hit.pageNumber}</span>
+                          <span className="text-muted"> · {hit.snippet}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="mt-2 text-[11px] text-muted">
+                      Совпадений в этом файле нет.
+                    </div>
+                  )
+                ) : null}
+              </div>
+            ) : null}
 
             <div
               ref={mdScrollRef}
@@ -1148,13 +1213,34 @@ export function ReviewPane({
           {" "}лист
         </span>
         <span>
+          <kbd className="rounded border border-slate-300 bg-white px-1 font-mono text-[9px]">V</kbd>
+          {" "}просмотрено
+        </span>
+        {!readOnly ? (
+          <span>
+            <kbd className="rounded border border-slate-300 bg-white px-1 font-mono text-[9px]">E</kbd>
+            {" "}ошибка
+          </span>
+        ) : null}
+        <span>
+          <kbd className="rounded border border-slate-300 bg-white px-1 font-mono text-[9px]">/</kbd>
+          {" "}поиск
+        </span>
+        <span className="hidden sm:inline">
           <kbd className="rounded border border-slate-300 bg-white px-1 font-mono text-[9px]">F</kbd>
           {" "}сплит
         </span>
-        <span>
+        <span className="hidden md:inline">
           <kbd className="rounded border border-slate-300 bg-white px-1 font-mono text-[9px]">Esc</kbd>
           {" "}отмена / назад
         </span>
+        <button
+          type="button"
+          onClick={() => setShowHelp(true)}
+          className="hidden text-[10px] text-muted underline decoration-dotted hover:text-text lg:inline"
+        >
+          все клавиши (?)
+        </button>
         <span className="ml-auto tabular-nums">
           {viewed.length}/{total} просмотрено
         </span>
@@ -1202,6 +1288,28 @@ export function ReviewPane({
                   ←
                 </kbd>{" "}
                 — предыдущий лист
+              </li>
+              <li>
+                <kbd className="rounded border border-border bg-bg px-1.5 py-0.5 font-mono text-text">
+                  V
+                </kbd>{" "}
+                — отметить лист просмотренным / снять
+              </li>
+              <li>
+                <kbd className="rounded border border-border bg-bg px-1.5 py-0.5 font-mono text-text">
+                  E
+                </kbd>{" "}
+                — разметка ошибки на чертеже
+              </li>
+              <li>
+                <kbd className="rounded border border-border bg-bg px-1.5 py-0.5 font-mono text-text">
+                  /
+                </kbd>{" "}
+                или{" "}
+                <kbd className="rounded border border-border bg-bg px-1.5 py-0.5 font-mono text-text">
+                  Ctrl+F
+                </kbd>{" "}
+                — поиск по этому файлу
               </li>
               <li>
                 <kbd className="rounded border border-border bg-bg px-1.5 py-0.5 font-mono text-text">

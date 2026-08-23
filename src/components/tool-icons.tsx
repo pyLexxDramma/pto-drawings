@@ -92,6 +92,15 @@ export function IconSync({ className = "h-3.5 w-3.5" }: IconProps) {
   );
 }
 
+export function IconSearch({ className = "h-3.5 w-3.5" }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="none" aria-hidden>
+      <circle cx="7" cy="7" r="4" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M10.2 10.2 13.5 13.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function IconDoc({ className = "h-3.5 w-3.5" }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 16 16" fill="none" aria-hidden>
