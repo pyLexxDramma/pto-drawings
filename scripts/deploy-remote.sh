@@ -28,9 +28,4 @@ if command -v systemctl >/dev/null 2>&1; then
   systemctl is-active --quiet pto
 fi
 
-# Микрофон в браузере требует HTTPS. На IP — self-signed (один раз принять в Chrome).
-if [[ "$(id -un)" == "root" ]] && [[ -f "$APP_DIR/scripts/enable-ssl-selfsigned.sh" ]]; then
-  bash "$APP_DIR/scripts/enable-ssl-selfsigned.sh"
-fi
-
 echo "deployed $(run_as_app git rev-parse --short HEAD) at $(date -u +%Y-%m-%dT%H:%M:%SZ)"

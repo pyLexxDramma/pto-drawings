@@ -15,6 +15,9 @@ if [[ -d /etc/letsencrypt/live ]] && ls /etc/letsencrypt/live/*/fullchain.pem >/
   exit 0
 fi
 
+apt-get update -y
+apt-get install -y openssl nginx
+
 mkdir -p "$SSL_DIR"
 if [[ ! -f "$CRT" ]]; then
   openssl req -x509 -nodes -days 825 -newkey rsa:2048 \

@@ -38,6 +38,11 @@ jobs:
             chmod +x "$APP_DIR/scripts/"*.sh 2>/dev/null || true
             export PTO_APP_DIR="$APP_DIR"
             bash "$APP_DIR/scripts/deploy-remote.sh"
+            # getUserMedia только по HTTPS; на IP — self-signed (Let's Encrypt на IP не дают)
+            if [[ -f "$APP_DIR/scripts/enable-ssl-selfsigned.sh" ]]; then
+              bash "$APP_DIR/scripts/enable-ssl-selfsigned.sh" \
+                || sudo bash "$APP_DIR/scripts/enable-ssl-selfsigned.sh"
+            fi
         env:
           PTO_APP_DIR: ${{ secrets.VPS_APP_DIR }}
 
