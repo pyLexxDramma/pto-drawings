@@ -6,6 +6,7 @@ import { MarkdownView } from "@/components/markdown-view";
 import { PageStrip } from "@/components/page-strip";
 import { PdfPage } from "@/components/pdf-page";
 import { ProgressTrack, SegmentedTabs, Spinner, ActionMenu, menuItemClass } from "@/components/ui-chrome";
+import { VoiceNoteButton } from "@/components/voice-note";
 import {
   IconBack,
   IconCheck,
@@ -80,7 +81,7 @@ export function ReviewPane({
   const [mode, setMode] = useState<"view" | "edit">("view");
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
-  const [split, setSplit] = useState(58);
+  const [split, setSplit] = useState(50);
   const [stripWidth, setStripWidth] = useState(108);
   const [query, setQuery] = useState("");
   const [showLog, setShowLog] = useState(false);
@@ -582,14 +583,8 @@ export function ReviewPane({
   const soloLabel =
     paneSolo === "pdf" ? "Только чертёж" : paneSolo === "md" ? "Только текст" : null;
 
-  const toolBtn =
-    "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 text-[11px] font-semibold text-text shadow-sm hover:border-slate-400 hover:bg-slate-50";
   const toolBtnIcon =
     "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-slate-300 bg-white text-text shadow-sm hover:border-slate-400 hover:bg-slate-50";
-  const toolBtnActive =
-    "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-accent bg-blue-50 text-accent shadow-sm";
-  const toolBtnActiveWide =
-    "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-accent bg-blue-50 px-2.5 text-[11px] font-semibold text-accent shadow-sm";
   const toolBtnDanger =
     "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-red-500 bg-red-50 px-2.5 text-[11px] font-semibold text-red-700 shadow-sm";
   const toolBtnPrimary =
@@ -600,14 +595,21 @@ export function ReviewPane({
       {pendingRect ? (
         <div className="shrink-0 border-b border-red-200 bg-red-50 px-3 py-2">
           <div className="text-[11px] font-medium text-red-700">Новое замечание</div>
-          <textarea
-            autoFocus
-            value={noteComment}
-            onChange={(event) => setNoteComment(event.target.value)}
-            rows={2}
-            placeholder="Что неверно"
-            className="mt-1 w-full resize-none rounded-md border border-border bg-white px-2 py-1.5 text-xs outline-none focus:border-accent"
-          />
+          <div className="mt-1 flex items-start gap-1.5">
+            <textarea
+              autoFocus
+              value={noteComment}
+              onChange={(event) => setNoteComment(event.target.value)}
+              rows={2}
+              placeholder="Что неверно"
+              className="min-w-0 flex-1 resize-none rounded-md border border-border bg-white px-2 py-1.5 text-xs outline-none focus:border-accent"
+            />
+            <VoiceNoteButton
+              onText={(text) =>
+                setNoteComment((prev) => (prev.trim() ? `${prev.trim()} ${text}` : text))
+              }
+            />
+          </div>
           <div className="mt-1.5 flex flex-wrap gap-1">
             {[
               "Нет размера",
@@ -755,45 +757,52 @@ export function ReviewPane({
               Просмотр
             </span>
           )}
-          <button
-            type="button"
-            title={viewedSet.has(pageNumber) ? "Снять просмотр (V)" : "Отметить просмотренным (V)"}
-            onClick={toggleViewed}
-            className={viewedSet.has(pageNumber) ? toolBtnActiveWide : toolBtn}
-          >
-            <IconCheck />
-            {viewedSet.has(pageNumber) ? "Снять" : "Просмотрено"}
-          </button>
-          <button
-            type="button"
-            title="Предыдущий лист"
-            onClick={() => stepVisible(-1)}
-            className={`${toolBtnIcon} disabled:opacity-40`}
-            disabled={visiblePages[0] === pageNumber}
-          >
-            ←
-          </button>
-          <button
-            type="button"
-            title="Следующий лист"
-            onClick={() => stepVisible(1)}
-            className={`${toolBtnIcon} disabled:opacity-40`}
-            disabled={visiblePages[visiblePages.length - 1] === pageNumber}
-          >
-            →
-          </button>
-          <button
-            type="button"
-            title="Поиск по этому файлу (/)"
-            onClick={() => (searchOpen ? closeSearch() : openSearch())}
-            className={searchOpen ? toolBtnActive : toolBtnIcon}
-          >
-            <IconSearch />
-          </button>
           <ActionMenu
             label="Ещё"
             triggerClassName={toolBtnIcon}
           >
+            <button
+              type="button"
+              role="menuitem"
+              className={menuItemClass()}
+              onClick={toggleViewed}
+            >
+              <span className="inline-flex items-center gap-2">
+                <IconCheck />
+                {viewedSet.has(pageNumber) ? "Снять просмотр" : "Просмотрено"}
+              </span>
+              <span className="text-[10px] text-muted">V</span>
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className={menuItemClass()}
+              onClick={() => stepVisible(-1)}
+              disabled={visiblePages[0] === pageNumber}
+            >
+              ← Предыдущий лист
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className={menuItemClass()}
+              onClick={() => stepVisible(1)}
+              disabled={visiblePages[visiblePages.length - 1] === pageNumber}
+            >
+              → Следующий лист
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className={menuItemClass()}
+              onClick={() => (searchOpen ? closeSearch() : openSearch())}
+            >
+              <span className="inline-flex items-center gap-2">
+                <IconSearch /> Поиск по файлу
+              </span>
+              <span className="text-[10px] text-muted">/</span>
+            </button>
+            <div className="my-1 border-t border-border" />
             <div className="px-3 pb-1 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
               Вид
             </div>

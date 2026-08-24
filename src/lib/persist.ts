@@ -1,4 +1,4 @@
-import { mkdir, readFile, rename, rm, stat, unlink, writeFile } from "fs/promises";
+import { mkdir, readdir, readFile, rename, rm, stat, unlink, writeFile } from "fs/promises";
 import path from "path";
 
 const ROOT = process.env.DATA_ROOT || process.cwd();
@@ -138,4 +138,24 @@ export async function readPdfBytes(storedName: string): Promise<Buffer> {
 
 export async function deletePdfBytes(storedName: string) {
   await unlink(path.join(UPLOAD_DIR, storedName)).catch(() => undefined);
+}
+
+export async function listStoredDocumentIds(): Promise<string[]> {
+  try {
+    const names = await readdir(DOCS_DIR);
+    return names
+      .filter((name) => /^[0-9a-f-]{36}\.json$/i.test(name))
+      .map((name) => name.slice(0, 36));
+  } catch {
+    return [];
+  }
+}
+
+export async function storedPdfExists(storedName: string): Promise<boolean> {
+  try {
+    await stat(path.join(UPLOAD_DIR, storedName));
+    return true;
+  } catch {
+    return false;
+  }
 }

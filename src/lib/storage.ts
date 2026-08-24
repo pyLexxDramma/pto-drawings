@@ -2,9 +2,11 @@ import { PDFDocument } from "pdf-lib";
 import {
   deleteDocumentFile,
   deletePdfBytes,
+  listStoredDocumentIds,
   readDbText,
   readDocumentText,
   readPdfBytes,
+  storedPdfExists,
   withDataLock,
   writeDbText,
   writeDocumentText,
@@ -322,9 +324,8 @@ async function readIndex(): Promise<Database> {
   try {
     parsed = JSON.parse(raw) as Partial<Database> & { documents?: LegacyDocument[] };
   } catch {
-    const db = emptyDb();
-    await writeIndex(db);
-    return db;
+    // Раньше здесь писали пустую базу — из-за этого пропадали все файлы.
+    throw new Error("data/db.json повреждён, индекс не перезаписываю");
   }
 
   let changed = false;
@@ -362,6 +363,29 @@ async function readIndex(): Promise<Database> {
     projects = parsed.projects.map((project) =>
       normalizeProject(project as Partial<Project> & { id: string }),
     );
+  }
+
+  const known = new Set(documents.map((item) => item.id));
+  const fallbackProject = projects[0]?.id ?? DEFAULT_PROJECT_ID;
+  for (const id of await listStoredDocumentIds()) {
+    if (known.has(id)) continue;
+    const body = await readBody(id);
+    const storedName = `${id}.pdf`;
+    const hasPdf = await storedPdfExists(storedName);
+    if (!hasPdf && body.pages.length === 0) continue;
+    const fromMarkdown = body.pages[0]?.markdown.match(/`([^`]+\.pdf)`/i)?.[1];
+    const meta = normalizeMeta({
+      id,
+      projectId: fallbackProject,
+      originalName: fromMarkdown ?? storedName,
+      storedName,
+      pageCount: body.pages.length,
+      status: body.pages.length > 0 ? "done" : "queued",
+      processingStep: body.pages.length > 0 ? "done" : "queued",
+    });
+    applyBodyToMeta(meta, body);
+    documents.push(meta);
+    changed = true;
   }
 
   const db: Database = { users, projects, documents };

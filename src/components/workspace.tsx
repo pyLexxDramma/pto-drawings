@@ -301,6 +301,7 @@ export function Workspace({
   const [creatingProject, setCreatingProject] = useState(false);
   const [showNewProject, setShowNewProject] = useState(false);
   const [filesCollapsed, setFilesCollapsed] = useState(false);
+  const [projectsCollapsed, setProjectsCollapsed] = useState(false);
   const [compactFiles, setCompactFiles] = useState(true);
   const [focusMode, setFocusMode] = useState(false);
   const [renameId, setRenameId] = useState<string | null>(null);
@@ -381,6 +382,7 @@ export function Workspace({
       `/api/documents?projectId=${encodeURIComponent(id)}&lite=1`,
       { signal },
     );
+    if (!response.ok) return [];
     const payload = (await response.json()) as { documents: DocumentRecord[] };
     const list = payload.documents ?? [];
     setDocuments((prev) => {
@@ -412,8 +414,8 @@ export function Workspace({
           : null,
       );
       autoReadyJumpRef.current = page && page > 0 ? id : null;
-      // Не сворачиваем список файлов автоматически: иначе «Стоп»/отмена
-      // оказываются за узкой полоской «Файлы» во время обработки.
+      setProjectsCollapsed(true);
+      setFilesCollapsed(true);
       await refreshDocument(id);
     },
     [refreshDocument],
@@ -639,6 +641,7 @@ export function Workspace({
     setProjectId(id);
     setSelectedId(null);
     setFilesCollapsed(false);
+    setProjectsCollapsed(false);
     setFocusMode(false);
     setError(null);
     const project = projects.find((item) => item.id === id);
@@ -992,6 +995,7 @@ export function Workspace({
             setSelectedId(null);
             setFocusMode(false);
             setFilesCollapsed(false);
+            setProjectsCollapsed(false);
             setOpenPage(null);
           }}
           className="flex min-w-0 items-center gap-3 text-left"
@@ -1097,7 +1101,21 @@ export function Workspace({
       ) : null}
 
       <div className={gridClass}>
-        {focusMode ? null : (
+        {focusMode ? null : projectsCollapsed ? (
+          <div className="flex w-11 shrink-0 flex-col border-b border-border bg-surface md:border-b-0">
+            <button
+              type="button"
+              onClick={() => setProjectsCollapsed(false)}
+              className="flex-1 text-xs text-muted hover:bg-bg"
+              title="Показать проекты"
+              aria-expanded={false}
+            >
+              <span className="inline-block px-1 py-3 [writing-mode:vertical-rl]">
+                Проекты
+              </span>
+            </button>
+          </div>
+        ) : (
           <aside
             className="flex min-h-0 shrink-0 flex-col border-b border-border bg-surface md:border-b-0"
             style={{ width: projectsWidth, maxWidth: "100%" }}
@@ -1105,13 +1123,25 @@ export function Workspace({
             <div className="border-b border-border px-3 py-3">
               <div className="mb-2 flex items-center justify-between text-[11px] font-medium uppercase tracking-wider text-muted">
                 Проекты
-                <button
-                  type="button"
-                  onClick={() => setShowNewProject((value) => !value)}
-                  className="rounded border border-border px-1.5 text-[11px] font-normal normal-case text-muted hover:text-text"
-                >
-                  +
-                </button>
+                <span className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowNewProject((value) => !value)}
+                    className="rounded border border-border px-1.5 text-[11px] font-normal normal-case text-muted hover:text-text"
+                  >
+                    +
+                  </button>
+                  {selected ? (
+                    <button
+                      type="button"
+                      onClick={() => setProjectsCollapsed(true)}
+                      className="rounded border border-border px-1.5 text-[11px] font-normal normal-case text-muted hover:text-text"
+                      title="Свернуть проекты"
+                    >
+                      Скрыть
+                    </button>
+                  ) : null}
+                </span>
               </div>
               {showNewProject || projects.length === 0 ? (
                 <form onSubmit={handleCreateProject} className="space-y-1">
@@ -1234,7 +1264,7 @@ export function Workspace({
           </aside>
         )}
 
-        {focusMode ? null : (
+        {focusMode || projectsCollapsed ? null : (
           <ColumnResizer
             className="hidden md:block"
             onDelta={(dx) => setProjectsWidth((w) => clamp(w + dx, 160, 420))}
@@ -1934,6 +1964,7 @@ export function Workspace({
               setSelectedId(null);
               setFocusMode(false);
               setFilesCollapsed(false);
+              setProjectsCollapsed(false);
               setOpenPage(null);
             }}
             onSavePage={handleSavePage}
