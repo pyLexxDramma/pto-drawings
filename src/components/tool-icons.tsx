@@ -115,6 +115,30 @@ export function IconMic({ className = "h-3.5 w-3.5" }: IconProps) {
   );
 }
 
+export function IconThumbs({ className = "h-3.5 w-3.5" }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="none" aria-hidden>
+      <rect x="2.5" y="2.5" width="4" height="4.5" rx="0.75" stroke="currentColor" strokeWidth="1.4" />
+      <rect x="2.5" y="9" width="4" height="4.5" rx="0.75" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M9 4.5h4.5M9 7h4.5M9 10h4.5M9 12.5h4.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function IconPencil({ className = "h-3.5 w-3.5" }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M3 10.6 10.4 3.2a1.7 1.7 0 0 1 2.4 2.4L5.4 13 2.5 13.5 3 10.6Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+      <path d="M9.3 4.3l2.4 2.4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function IconDoc({ className = "h-3.5 w-3.5" }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 16 16" fill="none" aria-hidden>

@@ -279,32 +279,7 @@ export function PdfPage({
   const cursor = markMode ? "cursor-crosshair" : grabbing ? "cursor-grabbing" : "cursor-grab";
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="flex shrink-0 items-center gap-2 border-b border-border bg-white px-2 py-1 text-muted">
-        <SegmentedTabs
-          size="xs"
-          value={fitMode}
-          onChange={(mode) => fit(mode)}
-          options={[
-            { id: "page", label: "Страница" },
-            { id: "width", label: "По ширине" },
-          ]}
-        />
-        {markMode ? (
-          <span className="ml-1 rounded bg-red-50 px-2 py-0.5 text-[11px] text-red-700">
-            Обведите место на чертеже · Esc — отмена
-          </span>
-        ) : null}
-        {searchHits.length > 0 ? (
-          <span className="rounded bg-amber-50 px-2 py-0.5 text-[11px] text-amber-800">
-            найдено: {searchHits.length}
-          </span>
-        ) : null}
-        <span className="ml-auto text-[11px] text-muted">
-          {Math.round(scale * 100)} %
-          {scrollSync ? " · sync · Ctrl+колёсико — зум" : " Zoom"}
-        </span>
-      </div>
+    <div className="group relative flex h-full min-h-0 flex-col">
       <div
         ref={wrapRef}
         className={`relative min-h-0 flex-1 overflow-hidden bg-[#f7f8fa] ${cursor}`}
@@ -455,6 +430,41 @@ export function PdfPage({
             ) : null}
           </div>
         )}
+      </div>
+
+      {/* Активные состояния — видны всегда, их прятать нельзя. */}
+      {markMode || searchHits.length > 0 ? (
+        <div className="pointer-events-none absolute left-1/2 top-2 z-30 flex -translate-x-1/2 items-center gap-1.5">
+          {markMode ? (
+            <span className="rounded-md bg-red-600 px-2.5 py-1 text-[11px] font-medium text-white shadow-md">
+              Обведите место на чертеже · Esc — отмена
+            </span>
+          ) : null}
+          {searchHits.length > 0 ? (
+            <span className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] text-amber-900 shadow-sm">
+              найдено: {searchHits.length}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+
+      {/* Масштаб меняют редко, а чертёж читают постоянно — панель проявляется по наведению. */}
+      <div
+        onMouseDown={(event) => event.stopPropagation()}
+        className="absolute bottom-2 right-2 z-30 flex items-center gap-2 rounded-md border border-border bg-white/90 px-1.5 py-1 opacity-0 shadow-sm backdrop-blur transition-opacity focus-within:opacity-100 hover:opacity-100 group-hover:opacity-100"
+      >
+        <SegmentedTabs
+          size="xs"
+          value={fitMode}
+          onChange={(mode) => fit(mode)}
+          options={[
+            { id: "page", label: "Страница" },
+            { id: "width", label: "По ширине" },
+          ]}
+        />
+        <span className="pr-0.5 text-[11px] tabular-nums text-muted">
+          {Math.round(scale * 100)} %{scrollSync ? " · sync" : ""}
+        </span>
       </div>
     </div>
   );

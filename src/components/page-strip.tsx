@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, type ReactNode } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { KIND_LABEL, type PageKind } from "@/types";
 
@@ -16,7 +16,6 @@ type PageStripProps = {
   hidden?: Set<number>;
   processingPage: number | null;
   width?: number;
-  header?: ReactNode;
   emptyLabel?: string;
   onSelect: (page: number) => void;
 };
@@ -36,7 +35,6 @@ export function PageStrip({
   hidden,
   processingPage,
   width = 108,
-  header,
   emptyLabel,
   onSelect,
 }: PageStripProps) {
@@ -158,9 +156,6 @@ export function PageStrip({
       className="flex h-full min-h-0 shrink-0 flex-col border-r border-border bg-surface-2"
       style={{ width }}
     >
-      {header ? (
-        <div className="shrink-0 border-b border-border px-1.5 py-1.5">{header}</div>
-      ) : null}
       <div ref={rootRef} className="min-h-0 flex-1 overflow-y-auto p-1.5">
       {pages.length === 0 && emptyLabel ? (
         <div className="px-1 py-2 text-[10px] leading-snug text-muted">{emptyLabel}</div>

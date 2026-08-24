@@ -99,11 +99,16 @@ export function ActionMenu({
   label = "Действия",
   align = "right",
   triggerClassName,
+  /** Своё содержимое кнопки вместо «⋯» — например номер листа. */
+  trigger,
+  menuClassName = "",
   children,
 }: {
   label?: string;
   align?: "left" | "right";
   triggerClassName?: string;
+  trigger?: ReactNode;
+  menuClassName?: string;
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -142,14 +147,14 @@ export function ActionMenu({
           "rounded border border-border px-1.5 py-0.5 text-[11px] leading-none text-muted hover:bg-bg hover:text-text"
         }
       >
-        ⋯
+        {trigger ?? "⋯"}
       </button>
       {open ? (
         <div
           role="menu"
-          className={`absolute z-30 mt-1 min-w-[11rem] rounded-md border border-slate-300 bg-white py-1 shadow-md ${
+          className={`absolute z-40 mt-1 min-w-[11rem] rounded-md border border-slate-300 bg-white py-1 shadow-md ${
             align === "right" ? "right-0" : "left-0"
-          }`}
+          } ${menuClassName}`}
           onMouseDown={(event) => event.stopPropagation()}
         >
           <div

@@ -975,6 +975,14 @@ export function Workspace({
     return null;
   })();
 
+  const backToProjects = () => {
+    setSelectedId(null);
+    setFocusMode(false);
+    setFilesCollapsed(false);
+    setProjectsCollapsed(false);
+    setOpenPage(null);
+  };
+
   return (
     <div
       className="flex h-dvh flex-col bg-bg"
@@ -988,70 +996,69 @@ export function Workspace({
       }}
       onDrop={onDrop}
     >
-      <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border bg-surface px-4">
-        <button
-          type="button"
-          onClick={() => {
-            setSelectedId(null);
-            setFocusMode(false);
-            setFilesCollapsed(false);
-            setProjectsCollapsed(false);
-            setOpenPage(null);
-          }}
-          className="flex min-w-0 items-center gap-3 text-left"
-          title="К списку проектов"
-        >
-          <PtoLogo className="h-8 w-8 shrink-0" title="PTO — проверка чертежей" />
-          <div className="min-w-0">
-            <div className="text-sm font-semibold leading-none tracking-tight">PTO</div>
-            <div className="mt-0.5 text-[10px] leading-none text-muted">
-              проверка чертежей
-            </div>
-          </div>
-        </button>
-        <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
-          {pipelineChip ? (
-            <div
-              className={`hidden min-w-0 max-w-xl items-center gap-1.5 truncate rounded-md border px-2.5 py-1 text-[11px] md:flex ${pipelineChip.className}`}
-              title={pipelineChip.text}
-            >
-              {busy ? <Spinner className="h-3 w-3 opacity-80" /> : null}
-              <span className="truncate">{pipelineChip.text}</span>
-            </div>
-          ) : null}
-          <UserMenu
-            user={user}
-            defaultPasswordWarning={defaultPasswordWarning}
-            onUsers={user.role === "admin" ? () => setShowUsers(true) : undefined}
-            onPassword={() => setShowPassword(true)}
-            onLogout={() => {
-              void (async () => {
-                await fetch("/api/auth/logout", { method: "POST" });
-                onLogout();
-              })();
-            }}
-          />
-          <label
-            htmlFor="pto-drawing-upload"
-            className="cursor-pointer rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-[#1d4ed8]"
+      {/* Живёт вне шапки: на неё ссылаются label'ы в списке файлов и в пустом состоянии,
+          а сама шапка при открытом чертеже не рендерится. */}
+      <input
+        id="pto-drawing-upload"
+        ref={inputRef}
+        type="file"
+        accept="application/pdf,.pdf"
+        multiple
+        className="absolute h-px w-px overflow-hidden opacity-0"
+        onChange={(event) => {
+          const list = event.target.files;
+          if (list && list.length > 0) void handleFiles(list);
+          event.target.value = "";
+        }}
+      />
+
+      {selected ? null : (
+        <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border bg-surface px-4">
+          <button
+            type="button"
+            onClick={backToProjects}
+            className="flex min-w-0 items-center gap-3 text-left"
+            title="К списку проектов"
           >
-            Загрузить PDF
-          </label>
-        </div>
-        <input
-          id="pto-drawing-upload"
-          ref={inputRef}
-          type="file"
-          accept="application/pdf,.pdf"
-          multiple
-          className="absolute h-px w-px overflow-hidden opacity-0"
-          onChange={(event) => {
-            const list = event.target.files;
-            if (list && list.length > 0) void handleFiles(list);
-            event.target.value = "";
-          }}
-        />
-      </header>
+            <PtoLogo className="h-8 w-8 shrink-0" title="PTO — проверка чертежей" />
+            <div className="min-w-0">
+              <div className="text-sm font-semibold leading-none tracking-tight">PTO</div>
+              <div className="mt-0.5 text-[10px] leading-none text-muted">
+                проверка чертежей
+              </div>
+            </div>
+          </button>
+          <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
+            {pipelineChip ? (
+              <div
+                className={`hidden min-w-0 max-w-xl items-center gap-1.5 truncate rounded-md border px-2.5 py-1 text-[11px] md:flex ${pipelineChip.className}`}
+                title={pipelineChip.text}
+              >
+                {busy ? <Spinner className="h-3 w-3 opacity-80" /> : null}
+                <span className="truncate">{pipelineChip.text}</span>
+              </div>
+            ) : null}
+            <UserMenu
+              user={user}
+              defaultPasswordWarning={defaultPasswordWarning}
+              onUsers={user.role === "admin" ? () => setShowUsers(true) : undefined}
+              onPassword={() => setShowPassword(true)}
+              onLogout={() => {
+                void (async () => {
+                  await fetch("/api/auth/logout", { method: "POST" });
+                  onLogout();
+                })();
+              }}
+            />
+            <label
+              htmlFor="pto-drawing-upload"
+              className="cursor-pointer rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-[#1d4ed8]"
+            >
+              Загрузить PDF
+            </label>
+          </div>
+        </header>
+      )}
 
       {processBar ? (
         <div
@@ -1093,7 +1100,7 @@ export function Workspace({
         </div>
       ) : null}
 
-      {defaultPasswordWarning ? (
+      {defaultPasswordWarning && !selected ? (
         <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900">
           У аккаунта <span className="font-medium">admin</span> всё ещё стандартный
           пароль. Смените его в меню профиля («Пароль») до выдачи доступов команде.
@@ -1958,15 +1965,37 @@ export function Workspace({
                 : null
             }
             specName={currentProject?.specOriginalName ?? null}
+            headerRight={
+              <>
+                {pipelineHealth && !pipelineHealth.reachable ? (
+                  <span
+                    className="hidden max-w-[16rem] truncate rounded-md border border-slate-200 bg-slate-100 px-2 py-1 text-[11px] text-slate-800 lg:inline-block"
+                    title={`Конвейер недоступен${pipelineHealth.error ? ` · ${pipelineHealth.error}` : ""}`}
+                  >
+                    Конвейер недоступен
+                  </span>
+                ) : null}
+                <UserMenu
+                  compact
+                  user={user}
+                  defaultPasswordWarning={defaultPasswordWarning}
+                  statusNote={
+                    pipelineChip && pipelineHealth?.reachable ? pipelineChip.text : null
+                  }
+                  onUsers={user.role === "admin" ? () => setShowUsers(true) : undefined}
+                  onPassword={() => setShowPassword(true)}
+                  onLogout={() => {
+                    void (async () => {
+                      await fetch("/api/auth/logout", { method: "POST" });
+                      onLogout();
+                    })();
+                  }}
+                />
+              </>
+            }
             onCancel={() => void handleCancel(selected.id)}
             onToggleFocus={() => setFocusMode((value) => !value)}
-            onBackToProjects={() => {
-              setSelectedId(null);
-              setFocusMode(false);
-              setFilesCollapsed(false);
-              setProjectsCollapsed(false);
-              setOpenPage(null);
-            }}
+            onBackToProjects={backToProjects}
             onSavePage={handleSavePage}
             onAnnotationsChanged={() => {
               if (projectId) {

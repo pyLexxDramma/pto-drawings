@@ -1,22 +1,32 @@
 "use client";
 
-import { useDeferredValue, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import {
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
 import { ColumnResizer, clamp } from "@/components/column-resizer";
 import { MarkdownView } from "@/components/markdown-view";
 import { PageStrip } from "@/components/page-strip";
 import { PdfPage } from "@/components/pdf-page";
+import { PtoLogo } from "@/components/pto-logo";
 import { ProgressTrack, SegmentedTabs, Spinner, ActionMenu, menuItemClass } from "@/components/ui-chrome";
 import { VoiceNoteButton } from "@/components/voice-note";
 import {
-  IconBack,
   IconCheck,
   IconDoc,
   IconDownload,
   IconExpand,
   IconMark,
+  IconPencil,
   IconSearch,
   IconSplit,
   IconSync,
+  IconThumbs,
 } from "@/components/tool-icons";
 import { formatDate } from "@/lib/format";
 import { formatElapsed, formatPipelineUsage } from "@/lib/pipeline";
@@ -48,12 +58,21 @@ type ReviewPaneProps = {
   showTech?: boolean;
   specHref?: string | null;
   specName?: string | null;
+  /** Правый край шапки: меню пользователя и статус конвейера из workspace. */
+  headerRight?: ReactNode;
   onCancel?: () => void;
   onToggleFocus: () => void;
   onBackToProjects: () => void;
   onSavePage: (pageNumber: number, markdown: string) => Promise<void>;
   onAnnotationsChanged?: () => void;
 };
+
+const STRIP_OPEN_KEY = "pto.review.stripOpen";
+
+function loadStripOpen() {
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem(STRIP_OPEN_KEY) === "1";
+}
 
 function stepLabel(document: DocumentRecord) {
   if (document.status === "queued") return "в очереди";
@@ -71,6 +90,7 @@ export function ReviewPane({
   showTech = false,
   specHref = null,
   specName = null,
+  headerRight = null,
   onCancel,
   onToggleFocus,
   onBackToProjects,
@@ -83,6 +103,8 @@ export function ReviewPane({
   const [saving, setSaving] = useState(false);
   const [split, setSplit] = useState(50);
   const [stripWidth, setStripWidth] = useState(108);
+  // Миниатюры по умолчанию свёрнуты: место отдано чертежу и расшифровке.
+  const [stripOpen, setStripOpen] = useState(loadStripOpen);
   const [query, setQuery] = useState("");
   const [showLog, setShowLog] = useState(false);
   const [filter, setFilter] = useState<KindFilter>("all");
@@ -239,6 +261,10 @@ export function ReviewPane({
   }, [document.id, openPage]);
 
   useEffect(() => {
+    window.localStorage.setItem(STRIP_OPEN_KEY, stripOpen ? "1" : "0");
+  }, [stripOpen]);
+
+  useEffect(() => {
     cacheProgress(document.id, { viewed, lastPage: pageNumber });
     const timer = window.setTimeout(() => {
       void pushProgress(document.id, { viewed, lastPage: pageNumber });
@@ -342,6 +368,10 @@ export function ReviewPane({
           setShowHelp(false);
           return;
         }
+        if (showLog) {
+          setShowLog(false);
+          return;
+        }
         if (searchOpen && (target === searchRef.current || !markMode)) {
           closeSearch();
           return;
@@ -410,7 +440,7 @@ export function ReviewPane({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusMode, markMode, pendingRect, onBackToProjects, onToggleFocus, visiblePages, document.pages, showHelp, paneSolo, searchOpen, readOnly]);
+  }, [focusMode, markMode, pendingRect, onBackToProjects, onToggleFocus, visiblePages, document.pages, showHelp, showLog, paneSolo, searchOpen, readOnly]);
 
   const hits = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -722,26 +752,105 @@ export function ReviewPane({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-border bg-white px-3">
-        <div className="min-w-0">
+        <button
+          type="button"
+          onClick={onBackToProjects}
+          title="К списку проектов (Esc)"
+          className="shrink-0 rounded-md p-0.5 hover:bg-bg"
+        >
+          <PtoLogo className="h-7 w-7" title="PTO — к списку проектов" />
+        </button>
+        <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-semibold tracking-tight">
             {document.originalName}
           </div>
-          <div className="mt-0.5 text-[11px] text-muted">
-            {page ? KIND_LABEL[page.kind] : "Страница"} · лист {pageNumber} из {total}
-            {viewedSet.has(pageNumber) ? " · ✓" : ""}
-            {openNotes ? ` · ${openNotes} зам.` : ""}
-            {saving ? " · сохранение…" : ""}
+          <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted">
+            <ActionMenu
+              label="Выбрать лист и фильтр"
+              align="left"
+              menuClassName="top-full w-64"
+              trigger={
+                <>
+                  {page ? KIND_LABEL[page.kind] : "Страница"} · лист {pageNumber} из{" "}
+                  {total}
+                  <span aria-hidden> ▾</span>
+                </>
+              }
+              triggerClassName="-mx-1 shrink-0 rounded px-1 text-[11px] text-muted hover:bg-bg hover:text-text"
+            >
+              {/* Смена фильтра не должна закрывать меню: лист выбирают сразу после. */}
+              <div className="px-2 pb-1.5 pt-1" onClick={(event) => event.stopPropagation()}>
+                <select
+                  value={filter}
+                  onChange={(event) => setFilter(event.target.value as KindFilter)}
+                  aria-label="Фильтр листов по типу"
+                  className="w-full cursor-pointer rounded border border-slate-300 bg-white px-1.5 py-1 text-[11px] font-semibold text-text outline-none focus:border-accent"
+                >
+                  {filters.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.label} · {filterCounts[item.id]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="max-h-64 overflow-y-auto border-t border-border pt-1">
+                {visiblePages.length === 0 ? (
+                  <div className="px-3 py-2 text-[11px] leading-snug text-muted">
+                    {filter === "flagged"
+                      ? "Замечаний по этому файлу пока нет."
+                      : `Листов типа «${filterLabel}» в комплекте нет.`}
+                  </div>
+                ) : (
+                  visiblePages.map((number) => {
+                    const kind = kinds.get(number);
+                    return (
+                      <button
+                        key={number}
+                        type="button"
+                        role="menuitem"
+                        onClick={() => void goToPage(number)}
+                        className={`${menuItemClass()} ${
+                          number === pageNumber ? "bg-bg font-semibold" : ""
+                        }`}
+                      >
+                        <span className="truncate">
+                          Лист {number}
+                          {kind ? ` · ${KIND_LABEL[kind].toLowerCase()}` : ""}
+                        </span>
+                        <span className="shrink-0 pl-2">
+                          {annotatedPages.has(number) ? (
+                            <span className="text-red-600" title="Есть замечание">
+                              ●
+                            </span>
+                          ) : null}
+                          {document.pageErrors?.[String(number)] ? (
+                            <span className="text-amber-600" title="Ошибка обработки">
+                              !
+                            </span>
+                          ) : null}
+                          {viewedSet.has(number) ? (
+                            <span className="text-accent" title="Просмотрено">
+                              ✓
+                            </span>
+                          ) : null}
+                        </span>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </ActionMenu>
+            <span className="truncate">
+              {viewedSet.has(pageNumber) ? "· ✓" : ""}
+              {openNotes ? ` · ${openNotes} зам.` : ""}
+              {saving ? " · сохранение…" : ""}
+            </span>
+            <span className="shrink-0 tabular-nums" title="Просмотрено листов">
+              · {viewed.length}/{total} просмотрено
+            </span>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
-          <button
-            type="button"
-            title="К проектам (Esc)"
-            onClick={onBackToProjects}
-            className={toolBtnIcon}
-          >
-            <IconBack />
-          </button>
           {!readOnly ? (
             <button
               type="button"
@@ -823,6 +932,19 @@ export function ReviewPane({
               type="button"
               role="menuitem"
               className={menuItemClass()}
+              onClick={() => setStripOpen((value) => !value)}
+            >
+              <span className="inline-flex items-center gap-2">
+                <IconThumbs /> Миниатюры листов
+              </span>
+              <span className="text-[10px] text-muted">
+                {stripOpen ? "вкл" : "выкл"}
+              </span>
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className={menuItemClass()}
               onClick={onToggleFocus}
             >
               <span className="inline-flex items-center gap-2">
@@ -867,6 +989,19 @@ export function ReviewPane({
                 </span>
               </a>
             ) : null}
+            {pageLogs.length ? (
+              <button
+                type="button"
+                role="menuitem"
+                className={menuItemClass()}
+                onClick={() => setShowLog(true)}
+              >
+                <span>История правок листа</span>
+                <span className="text-[10px] tabular-nums text-muted">
+                  {pageLogs.length}
+                </span>
+              </button>
+            ) : null}
             <button
               type="button"
               role="menuitem"
@@ -879,6 +1014,7 @@ export function ReviewPane({
               <div className="px-3 py-1.5 text-[10px] text-muted">Режим: {soloLabel}</div>
             ) : null}
           </ActionMenu>
+          {headerRight}
         </div>
       </div>
 
@@ -938,43 +1074,32 @@ export function ReviewPane({
       ) : null}
 
       <div className="flex min-h-0 flex-1">
-        <PageStrip
-          url={`/api/documents/${document.id}/file`}
-          total={total}
-          current={pageNumber}
-          kinds={kinds}
-          edited={editedPages}
-          viewed={viewedSet}
-          ready={ready}
-          annotated={annotatedPages}
-          hidden={hidden}
-          processingPage={document.processingPage}
-          width={stripWidth}
-          emptyLabel={
-            filter === "flagged"
-              ? "Замечаний по этому файлу пока нет."
-              : `Листов типа «${filterLabel}» в комплекте нет.`
-          }
-          header={
-            <select
-              value={filter}
-              onChange={(event) => setFilter(event.target.value as KindFilter)}
-              title="Фильтр листов по типу"
-              aria-label="Фильтр листов по типу"
-              className="w-full cursor-pointer rounded border border-slate-300 bg-white px-1 py-1 text-[10px] font-semibold text-text outline-none focus:border-accent"
-            >
-              {filters.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.label} · {filterCounts[item.id]}
-                </option>
-              ))}
-            </select>
-          }
-          onSelect={(next) => void goToPage(next)}
-        />
-        <ColumnResizer
-          onDelta={(dx) => setStripWidth((w) => clamp(w + dx, 72, 220))}
-        />
+        {stripOpen ? (
+          <>
+            <PageStrip
+              url={`/api/documents/${document.id}/file`}
+              total={total}
+              current={pageNumber}
+              kinds={kinds}
+              edited={editedPages}
+              viewed={viewedSet}
+              ready={ready}
+              annotated={annotatedPages}
+              hidden={hidden}
+              processingPage={document.processingPage}
+              width={stripWidth}
+              emptyLabel={
+                filter === "flagged"
+                  ? "Замечаний по этому файлу пока нет."
+                  : `Листов типа «${filterLabel}» в комплекте нет.`
+              }
+              onSelect={(next) => void goToPage(next)}
+            />
+            <ColumnResizer
+              onDelta={(dx) => setStripWidth((w) => clamp(w + dx, 72, 220))}
+            />
+          </>
+        ) : null}
 
         <div className="flex min-h-0 min-w-0 flex-1">
           {paneSolo !== "md" ? (
@@ -1048,26 +1173,33 @@ export function ReviewPane({
                 ]}
               />
               <div className="flex items-center gap-2">
-                {sidePanel === "text" && page ? (
+                {showTech && sidePanel === "text" && page ? (
                   <span className="text-[10px] text-muted">
                     {SOURCE_LABEL[page.source]}
                   </span>
                 ) : null}
                 {sidePanel === "text" && !readOnly ? (
-                  <SegmentedTabs
-                    size="xs"
-                    value={mode}
-                    onChange={(next) => {
-                      if (next === "edit") {
-                        setDraft(page?.markdown ?? "");
-                      }
+                  <button
+                    type="button"
+                    aria-pressed={mode === "edit"}
+                    title={
+                      mode === "edit"
+                        ? "Вернуться к чтению расшифровки"
+                        : "Исправить расшифровку"
+                    }
+                    onClick={() => {
+                      const next = mode === "edit" ? "view" : "edit";
+                      if (next === "edit") setDraft(page?.markdown ?? "");
                       setMode(next);
                     }}
-                    options={[
-                      { id: "view", label: "Просмотр" },
-                      { id: "edit", label: "Исправить" },
-                    ]}
-                  />
+                    className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border ${
+                      mode === "edit"
+                        ? "border-accent bg-accent text-white"
+                        : "border-border bg-white text-muted hover:bg-bg hover:text-text"
+                    }`}
+                  >
+                    <IconPencil />
+                  </button>
                 ) : null}
               </div>
             </div>
@@ -1184,30 +1316,6 @@ export function ReviewPane({
               )}
             </div>
 
-            <div className="border-t border-border px-3 py-2">
-              <button
-                type="button"
-                onClick={() => setShowLog((value) => !value)}
-                className="text-xs text-muted hover:text-text"
-              >
-                Правки инженера: {pageLogs.length}
-                {editedPages.has(pageNumber) ? " · этот лист меняли" : ""}
-              </button>
-              {showLog ? (
-                <div className="mt-2 max-h-36 space-y-2 overflow-auto">
-                  {pageLogs.length === 0 ? (
-                    <div className="text-xs text-muted">По этому листу правок ещё нет.</div>
-                  ) : (
-                    pageLogs.map((entry) => (
-                      <div key={entry.id} className="rounded-md bg-surface-2 px-2 py-1.5 text-[11px] text-muted">
-                        {formatDate(entry.createdAt)} · лист {entry.pageNumber}
-                        {entry.userName ? ` · ${entry.userName}` : ""}
-                      </div>
-                    ))
-                  )}
-                </div>
-              ) : null}
-            </div>
               </>
             )}
           </div>
@@ -1215,45 +1323,49 @@ export function ReviewPane({
         </div>
       </div>
 
-      <div className="flex h-7 shrink-0 items-center gap-3 border-t border-border bg-[#fafbfc] px-3 text-[10px] text-muted">
-        <span>
-          <kbd className="rounded border border-slate-300 bg-white px-1 font-mono text-[9px]">←</kbd>
-          <kbd className="ml-0.5 rounded border border-slate-300 bg-white px-1 font-mono text-[9px]">→</kbd>
-          {" "}лист
-        </span>
-        <span>
-          <kbd className="rounded border border-slate-300 bg-white px-1 font-mono text-[9px]">V</kbd>
-          {" "}просмотрено
-        </span>
-        {!readOnly ? (
-          <span>
-            <kbd className="rounded border border-slate-300 bg-white px-1 font-mono text-[9px]">E</kbd>
-            {" "}ошибка
-          </span>
-        ) : null}
-        <span>
-          <kbd className="rounded border border-slate-300 bg-white px-1 font-mono text-[9px]">/</kbd>
-          {" "}поиск
-        </span>
-        <span className="hidden sm:inline">
-          <kbd className="rounded border border-slate-300 bg-white px-1 font-mono text-[9px]">F</kbd>
-          {" "}сплит
-        </span>
-        <span className="hidden md:inline">
-          <kbd className="rounded border border-slate-300 bg-white px-1 font-mono text-[9px]">Esc</kbd>
-          {" "}отмена / назад
-        </span>
-        <button
-          type="button"
-          onClick={() => setShowHelp(true)}
-          className="hidden text-[10px] text-muted underline decoration-dotted hover:text-text lg:inline"
+      {showLog ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="История правок листа"
+          onClick={() => setShowLog(false)}
         >
-          все клавиши (?)
-        </button>
-        <span className="ml-auto tabular-nums">
-          {viewed.length}/{total} просмотрено
-        </span>
-      </div>
+          <div
+            className="w-full max-w-sm rounded-lg border border-border bg-white p-4 shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <div className="text-sm font-medium">
+                Правки листа {pageNumber}
+                {editedPages.has(pageNumber) ? " · текст меняли" : ""}
+              </div>
+              <button
+                type="button"
+                className="text-xs text-muted hover:text-text"
+                onClick={() => setShowLog(false)}
+              >
+                Закрыть
+              </button>
+            </div>
+            <div className="max-h-64 space-y-2 overflow-auto">
+              {pageLogs.length === 0 ? (
+                <div className="text-xs text-muted">По этому листу правок ещё нет.</div>
+              ) : (
+                pageLogs.map((entry) => (
+                  <div
+                    key={entry.id}
+                    className="rounded-md bg-surface-2 px-2 py-1.5 text-[11px] text-muted"
+                  >
+                    {formatDate(entry.createdAt)} · лист {entry.pageNumber}
+                    {entry.userName ? ` · ${entry.userName}` : ""}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {showHelp ? (
         <div
@@ -1343,6 +1455,12 @@ export function ReviewPane({
                   ?
                 </kbd>{" "}
                 — эта справка
+              </li>
+              <li>
+                <kbd className="rounded border border-border bg-bg px-1.5 py-0.5 font-mono text-text">
+                  Ctrl
+                </kbd>{" "}
+                + колёсико — зум чертежа
               </li>
               <li>Sync — синхронный скролл PDF ↔ markdown (на PDF: колёсико = pan)</li>
             </ul>
