@@ -25,6 +25,50 @@ function speechCtor(): (new () => SpeechRec) | null {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
+function micBlockedReason(): string | null {
+  if (typeof window === "undefined") return null;
+  const localhost =
+    window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1" ||
+    window.location.hostname === "[::1]";
+  if (!window.isSecureContext && !localhost) {
+    return "Микрофон только по HTTPS (сейчас http)";
+  }
+  if (!navigator.mediaDevices?.getUserMedia) {
+    return "Браузер не даёт доступ к микрофону (нужен HTTPS)";
+  }
+  return null;
+}
+
+function micErrorHint(error: unknown): string {
+  if (!(error instanceof DOMException)) {
+    return error instanceof Error ? error.message : "Не удалось включить микрофон";
+  }
+  switch (error.name) {
+    case "NotAllowedError":
+    case "PermissionDeniedError":
+      return "Доступ к микрофону не выдан — разрешите в браузере";
+    case "NotFoundError":
+    case "DevicesNotFoundError":
+      return "Микрофона нет или он отключён";
+    case "NotReadableError":
+      return "Микрофон занят другим приложением";
+    case "SecurityError":
+      return "Микрофон только по HTTPS";
+    default:
+      return error.message || "Не удалось включить микрофон";
+  }
+}
+
+function backendMissing(message: string) {
+  return (
+    message.includes("не подключён") ||
+    message.includes("404") ||
+    message.includes("501") ||
+    message.includes("502")
+  );
+}
+
 export function VoiceNoteButton({ onText }: VoiceNoteButtonProps) {
   const [state, setState] = useState<"idle" | "rec" | "busy">("idle");
   const [hint, setHint] = useState<string | null>(null);
@@ -52,9 +96,15 @@ export function VoiceNoteButton({ onText }: VoiceNoteButtonProps) {
   }
 
   function startBrowserSpeech() {
+    const blocked = micBlockedReason();
+    if (blocked) {
+      setHint(blocked);
+      setState("idle");
+      return;
+    }
     const Ctor = speechCtor();
     if (!Ctor) {
-      setHint("Нет микрофона и нет Whisper на бэке");
+      setHint("Речь браузера недоступна — нужен Whisper на бэке");
       setState("idle");
       return;
     }
@@ -91,12 +141,9 @@ export function VoiceNoteButton({ onText }: VoiceNoteButtonProps) {
     }
 
     setHint(null);
-    if (!navigator.mediaDevices?.getUserMedia) {
-      if (speechCtor()) {
-        startBrowserSpeech();
-        return;
-      }
-      setHint("Нет микрофона и нет Whisper на бэке");
+    const blocked = micBlockedReason();
+    if (blocked) {
+      setHint(blocked);
       return;
     }
 
@@ -126,16 +173,10 @@ export function VoiceNoteButton({ onText }: VoiceNoteButtonProps) {
           })
           .catch((error) => {
             const message = error instanceof Error ? error.message : "";
-            if (
-              message.includes("не подключён") ||
-              message.includes("404") ||
-              message.includes("501") ||
-              message.includes("502")
-            ) {
-              if (speechCtor()) {
-                startBrowserSpeech();
-                return;
-              }
+            if (backendMissing(message) && speechCtor() && window.isSecureContext) {
+              setHint("Whisper недоступен — пробую речь браузера");
+              startBrowserSpeech();
+              return;
             }
             setHint(message || "Не удалось расшифровать");
             setState("idle");
@@ -145,8 +186,9 @@ export function VoiceNoteButton({ onText }: VoiceNoteButtonProps) {
       recorder.start();
       setState("rec");
       setHint("Запись… ещё раз — стоп");
-    } catch {
-      startBrowserSpeech();
+    } catch (error) {
+      setHint(micErrorHint(error));
+      setState("idle");
     }
   }
 
