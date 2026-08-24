@@ -20,10 +20,29 @@ fi
 apt-get update -y
 apt-get install -y certbot python3-certbot-nginx
 
-# server_name в nginx
-if grep -q "server_name" /etc/nginx/sites-available/pto; then
-  sed -i "s/server_name .*/server_name $DOMAIN;/" /etc/nginx/sites-available/pto
-fi
+# server_name в nginx — перед certbot откатываем редирект на self-signed, если был
+cat >/etc/nginx/sites-available/pto <<EOF
+server {
+  listen 80 default_server;
+  listen [::]:80 default_server;
+  server_name $DOMAIN _;
+
+  client_max_body_size 80m;
+
+  location / {
+    proxy_pass http://127.0.0.1:8080;
+    proxy_http_version 1.1;
+    proxy_set_header Host \$host;
+    proxy_set_header X-Real-IP \$remote_addr;
+    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto \$scheme;
+    proxy_read_timeout 120s;
+  }
+}
+EOF
+
+ln -sfn /etc/nginx/sites-available/pto /etc/nginx/sites-enabled/pto
+rm -f /etc/nginx/sites-enabled/default
 nginx -t
 systemctl reload nginx
 

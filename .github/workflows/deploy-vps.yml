@@ -31,18 +31,21 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script_stop: true
-          envs: PTO_APP_DIR
+          envs: PTO_APP_DIR,PTO_DOMAIN
           script: |
             set -euo pipefail
             APP_DIR="${PTO_APP_DIR:-/var/www/pto}"
             chmod +x "$APP_DIR/scripts/"*.sh 2>/dev/null || true
             export PTO_APP_DIR="$APP_DIR"
             bash "$APP_DIR/scripts/deploy-remote.sh"
-            # getUserMedia только по HTTPS; на IP — self-signed (Let's Encrypt на IP не дают)
-            if [[ -f "$APP_DIR/scripts/enable-ssl-selfsigned.sh" ]]; then
+            if [[ -n "${PTO_DOMAIN:-}" ]] && [[ -f "$APP_DIR/scripts/enable-ssl.sh" ]]; then
+              bash "$APP_DIR/scripts/enable-ssl.sh" "$PTO_DOMAIN" \
+                || sudo bash "$APP_DIR/scripts/enable-ssl.sh" "$PTO_DOMAIN"
+            elif [[ -f "$APP_DIR/scripts/enable-ssl-selfsigned.sh" ]]; then
               bash "$APP_DIR/scripts/enable-ssl-selfsigned.sh" \
                 || sudo bash "$APP_DIR/scripts/enable-ssl-selfsigned.sh"
             fi
         env:
           PTO_APP_DIR: ${{ secrets.VPS_APP_DIR }}
+          PTO_DOMAIN: ${{ vars.PTO_DOMAIN }}
 
