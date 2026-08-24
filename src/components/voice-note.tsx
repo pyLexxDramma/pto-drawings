@@ -91,11 +91,11 @@ export function VoiceNoteButton({ onText }: VoiceNoteButtonProps) {
     }
 
     setHint(null);
-    if (speechCtor()) {
-      startBrowserSpeech();
-      return;
-    }
     if (!navigator.mediaDevices?.getUserMedia) {
+      if (speechCtor()) {
+        startBrowserSpeech();
+        return;
+      }
       setHint("Нет микрофона и нет Whisper на бэке");
       return;
     }
@@ -126,9 +126,16 @@ export function VoiceNoteButton({ onText }: VoiceNoteButtonProps) {
           })
           .catch((error) => {
             const message = error instanceof Error ? error.message : "";
-            if (message.includes("не подключён") || message.includes("404")) {
-              startBrowserSpeech();
-              return;
+            if (
+              message.includes("не подключён") ||
+              message.includes("404") ||
+              message.includes("501") ||
+              message.includes("502")
+            ) {
+              if (speechCtor()) {
+                startBrowserSpeech();
+                return;
+              }
             }
             setHint(message || "Не удалось расшифровать");
             setState("idle");
