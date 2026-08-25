@@ -2021,21 +2021,18 @@ export function Workspace({
             specName={currentProject?.specOriginalName ?? null}
             headerRight={
               <>
-                {pipelineHealth && !pipelineHealth.reachable ? (
+                {pipelineChip ? (
                   <span
-                    className="hidden max-w-[16rem] truncate rounded-md border border-slate-200 bg-slate-100 px-2 py-1 text-[11px] text-slate-800 lg:inline-block"
-                    title={`Конвейер недоступен${pipelineHealth.error ? ` · ${pipelineHealth.error}` : ""}`}
+                    className={`hidden max-w-[22rem] truncate rounded-md border px-2 py-1 text-[11px] sm:inline-block ${pipelineChip.className}`}
+                    title={pipelineChip.text}
                   >
-                    Конвейер недоступен
+                    {pipelineChip.text}
                   </span>
                 ) : null}
                 <UserMenu
                   compact
                   user={user}
                   defaultPasswordWarning={defaultPasswordWarning}
-                  statusNote={
-                    pipelineChip && pipelineHealth?.reachable ? pipelineChip.text : null
-                  }
                   onUsers={user.role === "admin" ? () => setShowUsers(true) : undefined}
                   onPassword={() => setShowPassword(true)}
                   onLogout={() => {

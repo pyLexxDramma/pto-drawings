@@ -17,6 +17,7 @@ type DocProgress = ProgressInput & {
   pageErrors?: Record<string, string> | null;
   errorMessage?: string | null;
   pipelineMode?: "mock" | "real" | null;
+  pipelineModel?: string | null;
 };
 
 type ProcessingProgressPanelProps = {
@@ -66,7 +67,11 @@ export function ProcessingProgressPanel({
               {document.originalName ?? "Документ"}
               {document.pipelineMode === "mock"
                 ? " · внутренний обработчик, модель не вызывается"
-                : ""}
+                : document.pipelineModel
+                  ? ` · модель ${document.pipelineModel}`
+                  : document.pipelineMode === "real"
+                    ? " · real"
+                    : ""}
             </div>
           </div>
           {onCancel && !cancelPending ? (
