@@ -73,7 +73,7 @@ export function LoginForm({
           <div className="mt-3 text-2xl font-semibold tracking-tight text-text">
             PTO
           </div>
-          <div className="mt-1 text-sm leading-snug text-muted">
+          <div className="pto-loading-text mt-1 text-sm leading-snug text-muted">
             In development...
           </div>
         </div>

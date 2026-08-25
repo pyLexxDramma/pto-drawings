@@ -169,6 +169,20 @@ body {
   }
 }
 
+@keyframes pto-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+.pto-loading-text {
+  animation: pto-blink 1.1s ease-in-out infinite;
+}
+
 .pto-spinner {
   animation: pto-spin 0.7s linear infinite;
 }
@@ -191,7 +205,8 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .pto-spinner,
   .pto-progress__bar,
-  .pto-page-working {
+  .pto-page-working,
+  .pto-loading-text {
     animation: none;
   }
 }
