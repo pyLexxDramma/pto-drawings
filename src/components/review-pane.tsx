@@ -1456,13 +1456,11 @@ export function ReviewPane({
                 </kbd>{" "}
                 — эта справка
               </li>
+              <li>колёсико на чертеже — зум в точку курсора</li>
               <li>
-                <kbd className="rounded border border-border bg-bg px-1.5 py-0.5 font-mono text-text">
-                  Ctrl
-                </kbd>{" "}
-                + колёсико — зум чертежа
+                Sync — синхронный скролл PDF ↔ markdown (на PDF: Shift + колёсико =
+                pan)
               </li>
-              <li>Sync — синхронный скролл PDF ↔ markdown (на PDF: колёсико = pan)</li>
             </ul>
           </div>
         </div>

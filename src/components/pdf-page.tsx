@@ -212,16 +212,37 @@ export function PdfPage({
     if (!wrap) return;
     const onWheelNative = (event: WheelEvent) => {
       event.preventDefault();
-      if (scrollSync && !event.ctrlKey && !event.metaKey) {
-        setPan((prev) => {
-          const next = { ...prev, y: prev.y - event.deltaY };
-          emitScrollRatio(next, scaleRef.current);
-          return next;
-        });
+      // Shift+колёсико — вертикальный пан (синхрон с текстом); иначе зум в точку курсора.
+      if (scrollSync && event.shiftKey) {
+        const next = {
+          ...panRef.current,
+          y: panRef.current.y - event.deltaY,
+        };
+        panRef.current = next;
+        setPan(next);
+        emitScrollRatio(next, scaleRef.current);
         return;
       }
+      const oldScale = scaleRef.current;
       const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
-      setScale((value) => Math.min(8, Math.max(0.15, value * factor)));
+      const nextScale = Math.min(8, Math.max(0.15, oldScale * factor));
+      if (nextScale === oldScale) return;
+
+      const rect = wrap.getBoundingClientRect();
+      const cx = event.clientX - rect.left;
+      const cy = event.clientY - rect.top;
+      const oldPan = panRef.current;
+      const contentX = (cx - oldPan.x) / oldScale;
+      const contentY = (cy - oldPan.y) / oldScale;
+      const nextPan = {
+        x: cx - contentX * nextScale,
+        y: cy - contentY * nextScale,
+      };
+      scaleRef.current = nextScale;
+      panRef.current = nextPan;
+      setScale(nextScale);
+      setPan(nextPan);
+      emitScrollRatio(nextPan, nextScale);
     };
     wrap.addEventListener("wheel", onWheelNative, { passive: false });
     return () => wrap.removeEventListener("wheel", onWheelNative);
@@ -242,8 +263,11 @@ export function PdfPage({
     const wrap = wrapRef.current;
     if (!wrap) return { x: 0, y: 0 };
     const rect = wrap.getBoundingClientRect();
-    const x = (clientX - rect.left - pan.x) / scale / natural.w;
-    const y = (clientY - rect.top - pan.y) / scale / natural.h;
+    const s = scaleRef.current;
+    const p = panRef.current;
+    const n = naturalRef.current;
+    const x = (clientX - rect.left - p.x) / s / n.w;
+    const y = (clientY - rect.top - p.y) / s / n.h;
     return {
       x: Math.min(1, Math.max(0, x)),
       y: Math.min(1, Math.max(0, y)),
@@ -312,6 +336,7 @@ export function PdfPage({
             x: drag.panX + (event.clientX - drag.x),
             y: drag.panY + (event.clientY - drag.y),
           };
+          panRef.current = next;
           setPan(next);
           emitScrollRatio(next);
         }}
