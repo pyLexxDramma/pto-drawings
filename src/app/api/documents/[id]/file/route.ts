@@ -20,7 +20,7 @@ export async function GET(request: Request, context: RouteContext) {
     const encoded = encodeURIComponent(document.originalName);
     return new NextResponse(new Uint8Array(bytes), {
       headers: {
-        "Content-Type": "application/pdf",
+        "Content-Type": document.mimeType || "application/octet-stream",
         "Content-Disposition": `inline; filename*=UTF-8''${encoded}`,
         "Cache-Control": "private, max-age=3600",
       },

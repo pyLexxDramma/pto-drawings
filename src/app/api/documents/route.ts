@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
 import { isPublicUser, requireUser } from "@/lib/auth";
 import { runInBackground } from "@/lib/background";
+import {
+  DRAWING_ACCEPT_HINT,
+  getDrawingExt,
+  isDrawingFile,
+  resolveDisplayName,
+} from "@/lib/drawing-files";
 import { activeDocumentIds, processDocument } from "@/lib/process-document";
-import { listDocuments, resetStuckDocuments, savePdf } from "@/lib/storage";
+import { listDocuments, resetStuckDocuments, saveDocument } from "@/lib/storage";
 
 export const maxDuration = 60;
 
@@ -32,6 +38,7 @@ export async function POST(request: Request) {
   const form = await request.formData();
   const file = form.get("file");
   const projectId = String(form.get("projectId") ?? "");
+  const titleRaw = String(form.get("title") ?? "").trim();
 
   if (!projectId) {
     return NextResponse.json({ error: "Не выбран проект" }, { status: 400 });
@@ -41,26 +48,31 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Файл не передан" }, { status: 400 });
   }
 
-  const name = file.name.toLowerCase();
-  const isPdf =
-    file.type === "application/pdf" ||
-    file.type === "application/x-pdf" ||
-    name.endsWith(".pdf");
+  if (!isDrawingFile(file)) {
+    return NextResponse.json(
+      { error: `Можно загружать только ${DRAWING_ACCEPT_HINT}` },
+      { status: 400 },
+    );
+  }
 
-  if (!isPdf) {
-    return NextResponse.json({ error: "Можно загружать только PDF" }, { status: 400 });
+  if (!getDrawingExt(file.name)) {
+    return NextResponse.json(
+      { error: "У файла должно быть расширение .pdf, .dwg или .dxf" },
+      { status: 400 },
+    );
   }
 
   if (file.size > MAX_BYTES) {
     return NextResponse.json({ error: "Файл больше 80 МБ" }, { status: 400 });
   }
 
+  const displayName = resolveDisplayName(titleRaw, file.name);
   const buffer = Buffer.from(await file.arrayBuffer());
 
   try {
-    const document = await savePdf({
+    const document = await saveDocument({
       projectId,
-      originalName: file.name,
+      originalName: displayName,
       buffer,
     });
     runInBackground(processDocument(document.id));

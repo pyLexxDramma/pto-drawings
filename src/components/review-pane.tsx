@@ -29,6 +29,7 @@ import {
   IconThumbs,
 } from "@/components/tool-icons";
 import { formatDate } from "@/lib/format";
+import { getDrawingExt, isCadExt } from "@/lib/drawing-files";
 import { formatElapsed, formatPipelineUsage } from "@/lib/pipeline";
 import {
   cacheProgress,
@@ -135,6 +136,7 @@ export function ReviewPane({
   const deferredQuery = useDeferredValue(query);
 
   const total = Math.max(document.pageCount, document.pages.length, 1);
+  const isCadSource = isCadExt(getDrawingExt(document.originalName));
   const processing =
     document.status === "queued" || document.status === "processing";
   const editedPages = useMemo(
@@ -715,7 +717,7 @@ export function ReviewPane({
             >
               <div className="flex items-center justify-between gap-2">
                 <span className="font-semibold">
-                  {index + 1}. {note.status === "open" ? "открыто" : "исправлено"}
+                  {index + 1}. {note.status === "open" ? "не проверено" : "исправлено"}
                 </span>
                 <span className="flex gap-2">
                   <button
@@ -755,10 +757,11 @@ export function ReviewPane({
         <button
           type="button"
           onClick={onBackToProjects}
-          title="К списку проектов (Esc)"
-          className="shrink-0 rounded-md p-0.5 hover:bg-bg"
+          title="На главную (Esc)"
+          className="flex shrink-0 items-center gap-2 rounded-md border border-border bg-white px-2 py-1 hover:border-accent hover:bg-bg"
         >
-          <PtoLogo className="h-7 w-7" title="PTO — к списку проектов" />
+          <PtoLogo className="h-6 w-6 shrink-0" title="PTO" />
+          <span className="text-[11px] font-medium text-text">На главную</span>
         </button>
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-semibold tracking-tight">
@@ -1107,25 +1110,52 @@ export function ReviewPane({
               className="relative min-h-0 min-w-0"
               style={{ width: paneSolo === "pdf" ? "100%" : `${split}%` }}
             >
-              <PdfPage
-                url={`/api/documents/${document.id}/file`}
-                pageNumber={pageNumber}
-                annotations={pageNotes}
-                markMode={markMode && !readOnly}
-                activeAnnotationId={activeNoteId}
-                highlightNonce={pdfHighlight}
-                highlightQuery={deferredQuery}
-                scrollSync={scrollSync && paneSolo !== "pdf"}
-                scrollRatio={scrollSync ? scrollRatio : null}
-                onScrollRatioChange={onPdfScrollRatio}
-                onMarkRect={(rect) => setPendingRect(rect)}
-                onSelectAnnotation={(id) => setActiveNoteId(id)}
-                onCancelMark={() => {
-                  setMarkMode(false);
-                  setPendingRect(null);
-                }}
-              />
-              {processing ? (
+              {isCadSource ? (
+                <div className="flex h-full min-h-[16rem] flex-col items-center justify-center gap-3 bg-[#f4f6f9] px-6 text-center">
+                  <div className="max-w-sm rounded-xl border border-dashed border-slate-300 bg-white px-6 py-8 shadow-sm">
+                    <div className="text-sm font-semibold text-text">
+                      Файл DWG/DXF
+                    </div>
+                    <div className="mt-2 text-xs leading-relaxed text-muted">
+                      {document.originalName} передан на конвейер. Превью чертежа
+                      появится после конвертации на бэкенде.
+                    </div>
+                    {processing ? (
+                      <div className="mt-3 text-xs text-sky-700">
+                        Идёт обработка…
+                      </div>
+                    ) : document.status === "error" ? (
+                      <div className="mt-3 text-xs text-red-700">
+                        {document.errorMessage || "Ошибка обработки"}
+                      </div>
+                    ) : document.status === "done" ? (
+                      <div className="mt-3 text-xs text-emerald-700">
+                        Обработка завершена — текст справа, если конвейер его вернул.
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              ) : (
+                <PdfPage
+                  url={`/api/documents/${document.id}/file`}
+                  pageNumber={pageNumber}
+                  annotations={pageNotes}
+                  markMode={markMode && !readOnly}
+                  activeAnnotationId={activeNoteId}
+                  highlightNonce={pdfHighlight}
+                  highlightQuery={deferredQuery}
+                  scrollSync={scrollSync && paneSolo !== "pdf"}
+                  scrollRatio={scrollSync ? scrollRatio : null}
+                  onScrollRatioChange={onPdfScrollRatio}
+                  onMarkRect={(rect) => setPendingRect(rect)}
+                  onSelectAnnotation={(id) => setActiveNoteId(id)}
+                  onCancelMark={() => {
+                    setMarkMode(false);
+                    setPendingRect(null);
+                  }}
+                />
+              )}
+              {processing && !isCadSource ? (
                 <div className="pointer-events-none absolute bottom-3 left-3 rounded-md bg-slate-900/75 px-2.5 py-1 text-xs text-white">
                   {readyCount}/{total}
                   {document.processingPage ? ` · лист ${document.processingPage}` : ""}

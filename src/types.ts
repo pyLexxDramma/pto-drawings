@@ -108,7 +108,7 @@ export type DocumentMeta = {
   projectId: string;
   originalName: string;
   storedName: string;
-  mimeType: "application/pdf";
+  mimeType: string;
   sizeBytes: number;
   pageCount: number;
   status: DocumentStatus;

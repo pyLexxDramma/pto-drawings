@@ -1,5 +1,9 @@
 import { PDFDocument } from "pdf-lib";
 import {
+  getDrawingExt,
+  mimeForExt,
+} from "@/lib/drawing-files";
+import {
   deleteDocumentFile,
   deletePdfBytes,
   listStoredDocumentIds,
@@ -227,7 +231,7 @@ function normalizeMeta(raw: Partial<DocumentMeta> & { id: string }): DocumentMet
     projectId: raw.projectId ?? "",
     originalName: raw.originalName ?? "document.pdf",
     storedName: raw.storedName ?? `${raw.id}.pdf`,
-    mimeType: "application/pdf",
+    mimeType: raw.mimeType ?? "application/pdf",
     sizeBytes: raw.sizeBytes ?? 0,
     pageCount: raw.pageCount ?? 0,
     status: statuses.includes(raw.status as DocumentMeta["status"])
@@ -738,7 +742,7 @@ export async function hasDefaultAdminPassword(): Promise<boolean> {
 // ---------------------------------------------------------------- документы
 
 export function assertStoredName(storedName: string) {
-  if (!/^((spec-)?[0-9a-f-]{36})\.pdf$/i.test(storedName)) {
+  if (!/^((spec-)?[0-9a-f-]{36})\.(pdf|dwg|dxf)$/i.test(storedName)) {
     throw new Error("Invalid path");
   }
 }
@@ -748,17 +752,29 @@ export async function readStoredPdf(storedName: string) {
   return readPdfBytes(storedName);
 }
 
-export async function savePdf(input: {
+/** Сохранить чертёж: PDF (с pageCount) или CAD DWG/DXF (без pdf-lib). */
+export async function saveDocument(input: {
   projectId: string;
   originalName: string;
   buffer: Buffer;
 }): Promise<DocumentRecord> {
+  const ext = getDrawingExt(input.originalName);
+  if (!ext) {
+    throw Object.assign(new Error("Нужен файл .pdf, .dwg или .dxf"), {
+      status: 400,
+    });
+  }
+
   let pageCount = 0;
-  try {
-    const pdf = await PDFDocument.load(input.buffer, { ignoreEncryption: true });
-    pageCount = pdf.getPageCount();
-  } catch {
-    throw Object.assign(new Error("Не удалось прочитать PDF"), { status: 400 });
+  if (ext === "pdf") {
+    try {
+      const pdf = await PDFDocument.load(input.buffer, {
+        ignoreEncryption: true,
+      });
+      pageCount = pdf.getPageCount();
+    } catch {
+      throw Object.assign(new Error("Не удалось прочитать PDF"), { status: 400 });
+    }
   }
 
   return withDataLock(async () => {
@@ -769,7 +785,7 @@ export async function savePdf(input: {
     }
 
     const id = crypto.randomUUID();
-    const storedName = `${id}.pdf`;
+    const storedName = `${id}.${ext}`;
     await writePdfBytes(storedName, input.buffer);
 
     const meta: DocumentMeta = {
@@ -777,7 +793,7 @@ export async function savePdf(input: {
       projectId: input.projectId,
       originalName: input.originalName,
       storedName,
-      mimeType: "application/pdf",
+      mimeType: mimeForExt(ext),
       sizeBytes: input.buffer.byteLength,
       pageCount,
       status: "queued",
@@ -801,6 +817,15 @@ export async function savePdf(input: {
     await writeBody(id, emptyBody());
     return liteRecord(meta);
   });
+}
+
+/** @deprecated используйте saveDocument */
+export async function savePdf(input: {
+  projectId: string;
+  originalName: string;
+  buffer: Buffer;
+}): Promise<DocumentRecord> {
+  return saveDocument(input);
 }
 
 export async function listDocuments(

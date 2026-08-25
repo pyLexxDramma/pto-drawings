@@ -33,10 +33,16 @@ import {
   mergePipelineUsage,
   type PipelineHealth,
 } from "@/lib/pipeline";
+import { UploadDialog, type UploadDialogResult } from "@/components/upload-dialog";
+import {
+  DRAWING_ACCEPT,
+  DRAWING_ACCEPT_HINT,
+  isDrawingFile,
+} from "@/lib/drawing-files";
 import {
   loadRecentProjects,
-  printNotesReport,
   rememberContinue,
+  removeRecentProject,
   touchRecentProject,
   type RecentProject,
 } from "@/lib/recent";
@@ -191,42 +197,6 @@ function projectSummaryLine(
   return parts.join(" · ");
 }
 
-function exportNotesCsv(notes: ProjectAnnotation[], projectName: string) {
-  const header = [
-    "файл",
-    "лист",
-    "статус",
-    "комментарий",
-    "ожидалось",
-    "автор",
-    "создано",
-    "исправлено",
-  ];
-  const rows = notes.map((note) => [
-    note.originalName,
-    String(note.pageNumber),
-    note.status === "open" ? "открыто" : "исправлено",
-    note.comment,
-    note.expected,
-    note.userName ?? "",
-    note.createdAt,
-    note.resolvedAt ?? "",
-  ]);
-  const escape = (value: string) => `"${value.replace(/"/g, '""')}"`;
-  const csv = [header, ...rows]
-    .map((row) => row.map((cell) => escape(cell)).join(";"))
-    .join("\n");
-  const blob = new Blob(["\uFEFF" + csv], {
-    type: "text/csv;charset=utf-8",
-  });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `замечания-${projectName || "проект"}.csv`;
-  link.click();
-  URL.revokeObjectURL(url);
-}
-
 function newClientId() {
   try {
     if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -242,12 +212,14 @@ function uploadPdf(
   file: File,
   projectId: string,
   onProgress: (value: number) => void,
+  title?: string,
 ) {
   return new Promise<DocumentRecord>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     const form = new FormData();
     form.append("file", file);
     form.append("projectId", projectId);
+    if (title?.trim()) form.append("title", title.trim());
     xhr.open("POST", "/api/documents");
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) {
@@ -300,9 +272,8 @@ export function Workspace({
   const [newProjectDescription, setNewProjectDescription] = useState("");
   const [creatingProject, setCreatingProject] = useState(false);
   const [showNewProject, setShowNewProject] = useState(false);
-  const [filesCollapsed, setFilesCollapsed] = useState(false);
-  const [projectsCollapsed, setProjectsCollapsed] = useState(false);
-  const [compactFiles, setCompactFiles] = useState(true);
+  const [filesCollapsed, setFilesCollapsed] = useState(true);
+  const [projectsCollapsed, setProjectsCollapsed] = useState(true);
   const [focusMode, setFocusMode] = useState(false);
   const [renameId, setRenameId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
@@ -321,7 +292,9 @@ export function Workspace({
     null,
   );
   const [cancelingId, setCancelingId] = useState<string | null>(null);
-  const [viewOnly, setViewOnly] = useState(false);
+  const [pendingUploadFiles, setPendingUploadFiles] = useState<File[] | null>(null);
+  const [uploadBusy, setUploadBusy] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [projectsWidth, setProjectsWidth] = useState(220);
   const [filesWidth, setFilesWidth] = useState(300);
   const [recent, setRecent] = useState<RecentProject[]>([]);
@@ -640,8 +613,6 @@ export function Workspace({
   async function selectProject(id: string) {
     setProjectId(id);
     setSelectedId(null);
-    setFilesCollapsed(false);
-    setProjectsCollapsed(false);
     setFocusMode(false);
     setError(null);
     const project = projects.find((item) => item.id === id);
@@ -750,58 +721,96 @@ export function Workspace({
     );
   }
 
-  const handleFiles = useCallback(
-    async (fileList: FileList | File[]) => {
+  const queueUpload = useCallback((fileList: FileList | File[]) => {
+    const files = Array.from(fileList).filter((file) => isDrawingFile(file));
+    if (files.length === 0) {
+      setError(`Можно загружать только ${DRAWING_ACCEPT_HINT}`);
+      return;
+    }
+    setError(null);
+    setUploadError(null);
+    setPendingUploadFiles(files);
+  }, []);
+
+  const confirmUpload = useCallback(
+    async (result: UploadDialogResult) => {
+      setUploadBusy(true);
+      setUploadError(null);
       try {
-        let targetProject = projectId;
-        if (!targetProject && projects.length === 1) {
-          targetProject = projects[0].id;
+        let targetProject = result.projectId;
+        if (targetProject.startsWith("__new__:")) {
+          const name = targetProject.slice("__new__:".length).trim();
+          if (!name) throw new Error("Укажите название проекта");
+          const response = await fetch("/api/projects", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name, description: "" }),
+          });
+          const payload = (await response.json()) as {
+            project?: Project;
+            error?: string;
+          };
+          if (!payload.project) {
+            throw new Error(payload.error || "Не удалось создать проект");
+          }
+          targetProject = payload.project.id;
+          setProjects((prev) => [
+            payload.project!,
+            ...prev.filter((p) => p.id !== payload.project!.id),
+          ]);
           setProjectId(targetProject);
+          setDocuments([]);
+          setNotes([]);
+          setEdits([]);
+        } else if (targetProject !== projectId) {
+          setProjectId(targetProject);
+          await Promise.all([
+            loadDocuments(targetProject),
+            loadEdits(targetProject),
+            loadNotes(targetProject),
+          ]);
         }
-        if (!targetProject) {
-          setError(
-            projects.length > 0
-              ? "Выберите проект слева, затем загрузите PDF"
-              : "Сначала создайте проект",
-          );
-          return;
-        }
-        const files = Array.from(fileList).filter(
-          (file) =>
-            file.type === "application/pdf" ||
-            file.name.toLowerCase().endsWith(".pdf"),
-        );
-        if (files.length === 0) {
-          setError("Можно загружать только PDF");
-          return;
-        }
-        setError(null);
+
+        const files = result.files;
         const items: UploadItem[] = files.map((file) => ({
           tempId: newClientId(),
           name: file.name,
           progress: 0,
         }));
         setUploads((prev) => [...items, ...prev]);
+        setPendingUploadFiles(null);
 
         await Promise.all(
           files.map(async (file, index) => {
             const tempId = items[index].tempId;
+            const title =
+              files.length === 1 && result.title.trim()
+                ? result.title.trim()
+                : undefined;
             try {
-              const document = await uploadPdf(file, targetProject, (progress) => {
-                setUploads((prev) =>
-                  prev.map((item) =>
-                    item.tempId === tempId ? { ...item, progress } : item,
-                  ),
-                );
-              });
-              setUploads((prev) => prev.filter((item) => item.tempId !== tempId));
+              const document = await uploadPdf(
+                file,
+                targetProject,
+                (progress) => {
+                  setUploads((prev) =>
+                    prev.map((item) =>
+                      item.tempId === tempId ? { ...item, progress } : item,
+                    ),
+                  );
+                },
+                title,
+              );
+              setUploads((prev) =>
+                prev.filter((item) => item.tempId !== tempId),
+              );
               setDocuments((prev) => [
                 document,
                 ...prev.filter((doc) => doc.id !== document.id),
               ]);
               void openDocument(document.id);
             } catch (err) {
-              const message = err instanceof Error ? err.message : "Ошибка загрузки";
+              const message =
+                err instanceof Error ? err.message : "Ошибка загрузки";
               setUploads((prev) =>
                 prev.map((item) =>
                   item.tempId === tempId ? { ...item, error: message } : item,
@@ -811,10 +820,12 @@ export function Workspace({
           }),
         );
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Ошибка загрузки");
+        setUploadError(err instanceof Error ? err.message : "Ошибка загрузки");
+      } finally {
+        setUploadBusy(false);
       }
     },
-    [openDocument, projectId, projects],
+    [loadDocuments, loadEdits, loadNotes, openDocument, projectId],
   );
 
   async function handleSavePage(pageNumber: number, markdown: string) {
@@ -850,9 +861,17 @@ export function Workspace({
   async function handleDeleteProject(id: string) {
     const project = projects.find((item) => item.id === id);
     const label = project?.name ?? "проект";
+    const fileCount =
+      id === projectId ? documents.length : undefined;
+    const filesHint =
+      fileCount === undefined
+        ? "всеми файлами"
+        : fileCount === 0
+          ? "без файлов"
+          : `всеми файлами (${fileCount})`;
     if (
       !window.confirm(
-        `Удалить проект «${label}» вместе со всеми PDF, правками и замечаниями?`,
+        `Удалить проект «${label}» вместе с ${filesHint}, правками и замечаниями? Это нельзя отменить.`,
       )
     ) {
       return;
@@ -864,6 +883,8 @@ export function Workspace({
       return;
     }
     setError(null);
+    removeRecentProject(id);
+    setRecent(loadRecentProjects());
     const list = await loadProjects();
     setSelectedId(null);
     setDocuments([]);
@@ -927,7 +948,7 @@ export function Workspace({
   function onDrop(event: DragEvent) {
     event.preventDefault();
     setDragOver(false);
-    if (event.dataTransfer.files.length) void handleFiles(event.dataTransfer.files);
+    if (event.dataTransfer.files.length) void queueUpload(event.dataTransfer.files);
   }
 
   const gridClass = "flex min-h-0 flex-1 flex-col md:flex-row";
@@ -978,8 +999,8 @@ export function Workspace({
   const backToProjects = () => {
     setSelectedId(null);
     setFocusMode(false);
-    setFilesCollapsed(false);
-    setProjectsCollapsed(false);
+    setFilesCollapsed(true);
+    setProjectsCollapsed(true);
     setOpenPage(null);
   };
 
@@ -1002,12 +1023,12 @@ export function Workspace({
         id="pto-drawing-upload"
         ref={inputRef}
         type="file"
-        accept="application/pdf,.pdf"
+        accept={DRAWING_ACCEPT}
         multiple
         className="absolute h-px w-px overflow-hidden opacity-0"
         onChange={(event) => {
           const list = event.target.files;
-          if (list && list.length > 0) void handleFiles(list);
+          if (list && list.length > 0) void queueUpload(list);
           event.target.value = "";
         }}
       />
@@ -1054,7 +1075,7 @@ export function Workspace({
               htmlFor="pto-drawing-upload"
               className="cursor-pointer rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-[#1d4ed8]"
             >
-              Загрузить PDF
+              Загрузить файл
             </label>
           </div>
         </header>
@@ -1138,16 +1159,14 @@ export function Workspace({
                   >
                     +
                   </button>
-                  {selected ? (
-                    <button
-                      type="button"
-                      onClick={() => setProjectsCollapsed(true)}
-                      className="rounded border border-border px-1.5 text-[11px] font-normal normal-case text-muted hover:text-text"
-                      title="Свернуть проекты"
-                    >
-                      Скрыть
-                    </button>
-                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => setProjectsCollapsed(true)}
+                    className="rounded border border-border px-1.5 text-[11px] font-normal normal-case text-muted hover:text-text"
+                    title="Свернуть проекты"
+                  >
+                    Скрыть
+                  </button>
                 </span>
               </div>
               {showNewProject || projects.length === 0 ? (
@@ -1236,35 +1255,62 @@ export function Workspace({
                     className="mb-1 w-full rounded-md border border-accent bg-white px-2.5 py-2 text-sm outline-none"
                   />
                 ) : (
-                  <button
+                  <div
                     key={project.id}
-                    type="button"
-                    onClick={() => {
-                      if (project.id === projectId) {
-                        setRenameId(project.id);
-                        setRenameValue(project.name);
-                        return;
-                      }
-                      void selectProject(project.id);
-                    }}
-                    className={`mb-1 w-full rounded-md px-2.5 py-2 text-left text-sm ${
+                    className={`mb-1 flex items-stretch gap-0.5 rounded-md ${
                       project.id === projectId
                         ? "bg-blue-50 text-text"
                         : "text-muted hover:bg-surface-2 hover:text-text"
                     }`}
-                    title="Ещё раз нажмите, чтобы переименовать"
                   >
-                    <span className="block truncate">{project.name}</span>
-                    <span className="mt-0.5 block truncate text-[10px] font-normal text-muted">
-                      создан {formatDateOnly(project.createdAt)} в{" "}
-                      {formatTimeOnly(project.createdAt)}
-                    </span>
-                    {project.description ? (
-                      <span className="mt-0.5 block truncate text-[11px] font-normal text-muted">
-                        {project.description}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (project.id === projectId) {
+                          setRenameId(project.id);
+                          setRenameValue(project.name);
+                          return;
+                        }
+                        void selectProject(project.id);
+                      }}
+                      className="min-w-0 flex-1 rounded-md px-2.5 py-2 text-left text-sm"
+                      title="Ещё раз нажмите, чтобы переименовать"
+                    >
+                      <span className="block truncate">{project.name}</span>
+                      <span className="mt-0.5 block truncate text-[10px] font-normal text-muted">
+                        создан {formatDateOnly(project.createdAt)} в{" "}
+                        {formatTimeOnly(project.createdAt)}
                       </span>
-                    ) : null}
-                  </button>
+                      {project.description ? (
+                        <span className="mt-0.5 block truncate text-[11px] font-normal text-muted">
+                          {project.description}
+                        </span>
+                      ) : null}
+                    </button>
+                    <div className="flex items-start pt-1.5 pr-1">
+                      <ActionMenu label="Действия проекта" align="right">
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className={menuItemClass()}
+                          onClick={() => {
+                            setRenameId(project.id);
+                            setRenameValue(project.name);
+                          }}
+                        >
+                          Переименовать
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className={menuItemClass(true)}
+                          onClick={() => void handleDeleteProject(project.id)}
+                        >
+                          Удалить проект
+                        </button>
+                      </ActionMenu>
+                    </div>
+                  </div>
                 ),
               )}
             </div>
@@ -1324,49 +1370,22 @@ export function Workspace({
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 {currentProject ? (
-                  <ActionMenu label="Действия проекта">
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className={menuItemClass(true)}
-                      onClick={() => void handleDeleteProject(currentProject.id)}
-                    >
-                      Удалить проект
-                    </button>
-                  </ActionMenu>
-                ) : null}
-                {selected ? (
                   <button
                     type="button"
-                    onClick={() => setFilesCollapsed(true)}
-                    className="text-[11px] text-muted hover:text-text"
+                    onClick={() => void handleDeleteProject(currentProject.id)}
+                    className="text-[11px] text-red-600 hover:underline"
+                    title="Удалить проект со всеми файлами"
                   >
-                    Скрыть
+                    Удалить проект
                   </button>
                 ) : null}
                 <button
                   type="button"
-                  title="Компактный список файлов"
-                  onClick={() => setCompactFiles((value) => !value)}
-                  className={`text-[11px] ${
-                    compactFiles
-                      ? "font-medium text-accent"
-                      : "text-muted hover:text-text"
-                  }`}
+                  onClick={() => setFilesCollapsed(true)}
+                  className="text-[11px] text-muted hover:text-text"
+                  title="Свернуть файлы"
                 >
-                  {compactFiles ? "Плотно" : "Список"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setViewOnly((value) => !value)}
-                  className={`text-[11px] ${
-                    viewOnly
-                      ? "font-medium text-amber-800"
-                      : "text-muted hover:text-text"
-                  }`}
-                  title="Без правок текста и новых замечаний"
-                >
-                  {viewOnly ? "Просмотр ✓" : "Просмотр"}
+                  Скрыть
                 </button>
               </div>
             </div>
@@ -1528,36 +1547,6 @@ export function Workspace({
                       : ""}
                     <span className="ml-1 text-[10px]">{showNotes ? "▾" : "▸"}</span>
                   </button>
-                  {notes.length > 0 ? (
-                    <span className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const ok = printNotesReport({
-                            projectName: currentProject.name,
-                            notes,
-                          });
-                          if (!ok) {
-                            setError(
-                              "Разрешите всплывающие окна для печати отчёта",
-                            );
-                          }
-                        }}
-                        className="text-[11px] text-accent hover:underline"
-                      >
-                        Печать
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          exportNotesCsv(notes, currentProject.name)
-                        }
-                        className="text-[11px] text-accent hover:underline"
-                      >
-                        CSV
-                      </button>
-                    </span>
-                  ) : null}
                 </div>
                 {showNotes ? (
                     <div className="mt-2 space-y-2">
@@ -1567,7 +1556,7 @@ export function Workspace({
                       value={notesFilter}
                       onChange={setNotesFilter}
                       options={[
-                        { id: "open", label: "Открытые" },
+                        { id: "open", label: "Не проверенные" },
                         { id: "all", label: "Все" },
                         ...noteFileOptions.map(([id, name]) => ({
                           id,
@@ -1604,7 +1593,7 @@ export function Workspace({
                                   : "text-emerald-600"
                               }
                             >
-                              {note.status === "open" ? "открыто" : "исправлено"}
+                              {note.status === "open" ? "не проверено" : "исправлено"}
                             </span>
                             <span className="text-muted">
                               {" · "}
@@ -1634,7 +1623,7 @@ export function Workspace({
               }`}
             >
               <div className={`font-semibold text-text ${documents.length === 0 ? "text-base" : "text-sm"}`}>
-                {documents.length === 0 ? "Перетащите PDF сюда" : "Перетащите PDF сюда или нажмите"}
+                {documents.length === 0 ? "Перетащите файл сюда" : "Перетащите файл сюда или нажмите"}
               </div>
               <div className="mt-1.5 text-[11px] text-muted">
                 {documents.length === 0
@@ -1674,7 +1663,7 @@ export function Workspace({
 
               {!loading && documents.length === 0 && uploads.length === 0 ? (
                 <div className="py-8 text-center text-sm text-muted">
-                  Перетащите PDF в проект
+                  Перетащите чертёж в проект
                 </div>
               ) : null}
 
@@ -1689,7 +1678,7 @@ export function Workspace({
                         : "border-transparent bg-bg hover:border-border"
                   }`}
                 >
-                  <div className={`flex items-start gap-1 ${compactFiles ? "px-2 py-1.5" : "px-2 pt-2"}`}>
+                  <div className={`flex items-start gap-1 px-2 py-1.5`}>
                     <button
                       type="button"
                       onClick={() => {
@@ -1706,7 +1695,7 @@ export function Workspace({
                           setRecent(loadRecentProjects());
                         }
                       }}
-                      className={`min-w-0 flex-1 px-1 text-left ${compactFiles ? "py-0" : "pb-1"}`}
+                      className={`min-w-0 flex-1 px-1 text-left py-0`}
                     >
                       <div className="flex items-center gap-2">
                         <span
@@ -1719,7 +1708,7 @@ export function Workspace({
                           <Spinner className="h-2.5 w-2.5 shrink-0 text-sky-700" />
                         ) : null}
                       </div>
-                      {compactFiles ? (
+                      {true ? (
                         <div className="mt-0.5 truncate pl-3.5 text-[10px] text-muted opacity-70 group-hover:opacity-100">
                           {doc.errorMessage?.startsWith("Отмена")
                             ? "Отмена…"
@@ -1776,8 +1765,8 @@ export function Workspace({
                           </div>
                           {doc.pipelineFinishedAt ? (
                             <div>
-                              {formatDateOnly(doc.pipelineFinishedAt)} · завершено в{" "}
-                              {formatTimeOnly(doc.pipelineFinishedAt)}
+                              {formatDateOnly(doc.pipelineFinishedAt as string)} ·
+                              завершено в {formatTimeOnly(doc.pipelineFinishedAt as string)}
                             </div>
                           ) : null}
                         </div>
@@ -1806,7 +1795,7 @@ export function Workspace({
                         <div className="mt-1 text-[11px] text-sky-800">
                           лист {doc.processingPage}
                           {doc.processingStep
-                            ? `: ${STEP_LABEL[doc.processingStep].toLowerCase()}`
+                            ? `: ${(STEP_LABEL[doc.processingStep as keyof typeof STEP_LABEL] ?? doc.processingStep).toString().toLowerCase()}`
                             : ""}
                         </div>
                       ) : null}
@@ -1918,7 +1907,7 @@ export function Workspace({
                       </button>
                     </ActionMenu>
                   </div>
-                  {!compactFiles ? (
+                  {false ? (
                     <div className="flex items-center justify-between gap-2 px-3 pb-2">
                       <div className="min-w-0 truncate text-[11px] text-muted">
                         создан {formatDateOnly(doc.createdAt)} в{" "}
@@ -1957,7 +1946,7 @@ export function Workspace({
             focusMode={focusMode}
             openPage={openPage}
             canceling={cancelingId === selected.id}
-            readOnly={viewOnly}
+            readOnly={false}
             showTech={user.role === "admin"}
             specHref={
               currentProject?.specStoredName
@@ -2007,25 +1996,58 @@ export function Workspace({
           </div>
         ) : (
           <div className="flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-4 bg-[#f4f6f9] p-10 text-center">
-            <div className="max-w-md rounded-2xl border border-slate-200 bg-white px-8 py-10 shadow-sm">
-              <div className="text-lg font-semibold tracking-tight text-text">
-                {currentProject
-                  ? "Загрузите PDF в проект"
-                  : "Выберите или создайте проект"}
+            <div className="w-full max-w-lg rounded-2xl border border-dashed border-slate-300 bg-white px-8 py-12 shadow-sm">
+              <div className="text-xl font-semibold tracking-tight text-text">
+                Загрузить проект
               </div>
               <div className="mt-2 text-sm leading-relaxed text-muted">
-                {currentProject
-                  ? "Чертёж слева, текст справа. Перетащите файл в колонку слева или нажмите кнопку ниже."
-                  : "Слева — список проектов. Создайте объект, затем загрузите комплекты чертежей."}
+                Перетащите PDF, DWG или DXF сюда или выберите файл. Дальше укажите
+                название и проект — ранее загруженные файлы открываются через «Файлы»
+                слева.
               </div>
-              {currentProject ? (
-                <label
-                  htmlFor="pto-drawing-upload"
-                  className="mt-5 inline-flex cursor-pointer rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-[#1d4ed8]"
-                >
-                  Загрузить PDF
-                </label>
-              ) : null}
+              <label
+                htmlFor="pto-drawing-upload"
+                className="mt-6 inline-flex cursor-pointer rounded-md bg-accent px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#1d4ed8]"
+              >
+                Выбрать файл
+              </label>
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-3 text-xs text-muted">
+                {projectsCollapsed ? (
+                  <button
+                    type="button"
+                    onClick={() => setProjectsCollapsed(false)}
+                    className="hover:text-accent hover:underline"
+                  >
+                    Проекты
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setProjectsCollapsed(true)}
+                    className="hover:text-accent hover:underline"
+                  >
+                    Скрыть проекты
+                  </button>
+                )}
+                <span>·</span>
+                {filesCollapsed ? (
+                  <button
+                    type="button"
+                    onClick={() => setFilesCollapsed(false)}
+                    className="hover:text-accent hover:underline"
+                  >
+                    Файлы
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setFilesCollapsed(true)}
+                    className="hover:text-accent hover:underline"
+                  >
+                    Скрыть файлы
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -2034,7 +2056,9 @@ export function Workspace({
       {dragOver ? (
         <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30">
           <div className="rounded-xl bg-white px-8 py-6 text-center shadow-xl">
-            <div className="text-base font-medium">Отпустите PDF для загрузки</div>
+            <div className="text-base font-medium">
+              Отпустите {DRAWING_ACCEPT_HINT} для загрузки
+            </div>
             <div className="mt-1 text-sm text-muted">
               {projects.length === 1
                 ? `В проект «${projects[0].name}»`
@@ -2051,6 +2075,22 @@ export function Workspace({
           onClose={() => setShowUsers(false)}
         />
       ) : null}
+
+      
+      <UploadDialog
+        open={Boolean(pendingUploadFiles?.length)}
+        files={pendingUploadFiles ?? []}
+        projects={projects}
+        defaultProjectId={projectId}
+        busy={uploadBusy}
+        error={uploadError}
+        onClose={() => {
+          if (uploadBusy) return;
+          setPendingUploadFiles(null);
+          setUploadError(null);
+        }}
+        onConfirm={(result) => void confirmUpload(result)}
+      />
 
       <PasswordPanel
         open={showPassword}

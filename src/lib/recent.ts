@@ -39,6 +39,16 @@ export function touchRecentProject(entry: RecentProject) {
   }
 }
 
+export function removeRecentProject(id: string) {
+  if (typeof window === "undefined") return;
+  try {
+    const next = loadRecentProjects().filter((item) => item.id !== id);
+    window.localStorage.setItem(RECENT_KEY, JSON.stringify(next));
+  } catch {
+    // ignore
+  }
+}
+
 export function rememberContinue(
   projectId: string,
   projectName: string,
@@ -74,7 +84,7 @@ export function printNotesReport(input: {
       <tr>
         <td>${escapeHtml(note.originalName)}</td>
         <td>${note.pageNumber}</td>
-        <td>${note.status === "open" ? "открыто" : "исправлено"}</td>
+        <td>${note.status === "open" ? "не проверено" : "исправлено"}</td>
         <td>${escapeHtml(note.comment)}</td>
         <td>${escapeHtml(note.expected || "—")}</td>
         <td>${escapeHtml(note.userName || "—")}</td>
