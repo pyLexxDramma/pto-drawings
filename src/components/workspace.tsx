@@ -26,7 +26,18 @@ import {
 } from "@/components/ui-chrome";
 import { UserMenu } from "@/components/user-menu";
 import { UsersPanel } from "@/components/users-panel";
-import { formatBytes, formatDate, formatDateOnly, formatPages, formatTimeOnly } from "@/lib/format";
+import {
+  formatBytes,
+  formatDate,
+  formatDateOnly,
+  formatPages,
+  formatTimeOnly,
+} from "@/lib/format";
+import {
+  formatProcessingPercent,
+  processingPercent,
+} from "@/lib/processing-progress";
+import { useSmoothProgress } from "@/hooks/use-smooth-progress";
 import {
   formatElapsed,
   formatPipelineUsage,
@@ -88,7 +99,7 @@ const STATUS_DOT: Record<DocumentStatus, string> = {
 };
 
 function pageProgress(doc: DocumentRecord) {
-  return Math.round((doc.readyPages / Math.max(doc.pageCount, 1)) * 100);
+  return processingPercent(doc);
 }
 
 /** Сводка для тонкой полосы под шапкой: % и стадия по активным файлам. */
@@ -112,7 +123,8 @@ function processingOverview(
       percent: avg,
       canceling: false,
       documentId: null as string | null,
-      label: `Загрузка PDF… ${avg}%`,
+      labelBase: `Загрузка PDF…`,
+      smooth: false,
     };
   }
 
@@ -121,12 +133,10 @@ function processingOverview(
     active.find((doc) => doc.status === "processing") ??
     active[0];
 
-  const ready = active.reduce((sum, doc) => sum + doc.readyPages, 0);
-  const total = active.reduce(
-    (sum, doc) => sum + Math.max(doc.pageCount, doc.readyPages, 1),
-    0,
-  );
-  const percent = Math.min(100, Math.round((ready / total) * 100));
+  // Взвешенный % по файлам: каждый — continuous, не скачок по целым листам.
+  const weighted =
+    active.reduce((sum, doc) => sum + processingPercent(doc), 0) / active.length;
+  const percent = Math.min(99.5, Math.round(weighted * 10) / 10);
   const canceling = active.some((doc) =>
     doc.errorMessage?.startsWith("Отмена"),
   );
@@ -148,10 +158,82 @@ function processingOverview(
     percent,
     canceling,
     documentId: primary.id,
-    label: canceling
-      ? `Отмена… ${percent}%`
-      : [fileHint, `${percent}%`, pageHint, step].filter(Boolean).join(" · "),
+    labelBase: canceling
+      ? "Отмена…"
+      : [fileHint, pageHint, step].filter(Boolean).join(" · "),
+    smooth: !canceling,
   };
+}
+
+function GlobalProcessBar({
+  percent,
+  canceling,
+  documentId,
+  labelBase,
+  smooth,
+  cancelingId,
+  onCancel,
+}: {
+  percent: number;
+  canceling: boolean;
+  documentId: string | null;
+  labelBase: string;
+  smooth: boolean;
+  cancelingId: string | null;
+  onCancel: (id: string) => void;
+}) {
+  const shown = useSmoothProgress(percent, {
+    active: smooth && !canceling,
+    max: 99.5,
+  });
+  const label = `${labelBase} · ${formatProcessingPercent(shown)}`;
+
+  return (
+    <div
+      className={`flex h-7 shrink-0 items-center gap-3 border-b px-4 ${
+        canceling
+          ? "border-amber-300 bg-amber-100"
+          : "border-emerald-200 bg-emerald-50"
+      }`}
+      role="progressbar"
+      data-testid="global-process-bar"
+      aria-valuenow={Math.round(shown)}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-label={label}
+    >
+      <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-emerald-100">
+        <div
+          className={`h-full rounded-full ${
+            canceling ? "bg-amber-600" : "bg-emerald-500"
+          }`}
+          style={{
+            width: `${Math.max(shown, shown === 0 ? 6 : 2)}%`,
+            transition: "width 200ms linear",
+          }}
+        />
+      </div>
+      <span
+        className={`min-w-0 max-w-[50%] shrink truncate text-[11px] font-semibold tabular-nums ${
+          canceling ? "text-amber-950" : "text-emerald-950"
+        }`}
+        title={label}
+      >
+        {label}
+      </span>
+      {documentId ? (
+        <button
+          type="button"
+          disabled={canceling || cancelingId === documentId}
+          onClick={() => onCancel(documentId)}
+          className="shrink-0 rounded border border-amber-300 bg-white px-2 py-0.5 text-[11px] font-semibold text-amber-950 hover:bg-amber-50 disabled:opacity-50"
+          title="Остановить обработку"
+        >
+          {canceling || cancelingId === documentId ? "Останавливаем…" : "Стоп"}
+        </button>
+      ) : null}
+    </div>
+  );
 }
 
 function kindSummary(doc: DocumentRecord) {
@@ -1084,58 +1166,15 @@ export function Workspace({
       )}
 
       {processBar ? (
-        <div
-          className={`flex h-7 shrink-0 items-center gap-3 border-b px-4 ${
-            processBar.canceling
-              ? "border-amber-300 bg-amber-100"
-              : "border-emerald-200 bg-emerald-50"
-          }`}
-          role="progressbar"
-          data-testid="global-process-bar"
-          aria-valuenow={processBar.percent}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-label={processBar.label}
-        >
-          <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-emerald-100">
-            <div
-              className={`h-full rounded-full transition-[width] duration-500 ease-out ${
-                processBar.canceling
-                  ? "bg-amber-600"
-                  : "bg-emerald-500 pto-progress__bar"
-              }`}
-              style={{
-                width: `${Math.max(
-                  processBar.percent,
-                  processBar.percent === 0 ? 6 : 2,
-                )}%`,
-              }}
-            />
-          </div>
-          <span
-            className={`min-w-0 max-w-[50%] shrink truncate text-[11px] font-semibold tabular-nums ${
-              processBar.canceling ? "text-amber-950" : "text-emerald-950"
-            }`}
-            title={processBar.label}
-          >
-            {processBar.label}
-          </span>
-          {processBar.documentId ? (
-            <button
-              type="button"
-              disabled={
-                processBar.canceling || cancelingId === processBar.documentId
-              }
-              onClick={() => void handleCancel(processBar.documentId!)}
-              className="shrink-0 rounded border border-amber-300 bg-white px-2 py-0.5 text-[11px] font-semibold text-amber-950 hover:bg-amber-50 disabled:opacity-50"
-              title="Остановить обработку"
-            >
-              {processBar.canceling || cancelingId === processBar.documentId
-                ? "Останавливаем…"
-                : "Стоп"}
-            </button>
-          ) : null}
-        </div>
+        <GlobalProcessBar
+          percent={processBar.percent}
+          canceling={processBar.canceling}
+          documentId={processBar.documentId}
+          labelBase={processBar.labelBase}
+          smooth={processBar.smooth}
+          cancelingId={cancelingId}
+          onCancel={(id) => void handleCancel(id)}
+        />
       ) : null}
 
       {defaultPasswordWarning && !selected ? (
@@ -1842,6 +1881,9 @@ export function Workspace({
                             <div className="min-w-0 flex-1">
                               <ProgressTrack value={pageProgress(doc)} className="h-1" />
                             </div>
+                            <span className="shrink-0 text-[11px] font-semibold tabular-nums text-sky-900">
+                              {formatProcessingPercent(pageProgress(doc))}
+                            </span>
                             <button
                               type="button"
                               disabled={cancelingId === doc.id}

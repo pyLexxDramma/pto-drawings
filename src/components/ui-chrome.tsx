@@ -20,13 +20,15 @@ export function ProgressTrack({
   tone?: "accent" | "sky";
   className?: string;
 }) {
-  const bar =
-    tone === "sky" ? "bg-sky-500" : "bg-accent";
+  const bar = tone === "sky" ? "bg-sky-500" : "bg-accent";
   return (
     <div className={`pto-progress overflow-hidden rounded-full bg-white/80 ${className}`}>
       <div
-        className={`pto-progress__bar h-full transition-all ${bar}`}
-        style={{ width: `${Math.min(100, Math.max(0, value))}%` }}
+        className={`pto-progress__bar h-full ${bar}`}
+        style={{
+          width: `${Math.min(100, Math.max(0, value))}%`,
+          transition: "width 400ms linear",
+        }}
       />
     </div>
   );
