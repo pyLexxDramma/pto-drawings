@@ -1139,11 +1139,11 @@ export function Workspace({
           <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
             {pipelineChip ? (
               <div
-                className={`hidden min-w-0 max-w-xl items-center gap-1.5 truncate rounded-md border px-2.5 py-1 text-[11px] md:flex ${pipelineChip.className}`}
+                className={`hidden min-w-0 items-center gap-1.5 whitespace-nowrap rounded-md border px-2.5 py-1 text-[11px] md:flex ${pipelineChip.className}`}
                 title={pipelineChip.text}
               >
                 {busy ? <Spinner className="h-3 w-3 opacity-80" /> : null}
-                <span className="truncate">{pipelineChip.text}</span>
+                <span>{pipelineChip.text}</span>
               </div>
             ) : null}
             <UserMenu
@@ -2023,7 +2023,7 @@ export function Workspace({
               <>
                 {pipelineChip ? (
                   <span
-                    className={`hidden max-w-[22rem] truncate rounded-md border px-2 py-1 text-[11px] sm:inline-block ${pipelineChip.className}`}
+                    className={`hidden whitespace-nowrap rounded-md border px-2.5 py-1 text-[11px] sm:inline-block ${pipelineChip.className}`}
                     title={pipelineChip.text}
                   >
                     {pipelineChip.text}
