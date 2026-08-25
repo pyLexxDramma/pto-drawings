@@ -122,6 +122,8 @@ export type DocumentMeta = {
   viewedCounts: Record<string, number>;
   /** Режим конвейера на момент прогона (mock / real). */
   pipelineMode: PipelineMode | null;
+  /** Модель из профиля конвейера (для контроля расходов на проде). */
+  pipelineModel: string | null;
   pipelineElapsedSec: number | null;
   /** Когда прогон завершился (done / отмена / ошибка конвейера). */
   pipelineFinishedAt: string | null;

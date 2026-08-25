@@ -16,6 +16,7 @@ type DocProgress = ProgressInput & {
   originalName?: string;
   pageErrors?: Record<string, string> | null;
   errorMessage?: string | null;
+  pipelineMode?: "mock" | "real" | null;
 };
 
 type ProcessingProgressPanelProps = {
@@ -55,9 +56,17 @@ export function ProcessingProgressPanel({
             <div className="flex items-center gap-2 text-sm font-semibold text-sky-950">
               <Spinner className="h-3.5 w-3.5 text-sky-700" />
               {cancelPending ? "Останавливаем обработку…" : "Обработка файла"}
+              {document.pipelineMode === "mock" ? (
+                <span className="rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-900">
+                  mock
+                </span>
+              ) : null}
             </div>
             <div className="mt-1 truncate text-[11px] text-sky-900/80">
               {document.originalName ?? "Документ"}
+              {document.pipelineMode === "mock"
+                ? " · внутренний обработчик, модель не вызывается"
+                : ""}
             </div>
           </div>
           {onCancel && !cancelPending ? (

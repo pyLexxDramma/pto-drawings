@@ -9,8 +9,11 @@ export type PipelineMode = "mock" | "real";
 export type PipelineHealth = {
   ok: boolean;
   mode: PipelineMode | string;
+  /** Откуда взят режим: PTO_PIPELINE_MODE / USE_MOCK_PROCESSOR / env / default-local. */
+  modeSource?: string;
   profile: {
     mode?: string;
+    modeSource?: string;
     model?: string | null;
     provider?: string | null;
   };
@@ -53,6 +56,8 @@ export async function fetchPipelineHealth(): Promise<PipelineHealth> {
     return {
       ok: Boolean(data.ok),
       mode: data.mode ?? "unknown",
+      modeSource:
+        data.modeSource ?? data.profile?.modeSource ?? undefined,
       profile: data.profile ?? {},
       reachable: true,
     };

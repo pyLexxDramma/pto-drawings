@@ -1035,17 +1035,37 @@ export function ReviewPane({
 
       {!processing &&
       !document.errorMessage?.startsWith("Отмена") &&
-      document.status !== "done" &&
-      document.status !== "error" &&
-      (errorCount || (showTech && (elapsedLabel || usageLabel))) ? (
+      (errorCount ||
+        usageLabel ||
+        (showTech && elapsedLabel) ||
+        document.pipelineMode ||
+        document.pipelineModel) ? (
         <div className="border-b border-border bg-[#fafbfc] px-4 py-1 text-[10px] text-muted">
+          {document.pipelineMode === "mock" ? (
+            <span className="text-amber-800">режим mock</span>
+          ) : document.pipelineMode === "real" ? (
+            <span>режим real</span>
+          ) : null}
+          {document.pipelineModel ? (
+            <span className={document.pipelineMode ? "ml-2" : ""}>
+              модель {document.pipelineModel}
+            </span>
+          ) : null}
+          {usageLabel ? (
+            <span
+              className={
+                document.pipelineMode || document.pipelineModel ? "ml-2" : ""
+              }
+            >
+              {usageLabel}
+            </span>
+          ) : null}
           {errorCount ? (
-            <span className="text-red-700">ошибок листов: {errorCount}</span>
+            <span className="ml-2 text-red-700">ошибок листов: {errorCount}</span>
           ) : null}
           {showTech && elapsedLabel ? (
-            <span className={errorCount ? "ml-2" : ""}>обработано за {elapsedLabel}</span>
+            <span className="ml-2">обработано за {elapsedLabel}</span>
           ) : null}
-          {showTech && usageLabel ? <span className="ml-2">{usageLabel}</span> : null}
         </div>
       ) : null}
 

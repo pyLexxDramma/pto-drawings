@@ -1056,16 +1056,19 @@ export function Workspace({
       };
     }
     if (pipelineHealth.mode === "mock") {
+      const source =
+        pipelineHealth.modeSource ?? pipelineHealth.profile.modeSource;
       return {
         className: "border-amber-200 bg-amber-50 text-amber-950",
-        text: "Режим [MOCK] · без модели",
+        text: source
+          ? `Конвейер: MOCK · модель не вызывается · ${source}`
+          : "Конвейер: MOCK · модель не вызывается",
       };
     }
-    // Профиль модели и расход токенов — техника администратора, инженеру не нужна.
+    // Модель и токены нужны для контроля расходов — показываем всем, кто видит UI.
     if (pipelineHealth.mode === "real") {
-      if (user.role !== "admin") return null;
       const parts = [
-        "Режим real",
+        "Конвейер: real",
         pipelineHealth.profile.provider,
         pipelineHealth.profile.model
           ? `модель ${pipelineHealth.profile.model}`
@@ -1814,6 +1817,9 @@ export function Workspace({
                               <span className="text-red-700">real</span>
                             ) : doc.pipelineMode === "mock" ? (
                               <span className="text-amber-700">mock</span>
+                            ) : null}
+                            {doc.pipelineModel ? (
+                              <span>модель {doc.pipelineModel}</span>
                             ) : null}
                             {formatPipelineUsage(doc.pipelineUsage) ? (
                               <span>{formatPipelineUsage(doc.pipelineUsage)}</span>

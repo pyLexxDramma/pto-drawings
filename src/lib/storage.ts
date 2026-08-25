@@ -248,6 +248,10 @@ function normalizeMeta(raw: Partial<DocumentMeta> & { id: string }): DocumentMet
       raw.pipelineMode === "mock" || raw.pipelineMode === "real"
         ? raw.pipelineMode
         : null,
+    pipelineModel:
+      typeof raw.pipelineModel === "string" && raw.pipelineModel.trim()
+        ? raw.pipelineModel.trim()
+        : null,
     pipelineElapsedSec:
       typeof raw.pipelineElapsedSec === "number" ? raw.pipelineElapsedSec : null,
     pipelineFinishedAt:
@@ -805,6 +809,7 @@ export async function saveDocument(input: {
       openAnnotations: 0,
       viewedCounts: {},
       pipelineMode: null,
+      pipelineModel: null,
       pipelineElapsedSec: null,
       pipelineFinishedAt: null,
       pipelineUsage: {},
@@ -862,6 +867,7 @@ export type DocumentPatch = {
   pageCount?: number;
   pages?: DocumentPage[];
   pipelineMode?: DocumentMeta["pipelineMode"];
+  pipelineModel?: string | null;
   pipelineElapsedSec?: number | null;
   pipelineFinishedAt?: string | null;
   pipelineUsage?: Record<string, number>;
@@ -883,6 +889,7 @@ export async function updateDocument(
     if (patch.errorMessage !== undefined) meta.errorMessage = patch.errorMessage;
     if (patch.pageCount !== undefined) meta.pageCount = patch.pageCount;
     if (patch.pipelineMode !== undefined) meta.pipelineMode = patch.pipelineMode;
+    if (patch.pipelineModel !== undefined) meta.pipelineModel = patch.pipelineModel;
     if (patch.pipelineElapsedSec !== undefined) {
       meta.pipelineElapsedSec = patch.pipelineElapsedSec;
     }

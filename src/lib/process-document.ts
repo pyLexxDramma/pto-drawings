@@ -192,6 +192,10 @@ function pipelinePatch(job: BackendJob, options?: { finished?: boolean }) {
   return {
     pipelineMode:
       mode === "mock" || mode === "real" ? (mode as "mock" | "real") : null,
+    pipelineModel:
+      typeof job.profile?.model === "string" && job.profile.model.trim()
+        ? job.profile.model.trim()
+        : null,
     pipelineElapsedSec:
       typeof job.elapsedSec === "number" ? job.elapsedSec : null,
     ...(finished ? { pipelineFinishedAt: new Date().toISOString() } : {}),
