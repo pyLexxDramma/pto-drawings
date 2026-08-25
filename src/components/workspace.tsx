@@ -50,13 +50,6 @@ import {
   DRAWING_ACCEPT_HINT,
   isDrawingFile,
 } from "@/lib/drawing-files";
-import {
-  loadRecentProjects,
-  rememberContinue,
-  removeRecentProject,
-  touchRecentProject,
-  type RecentProject,
-} from "@/lib/recent";
 import { loadCachedProgress } from "@/lib/review-state";
 import {
   KIND_LABEL,
@@ -381,7 +374,6 @@ export function Workspace({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [projectsWidth, setProjectsWidth] = useState(220);
   const [filesWidth, setFilesWidth] = useState(300);
-  const [recent, setRecent] = useState<RecentProject[]>([]);
   const [openPage, setOpenPage] = useState<{
     nonce: number;
     page: number;
@@ -686,10 +678,6 @@ export function Workspace({
   }, [documents, pushToast]);
 
   useEffect(() => {
-    setRecent(loadRecentProjects());
-  }, []);
-
-  useEffect(() => {
     let cancelled = false;
     const load = async () => {
       try {
@@ -729,10 +717,6 @@ export function Workspace({
     setNotesFilter("open");
     setProjectQuery("");
     setHits([]);
-    if (project) {
-      touchRecentProject({ id: project.id, name: project.name, at: new Date().toISOString() });
-      setRecent(loadRecentProjects());
-    }
     await Promise.all([loadDocuments(id), loadEdits(id), loadNotes(id)]);
   }
 
@@ -990,8 +974,6 @@ export function Workspace({
       return;
     }
     setError(null);
-    removeRecentProject(id);
-    setRecent(loadRecentProjects());
     const list = await loadProjects();
     setSelectedId(null);
     setDocuments([]);
@@ -1278,50 +1260,6 @@ export function Workspace({
               ) : null}
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto p-2">
-              {recent.length > 0 ? (
-                <div className="mb-3">
-                  <div className="mb-1 px-1 text-[10px] font-medium uppercase tracking-wider text-muted">
-                    Недавние
-                  </div>
-                  {recent.slice(0, 5).map((item) => {
-                    const exists = projects.some((p) => p.id === item.id);
-                    if (!exists) return null;
-                    return (
-                      <button
-                        key={`recent-${item.id}`}
-                        type="button"
-                        onClick={() => {
-                          void (async () => {
-                            await selectProject(item.id);
-                            if (item.documentId) {
-                              const page =
-                                item.page ??
-                                loadCachedProgress(item.documentId).lastPage;
-                              await openDocument(item.documentId, page);
-                            }
-                          })();
-                        }}
-                        className="mb-1 w-full rounded-md px-2.5 py-1.5 text-left text-xs text-muted hover:bg-surface-2 hover:text-text"
-                        title={
-                          item.documentName
-                            ? `Продолжить: ${item.documentName}, лист ${item.page ?? 1}`
-                            : item.name
-                        }
-                      >
-                        <span className="block truncate font-medium text-text">
-                          {item.name}
-                        </span>
-                        {item.documentName ? (
-                          <span className="mt-0.5 block truncate text-[10px]">
-                            → {item.documentName}
-                            {item.page ? ` · лист ${item.page}` : ""}
-                          </span>
-                        ) : null}
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : null}
               {projects.map((project) =>
                 renameId === project.id ? (
                   <input
@@ -1765,17 +1703,6 @@ export function Workspace({
                       type="button"
                       onClick={() => {
                         void openDocument(doc.id);
-                        if (currentProject) {
-                          const cached = loadCachedProgress(doc.id);
-                          rememberContinue(
-                            currentProject.id,
-                            currentProject.name,
-                            doc.id,
-                            doc.originalName,
-                            cached.lastPage || 1,
-                          );
-                          setRecent(loadRecentProjects());
-                        }
                       }}
                       className={`min-w-0 flex-1 px-1 text-left py-0`}
                     >
@@ -1938,16 +1865,6 @@ export function Workspace({
                         onClick={() => {
                           const cached = loadCachedProgress(doc.id);
                           void openDocument(doc.id, cached.lastPage || 1);
-                          if (currentProject) {
-                            rememberContinue(
-                              currentProject.id,
-                              currentProject.name,
-                              doc.id,
-                              doc.originalName,
-                              cached.lastPage || 1,
-                            );
-                            setRecent(loadRecentProjects());
-                          }
                         }}
                       >
                         Продолжить с листа{" "}
