@@ -24,10 +24,23 @@ type ProcessingProgressPanelProps = {
   document: DocProgress;
   canceling?: boolean;
   onCancel?: () => void;
+  onCollapse?: () => void;
 };
 
 function isCancelMessage(message: string | null | undefined) {
   return Boolean(message && message.startsWith("Отмена"));
+}
+
+export function processingStatusLabel(
+  document: ProgressInput & { errorMessage?: string | null },
+): string {
+  if (isCancelMessage(document.errorMessage)) return "Пауза";
+  if (document.status === "done") return "Завершено";
+  if (document.status === "error") return "Ошибка";
+  if (document.status === "queued" || document.status === "processing") {
+    return "Идёт обработка";
+  }
+  return "Завершено";
 }
 
 /** Полный блок прогресса в зоне расшифровки во время обработки. */
@@ -35,6 +48,7 @@ export function ProcessingProgressPanel({
   document,
   canceling = false,
   onCancel,
+  onCollapse,
 }: ProcessingProgressPanelProps) {
   const cancelPending = isCancelMessage(document.errorMessage);
   const target = processingPercent(document);
@@ -48,6 +62,7 @@ export function ProcessingProgressPanel({
     () => pageProgressRows(document, document.pageErrors),
     [document],
   );
+  const statusLabel = processingStatusLabel(document);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-[#f7f9fc]">
@@ -55,8 +70,10 @@ export function ProcessingProgressPanel({
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-sm font-semibold text-sky-950">
-              <Spinner className="h-3.5 w-3.5 text-sky-700" />
-              {cancelPending ? "Останавливаем обработку…" : "Обработка файла"}
+              {cancelPending ? null : (
+                <Spinner className="h-3.5 w-3.5 text-sky-700" />
+              )}
+              {statusLabel}
               {document.pipelineMode === "mock" ? (
                 <span className="rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-900">
                   mock
@@ -74,16 +91,28 @@ export function ProcessingProgressPanel({
                     : ""}
             </div>
           </div>
-          {onCancel && !cancelPending ? (
-            <button
-              type="button"
-              disabled={canceling}
-              onClick={onCancel}
-              className="shrink-0 rounded-md border border-sky-300 bg-white px-2.5 py-1 text-xs font-semibold text-sky-900 hover:bg-sky-100 disabled:opacity-50"
-            >
-              {canceling ? "Отмена…" : "Стоп"}
-            </button>
-          ) : null}
+          <div className="flex shrink-0 items-center gap-1.5">
+            {onCollapse ? (
+              <button
+                type="button"
+                onClick={onCollapse}
+                className="rounded-md border border-sky-200 bg-white px-2.5 py-1 text-xs font-semibold text-sky-900 hover:bg-sky-100"
+                title="Свернуть в угол"
+              >
+                Свернуть
+              </button>
+            ) : null}
+            {onCancel && !cancelPending ? (
+              <button
+                type="button"
+                disabled={canceling}
+                onClick={onCancel}
+                className="rounded-md border border-sky-300 bg-white px-2.5 py-1 text-xs font-semibold text-sky-900 hover:bg-sky-100 disabled:opacity-50"
+              >
+                {canceling ? "Отмена…" : "Стоп"}
+              </button>
+            ) : null}
+          </div>
         </div>
 
         <div className="mt-3 space-y-1.5">
@@ -197,46 +226,123 @@ export function ProcessingSummaryStrip({
   );
 }
 
-/** Компактный угол при просмотре уже готового файла — не мешает чтению. */
+type CompactBadgeProps = {
+  document: ProgressInput & { errorMessage?: string | null };
+  /** Живой прогресс во время обработки (просмотр готовых листов). */
+  live?: boolean;
+  onExpand?: () => void;
+  onGoToCurrent?: () => void;
+  currentPage?: number | null;
+  className?: string;
+};
+
+/** Компактный угол: % + статус; по клику — разворот. */
 export function ProcessingCompactBadge({
   document,
-}: {
-  document: ProgressInput & { errorMessage?: string | null };
-}) {
+  live = false,
+  onExpand,
+  onGoToCurrent,
+  currentPage = null,
+  className = "",
+}: CompactBadgeProps) {
   const [hidden, setHidden] = useState(false);
-  if (hidden) return null;
-  if (document.status !== "done" && document.status !== "error") return null;
+  const cancelPending = isCancelMessage(document.errorMessage);
+  const target = processingPercent(document);
+  const smooth = useSmoothProgress(target, {
+    active: live && !cancelPending,
+    max: 99.5,
+  });
+  const percent = live
+    ? cancelPending
+      ? target
+      : document.status === "done"
+        ? 100
+        : smooth
+    : document.status === "done"
+      ? 100
+      : target;
+  const statusLabel = processingStatusLabel(document);
 
-  const stopped = isCancelMessage(document.errorMessage);
+  if (hidden) return null;
+  if (!live && document.status !== "done" && document.status !== "error") {
+    return null;
+  }
+  if (
+    live &&
+    document.status !== "queued" &&
+    document.status !== "processing" &&
+    !cancelPending
+  ) {
+    return null;
+  }
+
+  const interactive = Boolean(onExpand);
 
   return (
-    <div className="pointer-events-auto absolute bottom-3 right-3 z-20 w-[min(100%-1.5rem,17.5rem)] rounded-lg border border-border bg-white/95 p-3 shadow-lg backdrop-blur">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="text-[11px] font-semibold text-text">
-            {stopped
-              ? "Обработка остановлена"
-              : document.status === "error"
-                ? "Ошибка обработки"
-                : "Обработка завершена"}
+    <div
+      className={`pointer-events-auto z-20 w-[min(100%-1.5rem,16.5rem)] rounded-lg border border-sky-200 bg-white/95 p-2.5 shadow-lg backdrop-blur ${className}`}
+    >
+      <button
+        type="button"
+        disabled={!interactive}
+        onClick={onExpand}
+        className={`w-full text-left ${interactive ? "cursor-pointer" : "cursor-default"}`}
+        title={interactive ? "Развернуть прогресс" : undefined}
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold text-sky-950">
+              {live && !cancelPending && document.status !== "done" ? (
+                <Spinner className="h-3 w-3 text-sky-700" />
+              ) : null}
+              <span>{statusLabel}</span>
+            </div>
+            <div className="mt-1 flex items-baseline gap-2 text-[11px] text-muted">
+              <span className="font-semibold tabular-nums text-sky-950">
+                {formatProcessingPercent(percent)}
+              </span>
+              <span>
+                {document.readyPages}/{Math.max(document.pageCount, 1)} листов
+              </span>
+            </div>
           </div>
-          <div className="mt-1 text-[11px] leading-snug text-muted">
-            {document.readyPages}/{Math.max(document.pageCount, 1)} листов
-            {document.pipelineElapsedSec != null
-              ? ` · ${formatProgressDuration(document.pipelineElapsedSec)}`
-              : ""}
-            {document.status === "done" ? " · 100%" : ""}
-          </div>
+          {!live ? (
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={(event) => {
+                event.stopPropagation();
+                setHidden(true);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setHidden(true);
+                }
+              }}
+              className="shrink-0 rounded px-1.5 py-0.5 text-[11px] text-muted hover:bg-bg hover:text-text"
+              title="Скрыть"
+            >
+              ✕
+            </span>
+          ) : interactive ? (
+            <span className="shrink-0 text-[10px] font-medium text-sky-800">
+              Развернуть
+            </span>
+          ) : null}
         </div>
+        <ProgressTrack value={percent} tone="sky" className="mt-2 h-1.5" />
+      </button>
+      {live && onGoToCurrent && currentPage != null ? (
         <button
           type="button"
-          onClick={() => setHidden(true)}
-          className="shrink-0 rounded px-1.5 py-0.5 text-[11px] text-muted hover:bg-bg hover:text-text"
-          title="Скрыть"
+          onClick={onGoToCurrent}
+          className="mt-2 w-full rounded-md border border-sky-200 bg-sky-50 px-2 py-1 text-[11px] font-semibold text-sky-950 hover:bg-sky-100"
         >
-          ✕
+          К текущему листу {currentPage}
         </button>
-      </div>
+      ) : null}
     </div>
   );
 }

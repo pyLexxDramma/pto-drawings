@@ -55,6 +55,11 @@ export function PdfPage({
   const panRef = useRef({ x: 0, y: 0 });
   const scaleRef = useRef(1);
   const naturalRef = useRef({ w: 800, h: 1100 });
+  const fitModeRef = useRef<"page" | "width">("page");
+  const pageRef = useRef(pageNumber);
+  const viewCacheRef = useRef(
+    new Map<number, { scale: number; pan: { x: number; y: number }; fitMode: "page" | "width" }>(),
+  );
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [natural, setNatural] = useState({ w: 800, h: 1100 });
@@ -75,6 +80,21 @@ export function PdfPage({
   useEffect(() => {
     naturalRef.current = natural;
   }, [natural]);
+  useEffect(() => {
+    fitModeRef.current = fitMode;
+  }, [fitMode]);
+
+  useEffect(() => {
+    const prev = pageRef.current;
+    if (prev !== pageNumber) {
+      viewCacheRef.current.set(prev, {
+        scale: scaleRef.current,
+        pan: { ...panRef.current },
+        fitMode: fitModeRef.current,
+      });
+      pageRef.current = pageNumber;
+    }
+  }, [pageNumber]);
 
   useEffect(() => {
     let cancelled = false;
@@ -177,7 +197,15 @@ export function PdfPage({
   }
 
   useEffect(() => {
-    if (!loading && !error) fit("page");
+    if (loading || error) return;
+    const cached = viewCacheRef.current.get(pageNumber);
+    if (cached) {
+      setFitMode(cached.fitMode);
+      setScale(cached.scale);
+      setPan(cached.pan);
+      return;
+    }
+    fit("page");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, error, natural.w, natural.h, pageNumber]);
 

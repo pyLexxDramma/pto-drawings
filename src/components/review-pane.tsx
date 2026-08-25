@@ -65,6 +65,9 @@ type ReviewPaneProps = {
   specName?: string | null;
   /** Правый край шапки: меню пользователя и статус конвейера из workspace. */
   headerRight?: ReactNode;
+  /** Переход к активной обработке в другом файле проекта (если есть). */
+  onGoToLiveJob?: (() => void) | null;
+  liveJobLabel?: string | null;
   onCancel?: () => void;
   onToggleFocus: () => void;
   onBackToProjects: () => void;
@@ -96,6 +99,8 @@ export function ReviewPane({
   specHref = null,
   specName = null,
   headerRight = null,
+  onGoToLiveJob = null,
+  liveJobLabel = null,
   onCancel,
   onToggleFocus,
   onBackToProjects,
@@ -130,6 +135,8 @@ export function ReviewPane({
   const [scrollRatio, setScrollRatio] = useState<number | null>(null);
   const [sidePanel, setSidePanel] = useState<"text" | "notes">("text");
   const [searchOpen, setSearchOpen] = useState(false);
+  /** Пользователь развернул прогресс поверх просмотра готового листа. */
+  const [progressExpanded, setProgressExpanded] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const draftRef = useRef(draft);
   const pageRef = useRef(rawPage);
@@ -143,6 +150,16 @@ export function ReviewPane({
   const isCadSource = isCadExt(getDrawingExt(document.originalName));
   const processing =
     document.status === "queued" || document.status === "processing";
+  const cancelPending = Boolean(document.errorMessage?.startsWith("Отмена"));
+  const liveProcessing = processing || cancelPending;
+  const activeProcessingPage = useMemo(() => {
+    if (!liveProcessing) return null;
+    if (document.processingPage && document.processingPage > 0) {
+      return document.processingPage;
+    }
+    const ready = Math.min(Math.max(document.readyPages, 0), total);
+    return ready < total ? ready + 1 : null;
+  }, [document.processingPage, document.readyPages, liveProcessing, total]);
   const editedPages = useMemo(
     () => new Set(document.editLog.map((entry) => entry.pageNumber)),
     [document.editLog],
@@ -219,6 +236,17 @@ export function ReviewPane({
       : visiblePages[0];
   const page = document.pages.find((item) => item.pageNumber === pageNumber);
   const pageNotes = notes.filter((item) => item.pageNumber === pageNumber);
+  const viewingProcessedSheet =
+    liveProcessing && ready.has(pageNumber) && pageNumber !== activeProcessingPage;
+  const showFullProgress =
+    liveProcessing && (!viewingProcessedSheet || progressExpanded);
+
+  useEffect(() => {
+    if (viewingProcessedSheet) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setProgressExpanded(false);
+    }
+  }, [pageNumber, viewingProcessedSheet]);
 
   useEffect(() => {
     draftRef.current = draft;
@@ -322,6 +350,17 @@ export function ReviewPane({
     await flush();
     setMode("view");
     setRawPage(next);
+  }
+
+  function goToCurrentProcessing() {
+    if (onGoToLiveJob) {
+      onGoToLiveJob();
+      return;
+    }
+    if (activeProcessingPage != null) {
+      setProgressExpanded(false);
+      void goToPage(activeProcessingPage);
+    }
   }
 
   function stepVisible(delta: number) {
@@ -757,17 +796,44 @@ export function ReviewPane({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-border bg-white px-3">
-        <button
-          type="button"
-          onClick={onBackToProjects}
-          title="На главную (Esc)"
-          className="flex shrink-0 items-center gap-1.5 rounded-md border border-border bg-bg px-2.5 py-1.5 text-xs font-semibold text-text hover:border-accent hover:bg-white"
-        >
-          <span aria-hidden className="text-sm leading-none text-accent">
-            ←
-          </span>
-          <span>На главную</span>
-        </button>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <button
+            type="button"
+            onClick={onBackToProjects}
+            title="На главную (Esc)"
+            className="flex items-center gap-1.5 rounded-md border border-border bg-bg px-2.5 py-1.5 text-xs font-semibold text-text hover:border-accent hover:bg-white"
+          >
+            <span aria-hidden className="text-sm leading-none text-accent">
+              ←
+            </span>
+            <span>На главную</span>
+          </button>
+          {liveProcessing && activeProcessingPage != null ? (
+            <button
+              type="button"
+              onClick={goToCurrentProcessing}
+              disabled={
+                !onGoToLiveJob && pageNumber === activeProcessingPage && !progressExpanded
+              }
+              title="К текущему обрабатываемому листу"
+              className="rounded-md border border-sky-300 bg-sky-50 px-2.5 py-1.5 text-xs font-semibold text-sky-950 hover:bg-sky-100 disabled:cursor-default disabled:opacity-50"
+            >
+              К текущему
+              <span className="ml-1 tabular-nums opacity-80">
+                · лист {activeProcessingPage}
+              </span>
+            </button>
+          ) : onGoToLiveJob ? (
+            <button
+              type="button"
+              onClick={onGoToLiveJob}
+              title={liveJobLabel ?? "К текущей обработке"}
+              className="rounded-md border border-sky-300 bg-sky-50 px-2.5 py-1.5 text-xs font-semibold text-sky-950 hover:bg-sky-100"
+            >
+              К текущему чертежу
+            </button>
+          ) : null}
+        </div>
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-semibold tracking-tight">
             {document.originalName}
@@ -1026,7 +1092,7 @@ export function ReviewPane({
         </div>
       </div>
 
-      {processing || document.errorMessage?.startsWith("Отмена") ? null : (
+      {processing || cancelPending ? null : (
         <ProcessingSummaryStrip
           document={document}
           errorCount={errorCount}
@@ -1034,7 +1100,7 @@ export function ReviewPane({
       )}
 
       {!processing &&
-      !document.errorMessage?.startsWith("Отмена") &&
+      !cancelPending &&
       (errorCount ||
         usageLabel ||
         (showTech && elapsedLabel) ||
@@ -1069,7 +1135,7 @@ export function ReviewPane({
         </div>
       ) : null}
 
-      <div className="flex min-h-0 flex-1">
+      <div className="relative flex min-h-0 flex-1">
         {stripOpen ? (
           <>
             <PageStrip
@@ -1148,10 +1214,10 @@ export function ReviewPane({
                   }}
                 />
               )}
-              {processing && !isCadSource ? (
+              {liveProcessing && !isCadSource ? (
                 <div className="pointer-events-none absolute bottom-3 left-3 rounded-md bg-slate-900/75 px-2.5 py-1 text-xs text-white">
                   {readyCount}/{total}
-                  {document.processingPage ? ` · лист ${document.processingPage}` : ""}
+                  {activeProcessingPage ? ` · лист ${activeProcessingPage}` : ""}
                 </div>
               ) : null}
             </div>
@@ -1170,11 +1236,16 @@ export function ReviewPane({
 
           {paneSolo !== "pdf" ? (
           <div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-white">
-            {processing || document.errorMessage?.startsWith("Отмена") ? (
+            {showFullProgress ? (
               <ProcessingProgressPanel
                 document={document}
                 canceling={canceling}
                 onCancel={onCancel}
+                onCollapse={
+                  viewingProcessedSheet
+                    ? () => setProgressExpanded(false)
+                    : undefined
+                }
               />
             ) : (
               <>
@@ -1349,12 +1420,42 @@ export function ReviewPane({
 
               </>
             )}
-            <ProcessingCompactBadge document={document} />
               </>
             )}
           </div>
           ) : null}
         </div>
+
+        {viewingProcessedSheet && !progressExpanded ? (
+          <ProcessingCompactBadge
+            live
+            document={document}
+            currentPage={
+              pageNumber !== activeProcessingPage ? activeProcessingPage : null
+            }
+            onExpand={() => setProgressExpanded(true)}
+            onGoToCurrent={
+              activeProcessingPage != null && pageNumber !== activeProcessingPage
+                ? goToCurrentProcessing
+                : undefined
+            }
+            className={
+              paneSolo === "pdf"
+                ? "absolute bottom-14 right-3"
+                : "absolute bottom-3 right-3"
+            }
+          />
+        ) : null}
+        {!liveProcessing ? (
+          <ProcessingCompactBadge
+            document={document}
+            className={
+              paneSolo === "pdf"
+                ? "absolute bottom-14 right-3"
+                : "absolute bottom-3 right-3"
+            }
+          />
+        ) : null}
       </div>
 
       {showLog ? (

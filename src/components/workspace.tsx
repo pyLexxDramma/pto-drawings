@@ -397,6 +397,29 @@ export function Workspace({
   const busy = documents.some(
     (doc) => doc.status === "queued" || doc.status === "processing",
   );
+  const liveJob = (() => {
+    const active = documents.filter(
+      (doc) => doc.status === "queued" || doc.status === "processing",
+    );
+    if (active.length === 0) return null;
+    const primary =
+      active.find((doc) => doc.id === selectedId) ??
+      active.find((doc) => doc.status === "processing") ??
+      active[0];
+    const total = Math.max(primary.pageCount, 1);
+    const ready = Math.min(Math.max(primary.readyPages, 0), total);
+    const page =
+      primary.processingPage && primary.processingPage > 0
+        ? primary.processingPage
+        : ready < total
+          ? ready + 1
+          : 1;
+    return {
+      documentId: primary.id,
+      page,
+      label: `${primary.originalName} · лист ${page}`,
+    };
+  })();
 
   const loadProjects = useCallback(async (signal?: AbortSignal) => {
     const response = await fetch("/api/projects", { signal });
@@ -2019,6 +2042,18 @@ export function Workspace({
                 : null
             }
             specName={currentProject?.specOriginalName ?? null}
+            onGoToLiveJob={
+              liveJob && liveJob.documentId !== selected.id
+                ? () => {
+                    void openDocument(liveJob.documentId, liveJob.page);
+                  }
+                : null
+            }
+            liveJobLabel={
+              liveJob && liveJob.documentId !== selected.id
+                ? liveJob.label
+                : null
+            }
             headerRight={
               <>
                 {pipelineChip ? (
