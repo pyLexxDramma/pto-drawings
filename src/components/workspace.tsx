@@ -111,6 +111,7 @@ function processingOverview(
     return {
       percent: avg,
       canceling: false,
+      documentId: null as string | null,
       label: `Загрузка PDF… ${avg}%`,
     };
   }
@@ -146,6 +147,7 @@ function processingOverview(
   return {
     percent,
     canceling,
+    documentId: primary.id,
     label: canceling
       ? `Отмена… ${percent}%`
       : [fileHint, `${percent}%`, pageHint, step].filter(Boolean).join(" · "),
@@ -1083,7 +1085,7 @@ export function Workspace({
 
       {processBar ? (
         <div
-          className={`flex h-6 shrink-0 items-center gap-3 border-b px-4 ${
+          className={`flex h-7 shrink-0 items-center gap-3 border-b px-4 ${
             processBar.canceling
               ? "border-amber-300 bg-amber-100"
               : "border-emerald-200 bg-emerald-50"
@@ -1111,13 +1113,28 @@ export function Workspace({
             />
           </div>
           <span
-            className={`max-w-[60%] shrink-0 truncate text-[11px] font-semibold tabular-nums ${
+            className={`min-w-0 max-w-[50%] shrink truncate text-[11px] font-semibold tabular-nums ${
               processBar.canceling ? "text-amber-950" : "text-emerald-950"
             }`}
             title={processBar.label}
           >
             {processBar.label}
           </span>
+          {processBar.documentId ? (
+            <button
+              type="button"
+              disabled={
+                processBar.canceling || cancelingId === processBar.documentId
+              }
+              onClick={() => void handleCancel(processBar.documentId!)}
+              className="shrink-0 rounded border border-amber-300 bg-white px-2 py-0.5 text-[11px] font-semibold text-amber-950 hover:bg-amber-50 disabled:opacity-50"
+              title="Остановить обработку"
+            >
+              {processBar.canceling || cancelingId === processBar.documentId
+                ? "Останавливаем…"
+                : "Стоп"}
+            </button>
+          ) : null}
         </div>
       ) : null}
 

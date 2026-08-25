@@ -10,7 +10,7 @@ if (!password || password.length < 6) {
   process.exit(1);
 }
 
-const root = process.env.PTO_APP_DIR || process.cwd();
+const root = process.env.DATA_ROOT || process.env.PTO_APP_DIR || process.cwd();
 const dbPath = path.join(root, "data", "db.json");
 const db = JSON.parse(readFileSync(dbPath, "utf8"));
 const user = (db.users || []).find((u) => u.login === login);

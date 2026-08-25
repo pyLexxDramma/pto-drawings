@@ -70,7 +70,7 @@ User=$APP_USER
 WorkingDirectory=$APP_DIR
 Environment=NODE_ENV=production
 Environment=PORT=8080
-Environment=DATA_ROOT=$APP_DIR
+Environment=DATA_ROOT=/var/lib/pto
 EnvironmentFile=-$APP_DIR/.env.local
 ExecStart=/usr/bin/npm run start
 Restart=always
