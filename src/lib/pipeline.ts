@@ -83,9 +83,30 @@ export async function findPipelineJob(
   const jobs = Array.isArray(payload) ? payload : (payload.jobs ?? []);
   return (
     jobs.find((job) => job.status === "processing" || job.status === "queued") ??
-    jobs[0] ??
+    jobs[jobs.length - 1] ??
     null
   );
+}
+
+/** Прокси к конвейеру: геометрия / превью листа DWG. */
+export async function fetchPipelinePageAsset(
+  documentId: string,
+  pageNumber: number,
+  kind: "geometry" | "preview",
+  previewFormat: "png" | "svg" = "png",
+): Promise<Response> {
+  const job = await findPipelineJob(documentId);
+  if (!job) {
+    return new Response(JSON.stringify({ error: "Нет задачи конвейера для документа" }), {
+      status: 404,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+  const path =
+    kind === "geometry"
+      ? `/jobs/${job.id}/pages/${pageNumber}/geometry`
+      : `/jobs/${job.id}/pages/${pageNumber}/preview?format=${previewFormat}`;
+  return pipelineFetch(path);
 }
 
 export async function cancelPipelineJob(jobId: string): Promise<PipelineJob> {

@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { ColumnResizer, clamp } from "@/components/column-resizer";
+import { CadPage } from "@/components/cad-page";
 import { MarkdownView } from "@/components/markdown-view";
 import { PageStrip } from "@/components/page-strip";
 import { PdfPage } from "@/components/pdf-page";
@@ -1170,30 +1171,24 @@ export function ReviewPane({
               style={{ width: paneSolo === "pdf" ? "100%" : `${split}%` }}
             >
               {isCadSource ? (
-                <div className="flex h-full min-h-[16rem] flex-col items-center justify-center gap-3 bg-[#f4f6f9] px-6 text-center">
-                  <div className="max-w-sm rounded-xl border border-dashed border-slate-300 bg-white px-6 py-8 shadow-sm">
-                    <div className="text-sm font-semibold text-text">
-                      Файл DWG/DXF
-                    </div>
-                    <div className="mt-2 text-xs leading-relaxed text-muted">
-                      {document.originalName} передан на конвейер. Превью чертежа
-                      появится после конвертации на бэкенде.
-                    </div>
-                    {processing ? (
-                      <div className="mt-3 text-xs text-sky-700">
-                        Идёт обработка…
-                      </div>
-                    ) : document.status === "error" ? (
-                      <div className="mt-3 text-xs text-red-700">
-                        {document.errorMessage || "Ошибка обработки"}
-                      </div>
-                    ) : document.status === "done" ? (
-                      <div className="mt-3 text-xs text-emerald-700">
-                        Обработка завершена — текст справа, если конвейер его вернул.
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
+                <CadPage
+                  documentId={document.id}
+                  pageNumber={pageNumber}
+                  annotations={pageNotes}
+                  markMode={markMode && !readOnly}
+                  activeAnnotationId={activeNoteId}
+                  highlightNonce={pdfHighlight}
+                  highlightQuery={deferredQuery}
+                  scrollSync={scrollSync && paneSolo !== "pdf"}
+                  scrollRatio={scrollSync ? scrollRatio : null}
+                  onScrollRatioChange={onPdfScrollRatio}
+                  onMarkRect={(rect) => setPendingRect(rect)}
+                  onSelectAnnotation={(id) => setActiveNoteId(id)}
+                  onCancelMark={() => {
+                    setMarkMode(false);
+                    setPendingRect(null);
+                  }}
+                />
               ) : (
                 <PdfPage
                   url={`/api/documents/${document.id}/file`}
@@ -1214,7 +1209,7 @@ export function ReviewPane({
                   }}
                 />
               )}
-              {liveProcessing && !isCadSource ? (
+              {liveProcessing ? (
                 <div className="pointer-events-none absolute bottom-3 left-3 rounded-md bg-slate-900/75 px-2.5 py-1 text-xs text-white">
                   {readyCount}/{total}
                   {activeProcessingPage ? ` · лист ${activeProcessingPage}` : ""}
