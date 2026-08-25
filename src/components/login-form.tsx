@@ -73,9 +73,8 @@ export function LoginForm({
           <div className="mt-3 text-2xl font-semibold tracking-tight text-text">
             PTO
           </div>
-          <div className="mt-1 max-w-[16rem] text-sm leading-snug text-muted">
-            Проверка чертежей: загрузите PDF, смотрите разбор листа и отмечайте
-            замечания
+          <div className="mt-1 text-sm leading-snug text-muted">
+            In development...
           </div>
         </div>
 
@@ -114,18 +113,14 @@ export function LoginForm({
           {busy ? "Вход…" : "Войти"}
         </button>
 
-        <p className="mt-4 text-center text-[11px] leading-relaxed text-muted">
-          {showBootstrapHint ? (
-            <>
-              Первый запуск: логин{" "}
-              <span className="font-medium text-text">admin</span>, пароль{" "}
-              <span className="font-medium text-text">admin123</span>. Админ
-              создаёт аккаунты инженеров в приложении.
-            </>
-          ) : (
-            <>Доступ выдаёт администратор.</>
-          )}
-        </p>
+        {showBootstrapHint ? (
+          <p className="mt-4 text-center text-[11px] leading-relaxed text-muted">
+            Первый запуск: логин{" "}
+            <span className="font-medium text-text">admin</span>, пароль{" "}
+            <span className="font-medium text-text">admin123</span>. Админ
+            создаёт аккаунты инженеров в приложении.
+          </p>
+        ) : null}
       </form>
     </div>
   );
