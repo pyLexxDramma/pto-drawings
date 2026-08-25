@@ -13,7 +13,6 @@ import { ColumnResizer, clamp } from "@/components/column-resizer";
 import { MarkdownView } from "@/components/markdown-view";
 import { PageStrip } from "@/components/page-strip";
 import { PdfPage } from "@/components/pdf-page";
-import { PtoLogo } from "@/components/pto-logo";
 import { ProgressTrack, SegmentedTabs, Spinner, ActionMenu, menuItemClass } from "@/components/ui-chrome";
 import { VoiceNoteButton } from "@/components/voice-note";
 import {
@@ -758,10 +757,12 @@ export function ReviewPane({
           type="button"
           onClick={onBackToProjects}
           title="На главную (Esc)"
-          className="flex shrink-0 items-center gap-2 rounded-md border border-border bg-white px-2 py-1 hover:border-accent hover:bg-bg"
+          className="flex shrink-0 items-center gap-1.5 rounded-md border border-border bg-bg px-2.5 py-1.5 text-xs font-semibold text-text hover:border-accent hover:bg-white"
         >
-          <PtoLogo className="h-6 w-6 shrink-0" title="PTO" />
-          <span className="text-[11px] font-medium text-text">На главную</span>
+          <span aria-hidden className="text-sm leading-none text-accent">
+            ←
+          </span>
+          <span>На главную</span>
         </button>
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-semibold tracking-tight">
