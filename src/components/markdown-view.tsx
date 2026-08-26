@@ -1,11 +1,12 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
 import { highlightNodes } from "@/lib/highlight-text";
+import { parseMarkdownBlocks } from "@/lib/content-sync";
 import { markdownSanitizeSchema } from "@/lib/markdown-schema";
 
 type MarkdownViewProps = {
@@ -14,6 +15,8 @@ type MarkdownViewProps = {
   onAnchor?: (payload: { text: string; pageHint: number | null }) => void;
   /** Подсветка совпадений поиска в тексте. */
   highlightQuery?: string;
+  /** Блок, синхронизированный с зоной на чертеже. */
+  activeBlockId?: string | null;
 };
 
 function pageHintFromText(text: string): number | null {
@@ -71,12 +74,15 @@ function wrapText(
   return <Tag {...extra}>{body}</Tag>;
 }
 
-/** Единственное место, где markdown листа превращается в HTML. */
-export function MarkdownView({
-  children,
+function BlockMarkdown({
+  source,
   onAnchor,
-  highlightQuery = "",
-}: MarkdownViewProps) {
+  highlightQuery,
+}: {
+  source: string;
+  onAnchor?: MarkdownViewProps["onAnchor"];
+  highlightQuery: string;
+}) {
   const q = highlightQuery.trim().length >= 2 ? highlightQuery : "";
   return (
     <Markdown
@@ -104,7 +110,47 @@ export function MarkdownView({
         th: ({ children: c }) => wrapText("th", c, q),
       }}
     >
-      {children}
+      {source}
     </Markdown>
+  );
+}
+
+/** Единственное место, где markdown листа превращается в HTML. */
+export function MarkdownView({
+  children,
+  onAnchor,
+  highlightQuery = "",
+  activeBlockId = null,
+}: MarkdownViewProps) {
+  const blocks = useMemo(() => parseMarkdownBlocks(children), [children]);
+  const q = highlightQuery.trim().length >= 2 ? highlightQuery : "";
+
+  if (!blocks.length) {
+    return (
+      <BlockMarkdown source={children} onAnchor={onAnchor} highlightQuery={q} />
+    );
+  }
+
+  return (
+    <>
+      {blocks.map((block) => (
+        <div
+          key={block.id}
+          data-md-block={block.id}
+          data-md-block-active={activeBlockId === block.id ? "true" : undefined}
+          className={
+            activeBlockId === block.id
+              ? "scroll-mt-3 rounded-md border-l-2 border-accent bg-blue-50/80 pl-3 -ml-3 pr-1 transition-colors"
+              : "scroll-mt-3 rounded-md border-l-2 border-transparent pl-3 -ml-3 pr-1"
+          }
+        >
+          <BlockMarkdown
+            source={block.source}
+            onAnchor={onAnchor}
+            highlightQuery={q}
+          />
+        </div>
+      ))}
+    </>
   );
 }

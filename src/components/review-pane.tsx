@@ -29,6 +29,12 @@ import {
   IconThumbs,
 } from "@/components/tool-icons";
 import { formatDate } from "@/lib/format";
+import {
+  matchBlocksToRegions,
+  nearestBlockForAnchorY,
+  parseMarkdownBlocks,
+  type PageTextRegion,
+} from "@/lib/content-sync";
 import { getDrawingExt, isCadExt } from "@/lib/drawing-files";
 import { formatElapsed, formatPipelineUsage } from "@/lib/pipeline";
 import {
@@ -36,6 +42,7 @@ import {
   ProcessingProgressPanel,
   ProcessingSummaryStrip,
 } from "@/components/processing-progress-panel";
+import { ReviewPaneHelp } from "@/components/review-pane-help";
 import {
   cacheProgress,
   fetchProgress,
@@ -129,11 +136,14 @@ export function ReviewPane({
   const [noteExpected, setNoteExpected] = useState("");
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
   const [noteError, setNoteError] = useState<string | null>(null);
-  const [showHelp, setShowHelp] = useState(false);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [pdfHighlight, setPdfHighlight] = useState(0);
   const [paneSolo, setPaneSolo] = useState<PaneSolo>(null);
   const [scrollSync, setScrollSync] = useState(true);
   const [scrollRatio, setScrollRatio] = useState<number | null>(null);
+  const [scrollAnchorY, setScrollAnchorY] = useState<number | null>(null);
+  const [textRegions, setTextRegions] = useState<PageTextRegion[]>([]);
+  const [activeBlockId, setActiveBlockId] = useState<string | null>(null);
   const [sidePanel, setSidePanel] = useState<"text" | "notes">("text");
   const [searchOpen, setSearchOpen] = useState(false);
   /** Пользователь развернул прогресс поверх просмотра готового листа. */
@@ -410,8 +420,8 @@ export function ReviewPane({
       }
 
       if (event.key === "Escape") {
-        if (showHelp) {
-          setShowHelp(false);
+        if (moreMenuOpen) {
+          setMoreMenuOpen(false);
           return;
         }
         if (showLog) {
@@ -440,7 +450,7 @@ export function ReviewPane({
 
       if (event.key === "?" || (event.shiftKey && event.code === "Slash")) {
         event.preventDefault();
-        setShowHelp((value) => !value);
+        setMoreMenuOpen((value) => !value);
         return;
       }
 
@@ -486,7 +496,7 @@ export function ReviewPane({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusMode, markMode, pendingRect, onBackToProjects, onToggleFocus, visiblePages, document.pages, showHelp, showLog, paneSolo, searchOpen, readOnly]);
+  }, [focusMode, markMode, pendingRect, onBackToProjects, onToggleFocus, visiblePages, document.pages, moreMenuOpen, showLog, paneSolo, searchOpen, readOnly]);
 
   const hits = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -624,14 +634,42 @@ export function ReviewPane({
   const isMockPage = Boolean(page?.markdown.includes("[MOCK]"));
   const errorCount = Object.keys(document.pageErrors ?? {}).length;
 
+  const blockAnchors = useMemo(() => {
+    if (!page?.markdown || !textRegions.length) return new Map<string, number>();
+    return matchBlocksToRegions(parseMarkdownBlocks(page.markdown), textRegions);
+  }, [page?.markdown, textRegions]);
+
+  useEffect(() => {
+    setTextRegions([]);
+    setScrollAnchorY(null);
+    setActiveBlockId(null);
+  }, [pageNumber, document.id]);
+
   function onMarkdownScroll() {
     if (!scrollSync || syncLockRef.current || paneSolo === "pdf") return;
     const el = mdScrollRef.current;
     if (!el) return;
-    const max = el.scrollHeight - el.clientHeight;
-    const ratio = max <= 0 ? 0 : el.scrollTop / max;
+    const blocks = el.querySelectorAll<HTMLElement>("[data-md-block]");
+    const probe = el.scrollTop + 48;
+    let current: HTMLElement | null = null;
+    for (const block of blocks) {
+      if (block.offsetTop <= probe) current = block;
+      else break;
+    }
+    const blockId = current?.dataset.mdBlock ?? null;
+    if (blockId) setActiveBlockId(blockId);
+
     syncLockRef.current = true;
-    setScrollRatio(ratio);
+    const anchorY = blockId ? blockAnchors.get(blockId) : null;
+    if (anchorY != null) {
+      setScrollAnchorY(anchorY);
+      setScrollRatio(null);
+    } else {
+      const max = el.scrollHeight - el.clientHeight;
+      const ratio = max <= 0 ? 0 : el.scrollTop / max;
+      setScrollRatio(ratio);
+      setScrollAnchorY(null);
+    }
     requestAnimationFrame(() => {
       syncLockRef.current = false;
     });
@@ -639,16 +677,42 @@ export function ReviewPane({
 
   function onPdfScrollRatio(ratio: number) {
     if (!scrollSync || syncLockRef.current || paneSolo === "md") return;
+    syncLockRef.current = true;
+    setScrollRatio(ratio);
+    setScrollAnchorY(null);
     const el = mdScrollRef.current;
     if (el) {
-      syncLockRef.current = true;
       const max = el.scrollHeight - el.clientHeight;
       el.scrollTop = ratio * Math.max(0, max);
-      requestAnimationFrame(() => {
-        syncLockRef.current = false;
-      });
     }
-    setScrollRatio(ratio);
+    requestAnimationFrame(() => {
+      syncLockRef.current = false;
+    });
+  }
+
+  function onPdfScrollAnchor(y: number) {
+    if (!scrollSync || syncLockRef.current || paneSolo === "md") return;
+    syncLockRef.current = true;
+    setScrollAnchorY(y);
+    setScrollRatio(null);
+    const blockId = nearestBlockForAnchorY(y, blockAnchors);
+    if (blockId) {
+      setActiveBlockId(blockId);
+      const el = mdScrollRef.current;
+      const block = el?.querySelector(`[data-md-block="${blockId}"]`);
+      if (block instanceof HTMLElement) {
+        block.scrollIntoView({ block: "nearest", behavior: "auto" });
+      }
+    } else {
+      const el = mdScrollRef.current;
+      if (el) {
+        const max = el.scrollHeight - el.clientHeight;
+        el.scrollTop = y * Math.max(0, max);
+      }
+    }
+    requestAnimationFrame(() => {
+      syncLockRef.current = false;
+    });
   }
 
   useEffect(() => {
@@ -944,6 +1008,9 @@ export function ReviewPane({
           <ActionMenu
             label="Ещё"
             triggerClassName={toolBtnIcon}
+            open={moreMenuOpen}
+            onOpenChange={setMoreMenuOpen}
+            menuClassName="w-[min(22rem,calc(100vw-2rem))]"
           >
             <button
               type="button"
@@ -1077,14 +1144,7 @@ export function ReviewPane({
                 </span>
               </button>
             ) : null}
-            <button
-              type="button"
-              role="menuitem"
-              className={menuItemClass()}
-              onClick={() => setShowHelp(true)}
-            >
-              Горячие клавиши…
-            </button>
+            <ReviewPaneHelp />
             {soloLabel ? (
               <div className="px-3 py-1.5 text-[10px] text-muted">Режим: {soloLabel}</div>
             ) : null}
@@ -1180,8 +1240,12 @@ export function ReviewPane({
                   highlightNonce={pdfHighlight}
                   highlightQuery={deferredQuery}
                   scrollSync={scrollSync && paneSolo !== "pdf"}
-                  scrollRatio={scrollSync ? scrollRatio : null}
+                  scrollRatio={scrollSync && scrollAnchorY == null ? scrollRatio : null}
+                  scrollAnchorY={scrollSync ? scrollAnchorY : null}
+                  highlightAnchorY={scrollSync ? scrollAnchorY : null}
                   onScrollRatioChange={onPdfScrollRatio}
+                  onScrollAnchorChange={onPdfScrollAnchor}
+                  onTextRegionsReady={setTextRegions}
                   onMarkRect={(rect) => setPendingRect(rect)}
                   onSelectAnnotation={(id) => setActiveNoteId(id)}
                   onCancelMark={() => {
@@ -1199,8 +1263,12 @@ export function ReviewPane({
                   highlightNonce={pdfHighlight}
                   highlightQuery={deferredQuery}
                   scrollSync={scrollSync && paneSolo !== "pdf"}
-                  scrollRatio={scrollSync ? scrollRatio : null}
+                  scrollRatio={scrollSync && scrollAnchorY == null ? scrollRatio : null}
+                  scrollAnchorY={scrollSync ? scrollAnchorY : null}
+                  highlightAnchorY={scrollSync ? scrollAnchorY : null}
                   onScrollRatioChange={onPdfScrollRatio}
+                  onScrollAnchorChange={onPdfScrollAnchor}
+                  onTextRegionsReady={setTextRegions}
                   onMarkRect={(rect) => setPendingRect(rect)}
                   onSelectAnnotation={(id) => setActiveNoteId(id)}
                   onCancelMark={() => {
@@ -1400,6 +1468,7 @@ export function ReviewPane({
                   ) : null}
                   <MarkdownView
                     highlightQuery={deferredQuery}
+                    activeBlockId={scrollSync ? activeBlockId : null}
                     onAnchor={({ pageHint }) => {
                       if (pageHint && pageHint !== pageNumber) {
                         void goToPage(pageHint);
@@ -1493,105 +1562,6 @@ export function ReviewPane({
                 ))
               )}
             </div>
-          </div>
-        </div>
-      ) : null}
-
-      {showHelp ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Горячие клавиши"
-          onClick={() => setShowHelp(false)}
-        >
-          <div
-            className="w-full max-w-sm rounded-lg border border-border bg-white p-4 shadow-xl"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="mb-3 flex items-center justify-between">
-              <div className="text-sm font-medium">Горячие клавиши</div>
-              <button
-                type="button"
-                className="text-xs text-muted hover:text-text"
-                onClick={() => setShowHelp(false)}
-              >
-                Закрыть
-              </button>
-            </div>
-            <ul className="space-y-1.5 text-xs text-muted">
-              <li>
-                <kbd className="rounded border border-border bg-bg px-1.5 py-0.5 font-mono text-text">
-                  J
-                </kbd>{" "}
-                /{" "}
-                <kbd className="rounded border border-border bg-bg px-1.5 py-0.5 font-mono text-text">
-                  →
-                </kbd>{" "}
-                / пробел — следующий лист
-              </li>
-              <li>
-                <kbd className="rounded border border-border bg-bg px-1.5 py-0.5 font-mono text-text">
-                  K
-                </kbd>{" "}
-                /{" "}
-                <kbd className="rounded border border-border bg-bg px-1.5 py-0.5 font-mono text-text">
-                  ←
-                </kbd>{" "}
-                — предыдущий лист
-              </li>
-              <li>
-                <kbd className="rounded border border-border bg-bg px-1.5 py-0.5 font-mono text-text">
-                  V
-                </kbd>{" "}
-                — отметить лист просмотренным / снять
-              </li>
-              <li>
-                <kbd className="rounded border border-border bg-bg px-1.5 py-0.5 font-mono text-text">
-                  E
-                </kbd>{" "}
-                — разметка ошибки на чертеже
-              </li>
-              <li>
-                <kbd className="rounded border border-border bg-bg px-1.5 py-0.5 font-mono text-text">
-                  /
-                </kbd>{" "}
-                или{" "}
-                <kbd className="rounded border border-border bg-bg px-1.5 py-0.5 font-mono text-text">
-                  Ctrl+F
-                </kbd>{" "}
-                — поиск по этому файлу
-              </li>
-              <li>
-                <kbd className="rounded border border-border bg-bg px-1.5 py-0.5 font-mono text-text">
-                  Ctrl+S
-                </kbd>{" "}
-                — сохранить правки текста
-              </li>
-              <li>
-                <kbd className="rounded border border-border bg-bg px-1.5 py-0.5 font-mono text-text">
-                  F
-                </kbd>{" "}
-                — сплит → только чертёж → только текст
-              </li>
-              <li>
-                <kbd className="rounded border border-border bg-bg px-1.5 py-0.5 font-mono text-text">
-                  Esc
-                </kbd>{" "}
-                — отмена отметки / выход из solo / фокуса / к проектам
-              </li>
-              <li>
-                <kbd className="rounded border border-border bg-bg px-1.5 py-0.5 font-mono text-text">
-                  ?
-                </kbd>{" "}
-                — эта справка
-              </li>
-              <li>колёсико на чертеже — зум в точку курсора</li>
-              <li>
-                Sync — синхронный скролл PDF ↔ markdown (на PDF: Shift + колёсико =
-                pan)
-              </li>
-            </ul>
           </div>
         </div>
       ) : null}

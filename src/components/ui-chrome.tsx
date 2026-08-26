@@ -104,6 +104,8 @@ export function ActionMenu({
   /** Своё содержимое кнопки вместо «⋯» — например номер листа. */
   trigger,
   menuClassName = "",
+  open: openProp,
+  onOpenChange,
   children,
 }: {
   label?: string;
@@ -111,9 +113,18 @@ export function ActionMenu({
   triggerClassName?: string;
   trigger?: ReactNode;
   menuClassName?: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   children: ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
+  const [openInternal, setOpenInternal] = useState(false);
+  const controlled = openProp !== undefined;
+  const open = controlled ? openProp : openInternal;
+
+  function setOpen(next: boolean) {
+    if (!controlled) setOpenInternal(next);
+    onOpenChange?.(next);
+  }
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -142,7 +153,7 @@ export function ActionMenu({
         title={label}
         onClick={(event) => {
           event.stopPropagation();
-          setOpen((value) => !value);
+          setOpen(!open);
         }}
         className={
           triggerClassName ??
