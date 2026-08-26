@@ -332,6 +332,7 @@ export function regionsFromPdfTextContent(
     }
     cluster.push(row);
   }
+  flushCluster();
   // Also keep short standalone lines as their own regions (метки на чертеже).
   for (const row of merged) {
     const text = normalizeForMatch(row.parts.join(" "));

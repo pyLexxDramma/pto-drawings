@@ -99,7 +99,17 @@ export function PdfPage({
   const [anchorFlash, setAnchorFlash] = useState(false);
   const [searchHits, setSearchHits] = useState<TextHit[]>([]);
   const [fitMode, setFitMode] = useState<"page" | "width">("page");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const pdfDocRef = useRef<{ url: string; pdf: any } | null>(null);
+  const onTextRegionsReadyRef = useRef(onTextRegionsReady);
+  const textContentRef = useRef<{
+    items: Array<{ str?: string; transform?: number[]; width?: number }>;
+    viewport: { width: number; height: number; transform: number[] };
+  } | null>(null);
 
+  useEffect(() => {
+    onTextRegionsReadyRef.current = onTextRegionsReady;
+  }, [onTextRegionsReady]);
   useEffect(() => {
     panRef.current = pan;
   }, [pan]);
@@ -127,90 +137,162 @@ export function PdfPage({
 
   useEffect(() => {
     let cancelled = false;
-    let destroy: (() => void) | null = null;
+    let renderTask: { cancel: () => void; promise: Promise<unknown> } | null = null;
+
+    function isAbort(err: unknown) {
+      const name = err && typeof err === "object" && "name" in err ? String((err as { name: string }).name) : "";
+      const msg = err instanceof Error ? err.message : String(err ?? "");
+      return (
+        name === "AbortException" ||
+        name === "RenderingCancelledException" ||
+        /abort|cancel/i.test(msg)
+      );
+    }
 
     (async () => {
       setLoading(true);
       setError(null);
       setSearchHits([]);
+      textContentRef.current = null;
       try {
         const pdfjs = await import("pdfjs-dist");
         pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
-        const task = pdfjs.getDocument({ url, withCredentials: false });
-        destroy = () => task.destroy();
-        const pdf = await task.promise;
-        if (cancelled) return;
+
+        let pdf = pdfDocRef.current?.url === url ? pdfDocRef.current.pdf : null;
+        if (!pdf) {
+          const stale = pdfDocRef.current;
+          pdfDocRef.current = null;
+          await stale?.pdf?.destroy?.().catch(() => {});
+          for (let attempt = 0; attempt < 3 && !pdf; attempt += 1) {
+            if (cancelled) return;
+            try {
+              const task = pdfjs.getDocument({
+                url,
+                withCredentials: true,
+                disableRange: true,
+                disableStream: true,
+              });
+              const loaded = await task.promise;
+              if (cancelled) {
+                try {
+                  // pdf.js typings differ by version
+                  void (loaded as { destroy?: () => void }).destroy?.();
+                } catch {
+                  /* ignore */
+                }
+                return;
+              }
+              pdfDocRef.current = { url, pdf: loaded };
+              pdf = loaded;
+            } catch (err) {
+              if (cancelled || isAbort(err)) return;
+              if (attempt === 2) throw err;
+              await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
+            }
+          }
+        }
+        if (!pdf) throw new Error("pdf missing");
+
         const page = await pdf.getPage(pageNumber);
         const viewport = page.getViewport({ scale: 2 });
-        const canvas = canvasRef.current;
-        if (!canvas) return;
+
+        let canvas = canvasRef.current;
+        for (let i = 0; i < 20 && !canvas; i += 1) {
+          await new Promise<void>((r) => requestAnimationFrame(() => r()));
+          if (cancelled) return;
+          canvas = canvasRef.current;
+        }
+        if (!canvas) throw new Error("no canvas");
         const context = canvas.getContext("2d");
-        if (!context) return;
+        if (!context) throw new Error("no 2d");
         canvas.width = viewport.width;
         canvas.height = viewport.height;
         setNatural({ w: viewport.width, h: viewport.height });
-        await page.render({
+
+        const task = page.render({
           canvas,
           canvasContext: context,
           viewport,
-        }).promise;
+        });
+        renderTask = task;
+        await task.promise;
+        if (cancelled) return;
 
         const content = await page.getTextContent();
-        if (!cancelled) {
-          onTextRegionsReady?.(
-            regionsFromPdfTextContent(
-              content.items as Array<{
-                str?: string;
-                transform?: number[];
-                width?: number;
-              }>,
-              viewport,
-            ),
-          );
-        }
-
-        const needle = highlightQuery.trim().toLowerCase();
-        if (needle.length >= 2) {
-          const content = await page.getTextContent();
-          const hits: TextHit[] = [];
-          const vt = viewport.transform;
-          for (const item of content.items) {
-            if (!("str" in item) || !item.str) continue;
-            if (!item.str.toLowerCase().includes(needle)) continue;
-            const t = item.transform;
-            // viewport.transform × item.transform
-            const a = vt[0] * t[0] + vt[2] * t[1];
-            const b = vt[1] * t[0] + vt[3] * t[1];
-            const c = vt[0] * t[2] + vt[2] * t[3];
-            const d = vt[1] * t[2] + vt[3] * t[3];
-            const e = vt[0] * t[4] + vt[2] * t[5] + vt[4];
-            const f = vt[1] * t[4] + vt[3] * t[5] + vt[5];
-            const fontHeight = Math.max(1, Math.hypot(c, d));
-            const width = Math.max(1, (item.width ?? 0) * Math.hypot(a, b));
-            hits.push({
-              x: e / viewport.width,
-              y: (f - fontHeight) / viewport.height,
-              w: Math.max(0.01, width / viewport.width),
-              h: Math.max(0.01, fontHeight / viewport.height),
-            });
-          }
-          if (!cancelled) setSearchHits(hits);
-        }
+        if (cancelled) return;
+        textContentRef.current = {
+          items: content.items as Array<{ str?: string; transform?: number[]; width?: number }>,
+          viewport,
+        };
+        onTextRegionsReadyRef.current?.(
+          regionsFromPdfTextContent(
+            content.items as Array<{
+              str?: string;
+              transform?: number[];
+              width?: number;
+            }>,
+            viewport,
+          ),
+        );
 
         if (!cancelled) setLoading(false);
-      } catch {
-        if (!cancelled) {
-          setError("Не удалось показать страницу");
-          setLoading(false);
-        }
+      } catch (err) {
+        if (cancelled || isAbort(err)) return;
+        setError("Не удалось показать страницу");
+        setLoading(false);
       }
     })();
 
     return () => {
       cancelled = true;
-      destroy?.();
+      try {
+        renderTask?.cancel();
+      } catch {
+        /* ignore */
+      }
     };
-  }, [url, pageNumber, highlightQuery, onTextRegionsReady]);
+  }, [url, pageNumber]);
+
+  useEffect(() => {
+    return () => {
+      const prev = pdfDocRef.current;
+      pdfDocRef.current = null;
+      void prev?.pdf?.destroy?.().catch(() => {});
+    };
+  }, [url]);
+
+  useEffect(() => {
+    const stored = textContentRef.current;
+    const needle = highlightQuery.trim().toLowerCase();
+    if (!stored || needle.length < 2) {
+      setSearchHits([]);
+      return;
+    }
+    const { items, viewport } = stored;
+    const hits: TextHit[] = [];
+    const vt = viewport.transform;
+    for (const item of items) {
+      if (!item.str) continue;
+      if (!item.str.toLowerCase().includes(needle)) continue;
+      const t = item.transform;
+      if (!t) continue;
+      const a = vt[0] * t[0] + vt[2] * t[1];
+      const b = vt[1] * t[0] + vt[3] * t[1];
+      const c = vt[0] * t[2] + vt[2] * t[3];
+      const d = vt[1] * t[2] + vt[3] * t[3];
+      const e = vt[0] * t[4] + vt[2] * t[5] + vt[4];
+      const f = vt[1] * t[4] + vt[3] * t[5] + vt[5];
+      const fontHeight = Math.max(1, Math.hypot(c, d));
+      const width = Math.max(1, (item.width ?? 0) * Math.hypot(a, b));
+      hits.push({
+        x: e / viewport.width,
+        y: (f - fontHeight) / viewport.height,
+        w: Math.max(0.01, width / viewport.width),
+        h: Math.max(0.01, fontHeight / viewport.height),
+      });
+    }
+    setSearchHits(hits);
+  }, [highlightQuery, loading, pageNumber]);
 
   function fit(mode: "page" | "width") {
     const wrap = wrapRef.current;
