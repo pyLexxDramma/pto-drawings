@@ -349,7 +349,7 @@ export function Workspace({
   const [newProjectDescription, setNewProjectDescription] = useState("");
   const [creatingProject, setCreatingProject] = useState(false);
   const [showNewProject, setShowNewProject] = useState(false);
-  const [projectsCollapsed, setProjectsCollapsed] = useState(false);
+  const [projectsCollapsed, setProjectsCollapsed] = useState(true);
   const [focusMode, setFocusMode] = useState(false);
   const [renameId, setRenameId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
@@ -1085,7 +1085,7 @@ export function Workspace({
   const backToProjects = () => {
     setSelectedId(null);
     setFocusMode(false);
-    setProjectsCollapsed(false);
+    setProjectsCollapsed(true);
     setOpenPage(null);
   };
 
@@ -1187,19 +1187,23 @@ export function Workspace({
 
       <div className={gridClass}>
         {focusMode ? null : projectsCollapsed ? (
-          <div className="flex w-11 shrink-0 flex-col border-b border-border bg-surface md:border-b-0">
-            <button
-              type="button"
-              onClick={() => setProjectsCollapsed(false)}
-              className="flex-1 text-xs text-muted hover:bg-bg"
-              title="Показать проекты"
-              aria-expanded={false}
-            >
-              <span className="inline-block px-1 py-3 [writing-mode:vertical-rl]">
-                Проекты
-              </span>
-            </button>
-          </div>
+          selected ? (
+            <div className="flex w-11 shrink-0 flex-col border-b border-border bg-surface md:border-b-0">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={false}
+                onClick={() => setProjectsCollapsed(false)}
+                className="flex-1 text-xs text-muted hover:bg-bg"
+                title="Показать проекты"
+                aria-expanded={false}
+              >
+                <span className="inline-block px-1 py-3 [writing-mode:vertical-rl]">
+                  Проекты
+                </span>
+              </button>
+            </div>
+          ) : null
         ) : (
           <aside
             className="flex min-h-0 shrink-0 flex-col border-b border-border bg-surface md:border-b-0"
@@ -1472,40 +1476,40 @@ export function Workspace({
                 К обработке · {liveJob.label}
               </button>
             ) : null}
-            <div className="w-full max-w-lg rounded-2xl border border-dashed border-slate-300 bg-white px-8 py-12 shadow-sm">
+            <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white px-8 py-12 shadow-sm">
               <div className="text-xl font-semibold tracking-tight text-text">
-                {documents.length > 0 ? "Откройте файл в проекте слева" : "Загрузить чертёж"}
+                Проверка чертежей
               </div>
               <div className="mt-2 text-sm leading-relaxed text-muted">
-                {documents.length > 0
-                  ? "Раскройте проект слева и выберите файл — или загрузите новый PDF, DWG или DXF."
-                  : "Выберите проект слева или загрузите PDF, DWG или DXF — файлы появятся в дереве проекта."}
+                Загрузите новый файл или откройте проект, созданный ранее.
               </div>
-              <label
-                htmlFor="pto-drawing-upload"
-                className="mt-6 inline-flex cursor-pointer rounded-md bg-accent px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#1d4ed8]"
-              >
-                Выбрать файл
-              </label>
-              <div className="mt-4 flex flex-wrap items-center justify-center gap-3 text-xs text-muted">
-                {projectsCollapsed ? (
-                  <button
-                    type="button"
-                    onClick={() => setProjectsCollapsed(false)}
-                    className="hover:text-accent hover:underline"
-                  >
-                    Показать проекты
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setProjectsCollapsed(true)}
-                    className="hover:text-accent hover:underline"
-                  >
-                    Скрыть проекты
-                  </button>
-                )}
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
+                <label
+                  htmlFor="pto-drawing-upload"
+                  className="inline-flex cursor-pointer items-center justify-center rounded-md bg-accent px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#1d4ed8]"
+                >
+                  Загрузить файл
+                </label>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={!projectsCollapsed}
+                  onClick={() => setProjectsCollapsed(false)}
+                  className="inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-text hover:border-accent hover:text-accent"
+                >
+                  Открыть проект
+                </button>
               </div>
+              {projects.length > 0 ? (
+                <div className="mt-4 text-xs text-muted">
+                  Проектов: {projects.length}
+                  {projectsCollapsed ? "" : " · список слева"}
+                </div>
+              ) : (
+                <div className="mt-4 text-xs text-muted">
+                  Пока нет проектов — загрузите первый чертёж.
+                </div>
+              )}
             </div>
           </div>
         )}

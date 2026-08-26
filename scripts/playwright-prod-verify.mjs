@@ -36,6 +36,19 @@ try {
   await page.goto(BASE, { waitUntil: "domcontentloaded", timeout: 60000 });
   await page.getByText("Загрузка…").waitFor({ state: "hidden", timeout: 45000 });
 
+  check(
+    "стартовый экран без сайдбара",
+    (await page.locator("[data-projects-tree]").count()) === 0 &&
+      (await page.getByRole("button", { name: "Открыть проект" }).isVisible()),
+  );
+  check(
+    "кнопка Загрузить на старте",
+    await page.getByRole("button", { name: "Загрузить файл" }).first().isVisible().catch(() => false) ||
+      (await page.locator('label[for="pto-drawing-upload"]').count()) > 0,
+  );
+
+  await page.getByRole("button", { name: "Открыть проект" }).click();
+  await page.waitForTimeout(400);
   check("Проекты видны", await page.getByText("Проекты").first().isVisible());
   check(
     "нет отдельного рельса Файлы",
