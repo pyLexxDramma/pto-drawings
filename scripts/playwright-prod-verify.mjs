@@ -35,6 +35,10 @@ try {
 
   await page.goto(BASE, { waitUntil: "domcontentloaded", timeout: 60000 });
   await page.getByText("Загрузка…").waitFor({ state: "hidden", timeout: 45000 });
+  await page.getByRole("button", { name: "Открыть проект" }).waitFor({
+    state: "visible",
+    timeout: 30000,
+  });
 
   check(
     "стартовый экран без сайдбара",
@@ -43,8 +47,8 @@ try {
   );
   check(
     "кнопка Загрузить на старте",
-    await page.getByRole("button", { name: "Загрузить файл" }).first().isVisible().catch(() => false) ||
-      (await page.locator('label[for="pto-drawing-upload"]').count()) > 0,
+    (await page.locator('label[for="pto-drawing-upload"]').count()) > 0 ||
+      (await page.getByText("Загрузить файл").count()) > 0,
   );
 
   await page.getByRole("button", { name: "Открыть проект" }).click();

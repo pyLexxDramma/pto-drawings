@@ -1492,8 +1492,6 @@ export function Workspace({
                 </label>
                 <button
                   type="button"
-                  role="tab"
-                  aria-selected={!projectsCollapsed}
                   onClick={() => setProjectsCollapsed(false)}
                   className="inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-text hover:border-accent hover:text-accent"
                 >
