@@ -166,16 +166,14 @@ export function PdfPage({
           for (let attempt = 0; attempt < 3 && !pdf; attempt += 1) {
             if (cancelled) return;
             try {
-              const task = pdfjs.getDocument({
-                url,
-                withCredentials: true,
-                disableRange: true,
-                disableStream: true,
-              });
+              const res = await fetch(url, { credentials: "include" });
+              if (!res.ok) throw new Error(`pdf http ${res.status}`);
+              const data = new Uint8Array(await res.arrayBuffer());
+              if (cancelled) return;
+              const task = pdfjs.getDocument({ data });
               const loaded = await task.promise;
               if (cancelled) {
                 try {
-                  // pdf.js typings differ by version
                   void (loaded as { destroy?: () => void }).destroy?.();
                 } catch {
                   /* ignore */
@@ -203,15 +201,12 @@ export function PdfPage({
           canvas = canvasRef.current;
         }
         if (!canvas) throw new Error("no canvas");
-        const context = canvas.getContext("2d");
-        if (!context) throw new Error("no 2d");
         canvas.width = viewport.width;
         canvas.height = viewport.height;
         setNatural({ w: viewport.width, h: viewport.height });
 
         const task = page.render({
           canvas,
-          canvasContext: context,
           viewport,
         });
         renderTask = task;

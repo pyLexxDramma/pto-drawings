@@ -251,6 +251,6 @@ async function renderThumb(
   if (!context) return;
   canvas.width = viewport.width;
   canvas.height = viewport.height;
-  await page.render({ canvas, canvasContext: context, viewport }).promise;
+  await page.render({ canvas, viewport }).promise;
   page.cleanup();
 }
