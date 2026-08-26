@@ -475,7 +475,7 @@ export function CadPage({
           };
           panRef.current = next;
           setPan(next);
-          emitScrollRatio(next);
+          emitScrollPosition(next);
         }}
         onMouseUp={() => {
           if (markMode) {

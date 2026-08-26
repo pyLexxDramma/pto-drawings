@@ -146,7 +146,14 @@ export function PdfPage({
         const content = await page.getTextContent();
         if (!cancelled) {
           onTextRegionsReady?.(
-            regionsFromPdfTextContent(content.items, viewport),
+            regionsFromPdfTextContent(
+              content.items as Array<{
+                str?: string;
+                transform?: number[];
+                width?: number;
+              }>,
+              viewport,
+            ),
           );
         }
 
@@ -413,7 +420,7 @@ export function PdfPage({
           };
           panRef.current = next;
           setPan(next);
-          emitScrollRatio(next);
+          emitScrollPosition(next);
         }}
         onMouseUp={() => {
           if (markMode) {
