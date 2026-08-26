@@ -332,7 +332,26 @@ export function regionsFromPdfTextContent(
     }
     cluster.push(row);
   }
-  flushCluster();
+  // Also keep short standalone lines as their own regions (метки на чертеже).
+  for (const row of merged) {
+    const text = normalizeForMatch(row.parts.join(" "));
+    if (text.length >= 6 && text.length <= 80) {
+      const exists = regions.some(
+        (r) => Math.abs(r.y - row.y) < 0.008 && Math.abs(r.x - row.x) < 0.02,
+      );
+      if (!exists) {
+        regions.push({
+          id: `r-${regions.length}`,
+          text,
+          x: Math.max(0, row.x - 0.004),
+          y: Math.max(0, row.y - 0.003),
+          w: Math.max(0.02, Math.min(1, row.w + 0.008)),
+          h: Math.max(0.01, row.h + 0.006),
+        });
+      }
+    }
+  }
+  regions.sort((a, b) => a.y - b.y || a.x - b.x);
   return regions;
 }
 

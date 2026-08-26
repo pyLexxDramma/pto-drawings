@@ -1561,6 +1561,8 @@ export function ReviewPane({
               ref={mdScrollRef}
               onScroll={onMarkdownScroll}
               className="min-h-0 flex-1 overflow-auto"
+              data-sync-regions={textRegions.length}
+              data-sync-links={blockLinks.byBlock.size}
             >
               {filterEmpty ? (
                 <div className="p-6 text-sm text-muted">
