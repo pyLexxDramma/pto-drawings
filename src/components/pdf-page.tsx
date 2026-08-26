@@ -233,7 +233,9 @@ export function PdfPage({
         if (!cancelled) setLoading(false);
       } catch (err) {
         if (cancelled || isAbort(err)) return;
-        setError("Не удалось показать страницу");
+        const detail = err instanceof Error ? err.message : String(err ?? "unknown");
+        console.error("[PdfPage]", detail, err);
+        setError(`Не удалось показать страницу (${detail})`);
         setLoading(false);
       }
     })();
@@ -569,11 +571,19 @@ export function PdfPage({
           <div className="pointer-events-none absolute inset-0 z-20 animate-pulse border-4 border-sky-400/80 bg-sky-300/10" />
         ) : null}
         {error ? (
-          <iframe
-            title="PDF"
-            src={`${url}#page=${pageNumber}`}
-            className="h-full w-full border-0 bg-white"
-          />
+          <div className="absolute inset-0 z-20 flex flex-col bg-white">
+            <div
+              data-pdf-error={error}
+              className="shrink-0 border-b border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800"
+            >
+              {error}
+            </div>
+            <iframe
+              title="PDF"
+              src={`${url}#page=${pageNumber}`}
+              className="h-full w-full flex-1 border-0 bg-white"
+            />
+          </div>
         ) : (
           // Метки лежат в том же трансформированном слое, что и canvas, поэтому едут вместе с чертежом.
           <div
