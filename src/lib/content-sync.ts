@@ -3,8 +3,12 @@
 export type PageTextRegion = {
   id: string;
   text: string;
+  /** Левый край, доля ширины листа 0..1 */
+  x: number;
   /** Верх зоны, доля высоты листа 0..1 */
   y: number;
+  /** Ширина зоны, доля 0..1 */
+  w: number;
   /** Высота зоны, доля 0..1 */
   h: number;
 };
@@ -13,6 +17,15 @@ export type MarkdownBlock = {
   id: string;
   text: string;
   source: string;
+};
+
+export type BlockRegionLinks = {
+  /** blockId → зона на чертеже */
+  byBlock: Map<string, PageTextRegion>;
+  /** regionId → blockId */
+  byRegion: Map<string, string>;
+  /** blockId → Y центра зоны (для скролла) */
+  anchors: Map<string, number>;
 };
 
 const BOILERPLATE =
@@ -114,32 +127,43 @@ function matchScore(blockText: string, regionText: string): number {
   return hit / wordsA.length;
 }
 
-/** blockId → y (центр зоны на листе, 0..1). */
-export function matchBlocksToRegions(
+/** blockId ↔ зона на чертеже. */
+export function linkBlocksToRegions(
   blocks: MarkdownBlock[],
   regions: PageTextRegion[],
-): Map<string, number> {
-  const map = new Map<string, number>();
-  if (!blocks.length || !regions.length) return map;
+): BlockRegionLinks {
+  const byBlock = new Map<string, PageTextRegion>();
+  const byRegion = new Map<string, string>();
+  const anchors = new Map<string, number>();
+  if (!blocks.length || !regions.length) {
+    return { byBlock, byRegion, anchors };
+  }
 
   const used = new Set<string>();
   for (const block of blocks) {
-    let best: { id: string; score: number; y: number } | null = null;
+    let best: { region: PageTextRegion; score: number } | null = null;
     for (const region of regions) {
       if (used.has(region.id)) continue;
       const score = matchScore(block.text, region.text);
       if (score < 0.45) continue;
-      const y = region.y + region.h * 0.5;
-      if (!best || score > best.score) {
-        best = { id: region.id, score, y };
-      }
+      if (!best || score > best.score) best = { region, score };
     }
     if (best) {
-      used.add(best.id);
-      map.set(block.id, best.y);
+      used.add(best.region.id);
+      byBlock.set(block.id, best.region);
+      byRegion.set(best.region.id, block.id);
+      anchors.set(block.id, best.region.y + best.region.h * 0.5);
     }
   }
-  return map;
+  return { byBlock, byRegion, anchors };
+}
+
+/** @deprecated — используйте linkBlocksToRegions().anchors */
+export function matchBlocksToRegions(
+  blocks: MarkdownBlock[],
+  regions: PageTextRegion[],
+): Map<string, number> {
+  return linkBlocksToRegions(blocks, regions).anchors;
 }
 
 export function nearestBlockForAnchorY(
@@ -154,6 +178,26 @@ export function nearestBlockForAnchorY(
   return best && best.dist < 0.2 ? best.id : null;
 }
 
+/** Зона под точкой на листе (нормализованные 0..1). */
+export function regionAtPoint(
+  regions: PageTextRegion[],
+  x: number,
+  y: number,
+): PageTextRegion | null {
+  let best: PageTextRegion | null = null;
+  let bestArea = Infinity;
+  for (const region of regions) {
+    if (x < region.x || x > region.x + region.w) continue;
+    if (y < region.y || y > region.y + region.h) continue;
+    const area = region.w * region.h;
+    if (area < bestArea) {
+      best = region;
+      bestArea = area;
+    }
+  }
+  return best;
+}
+
 type PdfTextItem = {
   str?: string;
   transform?: number[];
@@ -166,33 +210,54 @@ export function regionsFromPdfTextContent(
   viewport: { width: number; height: number; transform: number[] },
 ): PageTextRegion[] {
   const vt = viewport.transform;
-  const lines: Array<{ text: string; y: number; h: number }> = [];
+  const lines: Array<{ text: string; x: number; y: number; w: number; h: number }> = [];
 
   for (const item of items) {
     if (!item.str?.trim() || !item.transform) continue;
     const t = item.transform;
     const a = vt[0] * t[0] + vt[2] * t[1];
+    const b = vt[1] * t[0] + vt[3] * t[1];
     const c = vt[0] * t[2] + vt[2] * t[3];
     const d = vt[1] * t[2] + vt[3] * t[3];
     const e = vt[0] * t[4] + vt[2] * t[5] + vt[4];
     const f = vt[1] * t[4] + vt[3] * t[5] + vt[5];
     const fontHeight = Math.max(1, Math.hypot(c, d));
-    const y = (f - fontHeight) / viewport.height;
-    const h = fontHeight / viewport.height;
-    lines.push({ text: item.str.trim(), y, h });
+    const width = Math.max(1, (item.width ?? 0) * Math.hypot(a, b));
+    lines.push({
+      text: item.str.trim(),
+      x: e / viewport.width,
+      y: (f - fontHeight) / viewport.height,
+      w: width / viewport.width,
+      h: fontHeight / viewport.height,
+    });
   }
 
   if (!lines.length) return [];
-  lines.sort((a, b) => a.y - b.y || a.text.localeCompare(b.text));
+  lines.sort((a, b) => a.y - b.y || a.x - b.x);
 
-  const merged: Array<{ parts: string[]; y: number; h: number }> = [];
+  const merged: Array<{
+    parts: string[];
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  }> = [];
   for (const line of lines) {
     const last = merged[merged.length - 1];
-    if (last && Math.abs(last.y + last.h - line.y) < 0.012) {
+    if (last && Math.abs(last.y - line.y) < 0.012) {
       last.parts.push(line.text);
-      last.h = Math.max(last.h, line.y + line.h - last.y);
+      const right = Math.max(last.x + last.w, line.x + line.w);
+      last.x = Math.min(last.x, line.x);
+      last.w = right - last.x;
+      last.h = Math.max(last.h, line.h);
     } else {
-      merged.push({ parts: [line.text], y: line.y, h: line.h });
+      merged.push({
+        parts: [line.text],
+        x: line.x,
+        y: line.y,
+        w: line.w,
+        h: line.h,
+      });
     }
   }
 
@@ -203,20 +268,27 @@ export function regionsFromPdfTextContent(
     if (!cluster.length) return;
     const text = normalizeForMatch(cluster.map((c) => c.parts.join(" ")).join(" "));
     if (text.length >= 4) {
-      const y = cluster[0].y;
-      const bottom = cluster[cluster.length - 1].y + cluster[cluster.length - 1].h;
+      const x0 = Math.min(...cluster.map((c) => c.x));
+      const y0 = cluster[0].y;
+      const x1 = Math.max(...cluster.map((c) => c.x + c.w));
+      const y1 = cluster[cluster.length - 1].y + cluster[cluster.length - 1].h;
       regions.push({
         id: `r-${regions.length}`,
         text,
-        y: Math.max(0, y),
-        h: Math.max(0.008, bottom - y),
+        x: Math.max(0, Math.min(1, x0)),
+        y: Math.max(0, Math.min(1, y0)),
+        w: Math.max(0.02, Math.min(1, x1) - Math.max(0, x0)),
+        h: Math.max(0.008, y1 - y0),
       });
     }
     cluster = [];
   }
 
   for (const row of merged) {
-    if (cluster.length && row.y - (cluster[cluster.length - 1].y + cluster[cluster.length - 1].h) > 0.025) {
+    if (
+      cluster.length &&
+      row.y - (cluster[cluster.length - 1].y + cluster[cluster.length - 1].h) > 0.025
+    ) {
       flushCluster();
     }
     cluster.push(row);
@@ -227,22 +299,42 @@ export function regionsFromPdfTextContent(
 
 /** Текстовые примитивы CAD → зоны на листе. */
 export function regionsFromCadTexts(
-  texts: Array<{ text?: string; points: number[]; size?: number }>,
+  texts: Array<{
+    text?: string;
+    points: number[];
+    size?: number;
+    width?: number;
+    anchor?: string;
+  }>,
   bbox: { x0: number; y0: number; x1: number; y1: number },
 ): PageTextRegion[] {
-  const h = Math.max(1e-6, bbox.y1 - bbox.y0);
+  const bw = Math.max(1e-6, bbox.x1 - bbox.x0);
+  const bh = Math.max(1e-6, bbox.y1 - bbox.y0);
   const regions: PageTextRegion[] = [];
   for (const t of texts) {
     const raw = t.text?.trim();
     if (!raw || t.points.length < 2) continue;
     const text = normalizeForMatch(raw.replace(/\\P/g, " "));
     if (text.length < 4) continue;
-    const yNorm = (bbox.y1 - t.points[1]) / h;
-    const th = Math.max(0.008, (t.size ?? 2.5) / h);
+    const th = Math.max(0.008, (t.size ?? 2.5) / bh);
+    const tw = Math.max(
+      0.02,
+      (t.width ?? raw.length * (t.size ?? 2.5) * 0.55) / bw,
+    );
+    const ox = (t.points[0] - bbox.x0) / bw;
+    const oy = (bbox.y1 - t.points[1]) / bh;
+    const x =
+      t.anchor === "center"
+        ? ox - tw / 2
+        : t.anchor === "right"
+          ? ox - tw
+          : ox;
     regions.push({
       id: `r-${regions.length}`,
       text,
-      y: Math.max(0, Math.min(1, yNorm - th * 0.15)),
+      x: Math.max(0, Math.min(1, x)),
+      y: Math.max(0, Math.min(1, oy - th * 0.15)),
+      w: Math.min(1, tw),
       h: th * Math.max(1, raw.split(/\\P|\n/).length),
     });
   }

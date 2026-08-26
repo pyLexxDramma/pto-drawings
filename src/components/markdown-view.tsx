@@ -15,8 +15,11 @@ type MarkdownViewProps = {
   onAnchor?: (payload: { text: string; pageHint: number | null }) => void;
   /** Подсветка совпадений поиска в тексте. */
   highlightQuery?: string;
-  /** Блок, синхронизированный с зоной на чертеже. */
+  /** Блок, синхронизированный скроллом. */
   activeBlockId?: string | null;
+  /** Блок под курсором (hover с чертежа или с текста). */
+  hoverBlockId?: string | null;
+  onHoverBlock?: (blockId: string | null) => void;
 };
 
 function pageHintFromText(text: string): number | null {
@@ -121,6 +124,8 @@ export function MarkdownView({
   onAnchor,
   highlightQuery = "",
   activeBlockId = null,
+  hoverBlockId = null,
+  onHoverBlock,
 }: MarkdownViewProps) {
   const blocks = useMemo(() => parseMarkdownBlocks(children), [children]);
   const q = highlightQuery.trim().length >= 2 ? highlightQuery : "";
@@ -133,24 +138,33 @@ export function MarkdownView({
 
   return (
     <>
-      {blocks.map((block) => (
-        <div
-          key={block.id}
-          data-md-block={block.id}
-          data-md-block-active={activeBlockId === block.id ? "true" : undefined}
-          className={
-            activeBlockId === block.id
-              ? "scroll-mt-3 rounded-md border-l-2 border-accent bg-blue-50/80 pl-3 -ml-3 pr-1 transition-colors"
-              : "scroll-mt-3 rounded-md border-l-2 border-transparent pl-3 -ml-3 pr-1"
-          }
-        >
-          <BlockMarkdown
-            source={block.source}
-            onAnchor={onAnchor}
-            highlightQuery={q}
-          />
-        </div>
-      ))}
+      {blocks.map((block) => {
+        const hovered = hoverBlockId === block.id;
+        const active = activeBlockId === block.id;
+        return (
+          <div
+            key={block.id}
+            data-md-block={block.id}
+            data-md-block-active={active ? "true" : undefined}
+            data-md-block-hover={hovered ? "true" : undefined}
+            onMouseEnter={() => onHoverBlock?.(block.id)}
+            onMouseLeave={() => onHoverBlock?.(null)}
+            className={`scroll-mt-3 -ml-3 rounded-md border-l-2 pl-3 pr-1 transition-colors ${
+              hovered
+                ? "border-amber-500 bg-amber-100/90"
+                : active
+                  ? "border-accent bg-blue-50/80"
+                  : "border-transparent hover:border-slate-300 hover:bg-slate-50/80"
+            }`}
+          >
+            <BlockMarkdown
+              source={block.source}
+              onAnchor={onAnchor}
+              highlightQuery={q}
+            />
+          </div>
+        );
+      })}
     </>
   );
 }

@@ -349,8 +349,8 @@ export function Workspace({
   const [newProjectDescription, setNewProjectDescription] = useState("");
   const [creatingProject, setCreatingProject] = useState(false);
   const [showNewProject, setShowNewProject] = useState(false);
-  const [filesCollapsed, setFilesCollapsed] = useState(true);
-  const [projectsCollapsed, setProjectsCollapsed] = useState(true);
+  const [filesCollapsed, setFilesCollapsed] = useState(false);
+  const [projectsCollapsed, setProjectsCollapsed] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
   const [renameId, setRenameId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
@@ -709,6 +709,7 @@ export function Workspace({
     setProjectId(id);
     setSelectedId(null);
     setFocusMode(false);
+    setFilesCollapsed(false);
     setError(null);
     const project = projects.find((item) => item.id === id);
     setDescriptionDraft(project?.description ?? "");
@@ -1091,8 +1092,8 @@ export function Workspace({
   const backToProjects = () => {
     setSelectedId(null);
     setFocusMode(false);
-    setFilesCollapsed(true);
-    setProjectsCollapsed(true);
+    setFilesCollapsed(false);
+    setProjectsCollapsed(false);
     setOpenPage(null);
   };
 
@@ -2010,14 +2011,23 @@ export function Workspace({
           </div>
         ) : (
           <div className="flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-4 bg-[#f4f6f9] p-10 text-center">
+            {liveJob ? (
+              <button
+                type="button"
+                onClick={() => void openDocument(liveJob.documentId, liveJob.page)}
+                className="rounded-md border border-sky-300 bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-950 hover:bg-sky-100"
+              >
+                К обработке · {liveJob.label}
+              </button>
+            ) : null}
             <div className="w-full max-w-lg rounded-2xl border border-dashed border-slate-300 bg-white px-8 py-12 shadow-sm">
               <div className="text-xl font-semibold tracking-tight text-text">
-                Загрузить проект
+                {documents.length > 0 ? "Откройте файл слева" : "Загрузить чертёж"}
               </div>
               <div className="mt-2 text-sm leading-relaxed text-muted">
-                Перетащите PDF, DWG или DXF сюда или выберите файл. Дальше укажите
-                название и проект — ранее загруженные файлы открываются через «Файлы»
-                слева.
+                {documents.length > 0
+                  ? "Файлы выбранного проекта в колонке слева. Можно загрузить ещё PDF, DWG или DXF."
+                  : "Перетащите PDF, DWG или DXF сюда или выберите файл — список появится в колонке проекта слева."}
               </div>
               <label
                 htmlFor="pto-drawing-upload"

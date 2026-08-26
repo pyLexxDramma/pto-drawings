@@ -78,6 +78,17 @@ export function IconSplit({ className = "h-3.5 w-3.5" }: IconProps) {
   );
 }
 
+export function IconGrid({ className = "h-3.5 w-3.5" }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="none" aria-hidden>
+      <rect x="2.5" y="2.5" width="4" height="4" rx="0.75" stroke="currentColor" strokeWidth="1.4" />
+      <rect x="9.5" y="2.5" width="4" height="4" rx="0.75" stroke="currentColor" strokeWidth="1.4" />
+      <rect x="2.5" y="9.5" width="4" height="4" rx="0.75" stroke="currentColor" strokeWidth="1.4" />
+      <rect x="9.5" y="9.5" width="4" height="4" rx="0.75" stroke="currentColor" strokeWidth="1.4" />
+    </svg>
+  );
+}
+
 export function IconSync({ className = "h-3.5 w-3.5" }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 16 16" fill="none" aria-hidden>

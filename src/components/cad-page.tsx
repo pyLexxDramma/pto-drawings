@@ -14,6 +14,7 @@ import {
 } from "@/lib/cad-geometry";
 import {
   panYForAnchor,
+  regionAtPoint,
   regionsFromCadTexts,
   visibleAnchorY,
   type PageTextRegion,
@@ -32,9 +33,12 @@ type CadPageProps = {
   scrollRatio?: number | null;
   scrollAnchorY?: number | null;
   highlightAnchorY?: number | null;
+  highlightRegion?: PageTextRegion | null;
+  hoverRegions?: PageTextRegion[];
   onScrollRatioChange?: (ratio: number) => void;
   onScrollAnchorChange?: (y: number) => void;
   onTextRegionsReady?: (regions: PageTextRegion[]) => void;
+  onHoverRegion?: (regionId: string | null) => void;
   onMarkRect?: (rect: AnnotationRect) => void;
   onSelectAnnotation?: (id: string) => void;
   onCancelMark?: () => void;
@@ -69,9 +73,12 @@ export function CadPage({
   scrollRatio = null,
   scrollAnchorY = null,
   highlightAnchorY = null,
+  highlightRegion = null,
+  hoverRegions = [],
   onScrollRatioChange,
   onScrollAnchorChange,
   onTextRegionsReady,
+  onHoverRegion,
   onMarkRect,
   onSelectAnnotation,
   onCancelMark,
@@ -468,14 +475,21 @@ export function CadPage({
             return;
           }
           const drag = dragRef.current;
-          if (!drag) return;
-          const next = {
-            x: drag.panX + (event.clientX - drag.x),
-            y: drag.panY + (event.clientY - drag.y),
-          };
-          panRef.current = next;
-          setPan(next);
-          emitScrollPosition(next);
+          if (drag) {
+            const next = {
+              x: drag.panX + (event.clientX - drag.x),
+              y: drag.panY + (event.clientY - drag.y),
+            };
+            panRef.current = next;
+            setPan(next);
+            emitScrollPosition(next);
+            return;
+          }
+          if (onHoverRegion && hoverRegions.length) {
+            const point = toPagePoint(event.clientX, event.clientY);
+            const hit = regionAtPoint(hoverRegions, point.x, point.y);
+            onHoverRegion(hit?.id ?? null);
+          }
         }}
         onMouseUp={() => {
           if (markMode) {
@@ -490,6 +504,7 @@ export function CadPage({
           dragRef.current = null;
           setGrabbing(false);
           setDraw(null);
+          onHoverRegion?.(null);
         }}
       >
         {loading ? (
@@ -596,12 +611,23 @@ export function CadPage({
               />
             ) : null}
 
-            {highlightAnchorY != null ? (
+            {highlightAnchorY != null && !highlightRegion ? (
               <div
                 className="pointer-events-none absolute left-0 right-0 border-y-2 border-sky-500/90 bg-sky-400/15"
                 style={{
                   top: `${Math.max(0, highlightAnchorY * 100 - 1.5)}%`,
                   height: "3%",
+                }}
+              />
+            ) : null}
+            {highlightRegion ? (
+              <div
+                className="pointer-events-none absolute bg-amber-300/40 outline outline-2 outline-amber-500/90"
+                style={{
+                  left: `${highlightRegion.x * 100}%`,
+                  top: `${highlightRegion.y * 100}%`,
+                  width: `${Math.max(2, highlightRegion.w * 100)}%`,
+                  height: `${Math.max(1.2, highlightRegion.h * 100)}%`,
                 }}
               />
             ) : null}

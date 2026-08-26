@@ -16,11 +16,13 @@ import { PageStrip } from "@/components/page-strip";
 import { PdfPage } from "@/components/pdf-page";
 import { SegmentedTabs, ActionMenu, menuItemClass } from "@/components/ui-chrome";
 import { VoiceNoteButton } from "@/components/voice-note";
+import { SheetsGallery } from "@/components/sheets-gallery";
 import {
   IconCheck,
   IconDoc,
   IconDownload,
   IconExpand,
+  IconGrid,
   IconMark,
   IconPencil,
   IconSearch,
@@ -30,7 +32,7 @@ import {
 } from "@/components/tool-icons";
 import { formatDate } from "@/lib/format";
 import {
-  matchBlocksToRegions,
+  linkBlocksToRegions,
   nearestBlockForAnchorY,
   parseMarkdownBlocks,
   type PageTextRegion,
@@ -139,11 +141,14 @@ export function ReviewPane({
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [pdfHighlight, setPdfHighlight] = useState(0);
   const [paneSolo, setPaneSolo] = useState<PaneSolo>(null);
+  const [galleryMode, setGalleryMode] = useState(false);
   const [scrollSync, setScrollSync] = useState(true);
   const [scrollRatio, setScrollRatio] = useState<number | null>(null);
   const [scrollAnchorY, setScrollAnchorY] = useState<number | null>(null);
   const [textRegions, setTextRegions] = useState<PageTextRegion[]>([]);
   const [activeBlockId, setActiveBlockId] = useState<string | null>(null);
+  const [hoverBlockId, setHoverBlockId] = useState<string | null>(null);
+  const [hoverRegionId, setHoverRegionId] = useState<string | null>(null);
   const [sidePanel, setSidePanel] = useState<"text" | "notes">("text");
   const [searchOpen, setSearchOpen] = useState(false);
   /** Пользователь развернул прогресс поверх просмотра готового листа. */
@@ -178,6 +183,11 @@ export function ReviewPane({
   const kinds = useMemo(() => {
     const map = new Map<number, PageKind>();
     for (const item of document.pages) map.set(item.pageNumber, item.kind);
+    return map;
+  }, [document.pages]);
+  const pageRecords = useMemo(() => {
+    const map = new Map<number, (typeof document.pages)[number]>();
+    for (const item of document.pages) map.set(item.pageNumber, item);
     return map;
   }, [document.pages]);
   const ready = useMemo(
@@ -424,6 +434,10 @@ export function ReviewPane({
           setMoreMenuOpen(false);
           return;
         }
+        if (galleryMode) {
+          setGalleryMode(false);
+          return;
+        }
         if (showLog) {
           setShowLog(false);
           return;
@@ -466,9 +480,18 @@ export function ReviewPane({
 
       if (event.code === "KeyF") {
         event.preventDefault();
+        if (galleryMode) setGalleryMode(false);
         setPaneSolo((prev) => (prev === null ? "pdf" : prev === "pdf" ? "md" : null));
         return;
       }
+
+      if (event.code === "KeyG") {
+        event.preventDefault();
+        setGalleryMode((value) => !value);
+        return;
+      }
+
+      if (galleryMode) return;
 
       if (event.code === "KeyV") {
         event.preventDefault();
@@ -496,7 +519,7 @@ export function ReviewPane({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusMode, markMode, pendingRect, onBackToProjects, onToggleFocus, visiblePages, document.pages, moreMenuOpen, showLog, paneSolo, searchOpen, readOnly]);
+  }, [focusMode, markMode, pendingRect, onBackToProjects, onToggleFocus, visiblePages, document.pages, moreMenuOpen, showLog, paneSolo, searchOpen, readOnly, galleryMode]);
 
   const hits = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -634,16 +657,52 @@ export function ReviewPane({
   const isMockPage = Boolean(page?.markdown.includes("[MOCK]"));
   const errorCount = Object.keys(document.pageErrors ?? {}).length;
 
-  const blockAnchors = useMemo(() => {
-    if (!page?.markdown || !textRegions.length) return new Map<string, number>();
-    return matchBlocksToRegions(parseMarkdownBlocks(page.markdown), textRegions);
+  const blockLinks = useMemo(() => {
+    if (!page?.markdown || !textRegions.length) {
+      return {
+        byBlock: new Map<string, PageTextRegion>(),
+        byRegion: new Map<string, string>(),
+        anchors: new Map<string, number>(),
+      };
+    }
+    return linkBlocksToRegions(parseMarkdownBlocks(page.markdown), textRegions);
   }, [page?.markdown, textRegions]);
+  const blockAnchors = blockLinks.anchors;
+
+  const hoverHighlightRegion = useMemo(() => {
+    if (hoverBlockId) return blockLinks.byBlock.get(hoverBlockId) ?? null;
+    if (hoverRegionId) {
+      return textRegions.find((region) => region.id === hoverRegionId) ?? null;
+    }
+    return null;
+  }, [blockLinks.byBlock, hoverBlockId, hoverRegionId, textRegions]);
+
+  const linkedHoverRegions = useMemo(
+    () => textRegions.filter((region) => blockLinks.byRegion.has(region.id)),
+    [blockLinks.byRegion, textRegions],
+  );
 
   useEffect(() => {
     setTextRegions([]);
     setScrollAnchorY(null);
     setActiveBlockId(null);
+    setHoverBlockId(null);
+    setHoverRegionId(null);
   }, [pageNumber, document.id]);
+
+  function onHoverMarkdownBlock(blockId: string | null) {
+    setHoverBlockId(blockId);
+    if (blockId) setHoverRegionId(null);
+  }
+
+  function onHoverDrawingRegion(regionId: string | null) {
+    setHoverRegionId(regionId);
+    if (regionId) {
+      setHoverBlockId(blockLinks.byRegion.get(regionId) ?? null);
+    } else {
+      setHoverBlockId(null);
+    }
+  }
 
   function onMarkdownScroll() {
     if (!scrollSync || syncLockRef.current || paneSolo === "pdf") return;
@@ -883,19 +942,23 @@ export function ReviewPane({
               title="К текущему обрабатываемому листу"
               className="rounded-md border border-sky-300 bg-sky-50 px-2.5 py-1.5 text-xs font-semibold text-sky-950 hover:bg-sky-100 disabled:cursor-default disabled:opacity-50"
             >
-              К текущему
+              К обработке
               <span className="ml-1 tabular-nums opacity-80">
                 · лист {activeProcessingPage}
               </span>
             </button>
-          ) : onGoToLiveJob ? (
+          ) : null}
+          {onGoToLiveJob ? (
             <button
               type="button"
               onClick={onGoToLiveJob}
               title={liveJobLabel ?? "К текущей обработке"}
-              className="rounded-md border border-sky-300 bg-sky-50 px-2.5 py-1.5 text-xs font-semibold text-sky-950 hover:bg-sky-100"
+              className="max-w-[14rem] truncate rounded-md border border-sky-300 bg-sky-50 px-2.5 py-1.5 text-xs font-semibold text-sky-950 hover:bg-sky-100"
             >
-              К текущему чертежу
+              К обработке
+              {liveJobLabel ? (
+                <span className="ml-1 font-normal opacity-80">· {liveJobLabel}</span>
+              ) : null}
             </button>
           ) : null}
         </div>
@@ -1005,6 +1068,19 @@ export function ReviewPane({
               Просмотр
             </span>
           )}
+          <button
+            type="button"
+            title={galleryMode ? "Вернуться к одному листу (G)" : "Все листы разом (G)"}
+            aria-pressed={galleryMode}
+            onClick={() => setGalleryMode((value) => !value)}
+            className={
+              galleryMode
+                ? "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-accent bg-accent text-white shadow-sm"
+                : toolBtnIcon
+            }
+          >
+            <IconGrid />
+          </button>
           <ActionMenu
             label="Ещё"
             triggerClassName={toolBtnIcon}
@@ -1057,6 +1133,17 @@ export function ReviewPane({
             <div className="px-3 pb-1 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
               Вид
             </div>
+            <button
+              type="button"
+              role="menuitem"
+              className={menuItemClass()}
+              onClick={() => setGalleryMode((value) => !value)}
+            >
+              <span className="inline-flex items-center gap-2">
+                <IconGrid /> {galleryMode ? "Один лист" : "Все листы"}
+              </span>
+              <span className="text-[10px] text-muted">G</span>
+            </button>
             <button
               type="button"
               role="menuitem"
@@ -1197,6 +1284,32 @@ export function ReviewPane({
       ) : null}
 
       <div className="relative flex min-h-0 flex-1">
+        {galleryMode ? (
+          <SheetsGallery
+            documentId={document.id}
+            fileUrl={`/api/documents/${document.id}/file`}
+            isCad={isCadSource}
+            pages={visiblePages}
+            pageRecords={pageRecords}
+            kinds={kinds}
+            viewed={viewedSet}
+            ready={ready}
+            annotated={annotatedPages}
+            edited={editedPages}
+            processingPage={document.processingPage}
+            currentPage={pageNumber}
+            emptyLabel={
+              filter === "flagged"
+                ? "Замечаний по этому файлу пока нет."
+                : `Листов типа «${filterLabel}» в комплекте нет.`
+            }
+            onSelect={(next) => {
+              setGalleryMode(false);
+              void goToPage(next);
+            }}
+          />
+        ) : (
+          <>
         {stripOpen ? (
           <>
             <PageStrip
@@ -1243,9 +1356,12 @@ export function ReviewPane({
                   scrollRatio={scrollSync && scrollAnchorY == null ? scrollRatio : null}
                   scrollAnchorY={scrollSync ? scrollAnchorY : null}
                   highlightAnchorY={scrollSync ? scrollAnchorY : null}
+                  highlightRegion={hoverHighlightRegion}
+                  hoverRegions={linkedHoverRegions}
                   onScrollRatioChange={onPdfScrollRatio}
                   onScrollAnchorChange={onPdfScrollAnchor}
                   onTextRegionsReady={setTextRegions}
+                  onHoverRegion={onHoverDrawingRegion}
                   onMarkRect={(rect) => setPendingRect(rect)}
                   onSelectAnnotation={(id) => setActiveNoteId(id)}
                   onCancelMark={() => {
@@ -1266,9 +1382,12 @@ export function ReviewPane({
                   scrollRatio={scrollSync && scrollAnchorY == null ? scrollRatio : null}
                   scrollAnchorY={scrollSync ? scrollAnchorY : null}
                   highlightAnchorY={scrollSync ? scrollAnchorY : null}
+                  highlightRegion={hoverHighlightRegion}
+                  hoverRegions={linkedHoverRegions}
                   onScrollRatioChange={onPdfScrollRatio}
                   onScrollAnchorChange={onPdfScrollAnchor}
                   onTextRegionsReady={setTextRegions}
+                  onHoverRegion={onHoverDrawingRegion}
                   onMarkRect={(rect) => setPendingRect(rect)}
                   onSelectAnnotation={(id) => setActiveNoteId(id)}
                   onCancelMark={() => {
@@ -1469,6 +1588,8 @@ export function ReviewPane({
                   <MarkdownView
                     highlightQuery={deferredQuery}
                     activeBlockId={scrollSync ? activeBlockId : null}
+                    hoverBlockId={hoverBlockId}
+                    onHoverBlock={onHoverMarkdownBlock}
                     onAnchor={({ pageHint }) => {
                       if (pageHint && pageHint !== pageNumber) {
                         void goToPage(pageHint);
@@ -1520,6 +1641,8 @@ export function ReviewPane({
             }
           />
         ) : null}
+          </>
+        )}
       </div>
 
       {showLog ? (
