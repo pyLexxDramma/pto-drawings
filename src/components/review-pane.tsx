@@ -144,7 +144,8 @@ export function ReviewPane({
   const [pendingRect, setPendingRect] = useState<AnnotationRect | null>(null);
   const [noteComment, setNoteComment] = useState("");
   const [noteExpected, setNoteExpected] = useState("");
-  const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
+  const [hoverNoteId, setHoverNoteId] = useState<string | null>(null);
+  const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [noteError, setNoteError] = useState<string | null>(null);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [pdfHighlight, setPdfHighlight] = useState(0);
@@ -277,6 +278,7 @@ export function ReviewPane({
       : visiblePages[0];
   const page = document.pages.find((item) => item.pageNumber === pageNumber);
   const pageNotes = notes.filter((item) => item.pageNumber === pageNumber);
+  const activeNoteId = selectedNoteId ?? hoverNoteId;
   const viewingProcessedSheet =
     liveProcessing && ready.has(pageNumber) && pageNumber !== activeProcessingPage;
   const showFullProgress =
@@ -658,6 +660,8 @@ export function ReviewPane({
       return;
     }
     setNotes((prev) => prev.filter((item) => item.id !== note.id));
+    if (selectedNoteId === note.id) setSelectedNoteId(null);
+    if (hoverNoteId === note.id) setHoverNoteId(null);
     onAnnotationsChanged?.();
   }
 
@@ -713,6 +717,33 @@ export function ReviewPane({
     textRegions,
   ]);
 
+  const selectedNote = useMemo(
+    () => (selectedNoteId ? pageNotes.find((note) => note.id === selectedNoteId) ?? null : null),
+    [pageNotes, selectedNoteId],
+  );
+
+  const noteHighlightRegion = useMemo((): PageTextRegion | null => {
+    if (!highlightMode || !selectedNote) return null;
+    return {
+      id: `annotation-${selectedNote.id}`,
+      text: selectedNote.comment,
+      x: selectedNote.rect.x,
+      y: selectedNote.rect.y,
+      w: selectedNote.rect.w,
+      h: selectedNote.rect.h,
+    };
+  }, [highlightMode, selectedNote]);
+
+  const effectiveHighlightRegion = noteHighlightRegion ?? hoverHighlightRegion;
+
+  const panToHighlight = Boolean(
+    noteHighlightRegion ||
+      (highlightMode &&
+        (selectedBlockId || hoverBlockId) &&
+        !selectedRegionId &&
+        !hoverRegionId),
+  );
+
   const linkedHoverRegions = useMemo(
     () => (highlightMode ? textRegions : []),
     [highlightMode, textRegions],
@@ -726,6 +757,8 @@ export function ReviewPane({
     setHoverRegionId(null);
     setSelectedBlockId(null);
     setSelectedRegionId(null);
+    setHoverNoteId(null);
+    setSelectedNoteId(null);
   }, [pageNumber, document.id]);
 
   function clearHighlightSelection() {
@@ -733,6 +766,20 @@ export function ReviewPane({
     setHoverRegionId(null);
     setSelectedBlockId(null);
     setSelectedRegionId(null);
+    setSelectedNoteId(null);
+  }
+
+  function clearTextHighlightSelection() {
+    setHoverBlockId(null);
+    setHoverRegionId(null);
+    setSelectedBlockId(null);
+    setSelectedRegionId(null);
+  }
+
+  function onSelectNote(noteId: string | null) {
+    if (!highlightMode) return;
+    setSelectedNoteId((prev) => (prev === noteId ? null : noteId));
+    clearTextHighlightSelection();
   }
 
   function setHighlightModeOn(next: boolean) {
@@ -771,6 +818,7 @@ export function ReviewPane({
 
   function onSelectMarkdownBlock(blockId: string | null) {
     if (!highlightMode) return;
+    setSelectedNoteId(null);
     setSelectedBlockId(blockId);
     if (blockId) {
       let region = blockLinks.byBlock.get(blockId) ?? null;
@@ -804,6 +852,7 @@ export function ReviewPane({
 
   function onSelectDrawingRegion(regionId: string | null) {
     if (!highlightMode) return;
+    setSelectedNoteId(null);
     setSelectedRegionId(regionId);
     if (regionId) {
       let blockId = blockLinks.byRegion.get(regionId) ?? null;
@@ -996,13 +1045,32 @@ export function ReviewPane({
           pageNotes.map((note, index) => (
             <div
               key={note.id}
-              onMouseEnter={() => setActiveNoteId(note.id)}
-              onMouseLeave={() => setActiveNoteId(null)}
+              role={highlightMode ? "button" : undefined}
+              tabIndex={highlightMode ? 0 : undefined}
+              onMouseEnter={() => setHoverNoteId(note.id)}
+              onMouseLeave={() => setHoverNoteId(null)}
+              onClick={(event) => {
+                if (!highlightMode) return;
+                if ((event.target as HTMLElement).closest("button")) return;
+                onSelectNote(note.id);
+              }}
+              onKeyDown={(event) => {
+                if (!highlightMode) return;
+                if (event.key !== "Enter" && event.key !== " ") return;
+                event.preventDefault();
+                onSelectNote(note.id);
+              }}
               className={`rounded-md border px-2.5 py-2 text-[11px] ${
                 note.status === "open"
                   ? "border-red-200 bg-red-50"
                   : "border-emerald-200 bg-emerald-50"
-              } ${activeNoteId === note.id ? "ring-1 ring-accent/50" : ""}`}
+              } ${
+                highlightMode && selectedNoteId === note.id
+                  ? "ring-2 ring-emerald-600"
+                  : activeNoteId === note.id
+                    ? "ring-1 ring-accent/50"
+                    : ""
+              } ${highlightMode ? "cursor-pointer" : ""}`}
             >
               <div className="flex items-center justify-between gap-2">
                 <span className="font-semibold">
@@ -1479,13 +1547,8 @@ export function ReviewPane({
                   scrollRatio={scrollSync && scrollAnchorY == null ? scrollRatio : null}
                   scrollAnchorY={scrollSync ? scrollAnchorY : null}
                   highlightAnchorY={scrollSync ? scrollAnchorY : null}
-                  highlightRegion={hoverHighlightRegion}
-                  panToHighlight={Boolean(
-                    highlightMode &&
-                      (selectedBlockId || hoverBlockId) &&
-                      !selectedRegionId &&
-                      !hoverRegionId,
-                  )}
+                  highlightRegion={effectiveHighlightRegion}
+                  panToHighlight={panToHighlight}
                   hoverRegions={linkedHoverRegions}
                   onScrollRatioChange={onPdfScrollRatio}
                   onScrollAnchorChange={onPdfScrollAnchor}
@@ -1493,7 +1556,10 @@ export function ReviewPane({
                   onHoverRegion={highlightMode ? onHoverDrawingRegion : undefined}
                   onSelectRegion={highlightMode ? onSelectDrawingRegion : undefined}
                   onMarkRect={(rect) => setPendingRect(rect)}
-                  onSelectAnnotation={(id) => setActiveNoteId(id)}
+                  onSelectAnnotation={(id) => {
+                    setSelectedNoteId(id);
+                    if (highlightMode) clearTextHighlightSelection();
+                  }}
                   onCancelMark={() => {
                     setMarkMode(false);
                     setPendingRect(null);
@@ -1513,13 +1579,8 @@ export function ReviewPane({
                   scrollRatio={scrollSync && scrollAnchorY == null ? scrollRatio : null}
                   scrollAnchorY={scrollSync ? scrollAnchorY : null}
                   highlightAnchorY={scrollSync ? scrollAnchorY : null}
-                  highlightRegion={hoverHighlightRegion}
-                  panToHighlight={Boolean(
-                    highlightMode &&
-                      (selectedBlockId || hoverBlockId) &&
-                      !selectedRegionId &&
-                      !hoverRegionId,
-                  )}
+                  highlightRegion={effectiveHighlightRegion}
+                  panToHighlight={panToHighlight}
                   hoverRegions={linkedHoverRegions}
                   onScrollRatioChange={onPdfScrollRatio}
                   onScrollAnchorChange={onPdfScrollAnchor}
@@ -1527,7 +1588,10 @@ export function ReviewPane({
                   onHoverRegion={highlightMode ? onHoverDrawingRegion : undefined}
                   onSelectRegion={highlightMode ? onSelectDrawingRegion : undefined}
                   onMarkRect={(rect) => setPendingRect(rect)}
-                  onSelectAnnotation={(id) => setActiveNoteId(id)}
+                  onSelectAnnotation={(id) => {
+                    setSelectedNoteId(id);
+                    if (highlightMode) clearTextHighlightSelection();
+                  }}
                   onCancelMark={() => {
                     setMarkMode(false);
                     setPendingRect(null);
