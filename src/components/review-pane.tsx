@@ -691,7 +691,10 @@ export function ReviewPane({
 
   const hoverHighlightRegion = useMemo(() => {
     if (!highlightMode) return null;
-    if (selectedBlockId) return blockLinks.byBlock.get(selectedBlockId) ?? null;
+    if (selectedBlockId) {
+      const linked = blockLinks.byBlock.get(selectedBlockId);
+      if (linked) return linked;
+    }
     if (selectedRegionId) {
       return textRegions.find((region) => region.id === selectedRegionId) ?? null;
     }
@@ -711,11 +714,8 @@ export function ReviewPane({
   ]);
 
   const linkedHoverRegions = useMemo(
-    () =>
-      highlightMode
-        ? textRegions.filter((region) => blockLinks.byRegion.has(region.id))
-        : [],
-    [blockLinks.byRegion, highlightMode, textRegions],
+    () => (highlightMode ? textRegions : []),
+    [highlightMode, textRegions],
   );
 
   useEffect(() => {
@@ -773,7 +773,16 @@ export function ReviewPane({
     if (!highlightMode) return;
     setSelectedBlockId(blockId);
     if (blockId) {
-      const region = blockLinks.byBlock.get(blockId);
+      let region = blockLinks.byBlock.get(blockId) ?? null;
+      if (!region && textRegions.length) {
+        // Нет текстовой связи (битый слой PDF) — берём зону по порядку блока среди связанных кандидатов.
+        const contentIds = parseMarkdownBlocks(page?.markdown ?? "")
+          .filter((b) => b.text.length >= 8)
+          .map((b) => b.id);
+        const idx = contentIds.indexOf(blockId);
+        const sorted = [...textRegions].sort((a, b) => a.y - b.y || a.x - b.x);
+        region = idx >= 0 ? sorted[Math.min(idx, sorted.length - 1)] ?? null : sorted[0] ?? null;
+      }
       setSelectedRegionId(region?.id ?? null);
       setHoverBlockId(blockId);
       setHoverRegionId(null);
@@ -797,7 +806,18 @@ export function ReviewPane({
     if (!highlightMode) return;
     setSelectedRegionId(regionId);
     if (regionId) {
-      const blockId = blockLinks.byRegion.get(regionId) ?? null;
+      let blockId = blockLinks.byRegion.get(regionId) ?? null;
+      if (!blockId && page?.markdown) {
+        const sorted = [...textRegions].sort((a, b) => a.y - b.y || a.x - b.x);
+        const ridx = sorted.findIndex((r) => r.id === regionId);
+        const contentIds = parseMarkdownBlocks(page.markdown)
+          .filter((b) => b.text.length >= 8)
+          .map((b) => b.id);
+        blockId =
+          ridx >= 0
+            ? contentIds[Math.min(ridx, contentIds.length - 1)] ?? null
+            : contentIds[0] ?? null;
+      }
       setSelectedBlockId(blockId);
       setHoverRegionId(regionId);
       setHoverBlockId(blockId);

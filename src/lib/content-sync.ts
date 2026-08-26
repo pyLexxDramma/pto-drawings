@@ -117,6 +117,38 @@ function labelProbe(blockText: string): string {
   return cut.slice(0, 64);
 }
 
+/** Цифровой «отпечаток» — работает даже при битой кириллице в PDF. */
+function digitFingerprint(text: string): string {
+  return (text.match(/\d+/g) ?? []).join(" ");
+}
+
+function latinOnly(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isSheetMapRow(text: string): boolean {
+  return (
+    /^(текст|таблица|заголовок|штамп|спецификация)(\s|$)/.test(text) &&
+    /(север|юг|центр|восток|запад|северо|юго)/.test(text)
+  );
+}
+
+function isMetaBlock(text: string): boolean {
+  if (
+    /^(файл|тип листа|карта листа|описание листа|описание|что это|якоря|извлечение)(\s|$)/.test(
+      text,
+    )
+  ) {
+    return true;
+  }
+  if (/^блок где на листе/.test(text)) return true;
+  return isSheetMapRow(text);
+}
+
 function matchScore(blockText: string, regionText: string): number {
   if (!blockText || !regionText) return 0;
   const a = blockText;
@@ -124,6 +156,36 @@ function matchScore(blockText: string, regionText: string): number {
   if (a === b) return 1;
   if (a.length >= 8 && b.includes(a)) return 0.95;
   if (b.length >= 8 && a.includes(b)) return 0.9;
+
+  // Цифры (даты, № СРО, размеры) переживают битую кодировку PDF.
+  const da = digitFingerprint(a);
+  const db = digitFingerprint(b);
+  if (da.length >= 4 && db.length >= 4) {
+    if (da === db) return 0.88;
+    if (db.includes(da) || da.includes(db)) return 0.8;
+    const aset = new Set(da.split(" ").filter((x) => x.length >= 2));
+    const bset = new Set(db.split(" ").filter((x) => x.length >= 2));
+    if (aset.size && bset.size) {
+      let hit = 0;
+      for (const x of aset) if (bset.has(x)) hit += 1;
+      const ratio = hit / Math.min(aset.size, bset.size);
+      if (ratio >= 0.7 && hit >= 2) return 0.55 + ratio * 0.25;
+    }
+  }
+
+  const la = latinOnly(a);
+  const lb = latinOnly(b);
+  if (la.length >= 6 && lb.length >= 6) {
+    if (lb.includes(la) || la.includes(lb)) return 0.86;
+    const wordsA = la.split(" ").filter((w) => w.length > 2);
+    const wordsB = new Set(lb.split(" ").filter((w) => w.length > 2));
+    if (wordsA.length >= 2) {
+      let hit = 0;
+      for (const w of wordsA.slice(0, 10)) if (wordsB.has(w)) hit += 1;
+      const ratio = hit / Math.min(wordsA.length, 10);
+      if (ratio >= 0.6) return 0.5 + ratio * 0.35;
+    }
+  }
 
   const label = labelProbe(a);
   if (label.length >= 6) {
@@ -168,11 +230,12 @@ export function linkBlocksToRegions(
     (a, b) => labelProbe(a.text).length - labelProbe(b.text).length,
   );
   for (const block of ordered) {
+    if (isMetaBlock(block.text)) continue;
     let best: { region: PageTextRegion; score: number } | null = null;
     for (const region of regions) {
       if (used.has(region.id)) continue;
       const score = matchScore(block.text, region.text);
-      if (score < 0.4) continue;
+      if (score < 0.35) continue;
       if (!best || score > best.score) best = { region, score };
     }
     if (best) {
@@ -182,6 +245,24 @@ export function linkBlocksToRegions(
       anchors.set(block.id, best.region.y + best.region.h * 0.5);
     }
   }
+
+  // Fallback: битая кодировка PDF — сопоставляем оставшиеся блоки и зоны по порядку сверху вниз.
+  const leftoverBlocks = blocks.filter(
+    (b) => !byBlock.has(b.id) && !isMetaBlock(b.text) && b.text.length >= 8,
+  );
+  const leftoverRegions = [...regions]
+    .filter((r) => !used.has(r.id))
+    .sort((a, b) => a.y - b.y || a.x - b.x);
+  const n = Math.min(leftoverBlocks.length, leftoverRegions.length);
+  for (let i = 0; i < n; i += 1) {
+    const block = leftoverBlocks[i];
+    const region = leftoverRegions[i];
+    byBlock.set(block.id, region);
+    byRegion.set(region.id, block.id);
+    anchors.set(block.id, region.y + region.h * 0.5);
+    used.add(region.id);
+  }
+
   return { byBlock, byRegion, anchors };
 }
 
