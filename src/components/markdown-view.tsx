@@ -151,10 +151,10 @@ export function MarkdownView({
             onMouseLeave={() => onHoverBlock?.(null)}
             className={`scroll-mt-3 -ml-3 rounded-md border-l-2 pl-3 pr-1 transition-colors ${
               hovered
-                ? "border-amber-500 bg-amber-100/90"
+                ? "border-emerald-600 bg-emerald-100/95 shadow-[inset_0_0_0_1px_rgba(5,150,105,0.25)]"
                 : active
                   ? "border-accent bg-blue-50/80"
-                  : "border-transparent hover:border-slate-300 hover:bg-slate-50/80"
+                  : "border-transparent hover:border-emerald-200 hover:bg-emerald-50/50"
             }`}
           >
             <BlockMarkdown

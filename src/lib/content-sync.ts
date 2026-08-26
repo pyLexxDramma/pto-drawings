@@ -110,6 +110,13 @@ export function parseMarkdownBlocks(markdown: string): MarkdownBlock[] {
   return blocks;
 }
 
+function labelProbe(blockText: string): string {
+  // EN-метка до тире/перевода: "24 dia sump pit ... — сливной колодец"
+  const before = blockText.split(/\s+[—–]\s+/)[0]?.trim() ?? blockText;
+  const cut = before.split(/\s+-\s+(?=[а-яё])/i)[0]?.trim() ?? before;
+  return cut.slice(0, 64);
+}
+
 function matchScore(blockText: string, regionText: string): number {
   if (!blockText || !regionText) return 0;
   const a = blockText;
@@ -117,14 +124,30 @@ function matchScore(blockText: string, regionText: string): number {
   if (a === b) return 1;
   if (a.length >= 8 && b.includes(a)) return 0.95;
   if (b.length >= 8 && a.includes(b)) return 0.9;
+
+  const label = labelProbe(a);
+  if (label.length >= 6) {
+    if (b.includes(label)) return 0.92;
+    const labelWords = label.split(" ").filter((w) => w.length > 2);
+    if (labelWords.length >= 2) {
+      const bSet = new Set(b.split(" ").filter((w) => w.length > 2));
+      let hit = 0;
+      for (const w of labelWords) if (bSet.has(w)) hit += 1;
+      const ratio = hit / labelWords.length;
+      if (ratio >= 0.7) return 0.7 + ratio * 0.2;
+    }
+  }
+
   const probe = a.slice(0, Math.min(48, a.length));
   if (probe.length >= 6 && b.includes(probe)) return 0.85;
   const wordsA = a.split(" ").filter((w) => w.length > 2);
   const wordsB = new Set(b.split(" ").filter((w) => w.length > 2));
   if (!wordsA.length) return 0;
+  // Для двуязычных блоков сравниваем в основном «левую» (чертежную) половину слов.
+  const focus = wordsA.slice(0, Math.min(12, Math.ceil(wordsA.length * 0.55)));
   let hit = 0;
-  for (const w of wordsA) if (wordsB.has(w)) hit += 1;
-  return hit / wordsA.length;
+  for (const w of focus) if (wordsB.has(w)) hit += 1;
+  return hit / focus.length;
 }
 
 /** blockId ↔ зона на чертеже. */
@@ -140,12 +163,16 @@ export function linkBlocksToRegions(
   }
 
   const used = new Set<string>();
-  for (const block of blocks) {
+  // Сначала самые короткие/конкретные блоки — лучше цепляются к меткам на чертеже.
+  const ordered = [...blocks].sort(
+    (a, b) => labelProbe(a.text).length - labelProbe(b.text).length,
+  );
+  for (const block of ordered) {
     let best: { region: PageTextRegion; score: number } | null = null;
     for (const region of regions) {
       if (used.has(region.id)) continue;
       const score = matchScore(block.text, region.text);
-      if (score < 0.45) continue;
+      if (score < 0.4) continue;
       if (!best || score > best.score) best = { region, score };
     }
     if (best) {
@@ -244,7 +271,12 @@ export function regionsFromPdfTextContent(
   }> = [];
   for (const line of lines) {
     const last = merged[merged.length - 1];
-    if (last && Math.abs(last.y - line.y) < 0.012) {
+    // Склеиваем только соседние куски одной строки / одного вызова (близко по Y и X).
+    const sameLine =
+      last &&
+      Math.abs(last.y - line.y) < 0.01 &&
+      line.x <= last.x + last.w + 0.04;
+    if (sameLine && last) {
       last.parts.push(line.text);
       const right = Math.max(last.x + last.w, line.x + line.w);
       last.x = Math.min(last.x, line.x);
@@ -255,7 +287,7 @@ export function regionsFromPdfTextContent(
         parts: [line.text],
         x: line.x,
         y: line.y,
-        w: line.w,
+        w: Math.max(0.02, line.w),
         h: line.h,
       });
     }
@@ -267,28 +299,35 @@ export function regionsFromPdfTextContent(
   function flushCluster() {
     if (!cluster.length) return;
     const text = normalizeForMatch(cluster.map((c) => c.parts.join(" ")).join(" "));
-    if (text.length >= 4) {
+    if (text.length >= 3) {
       const x0 = Math.min(...cluster.map((c) => c.x));
       const y0 = cluster[0].y;
       const x1 = Math.max(...cluster.map((c) => c.x + c.w));
       const y1 = cluster[cluster.length - 1].y + cluster[cluster.length - 1].h;
+      // Небольшой запас, чтобы зона кликабельно покрывала метку.
+      const padX = 0.006;
+      const padY = 0.004;
       regions.push({
         id: `r-${regions.length}`,
         text,
-        x: Math.max(0, Math.min(1, x0)),
-        y: Math.max(0, Math.min(1, y0)),
-        w: Math.max(0.02, Math.min(1, x1) - Math.max(0, x0)),
-        h: Math.max(0.008, y1 - y0),
+        x: Math.max(0, Math.min(1, x0 - padX)),
+        y: Math.max(0, Math.min(1, y0 - padY)),
+        w: Math.max(0.02, Math.min(1, x1 + padX) - Math.max(0, x0 - padX)),
+        h: Math.max(0.01, y1 - y0 + padY * 2),
       });
     }
     cluster = [];
   }
 
   for (const row of merged) {
-    if (
-      cluster.length &&
-      row.y - (cluster[cluster.length - 1].y + cluster[cluster.length - 1].h) > 0.025
-    ) {
+    const prev = cluster[cluster.length - 1];
+    const gap = prev ? row.y - (prev.y + prev.h) : 0;
+    const overlapX =
+      prev &&
+      row.x < prev.x + prev.w + 0.08 &&
+      row.x + row.w > prev.x - 0.08;
+    // Узкие кластеры: только продолжение одного выноса/подписи, не весь лист.
+    if (cluster.length && (gap > 0.018 || !overlapX)) {
       flushCluster();
     }
     cluster.push(row);

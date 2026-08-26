@@ -698,7 +698,19 @@ export function ReviewPane({
   function onHoverDrawingRegion(regionId: string | null) {
     setHoverRegionId(regionId);
     if (regionId) {
-      setHoverBlockId(blockLinks.byRegion.get(regionId) ?? null);
+      const blockId = blockLinks.byRegion.get(regionId) ?? null;
+      setHoverBlockId(blockId);
+      if (blockId) {
+        const el = mdScrollRef.current;
+        const block = el?.querySelector(`[data-md-block="${blockId}"]`);
+        if (block instanceof HTMLElement) {
+          const parent = el!.getBoundingClientRect();
+          const box = block.getBoundingClientRect();
+          if (box.top < parent.top + 8 || box.bottom > parent.bottom - 8) {
+            block.scrollIntoView({ block: "nearest", behavior: "smooth" });
+          }
+        }
+      }
     } else {
       setHoverBlockId(null);
     }
@@ -1357,6 +1369,7 @@ export function ReviewPane({
                   scrollAnchorY={scrollSync ? scrollAnchorY : null}
                   highlightAnchorY={scrollSync ? scrollAnchorY : null}
                   highlightRegion={hoverHighlightRegion}
+                  panToHighlight={Boolean(hoverBlockId && !hoverRegionId)}
                   hoverRegions={linkedHoverRegions}
                   onScrollRatioChange={onPdfScrollRatio}
                   onScrollAnchorChange={onPdfScrollAnchor}
@@ -1383,6 +1396,7 @@ export function ReviewPane({
                   scrollAnchorY={scrollSync ? scrollAnchorY : null}
                   highlightAnchorY={scrollSync ? scrollAnchorY : null}
                   highlightRegion={hoverHighlightRegion}
+                  panToHighlight={Boolean(hoverBlockId && !hoverRegionId)}
                   hoverRegions={linkedHoverRegions}
                   onScrollRatioChange={onPdfScrollRatio}
                   onScrollAnchorChange={onPdfScrollAnchor}

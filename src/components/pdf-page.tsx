@@ -31,6 +31,8 @@ type PdfPageProps = {
   highlightAnchorY?: number | null;
   /** Зона под курсором / hover с расшифровки. */
   highlightRegion?: PageTextRegion | null;
+  /** При наведении с текста — подтянуть участок в кадр. */
+  panToHighlight?: boolean;
   /** Зоны для hit-test при наведении. */
   hoverRegions?: PageTextRegion[];
   onScrollRatioChange?: (ratio: number) => void;
@@ -60,6 +62,7 @@ export function PdfPage({
   scrollAnchorY = null,
   highlightAnchorY = null,
   highlightRegion = null,
+  panToHighlight = false,
   hoverRegions = [],
   onScrollRatioChange,
   onScrollAnchorChange,
@@ -263,6 +266,32 @@ export function PdfPage({
     return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [highlightNonce]);
+
+  useEffect(() => {
+    if (!panToHighlight || !highlightRegion) return;
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    const s = scaleRef.current;
+    const p = panRef.current;
+    const n = naturalRef.current;
+    const cx = (highlightRegion.x + highlightRegion.w / 2) * n.w * s + p.x;
+    const cy = (highlightRegion.y + highlightRegion.h / 2) * n.h * s + p.y;
+    const margin = 48;
+    let nx = p.x;
+    let ny = p.y;
+    if (cx < margin) nx += margin - cx;
+    else if (cx > wrap.clientWidth - margin) nx -= cx - (wrap.clientWidth - margin);
+    if (cy < margin) ny += margin - cy;
+    else if (cy > wrap.clientHeight - margin) ny -= cy - (wrap.clientHeight - margin);
+    if (nx === p.x && ny === p.y) return;
+    applyingSync.current = true;
+    const next = { x: nx, y: ny };
+    panRef.current = next;
+    setPan(next);
+    requestAnimationFrame(() => {
+      applyingSync.current = false;
+    });
+  }, [highlightRegion, panToHighlight, scale, natural.w, natural.h]);
 
   useEffect(() => {
     if (!scrollSync) return;
@@ -493,12 +522,12 @@ export function PdfPage({
             ) : null}
             {highlightRegion ? (
               <div
-                className="pointer-events-none absolute bg-amber-300/40 outline outline-2 outline-amber-500/90"
+                className="pointer-events-none absolute z-[5] bg-emerald-400/35 outline outline-2 outline-emerald-600 shadow-[0_0_0_4px_rgba(16,185,129,0.2)]"
                 style={{
                   left: `${highlightRegion.x * 100}%`,
                   top: `${highlightRegion.y * 100}%`,
-                  width: `${Math.max(2, highlightRegion.w * 100)}%`,
-                  height: `${Math.max(1.2, highlightRegion.h * 100)}%`,
+                  width: `${Math.max(2.5, highlightRegion.w * 100)}%`,
+                  height: `${Math.max(1.5, highlightRegion.h * 100)}%`,
                 }}
               />
             ) : null}
