@@ -940,7 +940,10 @@ export function Workspace({
     }
     setDocuments((prev) => prev.filter((item) => item.id !== id));
     if (selectedId === id) setSelectedId(null);
-    if (projectId) void loadEdits(projectId);
+    if (projectId) {
+      void loadEdits(projectId);
+      void loadNotes(projectId);
+    }
   }
 
   async function handleDeleteProject(id: string) {
@@ -1357,27 +1360,54 @@ export function Workspace({
                           </div>
                         ))}
                         {documents.map((doc) => (
-                          <button
+                          <div
                             key={doc.id}
-                            type="button"
-                            onClick={() => void openDocument(doc.id)}
-                            className={`mb-0.5 flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left text-[12px] ${
+                            className={`mb-0.5 flex items-stretch gap-0.5 rounded ${
                               selectedId === doc.id
-                                ? "bg-accent/10 font-medium text-text ring-1 ring-accent/30"
-                                : "text-muted hover:bg-white hover:text-text"
+                                ? "bg-accent/10 ring-1 ring-accent/30"
+                                : "hover:bg-white"
                             }`}
-                            title={doc.originalName}
+                            data-document-row={doc.id}
                           >
-                            <span
-                              className={`h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_DOT[doc.status]}`}
-                              title={STATUS_LABEL[doc.status]}
-                              aria-hidden
-                            />
-                            <span className="min-w-0 flex-1 truncate">{doc.originalName}</span>
-                            {doc.status === "processing" || doc.status === "queued" ? (
-                              <Spinner className="h-2.5 w-2.5 shrink-0 text-sky-700" />
-                            ) : null}
-                          </button>
+                            <button
+                              type="button"
+                              onClick={() => void openDocument(doc.id)}
+                              className={`min-w-0 flex-1 rounded px-1.5 py-1 text-left text-[12px] ${
+                                selectedId === doc.id
+                                  ? "font-medium text-text"
+                                  : "text-muted hover:text-text"
+                              }`}
+                              title={doc.originalName}
+                            >
+                              <span className="flex items-center gap-1.5">
+                                <span
+                                  className={`h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_DOT[doc.status]}`}
+                                  title={STATUS_LABEL[doc.status]}
+                                  aria-hidden
+                                />
+                                <span className="min-w-0 flex-1 truncate">{doc.originalName}</span>
+                                {doc.status === "processing" || doc.status === "queued" ? (
+                                  <Spinner className="h-2.5 w-2.5 shrink-0 text-sky-700" />
+                                ) : null}
+                              </span>
+                            </button>
+                            <div className="flex items-start pt-0.5 pr-0.5">
+                              <ActionMenu
+                                label="Действия файла"
+                                align="right"
+                                triggerClassName="rounded px-1 py-0.5 text-[11px] leading-none text-muted hover:bg-bg hover:text-text"
+                              >
+                                <button
+                                  type="button"
+                                  role="menuitem"
+                                  className={menuItemClass(true)}
+                                  onClick={() => void handleDelete(doc.id)}
+                                >
+                                  Удалить файл
+                                </button>
+                              </ActionMenu>
+                            </div>
+                          </div>
                         ))}
                         {!loading && documents.length === 0 && uploads.length === 0 ? (
                           <div className="px-1 py-2 text-center text-[11px] text-muted">
