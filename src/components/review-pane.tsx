@@ -365,6 +365,8 @@ export function ReviewPane({
   async function flush(pageToSave = pageRef.current, text = draftRef.current) {
     const current = document.pages.find((item) => item.pageNumber === pageToSave);
     if (!current || current.markdown === text) return;
+    // В режиме просмотра draft не синхронизирован — не затираем сохранённый текст.
+    if (mode !== "edit" && !text.trim() && current.markdown.trim()) return;
     setSaving(true);
     try {
       await onSavePage(pageToSave, text);
@@ -390,7 +392,7 @@ export function ReviewPane({
   async function goToPage(next: number) {
     if (timerRef.current) window.clearTimeout(timerRef.current);
     navigatedRef.current = true;
-    await flush();
+    if (mode === "edit") await flush();
     setMode("view");
     setRawPage(next);
   }
@@ -1810,6 +1812,7 @@ export function ReviewPane({
                     </div>
                   ) : null}
                   <MarkdownView
+                    singlePass={page.kind === "table"}
                     highlightQuery={deferredQuery}
                     activeBlockId={scrollSync ? activeBlockId : null}
                     highlightMode={highlightMode}

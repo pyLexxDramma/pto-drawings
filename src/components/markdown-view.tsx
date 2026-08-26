@@ -25,6 +25,8 @@ type MarkdownViewProps = {
   highlightMode?: boolean;
   onHoverBlock?: (blockId: string | null) => void;
   onSelectBlock?: (blockId: string | null) => void;
+  /** Лист-таблица: один Markdown без разбиения на блоки. */
+  singlePass?: boolean;
 };
 
 function pageHintFromText(text: string): number | null {
@@ -134,8 +136,12 @@ export function MarkdownView({
   highlightMode = false,
   onHoverBlock,
   onSelectBlock,
+  singlePass = false,
 }: MarkdownViewProps) {
-  const blocks = useMemo(() => parseMarkdownBlocks(children), [children]);
+  const blocks = useMemo(
+    () => (singlePass ? [] : parseMarkdownBlocks(children)),
+    [children, singlePass],
+  );
   const q = highlightQuery.trim().length >= 2 ? highlightQuery : "";
 
   if (!blocks.length) {

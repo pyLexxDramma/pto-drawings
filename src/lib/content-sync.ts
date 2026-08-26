@@ -75,11 +75,12 @@ export function parseMarkdownBlocks(markdown: string): MarkdownBlock[] {
 
     if (trimmed.startsWith("|") && trimmed.includes("|")) {
       flushParagraph();
+      const tableRows: string[] = [];
       while (i < lines.length && lines[i].trim().startsWith("|")) {
-        const row = lines[i].trim();
-        if (!/^\|[\s\-:|]+\|$/.test(row)) push(row);
+        tableRows.push(lines[i].trim());
         i += 1;
       }
+      if (tableRows.length) push(tableRows.join("\n"));
       continue;
     }
 
