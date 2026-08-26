@@ -46,6 +46,10 @@ import {
 } from "@/components/processing-progress-panel";
 import { ReviewPaneHelp } from "@/components/review-pane-help";
 import {
+  getDocumentView,
+  patchDocumentView,
+} from "@/lib/review-view-cache";
+import {
   cacheProgress,
   fetchProgress,
   loadCachedProgress,
@@ -117,7 +121,11 @@ export function ReviewPane({
   onSavePage,
   onAnnotationsChanged,
 }: ReviewPaneProps) {
-  const [rawPage, setRawPage] = useState(() => loadCachedProgress(document.id).lastPage);
+  const [rawPage, setRawPage] = useState(() => {
+    const cached = getDocumentView(document.id);
+    if (cached?.pageNumber && cached.pageNumber > 0) return cached.pageNumber;
+    return loadCachedProgress(document.id).lastPage;
+  });
   const [mode, setMode] = useState<"view" | "edit">("view");
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
@@ -140,15 +148,27 @@ export function ReviewPane({
   const [noteError, setNoteError] = useState<string | null>(null);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [pdfHighlight, setPdfHighlight] = useState(0);
-  const [paneSolo, setPaneSolo] = useState<PaneSolo>(null);
-  const [galleryMode, setGalleryMode] = useState(false);
-  const [scrollSync, setScrollSync] = useState(true);
+  const [paneSolo, setPaneSolo] = useState<PaneSolo>(() => {
+    const cached = getDocumentView(document.id);
+    return cached?.paneSolo ?? null;
+  });
+  const [galleryMode, setGalleryMode] = useState(
+    () => getDocumentView(document.id)?.galleryMode ?? false,
+  );
+  const [scrollSync, setScrollSync] = useState(
+    () => getDocumentView(document.id)?.scrollSync ?? true,
+  );
+  const [highlightMode, setHighlightMode] = useState(
+    () => getDocumentView(document.id)?.highlightMode ?? false,
+  );
   const [scrollRatio, setScrollRatio] = useState<number | null>(null);
   const [scrollAnchorY, setScrollAnchorY] = useState<number | null>(null);
   const [textRegions, setTextRegions] = useState<PageTextRegion[]>([]);
   const [activeBlockId, setActiveBlockId] = useState<string | null>(null);
   const [hoverBlockId, setHoverBlockId] = useState<string | null>(null);
   const [hoverRegionId, setHoverRegionId] = useState<string | null>(null);
+  const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
+  const [selectedRegionId, setSelectedRegionId] = useState<string | null>(null);
   const [sidePanel, setSidePanel] = useState<"text" | "notes">("text");
   const [searchOpen, setSearchOpen] = useState(false);
   /** Пользователь развернул прогресс поверх просмотра готового листа. */
@@ -670,16 +690,32 @@ export function ReviewPane({
   const blockAnchors = blockLinks.anchors;
 
   const hoverHighlightRegion = useMemo(() => {
+    if (!highlightMode) return null;
+    if (selectedBlockId) return blockLinks.byBlock.get(selectedBlockId) ?? null;
+    if (selectedRegionId) {
+      return textRegions.find((region) => region.id === selectedRegionId) ?? null;
+    }
     if (hoverBlockId) return blockLinks.byBlock.get(hoverBlockId) ?? null;
     if (hoverRegionId) {
       return textRegions.find((region) => region.id === hoverRegionId) ?? null;
     }
     return null;
-  }, [blockLinks.byBlock, hoverBlockId, hoverRegionId, textRegions]);
+  }, [
+    blockLinks.byBlock,
+    highlightMode,
+    hoverBlockId,
+    hoverRegionId,
+    selectedBlockId,
+    selectedRegionId,
+    textRegions,
+  ]);
 
   const linkedHoverRegions = useMemo(
-    () => textRegions.filter((region) => blockLinks.byRegion.has(region.id)),
-    [blockLinks.byRegion, textRegions],
+    () =>
+      highlightMode
+        ? textRegions.filter((region) => blockLinks.byRegion.has(region.id))
+        : [],
+    [blockLinks.byRegion, highlightMode, textRegions],
   );
 
   useEffect(() => {
@@ -688,31 +724,86 @@ export function ReviewPane({
     setActiveBlockId(null);
     setHoverBlockId(null);
     setHoverRegionId(null);
+    setSelectedBlockId(null);
+    setSelectedRegionId(null);
   }, [pageNumber, document.id]);
 
+  function clearHighlightSelection() {
+    setHoverBlockId(null);
+    setHoverRegionId(null);
+    setSelectedBlockId(null);
+    setSelectedRegionId(null);
+  }
+
+  function setHighlightModeOn(next: boolean) {
+    setHighlightMode(next);
+    if (!next) clearHighlightSelection();
+    patchDocumentView(document.id, { highlightMode: next });
+  }
+
+  useEffect(() => {
+    patchDocumentView(document.id, {
+      pageNumber,
+      scrollSync,
+      highlightMode,
+      paneSolo,
+      galleryMode,
+    });
+  }, [document.id, pageNumber, scrollSync, highlightMode, paneSolo, galleryMode]);
+
+  function scrollBlockIntoView(blockId: string) {
+    const el = mdScrollRef.current;
+    const block = el?.querySelector(`[data-md-block="${blockId}"]`);
+    if (block instanceof HTMLElement && el) {
+      const parent = el.getBoundingClientRect();
+      const box = block.getBoundingClientRect();
+      if (box.top < parent.top + 8 || box.bottom > parent.bottom - 8) {
+        block.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      }
+    }
+  }
+
   function onHoverMarkdownBlock(blockId: string | null) {
+    if (!highlightMode) return;
     setHoverBlockId(blockId);
     if (blockId) setHoverRegionId(null);
   }
 
+  function onSelectMarkdownBlock(blockId: string | null) {
+    if (!highlightMode) return;
+    setSelectedBlockId(blockId);
+    if (blockId) {
+      const region = blockLinks.byBlock.get(blockId);
+      setSelectedRegionId(region?.id ?? null);
+      setHoverBlockId(blockId);
+      setHoverRegionId(null);
+    } else {
+      setSelectedRegionId(null);
+    }
+  }
+
   function onHoverDrawingRegion(regionId: string | null) {
+    if (!highlightMode) return;
     setHoverRegionId(regionId);
     if (regionId) {
       const blockId = blockLinks.byRegion.get(regionId) ?? null;
       setHoverBlockId(blockId);
-      if (blockId) {
-        const el = mdScrollRef.current;
-        const block = el?.querySelector(`[data-md-block="${blockId}"]`);
-        if (block instanceof HTMLElement) {
-          const parent = el!.getBoundingClientRect();
-          const box = block.getBoundingClientRect();
-          if (box.top < parent.top + 8 || box.bottom > parent.bottom - 8) {
-            block.scrollIntoView({ block: "nearest", behavior: "smooth" });
-          }
-        }
-      }
-    } else {
+    } else if (!selectedBlockId) {
       setHoverBlockId(null);
+    }
+  }
+
+  function onSelectDrawingRegion(regionId: string | null) {
+    if (!highlightMode) return;
+    setSelectedRegionId(regionId);
+    if (regionId) {
+      const blockId = blockLinks.byRegion.get(regionId) ?? null;
+      setSelectedBlockId(blockId);
+      setHoverRegionId(regionId);
+      setHoverBlockId(blockId);
+      if (blockId) scrollBlockIntoView(blockId);
+    } else {
+      setSelectedBlockId(null);
     }
   }
 
@@ -1369,12 +1460,18 @@ export function ReviewPane({
                   scrollAnchorY={scrollSync ? scrollAnchorY : null}
                   highlightAnchorY={scrollSync ? scrollAnchorY : null}
                   highlightRegion={hoverHighlightRegion}
-                  panToHighlight={Boolean(hoverBlockId && !hoverRegionId)}
+                  panToHighlight={Boolean(
+                    highlightMode &&
+                      (selectedBlockId || hoverBlockId) &&
+                      !selectedRegionId &&
+                      !hoverRegionId,
+                  )}
                   hoverRegions={linkedHoverRegions}
                   onScrollRatioChange={onPdfScrollRatio}
                   onScrollAnchorChange={onPdfScrollAnchor}
                   onTextRegionsReady={setTextRegions}
-                  onHoverRegion={onHoverDrawingRegion}
+                  onHoverRegion={highlightMode ? onHoverDrawingRegion : undefined}
+                  onSelectRegion={highlightMode ? onSelectDrawingRegion : undefined}
                   onMarkRect={(rect) => setPendingRect(rect)}
                   onSelectAnnotation={(id) => setActiveNoteId(id)}
                   onCancelMark={() => {
@@ -1386,6 +1483,7 @@ export function ReviewPane({
                 <PdfPage
                   url={`/api/documents/${document.id}/file`}
                   pageNumber={pageNumber}
+                  viewCacheKey={document.id}
                   annotations={pageNotes}
                   markMode={markMode && !readOnly}
                   activeAnnotationId={activeNoteId}
@@ -1396,12 +1494,18 @@ export function ReviewPane({
                   scrollAnchorY={scrollSync ? scrollAnchorY : null}
                   highlightAnchorY={scrollSync ? scrollAnchorY : null}
                   highlightRegion={hoverHighlightRegion}
-                  panToHighlight={Boolean(hoverBlockId && !hoverRegionId)}
+                  panToHighlight={Boolean(
+                    highlightMode &&
+                      (selectedBlockId || hoverBlockId) &&
+                      !selectedRegionId &&
+                      !hoverRegionId,
+                  )}
                   hoverRegions={linkedHoverRegions}
                   onScrollRatioChange={onPdfScrollRatio}
                   onScrollAnchorChange={onPdfScrollAnchor}
                   onTextRegionsReady={setTextRegions}
-                  onHoverRegion={onHoverDrawingRegion}
+                  onHoverRegion={highlightMode ? onHoverDrawingRegion : undefined}
+                  onSelectRegion={highlightMode ? onSelectDrawingRegion : undefined}
                   onMarkRect={(rect) => setPendingRect(rect)}
                   onSelectAnnotation={(id) => setActiveNoteId(id)}
                   onCancelMark={() => {
@@ -1446,30 +1550,50 @@ export function ReviewPane({
             ) : (
               <>
             <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
-              <SegmentedTabs
-                size="xs"
-                value={sidePanel}
-                onChange={setSidePanel}
-                options={[
-                  {
-                    id: "text",
-                    label: page?.kind === "table" ? "Таблица" : "Расшифровка",
-                  },
-                  {
-                    id: "notes",
-                    label: (
-                      <>
-                        Замечания
-                        {pageNotes.length ? (
-                          <span className="ml-1 tabular-nums opacity-70">
-                            {pageNotes.length}
-                          </span>
-                        ) : null}
-                      </>
-                    ),
-                  },
-                ]}
-              />
+              <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                <SegmentedTabs
+                  size="xs"
+                  value={sidePanel}
+                  onChange={setSidePanel}
+                  options={[
+                    {
+                      id: "text",
+                      label: page?.kind === "table" ? "Таблица" : "Расшифровка",
+                    },
+                    {
+                      id: "notes",
+                      label: (
+                        <>
+                          Замечания
+                          {pageNotes.length ? (
+                            <span className="ml-1 tabular-nums opacity-70">
+                              {pageNotes.length}
+                            </span>
+                          ) : null}
+                        </>
+                      ),
+                    },
+                  ]}
+                />
+                <button
+                  type="button"
+                  role="tab"
+                  aria-pressed={highlightMode}
+                  title={
+                    highlightMode
+                      ? "Выключить подсветку строка ↔ участок"
+                      : "Включить подсветку строка ↔ участок"
+                  }
+                  onClick={() => setHighlightModeOn(!highlightMode)}
+                  className={`rounded-[5px] border px-2 py-0.5 text-[11px] font-medium transition-colors ${
+                    highlightMode
+                      ? "border-emerald-600 bg-emerald-50 text-emerald-900 shadow-sm ring-1 ring-emerald-500/40"
+                      : "border-slate-300 bg-slate-100 text-muted hover:bg-white hover:text-text"
+                  }`}
+                >
+                  Подсветка
+                </button>
+              </div>
               <div className="flex items-center gap-2">
                 {showTech && sidePanel === "text" && page ? (
                   <span className="text-[10px] text-muted">
@@ -1604,8 +1728,11 @@ export function ReviewPane({
                   <MarkdownView
                     highlightQuery={deferredQuery}
                     activeBlockId={scrollSync ? activeBlockId : null}
-                    hoverBlockId={hoverBlockId}
-                    onHoverBlock={onHoverMarkdownBlock}
+                    highlightMode={highlightMode}
+                    hoverBlockId={highlightMode ? hoverBlockId : null}
+                    selectedBlockId={highlightMode ? selectedBlockId : null}
+                    onHoverBlock={highlightMode ? onHoverMarkdownBlock : undefined}
+                    onSelectBlock={highlightMode ? onSelectMarkdownBlock : undefined}
                     onAnchor={({ pageHint }) => {
                       if (pageHint && pageHint !== pageNumber) {
                         void goToPage(pageHint);

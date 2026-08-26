@@ -349,7 +349,6 @@ export function Workspace({
   const [newProjectDescription, setNewProjectDescription] = useState("");
   const [creatingProject, setCreatingProject] = useState(false);
   const [showNewProject, setShowNewProject] = useState(false);
-  const [filesCollapsed, setFilesCollapsed] = useState(false);
   const [projectsCollapsed, setProjectsCollapsed] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
   const [renameId, setRenameId] = useState<string | null>(null);
@@ -372,8 +371,7 @@ export function Workspace({
   const [pendingUploadFiles, setPendingUploadFiles] = useState<File[] | null>(null);
   const [uploadBusy, setUploadBusy] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [projectsWidth, setProjectsWidth] = useState(220);
-  const [filesWidth, setFilesWidth] = useState(300);
+  const [projectsWidth, setProjectsWidth] = useState(280);
   const [openPage, setOpenPage] = useState<{
     nonce: number;
     page: number;
@@ -486,8 +484,6 @@ export function Workspace({
           : null,
       );
       autoReadyJumpRef.current = page && page > 0 ? id : null;
-      setProjectsCollapsed(true);
-      setFilesCollapsed(true);
       await refreshDocument(id);
     },
     [refreshDocument],
@@ -527,10 +523,7 @@ export function Workspace({
       if (!raw) return;
       const parsed = JSON.parse(raw) as { projects?: number; files?: number };
       if (typeof parsed.projects === "number") {
-        setProjectsWidth(clamp(parsed.projects, 160, 420));
-      }
-      if (typeof parsed.files === "number") {
-        setFilesWidth(clamp(parsed.files, 200, 520));
+        setProjectsWidth(clamp(parsed.projects, 200, 420));
       }
     } catch {
       // ignore
@@ -541,12 +534,12 @@ export function Workspace({
     try {
       localStorage.setItem(
         "pto-column-widths",
-        JSON.stringify({ projects: projectsWidth, files: filesWidth }),
+        JSON.stringify({ projects: projectsWidth }),
       );
     } catch {
       // ignore
     }
-  }, [projectsWidth, filesWidth]);
+  }, [projectsWidth]);
 
   useEffect(() => {
     const query = projectQuery.trim();
@@ -709,7 +702,7 @@ export function Workspace({
     setProjectId(id);
     setSelectedId(null);
     setFocusMode(false);
-    setFilesCollapsed(false);
+    setProjectsCollapsed(false);
     setError(null);
     const project = projects.find((item) => item.id === id);
     setDescriptionDraft(project?.description ?? "");
@@ -1092,7 +1085,6 @@ export function Workspace({
   const backToProjects = () => {
     setSelectedId(null);
     setFocusMode(false);
-    setFilesCollapsed(false);
     setProjectsCollapsed(false);
     setOpenPage(null);
   };
@@ -1260,7 +1252,7 @@ export function Workspace({
                 </form>
               ) : null}
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto p-2">
+            <div className="min-h-0 flex-1 overflow-y-auto p-1.5" data-projects-tree>
               {projects.map((project) =>
                 renameId === project.id ? (
                   <input
@@ -1273,64 +1265,123 @@ export function Workspace({
                       if (event.key === "Enter") void commitRename();
                       if (event.key === "Escape") setRenameId(null);
                     }}
-                    className="mb-1 w-full rounded-md border border-accent bg-white px-2.5 py-2 text-sm outline-none"
+                    className="mb-1 w-full rounded-md border border-accent bg-white px-2 py-1.5 text-sm outline-none"
                   />
                 ) : (
                   <div
                     key={project.id}
-                    className={`mb-1 flex items-stretch gap-0.5 rounded-md ${
+                    className={`mb-1 rounded-md ${
                       project.id === projectId
-                        ? "bg-blue-50 text-text"
-                        : "text-muted hover:bg-surface-2 hover:text-text"
+                        ? "bg-blue-50/80 ring-1 ring-accent/20"
+                        : "hover:bg-surface-2"
                     }`}
+                    data-project-row={project.id}
                   >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (project.id === projectId) {
-                          setRenameId(project.id);
-                          setRenameValue(project.name);
-                          return;
-                        }
-                        void selectProject(project.id);
-                      }}
-                      className="min-w-0 flex-1 rounded-md px-2.5 py-2 text-left text-sm"
-                      title="Ещё раз нажмите, чтобы переименовать"
-                    >
-                      <span className="block truncate">{project.name}</span>
-                      <span className="mt-0.5 block truncate text-[10px] font-normal text-muted">
-                        создан {formatDateOnly(project.createdAt)} в{" "}
-                        {formatTimeOnly(project.createdAt)}
-                      </span>
-                      {project.description ? (
-                        <span className="mt-0.5 block truncate text-[11px] font-normal text-muted">
-                          {project.description}
+                    <div className="flex items-stretch gap-0.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void selectProject(project.id);
+                        }}
+                        className={`min-w-0 flex-1 rounded-md px-2 py-1.5 text-left text-sm ${
+                          project.id === projectId ? "text-text" : "text-muted hover:text-text"
+                        }`}
+                        title="Открыть файлы проекта"
+                        aria-expanded={project.id === projectId}
+                      >
+                        <span className="flex items-center gap-1">
+                          <span className="text-[10px] text-muted">
+                            {project.id === projectId ? "▾" : "▸"}
+                          </span>
+                          <span className="truncate font-medium">{project.name}</span>
                         </span>
-                      ) : null}
-                    </button>
-                    <div className="flex items-start pt-1.5 pr-1">
-                      <ActionMenu label="Действия проекта" align="right">
-                        <button
-                          type="button"
-                          role="menuitem"
-                          className={menuItemClass()}
-                          onClick={() => {
-                            setRenameId(project.id);
-                            setRenameValue(project.name);
-                          }}
-                        >
-                          Переименовать
-                        </button>
-                        <button
-                          type="button"
-                          role="menuitem"
-                          className={menuItemClass(true)}
-                          onClick={() => void handleDeleteProject(project.id)}
-                        >
-                          Удалить проект
-                        </button>
-                      </ActionMenu>
+                      </button>
+                      <div className="flex items-start pt-1 pr-0.5">
+                        <ActionMenu label="Действия проекта" align="right">
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className={menuItemClass()}
+                            onClick={() => {
+                              setRenameId(project.id);
+                              setRenameValue(project.name);
+                            }}
+                          >
+                            Переименовать
+                          </button>
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className={menuItemClass(true)}
+                            onClick={() => void handleDeleteProject(project.id)}
+                          >
+                            Удалить проект
+                          </button>
+                        </ActionMenu>
+                      </div>
                     </div>
+                    {project.id === projectId ? (
+                      <div className="border-t border-border/70 px-1.5 pb-2 pt-1" data-project-files>
+                        <label
+                          htmlFor="pto-drawing-upload"
+                          className={`mb-1.5 block cursor-pointer rounded-lg border border-dashed px-2 py-2 text-center transition-colors ${
+                            dragOver
+                              ? "border-accent bg-blue-50"
+                              : "border-slate-300 bg-white/70 hover:border-accent/60"
+                          }`}
+                        >
+                          <div className="text-[11px] font-semibold text-text">
+                            {documents.length === 0 ? "Загрузить файл" : "+ файл"}
+                          </div>
+                        </label>
+                        {error ? (
+                          <div className="mb-1 rounded bg-red-50 px-2 py-1 text-[10px] text-red-700">
+                            {error}
+                          </div>
+                        ) : null}
+                        {uploads.map((item) => (
+                          <div
+                            key={item.tempId}
+                            className="mb-1 rounded border border-border bg-white px-2 py-1"
+                          >
+                            <div className="flex justify-between gap-1 text-[11px]">
+                              <span className="truncate">{item.name}</span>
+                              <span className="shrink-0 text-muted">
+                                {item.error ?? `${item.progress}%`}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                        {documents.map((doc) => (
+                          <button
+                            key={doc.id}
+                            type="button"
+                            onClick={() => void openDocument(doc.id)}
+                            className={`mb-0.5 flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left text-[12px] ${
+                              selectedId === doc.id
+                                ? "bg-accent/10 font-medium text-text ring-1 ring-accent/30"
+                                : "text-muted hover:bg-white hover:text-text"
+                            }`}
+                            title={doc.originalName}
+                          >
+                            <span
+                              className={`h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_DOT[doc.status]}`}
+                              title={STATUS_LABEL[doc.status]}
+                              aria-hidden
+                            />
+                            <span className="min-w-0 flex-1 truncate">{doc.originalName}</span>
+                            {doc.status === "processing" || doc.status === "queued" ? (
+                              <Spinner className="h-2.5 w-2.5 shrink-0 text-sky-700" />
+                            ) : null}
+                          </button>
+                        ))}
+                        {!loading && documents.length === 0 && uploads.length === 0 ? (
+                          <div className="px-1 py-2 text-center text-[11px] text-muted">
+                            Нет файлов — загрузите PDF/DWG
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </div>
                 ),
               )}
@@ -1341,606 +1392,7 @@ export function Workspace({
         {focusMode || projectsCollapsed ? null : (
           <ColumnResizer
             className="hidden md:block"
-            onDelta={(dx) => setProjectsWidth((w) => clamp(w + dx, 160, 420))}
-          />
-        )}
-
-        {focusMode ? null : filesCollapsed ? (
-          <div className="flex w-11 shrink-0 flex-col border-b border-border bg-white md:border-b-0">
-            <button
-              type="button"
-              onClick={() => setFilesCollapsed(false)}
-              className="flex-1 text-xs text-muted hover:bg-bg"
-              title="Показать файлы"
-            >
-              <span className="inline-block px-1 py-3 [writing-mode:vertical-rl]">Файлы</span>
-            </button>
-            {selected &&
-            (selected.status === "processing" || selected.status === "queued") &&
-            !selected.errorMessage?.startsWith("Отмена") ? (
-              <button
-                type="button"
-                disabled={cancelingId === selected.id}
-                onClick={() => void handleCancel(selected.id)}
-                className="border-t border-amber-200 bg-amber-50 px-1 py-2 text-[10px] font-medium text-amber-950 hover:bg-amber-100 disabled:opacity-50 [writing-mode:vertical-rl]"
-                title="Отменить обработку"
-              >
-                {cancelingId === selected.id ? "…" : "Стоп"}
-              </button>
-            ) : null}
-          </div>
-        ) : (
-          <section
-            className="flex min-h-0 shrink-0 flex-col border-b border-border bg-white md:border-b-0"
-            style={{ width: filesWidth, maxWidth: "100%" }}
-          >
-            <div className="flex items-start justify-between border-b border-border px-3 py-3">
-              <div className="min-w-0 pr-2">
-                <div className="truncate text-sm font-medium">
-                  {currentProject?.name ?? "Проект"}
-                </div>
-                {currentProject ? (
-                  <div className="mt-0.5 text-[11px] text-muted">
-                    создан {formatDateOnly(currentProject.createdAt)} в{" "}
-                    {formatTimeOnly(currentProject.createdAt)}
-                  </div>
-                ) : null}
-                <div className="mt-0.5 text-[11px] leading-snug text-muted">
-                  {summaryLine}
-                </div>
-              </div>
-              <div className="flex shrink-0 items-center gap-2">
-                {currentProject ? (
-                  <button
-                    type="button"
-                    onClick={() => void handleDeleteProject(currentProject.id)}
-                    className="text-[11px] text-red-600 hover:underline"
-                    title="Удалить проект со всеми файлами"
-                  >
-                    Удалить проект
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={() => setFilesCollapsed(true)}
-                  className="text-[11px] text-muted hover:text-text"
-                  title="Свернуть файлы"
-                >
-                  Скрыть
-                </button>
-              </div>
-            </div>
-
-            <div className="min-h-0 flex-1 overflow-y-auto">
-            {currentProject ? (
-              <details className="border-b border-border px-3 py-2">
-                <summary className="cursor-pointer select-none text-[11px] font-medium text-muted hover:text-text">
-                  О проекте
-                </summary>
-                <div className="mt-2 space-y-2">
-                <textarea
-                  value={descriptionDraft}
-                  onChange={(event) => setDescriptionDraft(event.target.value)}
-                  onBlur={() => void commitDescription()}
-                  rows={2}
-                  placeholder="Описание комплекта"
-                  className="w-full resize-none rounded-md border border-border bg-bg px-2 py-1.5 text-xs outline-none placeholder:text-muted focus:border-accent"
-                />
-                <div className="rounded-md border border-border bg-bg px-2 py-2">
-                  <div className="text-[11px] font-medium text-muted">ТЗ (PDF)</div>
-                  {currentProject.specOriginalName ? (
-                    <div className="mt-1 flex items-center justify-between gap-2">
-                      <a
-                        href={`/api/projects/${currentProject.id}/spec/file`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="truncate text-xs text-accent hover:underline"
-                      >
-                        {currentProject.specOriginalName}
-                      </a>
-                      <button
-                        type="button"
-                        onClick={() => void handleClearSpec()}
-                        className="shrink-0 text-[11px] text-red-600 hover:underline"
-                      >
-                        Убрать
-                      </button>
-                    </div>
-                  ) : (
-                    <label
-                      htmlFor="pto-spec-upload"
-                      className="mt-1 inline-block cursor-pointer text-xs text-accent hover:underline"
-                    >
-                      Прикрепить ТЗ
-                    </label>
-                  )}
-                  <input
-                    id="pto-spec-upload"
-                    ref={specInputRef}
-                    type="file"
-                    accept="application/pdf,.pdf"
-                    className="absolute h-px w-px overflow-hidden opacity-0"
-                    onChange={(event) => {
-                      void handleSpecFile(event.target.files);
-                      event.target.value = "";
-                    }}
-                  />
-                </div>
-                <div>
-                  <input
-                    value={projectQuery}
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      setProjectQuery(value);
-                      setHits([]);
-                      setSearching(value.trim().length >= 2);
-                    }}
-                    placeholder="Поиск по всем листам проекта"
-                    className="w-full rounded-md border border-border bg-bg px-2 py-1.5 text-xs outline-none placeholder:text-muted focus:border-accent"
-                  />
-                  {projectQuery.trim().length >= 2 ? (
-                    <div className="mt-1 max-h-44 space-y-1 overflow-auto">
-                      {searching ? (
-                        <div className="text-[11px] text-muted">Ищем…</div>
-                      ) : hits.length === 0 ? (
-                        <div className="text-[11px] text-muted">Ничего не нашли.</div>
-                      ) : (
-                        hits.map((hit) => (
-                          <button
-                            key={`${hit.documentId}-${hit.pageNumber}`}
-                            type="button"
-                            onClick={() => jumpToPage(hit.documentId, hit.pageNumber)}
-                            className="block w-full rounded bg-white px-2 py-1 text-left text-[11px] hover:bg-blue-50"
-                          >
-                            <span className="font-medium">{hit.originalName}</span>
-                            <span className="text-muted">
-                              {" "}
-                              · лист {hit.pageNumber} · {KIND_LABEL[hit.kind].toLowerCase()}
-                            </span>
-                            <span className="mt-0.5 block truncate text-muted">
-                              {hit.snippet}
-                            </span>
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  ) : null}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowEdits((value) => {
-                      const next = !value;
-                      if (next && projectId) void loadEdits(projectId);
-                      return next;
-                    });
-                  }}
-                  className="block text-[11px] text-muted hover:text-text"
-                >
-                  Правки по объекту: {edits.length}
-                </button>
-                {showEdits ? (
-                  <div className="max-h-36 space-y-1 overflow-auto">
-                    {edits.length === 0 ? (
-                      <div className="text-[11px] text-muted">Пока никто не правил текст.</div>
-                    ) : (
-                      edits.slice(0, 40).map((entry) => (
-                        <button
-                          key={entry.id}
-                          type="button"
-                          onClick={() => jumpToPage(entry.documentId, entry.pageNumber)}
-                          className="block w-full rounded bg-white px-2 py-1 text-left text-[11px] hover:bg-blue-50"
-                        >
-                          <span className="font-medium">{entry.originalName}</span>
-                          <span className="text-muted">
-                            {" "}
-                            · лист {entry.pageNumber}
-                            {entry.userName ? ` · ${entry.userName}` : ""}
-                            {" · "}
-                            {formatDate(entry.createdAt)}
-                          </span>
-                        </button>
-                      ))
-                    )}
-                  </div>
-                ) : null}
-                </div>
-              </details>
-            ) : null}
-
-            {currentProject && documents.length > 0 ? (
-              <div className="border-b border-border px-3 py-2">
-                <div className="flex items-center justify-between gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowNotes((value) => {
-                        const next = !value;
-                        if (next && projectId) void loadNotes(projectId);
-                        return next;
-                      });
-                    }}
-                    className="text-[11px] font-medium text-muted hover:text-text"
-                  >
-                    Замечания
-                    {notes.length
-                      ? ` · ${notes.filter((n) => n.status === "open").length} откр.`
-                      : ""}
-                    <span className="ml-1 text-[10px]">{showNotes ? "▾" : "▸"}</span>
-                  </button>
-                </div>
-                {showNotes ? (
-                    <div className="mt-2 space-y-2">
-                    <SegmentedTabs
-                      size="xs"
-                      className="w-full"
-                      value={notesFilter}
-                      onChange={setNotesFilter}
-                      options={[
-                        { id: "open", label: "Не проверенные" },
-                        { id: "all", label: "Все" },
-                        ...noteFileOptions.map(([id, name]) => ({
-                          id,
-                          label: (
-                            <span className="inline-block max-w-[6.5rem] truncate align-bottom">
-                              {name}
-                            </span>
-                          ),
-                          title: name,
-                        })),
-                      ]}
-                    />
-                    <div className="max-h-40 space-y-1 overflow-auto">
-                      {filteredNotes.length === 0 ? (
-                        <div className="text-[11px] text-muted">
-                          {notes.length === 0
-                            ? "Замечаний нет. Отметьте ошибку на чертеже."
-                            : "Нет замечаний по фильтру."}
-                        </div>
-                      ) : (
-                        filteredNotes.slice(0, 60).map((note) => (
-                          <button
-                            key={note.id}
-                            type="button"
-                            onClick={() =>
-                              jumpToPage(note.documentId, note.pageNumber)
-                            }
-                            className="block w-full rounded bg-bg px-2 py-1 text-left text-[11px] hover:bg-blue-50"
-                          >
-                            <span
-                              className={
-                                note.status === "open"
-                                  ? "text-red-600"
-                                  : "text-emerald-600"
-                              }
-                            >
-                              {note.status === "open" ? "не проверено" : "исправлено"}
-                            </span>
-                            <span className="text-muted">
-                              {" · "}
-                              {note.originalName} · лист {note.pageNumber}
-                              {note.userName ? ` · ${note.userName}` : ""}
-                            </span>
-                            <span className="mt-0.5 block truncate">
-                              {note.comment}
-                            </span>
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-
-            <label
-              htmlFor="pto-drawing-upload"
-              className={`mx-3 mt-3 block cursor-pointer rounded-xl border border-dashed text-center transition-colors ${
-                documents.length === 0
-                  ? "px-4 py-10"
-                  : "px-3 py-4"
-              } ${
-                dragOver ? "border-accent bg-blue-50" : "border-slate-300 bg-[#fafbfc] hover:border-accent/60 hover:bg-blue-50/40"
-              }`}
-            >
-              <div className={`font-semibold text-text ${documents.length === 0 ? "text-base" : "text-sm"}`}>
-                {documents.length === 0 ? "Перетащите файл сюда" : "Перетащите файл сюда или нажмите"}
-              </div>
-              <div className="mt-1.5 text-[11px] text-muted">
-                {documents.length === 0
-                  ? "Чертежи проекта · обработка начнётся сразу"
-                  : "Добавить ещё файлы в проект"}
-              </div>
-            </label>
-
-            {error ? (
-              <div className="mx-3 mt-3 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
-                {error}
-              </div>
-            ) : null}
-
-            <div className="p-3">
-              {loading ? <div className="text-sm text-muted">Загрузка…</div> : null}
-
-              {uploads.map((item) => (
-                <div
-                  key={item.tempId}
-                  className="mb-2 rounded-md border border-border bg-bg px-3 py-2"
-                >
-                  <div className="flex justify-between text-sm">
-                    <span className="truncate pr-2">{item.name}</span>
-                    <span className="text-xs text-muted">
-                      {item.error ?? `${item.progress}%`}
-                    </span>
-                  </div>
-                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white">
-                    <div
-                      className={`h-full ${item.error ? "bg-red-500" : "bg-accent"}`}
-                      style={{ width: `${item.error ? 100 : item.progress}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-
-              {!loading && documents.length === 0 && uploads.length === 0 ? (
-                <div className="py-8 text-center text-sm text-muted">
-                  Перетащите чертёж в проект
-                </div>
-              ) : null}
-
-              {documents.map((doc) => (
-                <div
-                  key={doc.id}
-                  className={`group mb-2 rounded-md border transition-[opacity,box-shadow] ${
-                    selectedId === doc.id
-                      ? "border-accent bg-blue-50 shadow-[0_0_0_1px_rgba(37,99,235,0.2)]"
-                      : selectedId
-                        ? "border-transparent bg-bg opacity-55 hover:border-border hover:opacity-100"
-                        : "border-transparent bg-bg hover:border-border"
-                  }`}
-                >
-                  <div className={`flex items-start gap-1 px-2 py-1.5`}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        void openDocument(doc.id);
-                      }}
-                      className={`min-w-0 flex-1 px-1 text-left py-0`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_DOT[doc.status]}`}
-                          title={STATUS_LABEL[doc.status]}
-                          aria-hidden
-                        />
-                        <div className="truncate text-sm font-medium">{doc.originalName}</div>
-                        {doc.status === "processing" || doc.status === "queued" ? (
-                          <Spinner className="h-2.5 w-2.5 shrink-0 text-sky-700" />
-                        ) : null}
-                      </div>
-                      {true ? (
-                        <div className="mt-0.5 truncate pl-3.5 text-[10px] text-muted opacity-70 group-hover:opacity-100">
-                          {doc.errorMessage?.startsWith("Отмена")
-                            ? "Отмена…"
-                            : STATUS_LABEL[doc.status]}
-                          {doc.status === "done" && formatElapsed(doc.pipelineElapsedSec)
-                            ? ` · ${formatElapsed(doc.pipelineElapsedSec)}`
-                            : null}
-                          {` · ${formatDateOnly(doc.createdAt)} ${formatTimeOnly(doc.createdAt)}`}
-                          {doc.openAnnotations ? ` · ${doc.openAnnotations} зам.` : ""}
-                        </div>
-                      ) : (
-                        <>
-                      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <span
-                          className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium ${STATUS_CLASS[doc.status]}`}
-                        >
-                          {doc.status === "processing" || doc.status === "queued" ? (
-                            <Spinner className="h-2.5 w-2.5" />
-                          ) : (
-                            <span
-                              className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[doc.status]}`}
-                              aria-hidden
-                            />
-                          )}
-                          {STATUS_LABEL[doc.status]}
-                        </span>
-                        <span className="text-[11px] text-muted">
-                          {kindSummary(doc)} · {formatBytes(doc.sizeBytes)}
-                        </span>
-                      </div>
-                      <div className="mt-1 space-y-0.5 text-[11px] text-muted">
-                        <div>
-                          создан {formatDateOnly(doc.createdAt)} в{" "}
-                          {formatTimeOnly(doc.createdAt)}
-                        </div>
-                      </div>
-                      {doc.status === "done" ? (
-                        <div className="mt-1 space-y-0.5 text-[11px] text-muted">
-                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                            <span>
-                              обработано
-                              {formatElapsed(doc.pipelineElapsedSec)
-                                ? ` за ${formatElapsed(doc.pipelineElapsedSec)}`
-                                : ""}
-                            </span>
-                            {doc.pipelineMode === "real" ? (
-                              <span className="text-red-700">real</span>
-                            ) : doc.pipelineMode === "mock" ? (
-                              <span className="text-amber-700">mock</span>
-                            ) : null}
-                            {doc.pipelineModel ? (
-                              <span>модель {doc.pipelineModel}</span>
-                            ) : null}
-                            {formatPipelineUsage(doc.pipelineUsage) ? (
-                              <span>{formatPipelineUsage(doc.pipelineUsage)}</span>
-                            ) : null}
-                          </div>
-                          {doc.pipelineFinishedAt ? (
-                            <div>
-                              {formatDateOnly(doc.pipelineFinishedAt as string)} ·
-                              завершено в {formatTimeOnly(doc.pipelineFinishedAt as string)}
-                            </div>
-                          ) : null}
-                        </div>
-                      ) : formatElapsed(doc.pipelineElapsedSec) ||
-                        formatPipelineUsage(doc.pipelineUsage) ? (
-                        <div className="mt-1 text-[11px] text-muted">
-                          {doc.pipelineMode === "real" ? (
-                            <span className="mr-1 text-red-700">real</span>
-                          ) : doc.pipelineMode === "mock" ? (
-                            <span className="mr-1 text-amber-700">mock</span>
-                          ) : null}
-                          {formatElapsed(doc.pipelineElapsedSec)
-                            ? `время ${formatElapsed(doc.pipelineElapsedSec)}`
-                            : null}
-                          {formatElapsed(doc.pipelineElapsedSec) &&
-                          formatPipelineUsage(doc.pipelineUsage)
-                            ? " · "
-                            : null}
-                          {formatPipelineUsage(doc.pipelineUsage)
-                            ? formatPipelineUsage(doc.pipelineUsage)
-                            : null}
-                        </div>
-                      ) : null}
-                      {(doc.status === "processing" || doc.status === "queued") &&
-                      doc.processingPage ? (
-                        <div className="mt-1 text-[11px] text-sky-800">
-                          лист {doc.processingPage}
-                          {doc.processingStep
-                            ? `: ${(STEP_LABEL[doc.processingStep as keyof typeof STEP_LABEL] ?? doc.processingStep).toString().toLowerCase()}`
-                            : ""}
-                        </div>
-                      ) : null}
-                      {doc.status === "error" && doc.errorMessage ? (
-                        <div className="mt-1 truncate text-[11px] text-red-700">
-                          {doc.errorMessage}
-                        </div>
-                      ) : null}
-                      {doc.viewedCounts[user.id] || doc.openAnnotations ? (
-                        <div className="mt-1 text-[11px] text-muted">
-                          {doc.viewedCounts[user.id]
-                            ? `просмотрено ${doc.viewedCounts[user.id]}/${Math.max(doc.pageCount, 1)}`
-                            : null}
-                          {doc.viewedCounts[user.id] && doc.openAnnotations ? " · " : null}
-                          {doc.openAnnotations
-                            ? `${doc.openAnnotations} замечаний`
-                            : null}
-                        </div>
-                      ) : null}
-                      {doc.status === "processing" || doc.status === "queued" ? (
-                        doc.errorMessage?.startsWith("Отмена") ? (
-                          <div className="mt-1 text-[11px] text-amber-800">
-                            {doc.errorMessage}
-                          </div>
-                        ) : (
-                          <div className="mt-2 flex items-center gap-2">
-                            <div className="min-w-0 flex-1">
-                              <ProgressTrack value={pageProgress(doc)} className="h-1" />
-                            </div>
-                            <span className="shrink-0 text-[11px] font-semibold tabular-nums text-sky-900">
-                              {formatProcessingPercent(pageProgress(doc))}
-                            </span>
-                            <button
-                              type="button"
-                              disabled={cancelingId === doc.id}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                void handleCancel(doc.id);
-                              }}
-                              className="shrink-0 rounded border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] text-amber-950 hover:bg-amber-100 disabled:opacity-50"
-                            >
-                              {cancelingId === doc.id ? "Отмена…" : "Стоп"}
-                            </button>
-                          </div>
-                        )
-                      ) : null}
-                        </>
-                      )}
-                    </button>
-                    <ActionMenu label="Действия файла">
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className={menuItemClass()}
-                        onClick={() => {
-                          const cached = loadCachedProgress(doc.id);
-                          void openDocument(doc.id, cached.lastPage || 1);
-                        }}
-                      >
-                        Продолжить с листа{" "}
-                        {loadCachedProgress(doc.id).lastPage || 1}
-                      </button>
-                      {doc.status === "processing" || doc.status === "queued" ? (
-                        <button
-                          type="button"
-                          role="menuitem"
-                          disabled={
-                            cancelingId === doc.id ||
-                            Boolean(doc.errorMessage?.startsWith("Отмена"))
-                          }
-                          className={`${menuItemClass()} disabled:opacity-50`}
-                          onPointerDown={(event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            void handleCancel(doc.id);
-                          }}
-                        >
-                          {cancelingId === doc.id
-                            ? "Отмена…"
-                            : doc.errorMessage?.startsWith("Отмена")
-                              ? "Останавливаем…"
-                              : "Отменить обработку"}
-                        </button>
-                      ) : null}
-                      {doc.status === "done" || doc.status === "error" ? (
-                        <button
-                          type="button"
-                          role="menuitem"
-                          className={menuItemClass()}
-                          onClick={() => void handleRetry(doc.id)}
-                        >
-                          Обработать заново
-                        </button>
-                      ) : null}
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className={menuItemClass(true)}
-                        onClick={() => void handleDelete(doc.id)}
-                      >
-                        Удалить
-                      </button>
-                    </ActionMenu>
-                  </div>
-                  {false ? (
-                    <div className="flex items-center justify-between gap-2 px-3 pb-2">
-                      <div className="min-w-0 truncate text-[11px] text-muted">
-                        создан {formatDateOnly(doc.createdAt)} в{" "}
-                        {formatTimeOnly(doc.createdAt)}
-                      </div>
-                      {doc.status === "done" || doc.status === "error" ? (
-                        <button
-                          type="button"
-                          onClick={() => void handleRetry(doc.id)}
-                          className="shrink-0 rounded border border-border bg-white px-2 py-0.5 text-[11px] text-muted hover:border-accent hover:text-accent"
-                        >
-                          Заново
-                        </button>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-            </div>
-          </section>
-        )}
-
-        {focusMode || filesCollapsed ? null : (
-          <ColumnResizer
-            className="hidden md:block"
-            onDelta={(dx) => setFilesWidth((w) => clamp(w + dx, 200, 520))}
+            onDelta={(dx) => setProjectsWidth((w) => clamp(w + dx, 200, 420))}
           />
         )}
 
@@ -2022,12 +1474,12 @@ export function Workspace({
             ) : null}
             <div className="w-full max-w-lg rounded-2xl border border-dashed border-slate-300 bg-white px-8 py-12 shadow-sm">
               <div className="text-xl font-semibold tracking-tight text-text">
-                {documents.length > 0 ? "Откройте файл слева" : "Загрузить чертёж"}
+                {documents.length > 0 ? "Откройте файл в проекте слева" : "Загрузить чертёж"}
               </div>
               <div className="mt-2 text-sm leading-relaxed text-muted">
                 {documents.length > 0
-                  ? "Файлы выбранного проекта в колонке слева. Можно загрузить ещё PDF, DWG или DXF."
-                  : "Перетащите PDF, DWG или DXF сюда или выберите файл — список появится в колонке проекта слева."}
+                  ? "Раскройте проект слева и выберите файл — или загрузите новый PDF, DWG или DXF."
+                  : "Выберите проект слева или загрузите PDF, DWG или DXF — файлы появятся в дереве проекта."}
               </div>
               <label
                 htmlFor="pto-drawing-upload"
@@ -2042,7 +1494,7 @@ export function Workspace({
                     onClick={() => setProjectsCollapsed(false)}
                     className="hover:text-accent hover:underline"
                   >
-                    Проекты
+                    Показать проекты
                   </button>
                 ) : (
                   <button
@@ -2051,24 +1503,6 @@ export function Workspace({
                     className="hover:text-accent hover:underline"
                   >
                     Скрыть проекты
-                  </button>
-                )}
-                <span>·</span>
-                {filesCollapsed ? (
-                  <button
-                    type="button"
-                    onClick={() => setFilesCollapsed(false)}
-                    className="hover:text-accent hover:underline"
-                  >
-                    Файлы
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setFilesCollapsed(true)}
-                    className="hover:text-accent hover:underline"
-                  >
-                    Скрыть файлы
                   </button>
                 )}
               </div>

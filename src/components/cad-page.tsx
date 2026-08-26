@@ -40,6 +40,7 @@ type CadPageProps = {
   onScrollAnchorChange?: (y: number) => void;
   onTextRegionsReady?: (regions: PageTextRegion[]) => void;
   onHoverRegion?: (regionId: string | null) => void;
+  onSelectRegion?: (regionId: string | null) => void;
   onMarkRect?: (rect: AnnotationRect) => void;
   onSelectAnnotation?: (id: string) => void;
   onCancelMark?: () => void;
@@ -81,11 +82,13 @@ export function CadPage({
   onScrollAnchorChange,
   onTextRegionsReady,
   onHoverRegion,
+  onSelectRegion,
   onMarkRect,
   onSelectAnnotation,
   onCancelMark,
 }: CadPageProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
+  const clickRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
   const dragRef = useRef<{
     x: number;
     y: number;
@@ -487,6 +490,7 @@ export function CadPage({
             setDraw({ x0: point.x, y0: point.y, x1: point.x, y1: point.y });
             return;
           }
+          clickRef.current = { x: event.clientX, y: event.clientY, moved: false };
           setGrabbing(true);
           dragRef.current = {
             x: event.clientX,
@@ -504,6 +508,13 @@ export function CadPage({
           }
           const drag = dragRef.current;
           if (drag) {
+            if (
+              clickRef.current &&
+              (Math.abs(event.clientX - clickRef.current.x) > 4 ||
+                Math.abs(event.clientY - clickRef.current.y) > 4)
+            ) {
+              clickRef.current.moved = true;
+            }
             const next = {
               x: drag.panX + (event.clientX - drag.x),
               y: drag.panY + (event.clientY - drag.y),
@@ -519,19 +530,27 @@ export function CadPage({
             onHoverRegion(hit?.id ?? null);
           }
         }}
-        onMouseUp={() => {
+        onMouseUp={(event) => {
           if (markMode) {
             if (draw) finishDraw(draw);
             setDraw(null);
             return;
           }
+          const wasClick = clickRef.current && !clickRef.current.moved;
           dragRef.current = null;
           setGrabbing(false);
+          clickRef.current = null;
+          if (wasClick && onSelectRegion && hoverRegions.length) {
+            const point = toPagePoint(event.clientX, event.clientY);
+            const hit = regionAtPoint(hoverRegions, point.x, point.y);
+            onSelectRegion(hit?.id ?? null);
+          }
         }}
         onMouseLeave={() => {
           dragRef.current = null;
           setGrabbing(false);
           setDraw(null);
+          clickRef.current = null;
           onHoverRegion?.(null);
         }}
       >

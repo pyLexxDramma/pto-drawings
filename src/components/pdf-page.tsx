@@ -9,11 +9,14 @@ import {
   visibleAnchorY,
   type PageTextRegion,
 } from "@/lib/content-sync";
+import { getPageView, setPageView } from "@/lib/review-view-cache";
 import type { AnnotationRect, PageAnnotation } from "@/types";
 
 type PdfPageProps = {
   url: string;
   pageNumber: number;
+  /** Ключ кэша вида между монтированиями (обычно document.id). */
+  viewCacheKey?: string;
   annotations?: PageAnnotation[];
   markMode?: boolean;
   activeAnnotationId?: string | null;
@@ -33,12 +36,14 @@ type PdfPageProps = {
   highlightRegion?: PageTextRegion | null;
   /** При наведении с текста — подтянуть участок в кадр. */
   panToHighlight?: boolean;
-  /** Зоны для hit-test при наведении. */
+  /** Зоны для hit-test при наведении / клике. */
   hoverRegions?: PageTextRegion[];
   onScrollRatioChange?: (ratio: number) => void;
   onScrollAnchorChange?: (y: number) => void;
   onTextRegionsReady?: (regions: PageTextRegion[]) => void;
   onHoverRegion?: (regionId: string | null) => void;
+  /** Клик по фрагменту (режим подсветки). */
+  onSelectRegion?: (regionId: string | null) => void;
   onMarkRect?: (rect: AnnotationRect) => void;
   onSelectAnnotation?: (id: string) => void;
   onCancelMark?: () => void;
@@ -52,6 +57,7 @@ const MIN_SIDE = 0.012;
 export function PdfPage({
   url,
   pageNumber,
+  viewCacheKey,
   annotations = [],
   markMode = false,
   activeAnnotationId = null,
@@ -68,6 +74,7 @@ export function PdfPage({
   onScrollAnchorChange,
   onTextRegionsReady,
   onHoverRegion,
+  onSelectRegion,
   onMarkRect,
   onSelectAnnotation,
   onCancelMark,
@@ -99,6 +106,7 @@ export function PdfPage({
   const [anchorFlash, setAnchorFlash] = useState(false);
   const [searchHits, setSearchHits] = useState<TextHit[]>([]);
   const [fitMode, setFitMode] = useState<"page" | "width">("page");
+  const clickRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const pdfDocRef = useRef<{ url: string; pdf: any } | null>(null);
   const onTextRegionsReadyRef = useRef(onTextRegionsReady);
@@ -126,14 +134,27 @@ export function PdfPage({
   useEffect(() => {
     const prev = pageRef.current;
     if (prev !== pageNumber) {
-      viewCacheRef.current.set(prev, {
+      const snap = {
+        scale: scaleRef.current,
+        pan: { ...panRef.current },
+        fitMode: fitModeRef.current,
+      };
+      viewCacheRef.current.set(prev, snap);
+      if (viewCacheKey) setPageView(viewCacheKey, prev, snap);
+      pageRef.current = pageNumber;
+    }
+  }, [pageNumber, viewCacheKey]);
+
+  useEffect(() => {
+    return () => {
+      if (!viewCacheKey) return;
+      setPageView(viewCacheKey, pageRef.current, {
         scale: scaleRef.current,
         pan: { ...panRef.current },
         fitMode: fitModeRef.current,
       });
-      pageRef.current = pageNumber;
-    }
-  }, [pageNumber]);
+    };
+  }, [viewCacheKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -326,8 +347,11 @@ export function PdfPage({
 
   useEffect(() => {
     if (loading || error) return;
-    const cached = viewCacheRef.current.get(pageNumber);
+    const cached =
+      viewCacheRef.current.get(pageNumber) ??
+      (viewCacheKey ? getPageView(viewCacheKey, pageNumber) : undefined);
     if (cached) {
+      viewCacheRef.current.set(pageNumber, cached);
       setFitMode(cached.fitMode);
       setScale(cached.scale);
       setPan(cached.pan);
@@ -335,7 +359,7 @@ export function PdfPage({
     }
     fit("page");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, error, natural.w, natural.h, pageNumber]);
+  }, [loading, error, natural.w, natural.h, pageNumber, viewCacheKey]);
 
   useEffect(() => {
     if (!highlightNonce) return;
@@ -514,6 +538,7 @@ export function PdfPage({
             setDraw({ x0: point.x, y0: point.y, x1: point.x, y1: point.y });
             return;
           }
+          clickRef.current = { x: event.clientX, y: event.clientY, moved: false };
           setGrabbing(true);
           dragRef.current = {
             x: event.clientX,
@@ -531,6 +556,13 @@ export function PdfPage({
           }
           const drag = dragRef.current;
           if (drag) {
+            if (
+              clickRef.current &&
+              (Math.abs(event.clientX - clickRef.current.x) > 4 ||
+                Math.abs(event.clientY - clickRef.current.y) > 4)
+            ) {
+              clickRef.current.moved = true;
+            }
             const next = {
               x: drag.panX + (event.clientX - drag.x),
               y: drag.panY + (event.clientY - drag.y),
@@ -546,19 +578,27 @@ export function PdfPage({
             onHoverRegion(hit?.id ?? null);
           }
         }}
-        onMouseUp={() => {
+        onMouseUp={(event) => {
           if (markMode) {
             if (draw) finishDraw(draw);
             setDraw(null);
             return;
           }
+          const wasClick = clickRef.current && !clickRef.current.moved;
           dragRef.current = null;
           setGrabbing(false);
+          clickRef.current = null;
+          if (wasClick && onSelectRegion && hoverRegions.length) {
+            const point = toPagePoint(event.clientX, event.clientY);
+            const hit = regionAtPoint(hoverRegions, point.x, point.y);
+            onSelectRegion(hit?.id ?? null);
+          }
         }}
         onMouseLeave={() => {
           dragRef.current = null;
           setGrabbing(false);
           setDraw(null);
+          clickRef.current = null;
           onHoverRegion?.(null);
         }}
       >

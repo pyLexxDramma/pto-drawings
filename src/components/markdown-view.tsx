@@ -17,9 +17,14 @@ type MarkdownViewProps = {
   highlightQuery?: string;
   /** Блок, синхронизированный скроллом. */
   activeBlockId?: string | null;
-  /** Блок под курсором (hover с чертежа или с текста). */
+  /** Блок под курсором (только в режиме подсветки). */
   hoverBlockId?: string | null;
+  /** Выбранный кликом блок (режим подсветки). */
+  selectedBlockId?: string | null;
+  /** Режим подсветки строка ↔ участок. */
+  highlightMode?: boolean;
   onHoverBlock?: (blockId: string | null) => void;
+  onSelectBlock?: (blockId: string | null) => void;
 };
 
 function pageHintFromText(text: string): number | null {
@@ -125,7 +130,10 @@ export function MarkdownView({
   highlightQuery = "",
   activeBlockId = null,
   hoverBlockId = null,
+  selectedBlockId = null,
+  highlightMode = false,
   onHoverBlock,
+  onSelectBlock,
 }: MarkdownViewProps) {
   const blocks = useMemo(() => parseMarkdownBlocks(children), [children]);
   const q = highlightQuery.trim().length >= 2 ? highlightQuery : "";
@@ -139,22 +147,36 @@ export function MarkdownView({
   return (
     <>
       {blocks.map((block) => {
-        const hovered = hoverBlockId === block.id;
+        const hovered = highlightMode && hoverBlockId === block.id;
+        const selected = highlightMode && selectedBlockId === block.id;
         const active = activeBlockId === block.id;
+        const lit = selected || hovered;
         return (
           <div
             key={block.id}
             data-md-block={block.id}
             data-md-block-active={active ? "true" : undefined}
             data-md-block-hover={hovered ? "true" : undefined}
-            onMouseEnter={() => onHoverBlock?.(block.id)}
-            onMouseLeave={() => onHoverBlock?.(null)}
+            data-md-block-selected={selected ? "true" : undefined}
+            onMouseEnter={() => {
+              if (highlightMode) onHoverBlock?.(block.id);
+            }}
+            onMouseLeave={() => {
+              if (highlightMode) onHoverBlock?.(null);
+            }}
+            onClick={(event) => {
+              if (!highlightMode || !onSelectBlock) return;
+              event.preventDefault();
+              onSelectBlock(selected ? null : block.id);
+            }}
             className={`scroll-mt-3 -ml-3 rounded-md border-l-2 pl-3 pr-1 transition-colors ${
-              hovered
+              lit
                 ? "border-emerald-600 bg-emerald-100/95 shadow-[inset_0_0_0_1px_rgba(5,150,105,0.25)]"
                 : active
                   ? "border-accent bg-blue-50/80"
-                  : "border-transparent hover:border-emerald-200 hover:bg-emerald-50/50"
+                  : highlightMode
+                    ? "cursor-pointer border-transparent hover:border-emerald-200 hover:bg-emerald-50/50"
+                    : "border-transparent"
             }`}
           >
             <BlockMarkdown
