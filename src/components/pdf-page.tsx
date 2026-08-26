@@ -155,7 +155,7 @@ export function PdfPage({
       setSearchHits([]);
       textContentRef.current = null;
       try {
-        const pdfjs = await import("pdfjs-dist");
+        const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
         pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
         let pdf = pdfDocRef.current?.url === url ? pdfDocRef.current.pdf : null;

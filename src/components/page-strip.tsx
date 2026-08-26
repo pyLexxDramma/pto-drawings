@@ -88,7 +88,7 @@ export function PageStrip({
 
     (async () => {
       try {
-        const pdfjs = await import("pdfjs-dist");
+        const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
         pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
         task = pdfjs.getDocument({ url, withCredentials: false });
         const pdf = await task.promise;
