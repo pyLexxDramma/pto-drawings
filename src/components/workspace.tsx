@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type DragEvent,
@@ -48,8 +49,14 @@ import { UploadDialog, type UploadDialogResult } from "@/components/upload-dialo
 import {
   DRAWING_ACCEPT,
   DRAWING_ACCEPT_HINT,
+  UPLOAD_BUTTON_LABEL,
+  UPLOAD_HELP_LINES,
   isDrawingFile,
 } from "@/lib/drawing-files";
+import {
+  detectDrawingKitUpload,
+  isZipFile,
+} from "@/lib/drawing-kit";
 import { loadCachedProgress } from "@/lib/review-state";
 import {
   KIND_LABEL,
@@ -276,6 +283,8 @@ function projectSummaryLine(
   return parts.join(" · ");
 }
 
+type UploadMode = "files" | "kit-zip" | "kit-pair";
+
 function newClientId() {
   try {
     if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -327,6 +336,55 @@ function uploadPdf(
   });
 }
 
+type KitUploadResult = {
+  kitId: string;
+  kitLabel: string;
+  documents: DocumentRecord[];
+  primaryDocumentId: string;
+};
+
+function uploadKit(
+  input: { mode: "kit-zip"; archive: File } | { mode: "kit-pair"; pdf: File; cad: File },
+  projectId: string,
+  onProgress: (value: number) => void,
+  title?: string,
+) {
+  return new Promise<KitUploadResult>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const form = new FormData();
+    form.append("projectId", projectId);
+    if (title?.trim()) form.append("title", title.trim());
+    if (input.mode === "kit-zip") {
+      form.append("archive", input.archive);
+    } else {
+      form.append("pdf", input.pdf);
+      form.append("cad", input.cad);
+    }
+    xhr.open("POST", "/api/documents/kit");
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) {
+        onProgress(Math.round((event.loaded / event.total) * 100));
+      }
+    };
+    xhr.onload = () => {
+      try {
+        const payload = JSON.parse(xhr.responseText) as KitUploadResult & { error?: string };
+        if (xhr.status >= 200 && xhr.status < 300 && payload.documents?.length) {
+          resolve(payload);
+          return;
+        }
+        reject(new Error(payload.error || "Ошибка загрузки комплекта"));
+      } catch {
+        reject(new Error("Ошибка загрузки комплекта"));
+      }
+    };
+    xhr.onerror = () => reject(new Error("Нет соединения с сервером"));
+    xhr.timeout = 180000;
+    xhr.ontimeout = () => reject(new Error("Сервер не ответил"));
+    xhr.send(form);
+  });
+}
+
 export function Workspace({
   user,
   defaultPasswordWarning = false,
@@ -371,6 +429,7 @@ export function Workspace({
   );
   const [cancelingId, setCancelingId] = useState<string | null>(null);
   const [pendingUploadFiles, setPendingUploadFiles] = useState<File[] | null>(null);
+  const [pendingUploadMode, setPendingUploadMode] = useState<UploadMode>("files");
   const [uploadBusy, setUploadBusy] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [projectsWidth, setProjectsWidth] = useState(280);
@@ -385,6 +444,14 @@ export function Workspace({
   const { items: toasts, push: pushToast, dismiss: dismissToast } = useToasts();
 
   const selected = documents.find((doc) => doc.id === selectedId) ?? null;
+  const kitSibling = useMemo(() => {
+    if (!selected?.kitId) return null;
+    return (
+      documents.find(
+        (doc) => doc.kitId === selected.kitId && doc.id !== selected.id,
+      ) ?? null
+    );
+  }, [documents, selected]);
   const currentProject = projects.find((item) => item.id === projectId);
   const busy = documents.some(
     (doc) => doc.status === "queued" || doc.status === "processing",
@@ -809,14 +876,39 @@ export function Workspace({
   }
 
   const queueUpload = useCallback((fileList: FileList | File[]) => {
-    const files = Array.from(fileList).filter((file) => isDrawingFile(file));
-    if (files.length === 0) {
+    const raw = Array.from(fileList);
+    const zipFiles = raw.filter((file) => isZipFile(file));
+    const drawingFiles = raw.filter((file) => !isZipFile(file) && isDrawingFile(file));
+
+    if (zipFiles.length > 0) {
+      if (zipFiles.length > 1 || drawingFiles.length > 0) {
+        setError("Загружайте один ZIP-архив (PDF + DWG) без других файлов");
+        return;
+      }
+      setError(null);
+      setUploadError(null);
+      setPendingUploadMode("kit-zip");
+      setPendingUploadFiles([zipFiles[0]]);
+      return;
+    }
+
+    const kitPair = detectDrawingKitUpload(drawingFiles);
+    if (kitPair && drawingFiles.length === raw.length) {
+      setError(null);
+      setUploadError(null);
+      setPendingUploadMode("kit-pair");
+      setPendingUploadFiles(kitPair);
+      return;
+    }
+
+    if (drawingFiles.length === 0) {
       setError(`Можно загружать только ${DRAWING_ACCEPT_HINT}`);
       return;
     }
     setError(null);
     setUploadError(null);
-    setPendingUploadFiles(files);
+    setPendingUploadMode("files");
+    setPendingUploadFiles(drawingFiles);
   }, []);
 
   const confirmUpload = useCallback(
@@ -859,6 +951,54 @@ export function Workspace({
         }
 
         const files = result.files;
+        const uploadMode = pendingUploadMode;
+        const isKit = uploadMode === "kit-zip" || uploadMode === "kit-pair";
+
+        if (isKit) {
+          const tempId = newClientId();
+          const label =
+            uploadMode === "kit-zip"
+              ? files[0].name
+              : `${files[0].name} + ${files[1].name}`;
+          setUploads([{ tempId, name: label, progress: 0 }]);
+          setPendingUploadFiles(null);
+          setPendingUploadMode("files");
+
+          try {
+            const kit = await uploadKit(
+              uploadMode === "kit-zip"
+                ? { mode: "kit-zip", archive: files[0] }
+                : { mode: "kit-pair", pdf: files[0], cad: files[1] },
+              targetProject,
+              (progress) => {
+                setUploads((prev) =>
+                  prev.map((item) =>
+                    item.tempId === tempId ? { ...item, progress } : item,
+                  ),
+                );
+              },
+              result.title.trim() || undefined,
+            );
+            setUploads((prev) => prev.filter((item) => item.tempId !== tempId));
+            setDocuments((prev) => [
+              ...kit.documents,
+              ...prev.filter(
+                (doc) => !kit.documents.some((item) => item.id === doc.id),
+              ),
+            ]);
+            void openDocument(kit.primaryDocumentId);
+          } catch (err) {
+            const message =
+              err instanceof Error ? err.message : "Ошибка загрузки комплекта";
+            setUploads((prev) =>
+              prev.map((item) =>
+                item.tempId === tempId ? { ...item, error: message } : item,
+              ),
+            );
+          }
+          return;
+        }
+
         const items: UploadItem[] = files.map((file) => ({
           tempId: newClientId(),
           name: file.name,
@@ -866,6 +1006,7 @@ export function Workspace({
         }));
         setUploads((prev) => [...items, ...prev]);
         setPendingUploadFiles(null);
+        setPendingUploadMode("files");
 
         await Promise.all(
           files.map(async (file, index) => {
@@ -912,7 +1053,7 @@ export function Workspace({
         setUploadBusy(false);
       }
     },
-    [loadDocuments, loadEdits, loadNotes, openDocument, projectId],
+    [loadDocuments, loadEdits, loadNotes, openDocument, pendingUploadMode, projectId],
   );
 
   async function handleSavePage(pageNumber: number, markdown: string) {
@@ -1171,7 +1312,7 @@ export function Workspace({
               htmlFor="pto-drawing-upload"
               className="cursor-pointer rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-[#1d4ed8]"
             >
-              Загрузить файл
+              {UPLOAD_BUTTON_LABEL}
             </label>
           </div>
         </header>
@@ -1349,7 +1490,7 @@ export function Workspace({
                           }`}
                         >
                           <div className="text-[11px] font-semibold text-text">
-                            {documents.length === 0 ? "Загрузить файл" : "+ файл"}
+                            {documents.length === 0 ? UPLOAD_BUTTON_LABEL : "+ файл"}
                           </div>
                         </label>
                         {error ? (
@@ -1406,6 +1547,14 @@ export function Workspace({
                                   aria-hidden
                                 />
                                 <span className="min-w-0 flex-1 truncate">{doc.originalName}</span>
+                                {doc.kitId ? (
+                                  <span
+                                    className="shrink-0 rounded border border-accent/30 bg-accent/5 px-1 text-[9px] font-medium text-accent"
+                                    title={doc.kitLabel ?? "PDF + DWG"}
+                                  >
+                                    PDF+DWG
+                                  </span>
+                                ) : null}
                                 {doc.status === "processing" || doc.status === "queued" ? (
                                   <Spinner className="h-2.5 w-2.5 shrink-0 text-sky-700" />
                                 ) : null}
@@ -1468,6 +1617,7 @@ export function Workspace({
           <ReviewPane
             key={selected.id}
             document={selected}
+            kitSibling={kitSibling}
             focusMode={focusMode}
             openPage={openPage}
             canceling={cancelingId === selected.id}
@@ -1549,14 +1699,22 @@ export function Workspace({
                 Проверка чертежей
               </div>
               <div className="mt-2 text-sm leading-relaxed text-muted">
-                Загрузите новый файл или откройте проект, созданный ранее.
+                Загрузите чертежи для расшифровки или откройте ранее созданный проект.
               </div>
+              <ul className="mt-4 space-y-1.5 text-left text-xs leading-relaxed text-muted">
+                {UPLOAD_HELP_LINES.map((line) => (
+                  <li key={line} className="flex gap-2">
+                    <span className="shrink-0 text-accent">•</span>
+                    <span>{line}</span>
+                  </li>
+                ))}
+              </ul>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
                 <label
                   htmlFor="pto-drawing-upload"
                   className="inline-flex cursor-pointer items-center justify-center rounded-md bg-accent px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#1d4ed8]"
                 >
-                  Загрузить файл
+                  {UPLOAD_BUTTON_LABEL}
                 </label>
                 <button
                   type="button"
@@ -1584,13 +1742,10 @@ export function Workspace({
       {dragOver ? (
         <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30">
           <div className="rounded-xl bg-white px-8 py-6 text-center shadow-xl">
-            <div className="text-base font-medium">
-              Отпустите {DRAWING_ACCEPT_HINT} для загрузки
-            </div>
-            <div className="mt-1 text-sm text-muted">
-              {projects.length === 1
-                ? `В проект «${projects[0].name}»`
-                : "Обработка начнётся сразу"}
+            <div className="text-base font-medium">Отпустите файлы для расшифровки</div>
+            <div className="mt-1 text-sm text-muted">{DRAWING_ACCEPT_HINT}</div>
+            <div className="mt-2 text-xs text-muted">
+              PDF + DWG — положите оба файла или один ZIP-архив
             </div>
           </div>
         </div>
@@ -1608,6 +1763,7 @@ export function Workspace({
       <UploadDialog
         open={Boolean(pendingUploadFiles?.length)}
         files={pendingUploadFiles ?? []}
+        uploadMode={pendingUploadMode}
         projects={projects}
         defaultProjectId={projectId}
         busy={uploadBusy}
@@ -1615,6 +1771,7 @@ export function Workspace({
         onClose={() => {
           if (uploadBusy) return;
           setPendingUploadFiles(null);
+          setPendingUploadMode("files");
           setUploadError(null);
         }}
         onConfirm={(result) => void confirmUpload(result)}

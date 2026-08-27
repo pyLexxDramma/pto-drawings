@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import { UPLOAD_HELP_LINES } from "@/lib/drawing-files";
 import type { Project } from "@/types";
 
 export type UploadDialogResult = {
@@ -10,9 +11,12 @@ export type UploadDialogResult = {
   files: File[];
 };
 
+type UploadMode = "files" | "kit-zip" | "kit-pair";
+
 type UploadDialogProps = {
   open: boolean;
   files: File[];
+  uploadMode?: UploadMode;
   projects: Project[];
   defaultProjectId: string;
   busy?: boolean;
@@ -21,7 +25,13 @@ type UploadDialogProps = {
   onConfirm: (result: UploadDialogResult) => void;
 };
 
-function defaultTitle(files: File[]) {
+function defaultTitle(files: File[], mode: UploadMode) {
+  if (mode === "kit-zip" && files[0]) {
+    return files[0].name.replace(/\.zip$/i, "");
+  }
+  if (mode === "kit-pair" && files[0]) {
+    return files[0].name.replace(/\.(pdf|dwg|dxf)$/i, "");
+  }
   if (files.length !== 1) return "";
   return files[0].name.replace(/\.(pdf|dwg|dxf)$/i, "");
 }
@@ -29,6 +39,7 @@ function defaultTitle(files: File[]) {
 export function UploadDialog({
   open,
   files,
+  uploadMode = "files",
   projects,
   defaultProjectId,
   busy = false,
@@ -43,7 +54,7 @@ export function UploadDialog({
 
   useEffect(() => {
     if (!open) return;
-    setTitle(defaultTitle(files));
+    setTitle(defaultTitle(files, uploadMode));
     const initial =
       defaultProjectId ||
       (projects.length === 1 ? projects[0].id : "") ||
@@ -51,14 +62,14 @@ export function UploadDialog({
     setProjectId(initial);
     setMode(projects.length === 0 ? "create" : "existing");
     setNewProjectName("");
-  }, [open, files, projects, defaultProjectId]);
+  }, [open, files, projects, defaultProjectId, uploadMode]);
 
   if (!open || files.length === 0) return null;
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
     if (busy) return;
-    const displayTitle = title.trim() || defaultTitle(files);
+    const displayTitle = title.trim() || defaultTitle(files, uploadMode);
     if (mode === "create") {
       const name = newProjectName.trim();
       if (!name) return;
@@ -81,7 +92,9 @@ export function UploadDialog({
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 p-4">
       <div className="w-full max-w-md rounded-xl border border-border bg-white p-5 shadow-xl">
         <div className="mb-3 flex items-center justify-between gap-3">
-          <div className="text-sm font-semibold">Загрузка файла</div>
+          <div className="text-sm font-semibold">
+            {uploadMode === "files" ? "Загрузка файла" : "Загрузка комплекта PDF + DWG"}
+          </div>
           <button
             type="button"
             onClick={onClose}
@@ -93,20 +106,63 @@ export function UploadDialog({
         </div>
 
         <div className="mb-3 rounded-md border border-border bg-bg px-3 py-2 text-xs text-muted">
-          {files.length === 1
-            ? files[0].name
-            : `${files.length} файла(ов): ${files.map((f) => f.name).join(", ")}`}
+          {uploadMode === "kit-zip"
+            ? `Архив: ${files[0]?.name ?? ""}`
+            : uploadMode === "kit-pair"
+              ? `Комплект: ${files.map((f) => f.name).join(" + ")}`
+              : files.length === 1
+                ? files[0].name
+                : `${files.length} файла(ов): ${files.map((f) => f.name).join(", ")}`}
+        </div>
+
+        <div
+          className={`mb-3 rounded-md border px-3 py-2 text-xs leading-relaxed ${
+            uploadMode === "files"
+              ? "border-border bg-bg text-muted"
+              : "border-accent/20 bg-accent/5 text-text"
+          }`}
+        >
+          {uploadMode === "kit-zip" ? (
+            <>
+              <div className="font-medium text-text">Комплект PDF + DWG из архива</div>
+              <div className="mt-1">
+                Оба файла будут обработаны и связаны. Текст расшифровки — из PDF; чертёж DWG
+                откроется переключателем PDF / DWG при просмотре.
+              </div>
+            </>
+          ) : uploadMode === "kit-pair" ? (
+            <>
+              <div className="font-medium text-text">Комплект PDF + DWG</div>
+              <div className="mt-1">
+                Файлы загрузятся вместе, а не по отдельности. Расшифровка — из PDF, DWG — для
+                сверки чертежа (переключатель в просмотре).
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="font-medium text-text">Что будет после загрузки</div>
+              <ul className="mt-1 space-y-1">
+                {UPLOAD_HELP_LINES.map((line) => (
+                  <li key={line}>• {line}</li>
+                ))}
+              </ul>
+            </>
+          )}
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-3">
-          {files.length === 1 ? (
+          {uploadMode !== "files" || files.length === 1 ? (
             <label className="block text-xs text-muted">
-              Название файла
+              {uploadMode === "files" ? "Название файла" : "Название комплекта"}
               <input
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
                 disabled={busy}
-                placeholder="Без расширения .pdf / .dwg / .dxf"
+                placeholder={
+                  uploadMode === "files"
+                    ? "Без расширения .pdf / .dwg / .dxf"
+                    : "Имя комплекта в списке файлов"
+                }
                 className="mt-1 w-full rounded-md border border-border bg-white px-3 py-2 text-sm text-text outline-none focus:border-accent disabled:opacity-60"
               />
             </label>
@@ -185,7 +241,7 @@ export function UploadDialog({
             }
             className="w-full rounded-md bg-accent px-3 py-2.5 text-sm font-medium text-white hover:bg-[#1d4ed8] disabled:opacity-60"
           >
-            {busy ? "Загрузка…" : "Загрузить"}
+            {busy ? "Загрузка…" : uploadMode === "files" ? "Загрузить" : "Загрузить комплект"}
           </button>
         </form>
       </div>

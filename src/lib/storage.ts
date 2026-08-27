@@ -27,6 +27,7 @@ import {
   type DocumentRecord,
   type EditLogEntry,
   type KindCounts,
+  type KitRole,
   type PageAnnotation,
   type PageKind,
   type PageProgress,
@@ -226,9 +227,19 @@ function normalizeBody(raw: Partial<DocumentBody> | null): DocumentBody {
 
 function normalizeMeta(raw: Partial<DocumentMeta> & { id: string }): DocumentMeta {
   const statuses = ["queued", "processing", "done", "error"] as const;
+  const kitRoles = ["pdf", "dwg", "dxf"] as const;
   return {
     id: raw.id,
     projectId: raw.projectId ?? "",
+    kitId:
+      typeof raw.kitId === "string" && raw.kitId.trim() ? raw.kitId.trim() : null,
+    kitRole: kitRoles.includes(raw.kitRole as KitRole)
+      ? (raw.kitRole as KitRole)
+      : null,
+    kitLabel:
+      typeof raw.kitLabel === "string" && raw.kitLabel.trim()
+        ? raw.kitLabel.trim()
+        : null,
     originalName: raw.originalName ?? "document.pdf",
     storedName: raw.storedName ?? `${raw.id}.pdf`,
     mimeType: raw.mimeType ?? "application/pdf",
@@ -761,6 +772,9 @@ export async function saveDocument(input: {
   projectId: string;
   originalName: string;
   buffer: Buffer;
+  kitId?: string | null;
+  kitRole?: KitRole | null;
+  kitLabel?: string | null;
 }): Promise<DocumentRecord> {
   const ext = getDrawingExt(input.originalName);
   if (!ext) {
@@ -795,6 +809,9 @@ export async function saveDocument(input: {
     const meta: DocumentMeta = {
       id,
       projectId: input.projectId,
+      kitId: input.kitId ?? null,
+      kitRole: input.kitRole ?? null,
+      kitLabel: input.kitLabel ?? null,
       originalName: input.originalName,
       storedName,
       mimeType: mimeForExt(ext),
@@ -822,6 +839,34 @@ export async function saveDocument(input: {
     await writeBody(id, emptyBody());
     return liteRecord(meta);
   });
+}
+
+/** PDF + CAD как одна связка (архив или пара файлов). */
+export async function saveDocumentKit(input: {
+  projectId: string;
+  kitLabel: string;
+  pdf: { originalName: string; buffer: Buffer };
+  cad: { originalName: string; buffer: Buffer; ext: "dwg" | "dxf" };
+}): Promise<{ kitId: string; pdf: DocumentRecord; cad: DocumentRecord }> {
+  const kitId = crypto.randomUUID();
+  const kitLabel = input.kitLabel.trim() || "Комплект PDF+DWG";
+  const pdf = await saveDocument({
+    projectId: input.projectId,
+    originalName: input.pdf.originalName,
+    buffer: input.pdf.buffer,
+    kitId,
+    kitRole: "pdf",
+    kitLabel,
+  });
+  const cad = await saveDocument({
+    projectId: input.projectId,
+    originalName: input.cad.originalName,
+    buffer: input.cad.buffer,
+    kitId,
+    kitRole: input.cad.ext,
+    kitLabel,
+  });
+  return { kitId, pdf, cad };
 }
 
 /** @deprecated используйте saveDocument */

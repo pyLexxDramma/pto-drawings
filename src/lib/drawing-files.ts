@@ -46,6 +46,15 @@ export function resolveDisplayName(titleRaw: string, fileName: string): string {
 }
 
 export const DRAWING_ACCEPT =
-  "application/pdf,.pdf,.dwg,.dxf,application/acad,image/vnd.dwg,application/dxf,image/vnd.dxf";
+  "application/pdf,.pdf,.dwg,.dxf,application/acad,image/vnd.dwg,application/dxf,image/vnd.dxf,.zip,application/zip,application/x-zip-compressed";
 
-export const DRAWING_ACCEPT_HINT = "PDF, DWG или DXF";
+export const DRAWING_ACCEPT_HINT = "PDF, DWG, DXF или ZIP (PDF + DWG)";
+
+/** Короткая подсказка в кнопках и drag-drop. */
+export const UPLOAD_BUTTON_LABEL = "Загрузить для расшифровки";
+
+/** Пояснение на пустом экране и в диалоге. */
+export const UPLOAD_HELP_LINES = [
+  "Один PDF или DWG — расшифровка этого файла.",
+  "PDF и DWG вместе — выберите оба файла или ZIP-архив: текст из PDF, чертёж DWG для сверки.",
+] as const;

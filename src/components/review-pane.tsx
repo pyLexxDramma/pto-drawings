@@ -75,6 +75,8 @@ type ReviewPaneProps = {
   liveJobLabel?: string | null;
   /** Файл с активной обработкой в проекте (может отличаться от открытого). */
   activeJobDocument?: DocumentRecord | null;
+  /** Связанный PDF или DWG из комплекта kitId. */
+  kitSibling?: DocumentRecord | null;
   onCancel?: () => void;
   onToggleFocus: () => void;
   onBackToProjects: () => void;
@@ -127,6 +129,7 @@ export function ReviewPane({
   onGoToLiveJob = null,
   liveJobLabel = null,
   activeJobDocument = null,
+  kitSibling = null,
   onCancel,
   onToggleFocus,
   onBackToProjects,
@@ -179,6 +182,27 @@ export function ReviewPane({
 
   const total = Math.max(document.pageCount, document.pages.length, 1);
   const isCadSource = isCadExt(getDrawingExt(document.originalName));
+  const kitPdfDoc = useMemo(() => {
+    if (isCadSource) {
+      return kitSibling && !isCadExt(getDrawingExt(kitSibling.originalName))
+        ? kitSibling
+        : null;
+    }
+    return document;
+  }, [document, kitSibling, isCadSource]);
+  const kitCadDoc = useMemo(() => {
+    if (isCadSource) return document;
+    return kitSibling && isCadExt(getDrawingExt(kitSibling.originalName))
+      ? kitSibling
+      : null;
+  }, [document, kitSibling, isCadSource]);
+  const hasKitDrawing = Boolean(kitPdfDoc && kitCadDoc);
+  const [kitDrawingView, setKitDrawingView] = useState<"pdf" | "cad">(
+    isCadSource ? "cad" : "pdf",
+  );
+  useEffect(() => {
+    setKitDrawingView(isCadSource ? "cad" : "pdf");
+  }, [document.id, isCadSource]);
   const processing =
     document.status === "queued" || document.status === "processing";
   const cancelPending = Boolean(document.errorMessage?.startsWith("Отмена"));
@@ -274,6 +298,18 @@ export function ReviewPane({
     visiblePages.length === 0 || visiblePages.includes(clampedPage)
       ? clampedPage
       : visiblePages[0];
+  const drawingPdfPage = kitPdfDoc
+    ? Math.min(
+        pageNumber,
+        Math.max(kitPdfDoc.pageCount, kitPdfDoc.pages.length, 1),
+      )
+    : pageNumber;
+  const drawingCadPage = kitCadDoc
+    ? Math.min(
+        pageNumber,
+        Math.max(kitCadDoc.pageCount, kitCadDoc.pages.length, 1),
+      )
+    : pageNumber;
   const page = document.pages.find((item) => item.pageNumber === pageNumber);
   const pageNotes = notes.filter((item) => item.pageNumber === pageNumber);
   const activeNoteId = hoverNoteId;
@@ -1232,7 +1268,51 @@ export function ReviewPane({
               className="relative min-h-0 min-w-0"
               style={{ width: paneSolo === "pdf" ? "100%" : `${split}%` }}
             >
-              {isCadSource ? (
+              {hasKitDrawing ? (
+                <div className="absolute left-2 top-2 z-20">
+                  <SegmentedTabs
+                    size="xs"
+                    value={kitDrawingView}
+                    onChange={(value) => setKitDrawingView(value as "pdf" | "cad")}
+                    options={[
+                      { id: "pdf", label: "PDF" },
+                      { id: "cad", label: "DWG" },
+                    ]}
+                  />
+                </div>
+              ) : null}
+              {hasKitDrawing && kitDrawingView === "cad" && kitCadDoc ? (
+                <CadPage
+                  documentId={kitCadDoc.id}
+                  pageNumber={drawingCadPage}
+                  annotations={pageNotes}
+                  markMode={markMode && !readOnly}
+                  activeAnnotationId={activeNoteId}
+                  highlightQuery={deferredQuery}
+                  onMarkRect={(rect) => setPendingRect(rect)}
+                  onSelectAnnotation={(id) => setHoverNoteId(id)}
+                  onCancelMark={() => {
+                    setMarkMode(false);
+                    setPendingRect(null);
+                  }}
+                />
+              ) : hasKitDrawing && kitDrawingView === "pdf" && kitPdfDoc ? (
+                <PdfPage
+                  url={`/api/documents/${kitPdfDoc.id}/file`}
+                  pageNumber={drawingPdfPage}
+                  viewCacheKey={kitPdfDoc.id}
+                  annotations={pageNotes}
+                  markMode={markMode && !readOnly}
+                  activeAnnotationId={activeNoteId}
+                  highlightQuery={deferredQuery}
+                  onMarkRect={(rect) => setPendingRect(rect)}
+                  onSelectAnnotation={(id) => setHoverNoteId(id)}
+                  onCancelMark={() => {
+                    setMarkMode(false);
+                    setPendingRect(null);
+                  }}
+                />
+              ) : isCadSource ? (
                 <CadPage
                   documentId={document.id}
                   pageNumber={pageNumber}
@@ -1320,6 +1400,11 @@ export function ReviewPane({
                     },
                   ]}
                 />
+                {hasKitDrawing && sidePanel === "text" ? (
+                  <span className="text-[10px] text-muted" title="Единая расшифровка после сверки — в работе у бэкенда">
+                    Markdown из PDF · DWG для сверки
+                  </span>
+                ) : null}
               </div>
               <div className="flex items-center gap-2">
                 {showTech && sidePanel === "text" && page ? (

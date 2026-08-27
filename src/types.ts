@@ -102,10 +102,16 @@ export type KindCounts = Record<PageKind, number>;
 
 export type PipelineMode = "mock" | "real";
 
+export type KitRole = "pdf" | "dwg" | "dxf";
+
 /** Шапка документа: лежит в индексе data/db.json. */
 export type DocumentMeta = {
   id: string;
   projectId: string;
+  /** Связка PDF + DWG из одного архива или пары файлов. */
+  kitId: string | null;
+  kitRole: KitRole | null;
+  kitLabel: string | null;
   originalName: string;
   storedName: string;
   mimeType: string;
