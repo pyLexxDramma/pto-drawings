@@ -1483,6 +1483,11 @@ export function Workspace({
                 ? liveJob.label
                 : null
             }
+            activeJobDocument={
+              liveJob
+                ? documents.find((doc) => doc.id === liveJob.documentId) ?? null
+                : null
+            }
             headerRight={
               <>
                 {pipelineChip ? (

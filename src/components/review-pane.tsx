@@ -73,6 +73,8 @@ type ReviewPaneProps = {
   /** Переход к активной обработке в другом файле проекта (если есть). */
   onGoToLiveJob?: (() => void) | null;
   liveJobLabel?: string | null;
+  /** Файл с активной обработкой в проекте (может отличаться от открытого). */
+  activeJobDocument?: DocumentRecord | null;
   onCancel?: () => void;
   onToggleFocus: () => void;
   onBackToProjects: () => void;
@@ -94,6 +96,24 @@ function stepLabel(document: DocumentRecord) {
   return "обработка";
 }
 
+function jobLiveProcessing(doc: DocumentRecord) {
+  return (
+    doc.status === "queued" ||
+    doc.status === "processing" ||
+    Boolean(doc.errorMessage?.startsWith("Отмена"))
+  );
+}
+
+function activePageForJob(doc: DocumentRecord) {
+  const total = Math.max(doc.pageCount, doc.pages.length, 1);
+  if (!jobLiveProcessing(doc)) return null;
+  if (doc.processingPage && doc.processingPage > 0) {
+    return doc.processingPage;
+  }
+  const ready = Math.min(Math.max(doc.readyPages, 0), total);
+  return ready < total ? ready + 1 : null;
+}
+
 export function ReviewPane({
   document,
   focusMode,
@@ -106,6 +126,7 @@ export function ReviewPane({
   headerRight = null,
   onGoToLiveJob = null,
   liveJobLabel = null,
+  activeJobDocument = null,
   onCancel,
   onToggleFocus,
   onBackToProjects,
@@ -162,14 +183,18 @@ export function ReviewPane({
     document.status === "queued" || document.status === "processing";
   const cancelPending = Boolean(document.errorMessage?.startsWith("Отмена"));
   const liveProcessing = processing || cancelPending;
-  const activeProcessingPage = useMemo(() => {
-    if (!liveProcessing) return null;
-    if (document.processingPage && document.processingPage > 0) {
-      return document.processingPage;
-    }
-    const ready = Math.min(Math.max(document.readyPages, 0), total);
-    return ready < total ? ready + 1 : null;
-  }, [document.processingPage, document.readyPages, liveProcessing, total]);
+  const progressDocument =
+    activeJobDocument && jobLiveProcessing(activeJobDocument)
+      ? activeJobDocument
+      : liveProcessing
+        ? document
+        : null;
+  const progressIsCurrentDoc = progressDocument?.id === document.id;
+  const progressLive = progressDocument ? jobLiveProcessing(progressDocument) : false;
+  const activeProcessingPage = useMemo(
+    () => (progressDocument ? activePageForJob(progressDocument) : null),
+    [progressDocument],
+  );
   const editedPages = useMemo(
     () => new Set(document.editLog.map((entry) => entry.pageNumber)),
     [document.editLog],
@@ -253,19 +278,20 @@ export function ReviewPane({
   const pageNotes = notes.filter((item) => item.pageNumber === pageNumber);
   const activeNoteId = hoverNoteId;
   const viewingProcessedSheet =
-    liveProcessing && ready.has(pageNumber) && pageNumber !== activeProcessingPage;
+    progressIsCurrentDoc &&
+    progressLive &&
+    ready.has(pageNumber) &&
+    pageNumber !== activeProcessingPage;
   /** Нижняя полоска прогресса (не развёрнутая панель справа). */
-  const [bottomProgressOpen, setBottomProgressOpen] = useState(false);
+  const [bottomProgressOpen, setBottomProgressOpen] = useState(() => progressLive);
 
   useEffect(() => {
-    setBottomProgressOpen(false);
-  }, [document.id]);
-
-  useEffect(() => {
-    if (liveProcessing) setBottomProgressOpen(true);
-  }, [liveProcessing]);
+    if (progressLive) setBottomProgressOpen(true);
+  }, [progressLive, progressDocument?.id, document.id]);
   const showFullProgress =
-    liveProcessing && (!viewingProcessedSheet || progressExpanded);
+    progressIsCurrentDoc &&
+    progressLive &&
+    (!viewingProcessedSheet || progressExpanded);
 
   useEffect(() => {
     if (viewingProcessedSheet) {
@@ -1425,25 +1451,29 @@ export function ReviewPane({
           ) : null}
         </div>
 
-        {bottomProgressOpen && !showFullProgress ? (
+        {bottomProgressOpen && progressDocument && !showFullProgress ? (
           <ProcessingBottomBar
-            document={document}
-            errorCount={errorCount}
+            document={progressDocument}
+            errorCount={Object.keys(progressDocument.pageErrors ?? {}).length}
             onDismiss={() => setBottomProgressOpen(false)}
             onExpand={
-              viewingProcessedSheet && !progressExpanded
-                ? () => setProgressExpanded(true)
-                : undefined
+              !progressIsCurrentDoc && onGoToLiveJob
+                ? onGoToLiveJob
+                : viewingProcessedSheet && !progressExpanded
+                  ? () => setProgressExpanded(true)
+                  : undefined
             }
             onGoToCurrent={
-              liveProcessing &&
+              progressLive &&
               activeProcessingPage != null &&
-              pageNumber !== activeProcessingPage
+              (pageNumber !== activeProcessingPage || !progressIsCurrentDoc)
                 ? goToCurrentProcessing
                 : undefined
             }
             currentPage={
-              pageNumber !== activeProcessingPage ? activeProcessingPage : null
+              pageNumber !== activeProcessingPage || !progressIsCurrentDoc
+                ? activeProcessingPage
+                : null
             }
           />
         ) : null}
