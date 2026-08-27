@@ -1293,14 +1293,17 @@ export function Workspace({
                         className={`min-w-0 flex-1 rounded-md px-2 py-1.5 text-left text-sm ${
                           project.id === projectId ? "text-text" : "text-muted hover:text-text"
                         }`}
-                        title="Открыть файлы проекта"
+                        title={`Открыть файлы проекта · создан ${formatDate(project.createdAt)}`}
                         aria-expanded={project.id === projectId}
                       >
                         <span className="flex items-center gap-1">
                           <span className="text-[10px] text-muted">
                             {project.id === projectId ? "▾" : "▸"}
                           </span>
-                          <span className="truncate font-medium">{project.name}</span>
+                          <span className="min-w-0 flex-1 truncate font-medium">{project.name}</span>
+                        </span>
+                        <span className="mt-0.5 block truncate pl-4 text-[10px] font-normal tabular-nums text-muted">
+                          {formatDate(project.createdAt)}
                         </span>
                       </button>
                       <div className="flex items-start pt-1 pr-0.5">
@@ -1359,7 +1362,10 @@ export function Workspace({
                             </div>
                           </div>
                         ))}
-                        {documents.map((doc) => (
+                        {documents.map((doc) => {
+                          const elapsedLabel = formatElapsed(doc.pipelineElapsedSec);
+                          const uploadedLabel = formatDate(doc.createdAt);
+                          return (
                           <div
                             key={doc.id}
                             className={`mb-0.5 flex items-stretch gap-0.5 rounded ${
@@ -1377,7 +1383,13 @@ export function Workspace({
                                   ? "font-medium text-text"
                                   : "text-muted hover:text-text"
                               }`}
-                              title={doc.originalName}
+                              title={[
+                                doc.originalName,
+                                `загружен ${uploadedLabel}`,
+                                elapsedLabel ? `обработка ${elapsedLabel}` : null,
+                              ]
+                                .filter(Boolean)
+                                .join(" · ")}
                             >
                               <span className="flex items-center gap-1.5">
                                 <span
@@ -1389,6 +1401,18 @@ export function Workspace({
                                 {doc.status === "processing" || doc.status === "queued" ? (
                                   <Spinner className="h-2.5 w-2.5 shrink-0 text-sky-700" />
                                 ) : null}
+                              </span>
+                              <span className="mt-0.5 block truncate pl-3 text-[10px] font-normal tabular-nums text-muted">
+                                {[
+                                  uploadedLabel,
+                                  elapsedLabel
+                                    ? `обр. ${elapsedLabel}`
+                                    : doc.status === "processing" || doc.status === "queued"
+                                      ? "обработка…"
+                                      : null,
+                                ]
+                                  .filter(Boolean)
+                                  .join(" · ")}
                               </span>
                             </button>
                             <div className="flex items-start pt-0.5 pr-0.5">
@@ -1408,7 +1432,8 @@ export function Workspace({
                               </ActionMenu>
                             </div>
                           </div>
-                        ))}
+                          );
+                        })}
                         {!loading && documents.length === 0 && uploads.length === 0 ? (
                           <div className="px-1 py-2 text-center text-[11px] text-muted">
                             Нет файлов — загрузите PDF/DWG
