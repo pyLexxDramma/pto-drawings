@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ProgressTrack, Spinner } from "@/components/ui-chrome";
 import { useSmoothProgress } from "@/hooks/use-smooth-progress";
 import {
@@ -236,7 +236,155 @@ type CompactBadgeProps = {
   className?: string;
 };
 
-/** Компактный угол: % + статус; по клику — разворот. */
+type BottomBarProps = {
+  document: ProgressInput & { errorMessage?: string | null };
+  errorCount?: number;
+  onExpand?: () => void;
+  onGoToCurrent?: () => void;
+  currentPage?: number | null;
+  onDismiss?: () => void;
+};
+
+function processingBottomLine(
+  document: ProgressInput & { errorMessage?: string | null },
+  percent: number,
+  errorCount = 0,
+): string {
+  const stopped = isCancelMessage(document.errorMessage);
+  const pages = `${document.readyPages}/${Math.max(document.pageCount, 1)} листов`;
+  const elapsed =
+    document.pipelineElapsedSec != null
+      ? `время ${formatProgressDuration(document.pipelineElapsedSec)}`
+      : null;
+
+  if (stopped) {
+    return ["Обработка остановлена", pages, elapsed].filter(Boolean).join(" · ");
+  }
+  if (document.status === "error") {
+    const base = document.errorMessage
+      ? `Ошибка обработки: ${document.errorMessage}`
+      : "Ошибка обработки";
+    return [base, pages, elapsed].filter(Boolean).join(" · ");
+  }
+  if (document.status === "done") {
+    return [
+      `Обработка завершена · ${formatProcessingPercent(100)}`,
+      pages,
+      elapsed,
+      errorCount > 0 ? `ошибок листов: ${errorCount}` : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+  }
+
+  return [
+    processingStatusLabel(document),
+    formatProcessingPercent(percent),
+    pages,
+  ].join(" · ");
+}
+
+/** Полоска прогресса внизу экрана; после завершения скрывается сама. */
+export function ProcessingBottomBar({
+  document,
+  errorCount = 0,
+  onExpand,
+  onGoToCurrent,
+  currentPage = null,
+  onDismiss,
+}: BottomBarProps) {
+  const cancelPending = isCancelMessage(document.errorMessage);
+  const isActive =
+    document.status === "queued" ||
+    document.status === "processing" ||
+    cancelPending;
+  const isFinished = document.status === "done" || document.status === "error";
+  const [visible, setVisible] = useState(isActive || isFinished);
+  const wasActiveRef = useRef(isActive);
+
+  useEffect(() => {
+    if (isActive) {
+      wasActiveRef.current = true;
+      setVisible(true);
+      return;
+    }
+    if (isFinished && wasActiveRef.current) {
+      setVisible(true);
+      const timer = window.setTimeout(() => {
+        setVisible(false);
+        onDismiss?.();
+      }, 1800);
+      return () => window.clearTimeout(timer);
+    }
+    if (!isFinished) {
+      wasActiveRef.current = false;
+    }
+  }, [isActive, isFinished, document.id, onDismiss]);
+
+  const target = processingPercent(document);
+  const smooth = useSmoothProgress(target, {
+    active: isActive && !cancelPending,
+    max: 99.5,
+  });
+  const percent = cancelPending
+    ? target
+    : isFinished && document.status === "done"
+      ? 100
+      : isActive
+        ? smooth
+        : target;
+  const summaryLine = processingBottomLine(document, percent, errorCount);
+
+  if (!visible) return null;
+
+  const interactive = Boolean(onExpand);
+
+  return (
+    <div
+      className="pointer-events-auto fixed inset-x-0 bottom-0 z-40 border-t border-sky-200/80 bg-white/95 shadow-[0_-4px_16px_rgba(15,23,42,0.08)] backdrop-blur"
+      role="status"
+      aria-live="polite"
+    >
+      <button
+        type="button"
+        disabled={!interactive}
+        onClick={onExpand}
+        className={`flex w-full items-center gap-3 px-3 py-2 text-left ${
+          interactive ? "cursor-pointer hover:bg-sky-50/60" : "cursor-default"
+        }`}
+        title={interactive ? "Развернуть прогресс" : undefined}
+      >
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          {isActive && !cancelPending ? (
+            <Spinner className="h-3.5 w-3.5 shrink-0 text-sky-700" />
+          ) : null}
+          <span className="truncate text-[11px] font-medium text-sky-950">
+            {summaryLine}
+          </span>
+        </div>
+        {interactive ? (
+          <span className="shrink-0 text-[10px] font-medium text-sky-800">
+            Подробнее
+          </span>
+        ) : null}
+      </button>
+      <ProgressTrack value={percent} tone="sky" className="h-1 rounded-none" />
+      {isActive && onGoToCurrent && currentPage != null ? (
+        <div className="border-t border-sky-100 px-3 py-1.5">
+          <button
+            type="button"
+            onClick={onGoToCurrent}
+            className="w-full rounded-md border border-sky-200 bg-sky-50 px-2 py-1 text-[11px] font-semibold text-sky-950 hover:bg-sky-100"
+          >
+            К текущему листу {currentPage}
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** @deprecated Используйте ProcessingBottomBar. */
 export function ProcessingCompactBadge({
   document,
   live = false,

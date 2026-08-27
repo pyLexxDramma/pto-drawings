@@ -21,32 +21,6 @@ export function ReviewPaneHelp() {
       </div>
       <div className="max-h-56 space-y-3 overflow-y-auto pr-1 text-[11px] leading-relaxed text-muted">
         <section>
-          <div className="mb-1 font-medium text-text">Подсветка</div>
-          <ul className="list-disc space-y-1 pl-4">
-            <li>
-              Таб «Подсветка» рядом с «Расшифровка» включает режим привязки строки
-              к фрагменту чертежа.
-            </li>
-            <li>
-              Наведите курсор на строку расшифровки или участок чертежа — подсветка
-              покажет связанный фрагмент.
-            </li>
-            <li>
-              <strong>Левый клик</strong> по строке или участку закрепляет привязку и
-              смещает вид к нужному месту, если оно не попало в экран.
-            </li>
-            <li>
-              В табе «Замечания» при включённой подсветке <strong>левый клик</strong> по
-              замечанию подсвечивает его место на чертеже и смещает вид к нему.
-            </li>
-            <li>
-              При выключении подсветка снимается; скролл, зум и панорама работают
-              как обычно.
-            </li>
-          </ul>
-        </section>
-
-        <section>
           <div className="mb-1 font-medium text-text">Управление чертежом</div>
           <ul className="list-disc space-y-1 pl-4">
             <li>
@@ -124,7 +98,6 @@ export function ReviewPaneHelp() {
             <li>
               <Kbd>Ctrl+S</Kbd> — сохранить правки текста расшифровки.
             </li>
-            <li>Клик по заголовку в расшифровке — сброс вида чертежа на лист.</li>
           </ul>
         </section>
 
