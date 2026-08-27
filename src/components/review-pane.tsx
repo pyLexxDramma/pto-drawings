@@ -823,16 +823,7 @@ export function ReviewPane({
     setSelectedNoteId(null);
     setSelectedBlockId(blockId);
     if (blockId) {
-      let region = blockLinks.byBlock.get(blockId) ?? null;
-      if (!region && textRegions.length) {
-        // Нет текстовой связи (битый слой PDF) — берём зону по порядку блока среди связанных кандидатов.
-        const contentIds = parseMarkdownBlocks(page?.markdown ?? "")
-          .filter((b) => b.text.length >= 8)
-          .map((b) => b.id);
-        const idx = contentIds.indexOf(blockId);
-        const sorted = [...textRegions].sort((a, b) => a.y - b.y || a.x - b.x);
-        region = idx >= 0 ? sorted[Math.min(idx, sorted.length - 1)] ?? null : sorted[0] ?? null;
-      }
+      const region = blockLinks.byBlock.get(blockId) ?? null;
       setSelectedRegionId(region?.id ?? null);
       setHoverBlockId(blockId);
       setHoverRegionId(null);
@@ -857,18 +848,7 @@ export function ReviewPane({
     setSelectedNoteId(null);
     setSelectedRegionId(regionId);
     if (regionId) {
-      let blockId = blockLinks.byRegion.get(regionId) ?? null;
-      if (!blockId && page?.markdown) {
-        const sorted = [...textRegions].sort((a, b) => a.y - b.y || a.x - b.x);
-        const ridx = sorted.findIndex((r) => r.id === regionId);
-        const contentIds = parseMarkdownBlocks(page.markdown)
-          .filter((b) => b.text.length >= 8)
-          .map((b) => b.id);
-        blockId =
-          ridx >= 0
-            ? contentIds[Math.min(ridx, contentIds.length - 1)] ?? null
-            : contentIds[0] ?? null;
-      }
+      const blockId = blockLinks.byRegion.get(regionId) ?? null;
       setSelectedBlockId(blockId);
       setHoverRegionId(regionId);
       setHoverBlockId(blockId);

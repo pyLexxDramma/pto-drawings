@@ -8,6 +8,7 @@
     "start": "next start -H 0.0.0.0 -p 8080",
     "live": "powershell -ExecutionPolicy Bypass -File ./scripts/serve-live.ps1",
     "lint": "eslint",
+    "test:content-sync": "npx --yes tsx --test scripts/content-sync.test.ts",
     "init:env": "node ./scripts/init-env.mjs",
     "backup": "node ./scripts/backup.mjs"
   },

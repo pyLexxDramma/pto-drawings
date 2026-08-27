@@ -1,7 +1,12 @@
 /** Сопоставление блоков markdown с зонами текста на чертеже для синхронного скролла. */
 
+/** Комментарий в markdown: `<!-- obj:HANDLE -->` — стабильный ID объекта DWG. */
+export const OBJECT_ID_COMMENT = /<!--\s*obj:\s*([^\s>]+)\s*-->/gi;
+
 export type PageTextRegion = {
   id: string;
+  /** ID объекта из DWG/PDF (если есть в геометрии). */
+  objId?: string;
   text: string;
   /** Левый край, доля ширины листа 0..1 */
   x: number;
@@ -15,6 +20,8 @@ export type PageTextRegion = {
 
 export type MarkdownBlock = {
   id: string;
+  /** ID объекта из бэкенда (если задан в markdown). */
+  objId?: string;
   text: string;
   source: string;
 };
@@ -30,6 +37,19 @@ export type BlockRegionLinks = {
 
 const BOILERPLATE =
   /^(страница|лист|штамп|цветовая разметка|\*{2}цветовая разметка|\-\-\-)/i;
+
+/** Извлекает `<!-- obj:ID -->` из исходника блока. */
+export function extractObjectId(source: string): {
+  objId?: string;
+  source: string;
+} {
+  const match = /<!--\s*obj:\s*([^\s>]+)\s*-->/i.exec(source);
+  if (!match) return { source };
+  return {
+    objId: match[1].trim(),
+    source: source.replace(OBJECT_ID_COMMENT, "").trim(),
+  };
+}
 
 export function normalizeForMatch(text: string): string {
   return text
@@ -58,9 +78,11 @@ export function parseMarkdownBlocks(markdown: string): MarkdownBlock[] {
   let buf: string[] = [];
 
   function push(source: string) {
-    const text = normalizeForMatch(source);
+    const { objId, source: clean } = extractObjectId(source);
+    const text = normalizeForMatch(clean);
     if (text.length < 4 || isBoilerplate(text)) return;
-    blocks.push({ id: `b-${blocks.length}`, text, source });
+    const id = objId ?? `b-${blocks.length}`;
+    blocks.push({ id, objId, text, source: clean });
   }
 
   function flushParagraph() {
@@ -213,7 +235,49 @@ function matchScore(blockText: string, regionText: string): number {
   return hit / focus.length;
 }
 
-/** blockId ↔ зона на чертеже. */
+function linkPair(
+  block: MarkdownBlock,
+  region: PageTextRegion,
+  byBlock: Map<string, PageTextRegion>,
+  byRegion: Map<string, string>,
+  anchors: Map<string, number>,
+  used: Set<string>,
+) {
+  used.add(region.id);
+  byBlock.set(block.id, region);
+  byRegion.set(region.id, block.id);
+  anchors.set(block.id, region.y + region.h * 0.5);
+}
+
+/** Прямая привязка block.objId ↔ region.objId. */
+export function linkBlocksToRegionsById(
+  blocks: MarkdownBlock[],
+  regions: PageTextRegion[],
+  used: Set<string>,
+  byBlock: Map<string, PageTextRegion>,
+  byRegion: Map<string, string>,
+  anchors: Map<string, number>,
+) {
+  const byObjId = new Map<string, PageTextRegion[]>();
+  for (const region of regions) {
+    if (!region.objId || used.has(region.id)) continue;
+    const list = byObjId.get(region.objId);
+    if (list) list.push(region);
+    else byObjId.set(region.objId, [region]);
+  }
+  for (const block of blocks) {
+    if (!block.objId || byBlock.has(block.id) || isMetaBlock(block.text)) continue;
+    const candidates = byObjId.get(block.objId);
+    if (!candidates?.length) continue;
+    const region = candidates.find((r) => !used.has(r.id)) ?? null;
+    if (!region) continue;
+    linkPair(block, region, byBlock, byRegion, anchors, used);
+  }
+}
+
+const FUZZY_MATCH_THRESHOLD = 0.42;
+
+/** blockId ↔ зона на чертеже. Сначала по objId, затем fuzzy-текст. */
 export function linkBlocksToRegions(
   blocks: MarkdownBlock[],
   regions: PageTextRegion[],
@@ -226,42 +290,24 @@ export function linkBlocksToRegions(
   }
 
   const used = new Set<string>();
+  linkBlocksToRegionsById(blocks, regions, used, byBlock, byRegion, anchors);
+
   // Сначала самые короткие/конкретные блоки — лучше цепляются к меткам на чертеже.
   const ordered = [...blocks].sort(
     (a, b) => labelProbe(a.text).length - labelProbe(b.text).length,
   );
   for (const block of ordered) {
-    if (isMetaBlock(block.text)) continue;
+    if (byBlock.has(block.id) || isMetaBlock(block.text)) continue;
     let best: { region: PageTextRegion; score: number } | null = null;
     for (const region of regions) {
       if (used.has(region.id)) continue;
       const score = matchScore(block.text, region.text);
-      if (score < 0.35) continue;
+      if (score < FUZZY_MATCH_THRESHOLD) continue;
       if (!best || score > best.score) best = { region, score };
     }
     if (best) {
-      used.add(best.region.id);
-      byBlock.set(block.id, best.region);
-      byRegion.set(best.region.id, block.id);
-      anchors.set(block.id, best.region.y + best.region.h * 0.5);
+      linkPair(block, best.region, byBlock, byRegion, anchors, used);
     }
-  }
-
-  // Fallback: битая кодировка PDF — сопоставляем оставшиеся блоки и зоны по порядку сверху вниз.
-  const leftoverBlocks = blocks.filter(
-    (b) => !byBlock.has(b.id) && !isMetaBlock(b.text) && b.text.length >= 8,
-  );
-  const leftoverRegions = [...regions]
-    .filter((r) => !used.has(r.id))
-    .sort((a, b) => a.y - b.y || a.x - b.x);
-  const n = Math.min(leftoverBlocks.length, leftoverRegions.length);
-  for (let i = 0; i < n; i += 1) {
-    const block = leftoverBlocks[i];
-    const region = leftoverRegions[i];
-    byBlock.set(block.id, region);
-    byRegion.set(region.id, block.id);
-    anchors.set(block.id, region.y + region.h * 0.5);
-    used.add(region.id);
   }
 
   return { byBlock, byRegion, anchors };
@@ -284,7 +330,7 @@ export function nearestBlockForAnchorY(
     const dist = Math.abs(ay - y);
     if (!best || dist < best.dist) best = { id, dist };
   }
-  return best && best.dist < 0.2 ? best.id : null;
+  return best && best.dist < 0.14 ? best.id : null;
 }
 
 /** Зона под точкой на листе (нормализованные 0..1). */
@@ -441,6 +487,7 @@ export function regionsFromPdfTextContent(
 /** Текстовые примитивы CAD → зоны на листе. */
 export function regionsFromCadTexts(
   texts: Array<{
+    id?: string;
     text?: string;
     points: number[];
     size?: number;
@@ -455,13 +502,12 @@ export function regionsFromCadTexts(
   for (const t of texts) {
     const raw = t.text?.trim();
     if (!raw || t.points.length < 2) continue;
-    const text = normalizeForMatch(raw.replace(/\\P/g, " "));
+    const lineCount = Math.max(1, raw.split(/\\P|\\n|\n/).length);
+    const text = normalizeForMatch(raw.replace(/\\P/g, " ").replace(/\\n/g, " "));
     if (text.length < 4) continue;
     const th = Math.max(0.008, (t.size ?? 2.5) / bh);
-    const tw = Math.max(
-      0.02,
-      (t.width ?? raw.length * (t.size ?? 2.5) * 0.55) / bw,
-    );
+    const charWidth = (t.size ?? 2.5) * 0.52;
+    const tw = Math.max(0.02, (t.width ?? raw.length * charWidth) / bw);
     const ox = (t.points[0] - bbox.x0) / bw;
     const oy = (bbox.y1 - t.points[1]) / bh;
     const x =
@@ -470,13 +516,15 @@ export function regionsFromCadTexts(
         : t.anchor === "right"
           ? ox - tw
           : ox;
+    const objId = t.id?.trim() || undefined;
     regions.push({
-      id: `r-${regions.length}`,
+      id: objId ? `obj-${objId}` : `r-${regions.length}`,
+      objId,
       text,
       x: Math.max(0, Math.min(1, x)),
       y: Math.max(0, Math.min(1, oy - th * 0.15)),
       w: Math.min(1, tw),
-      h: th * Math.max(1, raw.split(/\\P|\n/).length),
+      h: th * lineCount,
     });
   }
   regions.sort((a, b) => a.y - b.y);

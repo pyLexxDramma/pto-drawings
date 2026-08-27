@@ -2,6 +2,8 @@
 
 export type CadPrimitive = {
   type: "line" | "polyline" | "text";
+  /** Стабильный ID объекта DWG (колонка `id` в CSV). */
+  id?: string;
   layer: string;
   color: string;
   lw: number;
@@ -66,26 +68,47 @@ export function parseGeometry(csv: string): CadGeometry {
     start = 1;
   }
   start += 1; // заголовок колонок
+  const headerRow = splitCsvRow(lines[start - 1] ?? "");
+  const col = (name: string, fallback: number) => {
+    const index = headerRow.indexOf(name);
+    return index >= 0 ? index : fallback;
+  };
+  const idx = {
+    type: col("type", 0),
+    layer: col("layer", 1),
+    color: col("color", 2),
+    lw: col("lw", 3),
+    geom: col("geom", 4),
+    text: col("text", 5),
+    size: col("size", 6),
+    rot: col("rot", 7),
+    anchor: col("anchor", 8),
+    valign: col("valign", 9),
+    width: col("width", 10),
+    id: col("id", -1),
+  };
   const primitives: CadPrimitive[] = [];
   for (let i = start; i < lines.length; i += 1) {
     const raw = lines[i];
     if (!raw || !raw.trim()) continue;
     const row = splitCsvRow(raw);
-    if (row.length < 5 || !row[0]) continue;
-    const type = row[0] as CadPrimitive["type"];
+    if (row.length < 5 || !row[idx.type]) continue;
+    const type = row[idx.type] as CadPrimitive["type"];
     if (type !== "line" && type !== "polyline" && type !== "text") continue;
+    const objId = idx.id >= 0 ? row[idx.id]?.trim() || undefined : undefined;
     primitives.push({
       type,
-      layer: row[1] ?? "",
-      color: row[2] || "#000000",
-      lw: Number(row[3]) || 0.25,
-      points: row[4] ? row[4].trim().split(/\s+/).map(Number) : [],
-      text: row[5] || undefined,
-      size: row[6] ? Number(row[6]) : undefined,
-      rot: row[7] ? Number(row[7]) : 0,
-      anchor: row[8] || "left",
-      valign: row[9] || "baseline",
-      width: row[10] ? Number(row[10]) : undefined,
+      id: objId,
+      layer: row[idx.layer] ?? "",
+      color: row[idx.color] || "#000000",
+      lw: Number(row[idx.lw]) || 0.25,
+      points: row[idx.geom] ? row[idx.geom].trim().split(/\s+/).map(Number) : [],
+      text: row[idx.text] || undefined,
+      size: row[idx.size] ? Number(row[idx.size]) : undefined,
+      rot: row[idx.rot] ? Number(row[idx.rot]) : 0,
+      anchor: row[idx.anchor] || "left",
+      valign: row[idx.valign] || "baseline",
+      width: row[idx.width] ? Number(row[idx.width]) : undefined,
     });
   }
   const [x0, y0, x1, y1] = (meta.bbox ?? "0,0,1,1").split(",").map(Number);
