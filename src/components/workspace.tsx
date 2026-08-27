@@ -244,13 +244,15 @@ function kindSummary(doc: DocumentRecord) {
 function projectSummaryLine(
   documents: DocumentRecord[],
   notes: ProjectAnnotation[],
+  showUsage = false,
 ) {
   const pages = documents.reduce((sum, doc) => sum + doc.pageCount, 0);
   const openNotes = notes.filter((item) => item.status === "open").length;
-  const usage = mergePipelineUsage(
-    ...documents.map((doc) => doc.pipelineUsage),
-  );
-  const usageLabel = formatPipelineUsage(usage);
+  const usageLabel = showUsage
+    ? formatPipelineUsage(
+        mergePipelineUsage(...documents.map((doc) => doc.pipelineUsage)),
+      )
+    : null;
   let maxElapsed: number | null = null;
   for (const doc of documents) {
     if (
@@ -1038,8 +1040,13 @@ export function Workspace({
   }
 
   const gridClass = "flex min-h-0 flex-1 flex-col md:flex-row";
+  const showPipelineTech = user.role === "admin";
   const pipelineUsageLabel = formatPipelineUsage(pipelineHealth?.usage);
-  const summaryLine = projectSummaryLine(documents, notes);
+  const summaryLine = projectSummaryLine(
+    documents,
+    notes,
+    showPipelineTech,
+  );
   const processBar = processingOverview(documents, selectedId, uploads);
   const filteredNotes = notes.filter((note) => {
     if (notesFilter === "all") return true;
@@ -1067,7 +1074,7 @@ export function Workspace({
           : "Конвейер: MOCK · модель не вызывается",
       };
     }
-    // Модель и токены нужны для контроля расходов — показываем всем, кто видит UI.
+    // Модель и токены — только для админа.
     if (pipelineHealth.mode === "real") {
       const parts = [
         "Конвейер: real",
@@ -1084,6 +1091,7 @@ export function Workspace({
     }
     return null;
   })();
+  const visiblePipelineChip = showPipelineTech ? pipelineChip : null;
 
   const backToProjects = () => {
     setSelectedId(null);
@@ -1138,13 +1146,13 @@ export function Workspace({
             </div>
           </button>
           <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
-            {pipelineChip ? (
+            {visiblePipelineChip ? (
               <div
-                className={`hidden min-w-0 items-center gap-1.5 whitespace-nowrap rounded-md border px-2.5 py-1 text-[11px] md:flex ${pipelineChip.className}`}
-                title={pipelineChip.text}
+                className={`hidden min-w-0 items-center gap-1.5 whitespace-nowrap rounded-md border px-2.5 py-1 text-[11px] md:flex ${visiblePipelineChip.className}`}
+                title={visiblePipelineChip.text}
               >
                 {busy ? <Spinner className="h-3 w-3 opacity-80" /> : null}
-                <span>{pipelineChip.text}</span>
+                <span>{visiblePipelineChip.text}</span>
               </div>
             ) : null}
             <UserMenu
@@ -1490,12 +1498,12 @@ export function Workspace({
             }
             headerRight={
               <>
-                {pipelineChip ? (
+                {visiblePipelineChip ? (
                   <span
-                    className={`hidden whitespace-nowrap rounded-md border px-2.5 py-1 text-[11px] sm:inline-block ${pipelineChip.className}`}
-                    title={pipelineChip.text}
+                    className={`hidden whitespace-nowrap rounded-md border px-2.5 py-1 text-[11px] sm:inline-block ${visiblePipelineChip.className}`}
+                    title={visiblePipelineChip.text}
                   >
-                    {pipelineChip.text}
+                    {visiblePipelineChip.text}
                   </span>
                 ) : null}
                 <UserMenu

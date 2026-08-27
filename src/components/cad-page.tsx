@@ -202,16 +202,18 @@ export function CadPage({
     const wrap = wrapRef.current;
     if (!wrap) return;
     const pad = 16;
-    const next =
-      mode === "width"
-        ? (wrap.clientWidth - pad) / natural.w
-        : Math.min(
-            (wrap.clientWidth - pad) / natural.w,
-            (wrap.clientHeight - pad) / natural.h,
-          );
+    const scaleW = (wrap.clientWidth - pad) / natural.w;
+    const scaleH = (wrap.clientHeight - pad) / natural.h;
+    const next = mode === "width" ? scaleW : Math.min(scaleW, scaleH);
+    const s = Math.max(0.15, next);
+    const contentW = natural.w * s;
+    const contentH = natural.h * s;
     setFitMode(mode);
-    setScale(Math.max(0.15, next));
-    setPan({ x: pad / 2, y: pad / 2 });
+    setScale(s);
+    setPan({
+      x: Math.max(pad / 2, (wrap.clientWidth - contentW) / 2),
+      y: Math.max(pad / 2, (wrap.clientHeight - contentH) / 2),
+    });
   }
 
   useEffect(() => {
@@ -224,7 +226,7 @@ export function CadPage({
       setPan(cached.pan);
       return;
     }
-    fit("page");
+    fit("width");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, error, natural.w, natural.h, pageNumber, geometry, previewUrl]);
 

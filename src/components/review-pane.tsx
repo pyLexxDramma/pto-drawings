@@ -392,6 +392,20 @@ export function ReviewPane({
     }, 700);
   }
 
+  async function exitEditMode() {
+    if (timerRef.current) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    await flush();
+    setMode("view");
+  }
+
+  function enterEditMode() {
+    setDraft(page?.markdown ?? "");
+    setMode("edit");
+  }
+
   useEffect(() => {
     return () => {
       if (timerRef.current) window.clearTimeout(timerRef.current);
@@ -463,6 +477,11 @@ export function ReviewPane({
       }
 
       if (event.key === "Escape") {
+        if (mode === "edit") {
+          event.preventDefault();
+          void exitEditMode();
+          return;
+        }
         if (moreMenuOpen) {
           setMoreMenuOpen(false);
           return;
@@ -552,7 +571,7 @@ export function ReviewPane({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusMode, markMode, pendingRect, onBackToProjects, onToggleFocus, visiblePages, document.pages, moreMenuOpen, showLog, paneSolo, searchOpen, readOnly, galleryMode]);
+  }, [focusMode, markMode, pendingRect, onBackToProjects, onToggleFocus, visiblePages, document.pages, moreMenuOpen, showLog, paneSolo, searchOpen, readOnly, galleryMode, mode]);
 
   const hits = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -892,16 +911,23 @@ export function ReviewPane({
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-semibold tracking-tight">
             {document.originalName}
+            <span className="ml-2 font-normal text-muted">
+              · лист {pageNumber} из {total}
+            </span>
+            {saving ? (
+              <span className="ml-1 text-[11px] font-normal text-muted">· сохранение…</span>
+            ) : null}
           </div>
           <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted">
             <ActionMenu
-              label="Выбрать лист и фильтр"
+              label="Фильтр и список листов"
               align="left"
               menuClassName="top-full w-64"
               trigger={
                 <>
-                  {page ? KIND_LABEL[page.kind] : "Страница"} · лист {pageNumber} из{" "}
-                  {total}
+                  {page ? KIND_LABEL[page.kind] : "Страница"}
+                  {viewedSet.has(pageNumber) ? " · ✓" : ""}
+                  {openNotes ? ` · ${openNotes} зам.` : ""}
                   <span aria-hidden> ▾</span>
                 </>
               }
@@ -969,14 +995,6 @@ export function ReviewPane({
                 )}
               </div>
             </ActionMenu>
-            <span className="truncate">
-              {viewedSet.has(pageNumber) ? "· ✓" : ""}
-              {openNotes ? ` · ${openNotes} зам.` : ""}
-              {saving ? " · сохранение…" : ""}
-            </span>
-            <span className="shrink-0 tabular-nums" title="Просмотрено листов">
-              · {viewed.length}/{total} просмотрено
-            </span>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
@@ -1246,12 +1264,6 @@ export function ReviewPane({
                   }}
                 />
               )}
-              {liveProcessing ? (
-                <div className="pointer-events-none absolute bottom-3 left-3 rounded-md bg-slate-900/75 px-2.5 py-1 text-xs text-white">
-                  {readyCount}/{total}
-                  {activeProcessingPage ? ` · лист ${activeProcessingPage}` : ""}
-                </div>
-              ) : null}
             </div>
           ) : null}
 
@@ -1271,6 +1283,7 @@ export function ReviewPane({
             {showFullProgress ? (
               <ProcessingProgressPanel
                 document={document}
+                showTech={showTech}
                 canceling={canceling}
                 onCancel={onCancel}
                 onCollapse={
@@ -1324,9 +1337,8 @@ export function ReviewPane({
                         : "Исправить расшифровку"
                     }
                     onClick={() => {
-                      const next = mode === "edit" ? "view" : "edit";
-                      if (next === "edit") setDraft(page?.markdown ?? "");
-                      setMode(next);
+                      if (mode === "edit") void exitEditMode();
+                      else enterEditMode();
                     }}
                     className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border ${
                       mode === "edit"
@@ -1428,7 +1440,7 @@ export function ReviewPane({
                       Ошибка листа: {pageError}
                     </div>
                   ) : null}
-                  {isMockPage ? (
+                  {showTech && isMockPage ? (
                     <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
                       Это ответ режима [MOCK], не работа модели.
                     </div>

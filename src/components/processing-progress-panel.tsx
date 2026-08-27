@@ -23,6 +23,8 @@ type DocProgress = ProgressInput & {
 type ProcessingProgressPanelProps = {
   document: DocProgress;
   canceling?: boolean;
+  /** Тех. метрики (mock, модель) — только для админа. */
+  showTech?: boolean;
   onCancel?: () => void;
   onCollapse?: () => void;
 };
@@ -47,6 +49,7 @@ export function processingStatusLabel(
 export function ProcessingProgressPanel({
   document,
   canceling = false,
+  showTech = false,
   onCancel,
   onCollapse,
 }: ProcessingProgressPanelProps) {
@@ -74,7 +77,7 @@ export function ProcessingProgressPanel({
                 <Spinner className="h-3.5 w-3.5 text-sky-700" />
               )}
               {statusLabel}
-              {document.pipelineMode === "mock" ? (
+              {showTech && document.pipelineMode === "mock" ? (
                 <span className="rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-900">
                   mock
                 </span>
@@ -82,13 +85,15 @@ export function ProcessingProgressPanel({
             </div>
             <div className="mt-1 truncate text-[11px] text-sky-900/80">
               {document.originalName ?? "Документ"}
-              {document.pipelineMode === "mock"
-                ? " · внутренний обработчик, модель не вызывается"
-                : document.pipelineModel
-                  ? ` · модель ${document.pipelineModel}`
-                  : document.pipelineMode === "real"
-                    ? " · real"
-                    : ""}
+              {showTech
+                ? document.pipelineMode === "mock"
+                  ? " · внутренний обработчик, модель не вызывается"
+                  : document.pipelineModel
+                    ? ` · модель ${document.pipelineModel}`
+                    : document.pipelineMode === "real"
+                      ? " · real"
+                      : ""
+                : ""}
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
