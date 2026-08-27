@@ -13,8 +13,6 @@ type MarkdownViewProps = {
   children: string;
   /** Подсветка совпадений поиска в тексте. */
   highlightQuery?: string;
-  /** Блок, синхронизированный скроллом. */
-  activeBlockId?: string | null;
   /** Лист-таблица: один Markdown без разбиения на блоки. */
   singlePass?: boolean;
 };
@@ -60,7 +58,6 @@ function BlockMarkdown({
 export function MarkdownView({
   children,
   highlightQuery = "",
-  activeBlockId = null,
   singlePass = false,
 }: MarkdownViewProps) {
   const blocks = useMemo(
@@ -75,21 +72,11 @@ export function MarkdownView({
 
   return (
     <>
-      {blocks.map((block) => {
-        const active = activeBlockId === block.id;
-        return (
-          <div
-            key={block.id}
-            data-md-block={block.id}
-            data-md-block-active={active ? "true" : undefined}
-            className={`scroll-mt-3 -ml-3 rounded-md border-l-2 pl-3 pr-1 transition-colors ${
-              active ? "border-accent bg-blue-50/80" : "border-transparent"
-            }`}
-          >
-            <BlockMarkdown source={block.source} highlightQuery={q} />
-          </div>
-        );
-      })}
+      {blocks.map((block) => (
+        <div key={block.id} className="scroll-mt-3">
+          <BlockMarkdown source={block.source} highlightQuery={q} />
+        </div>
+      ))}
     </>
   );
 }

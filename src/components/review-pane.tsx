@@ -27,16 +27,9 @@ import {
   IconPencil,
   IconSearch,
   IconSplit,
-  IconSync,
   IconThumbs,
 } from "@/components/tool-icons";
 import { formatDate } from "@/lib/format";
-import {
-  linkBlocksToRegions,
-  nearestBlockForAnchorY,
-  parseMarkdownBlocks,
-  type PageTextRegion,
-} from "@/lib/content-sync";
 import { getDrawingExt, isCadExt } from "@/lib/drawing-files";
 import {
   ProcessingBottomBar,
@@ -152,13 +145,6 @@ export function ReviewPane({
   const [galleryMode, setGalleryMode] = useState(
     () => getDocumentView(document.id)?.galleryMode ?? false,
   );
-  const [scrollSync, setScrollSync] = useState(
-    () => getDocumentView(document.id)?.scrollSync ?? true,
-  );
-  const [scrollRatio, setScrollRatio] = useState<number | null>(null);
-  const [scrollAnchorY, setScrollAnchorY] = useState<number | null>(null);
-  const [activeBlockId, setActiveBlockId] = useState<string | null>(null);
-  const [textRegions, setTextRegions] = useState<PageTextRegion[]>([]);
   const [sidePanel, setSidePanel] = useState<"text" | "notes">("text");
   const [searchOpen, setSearchOpen] = useState(false);
   /** Пользователь развернул прогресс поверх просмотра готового листа. */
@@ -168,8 +154,6 @@ export function ReviewPane({
   const pageRef = useRef(rawPage);
   const timerRef = useRef<number | null>(null);
   const navigatedRef = useRef(false);
-  const mdScrollRef = useRef<HTMLDivElement>(null);
-  const syncLockRef = useRef(false);
   const deferredQuery = useDeferredValue(query);
 
   const total = Math.max(document.pageCount, document.pages.length, 1);
@@ -679,103 +663,17 @@ export function ReviewPane({
   const isMockPage = Boolean(page?.markdown.includes("[MOCK]"));
   const errorCount = Object.keys(document.pageErrors ?? {}).length;
 
-  const blockLinks = useMemo(() => {
-    if (!page?.markdown || !textRegions.length) {
-      return {
-        byBlock: new Map<string, PageTextRegion>(),
-        byRegion: new Map<string, string>(),
-        anchors: new Map<string, number>(),
-      };
-    }
-    return linkBlocksToRegions(parseMarkdownBlocks(page.markdown), textRegions);
-  }, [page?.markdown, textRegions]);
-  const blockAnchors = blockLinks.anchors;
-
   useEffect(() => {
-    setTextRegions([]);
-    setScrollAnchorY(null);
-    setActiveBlockId(null);
     setHoverNoteId(null);
   }, [pageNumber, document.id]);
 
   useEffect(() => {
     patchDocumentView(document.id, {
       pageNumber,
-      scrollSync,
       paneSolo,
       galleryMode,
     });
-  }, [document.id, pageNumber, scrollSync, paneSolo, galleryMode]);
-
-  function onMarkdownScroll() {
-    if (!scrollSync || syncLockRef.current || paneSolo === "pdf") return;
-    const el = mdScrollRef.current;
-    if (!el) return;
-    const blocks = el.querySelectorAll<HTMLElement>("[data-md-block]");
-    const probe = el.scrollTop + 48;
-    let current: HTMLElement | null = null;
-    for (const block of blocks) {
-      if (block.offsetTop <= probe) current = block;
-      else break;
-    }
-    const blockId = current?.dataset.mdBlock ?? null;
-    if (blockId) setActiveBlockId(blockId);
-
-    syncLockRef.current = true;
-    const anchorY = blockId ? blockAnchors.get(blockId) : null;
-    if (anchorY != null) {
-      setScrollAnchorY(anchorY);
-      setScrollRatio(null);
-    } else {
-      const max = el.scrollHeight - el.clientHeight;
-      const ratio = max <= 0 ? 0 : el.scrollTop / max;
-      setScrollRatio(ratio);
-      setScrollAnchorY(null);
-    }
-    requestAnimationFrame(() => {
-      syncLockRef.current = false;
-    });
-  }
-
-  function onPdfScrollRatio(ratio: number) {
-    if (!scrollSync || syncLockRef.current || paneSolo === "md") return;
-    syncLockRef.current = true;
-    setScrollRatio(ratio);
-    setScrollAnchorY(null);
-    const el = mdScrollRef.current;
-    if (el) {
-      const max = el.scrollHeight - el.clientHeight;
-      el.scrollTop = ratio * Math.max(0, max);
-    }
-    requestAnimationFrame(() => {
-      syncLockRef.current = false;
-    });
-  }
-
-  function onPdfScrollAnchor(y: number) {
-    if (!scrollSync || syncLockRef.current || paneSolo === "md") return;
-    syncLockRef.current = true;
-    setScrollAnchorY(y);
-    setScrollRatio(null);
-    const blockId = nearestBlockForAnchorY(y, blockAnchors);
-    if (blockId) {
-      setActiveBlockId(blockId);
-      const el = mdScrollRef.current;
-      const block = el?.querySelector(`[data-md-block="${blockId}"]`);
-      if (block instanceof HTMLElement) {
-        block.scrollIntoView({ block: "nearest", behavior: "auto" });
-      }
-    } else {
-      const el = mdScrollRef.current;
-      if (el) {
-        const max = el.scrollHeight - el.clientHeight;
-        el.scrollTop = y * Math.max(0, max);
-      }
-    }
-    requestAnimationFrame(() => {
-      syncLockRef.current = false;
-    });
-  }
+  }, [document.id, pageNumber, paneSolo, galleryMode]);
 
   useEffect(() => {
     if (pendingRect) setSidePanel("notes");
@@ -1183,19 +1081,6 @@ export function ReviewPane({
                 <IconExpand /> {focusMode ? "Свернуть на весь экран" : "Развернуть на весь экран"}
               </span>
             </button>
-            <button
-              type="button"
-              role="menuitem"
-              className={menuItemClass()}
-              onClick={() => setScrollSync((value) => !value)}
-            >
-              <span className="inline-flex items-center gap-2">
-                <IconSync /> Синхронный скролл
-              </span>
-              <span className="text-[10px] text-muted">
-                {scrollSync ? "вкл" : "выкл"}
-              </span>
-            </button>
             <div className="my-1 border-t border-border" />
             <a
               href={`/api/documents/${document.id}/markdown`}
@@ -1311,13 +1196,6 @@ export function ReviewPane({
                   markMode={markMode && !readOnly}
                   activeAnnotationId={activeNoteId}
                   highlightQuery={deferredQuery}
-                  scrollSync={scrollSync && paneSolo !== "pdf"}
-                  scrollRatio={scrollSync && scrollAnchorY == null ? scrollRatio : null}
-                  scrollAnchorY={scrollSync ? scrollAnchorY : null}
-                  highlightAnchorY={scrollSync ? scrollAnchorY : null}
-                  onScrollRatioChange={onPdfScrollRatio}
-                  onScrollAnchorChange={onPdfScrollAnchor}
-                  onTextRegionsReady={setTextRegions}
                   onMarkRect={(rect) => setPendingRect(rect)}
                   onSelectAnnotation={(id) => setHoverNoteId(id)}
                   onCancelMark={() => {
@@ -1334,13 +1212,6 @@ export function ReviewPane({
                   markMode={markMode && !readOnly}
                   activeAnnotationId={activeNoteId}
                   highlightQuery={deferredQuery}
-                  scrollSync={scrollSync && paneSolo !== "pdf"}
-                  scrollRatio={scrollSync && scrollAnchorY == null ? scrollRatio : null}
-                  scrollAnchorY={scrollSync ? scrollAnchorY : null}
-                  highlightAnchorY={scrollSync ? scrollAnchorY : null}
-                  onScrollRatioChange={onPdfScrollRatio}
-                  onScrollAnchorChange={onPdfScrollAnchor}
-                  onTextRegionsReady={setTextRegions}
                   onMarkRect={(rect) => setPendingRect(rect)}
                   onSelectAnnotation={(id) => setHoverNoteId(id)}
                   onCancelMark={() => {
@@ -1498,13 +1369,7 @@ export function ReviewPane({
               </div>
             ) : null}
 
-            <div
-              ref={mdScrollRef}
-              onScroll={onMarkdownScroll}
-              className="min-h-0 flex-1 overflow-auto"
-              data-sync-regions={textRegions.length}
-              data-sync-links={blockLinks.byBlock.size}
-            >
+            <div className="min-h-0 flex-1 overflow-auto">
               {filterEmpty ? (
                 <div className="p-6 text-sm text-muted">
                   {filter === "flagged"
@@ -1545,7 +1410,6 @@ export function ReviewPane({
                   <MarkdownView
                     singlePass={page.kind === "table"}
                     highlightQuery={deferredQuery}
-                    activeBlockId={scrollSync ? activeBlockId : null}
                   >
                     {page.markdown}
                   </MarkdownView>

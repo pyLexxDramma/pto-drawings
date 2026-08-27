@@ -3,10 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { SegmentedTabs } from "@/components/ui-chrome";
 import {
-  panYForAnchor,
   regionAtPoint,
-  regionsFromPdfTextContent,
-  visibleAnchorY,
   type PageTextRegion,
 } from "@/lib/content-sync";
 import { getPageView, setPageView } from "@/lib/review-view-cache";
@@ -24,23 +21,12 @@ type PdfPageProps = {
   highlightNonce?: number;
   /** Подсветка совпадений поиска на чертеже (текст PDF). */
   highlightQuery?: string;
-  /** Синхронный скролл с markdown. */
-  scrollSync?: boolean;
-  /** Fallback: доля прокрутки 0..1, если нет привязки к блоку. */
-  scrollRatio?: number | null;
-  /** Привязка к зоне чертежа: Y на листе 0..1. */
-  scrollAnchorY?: number | null;
-  /** Подсветка активной зоны скролла (полоса). */
-  highlightAnchorY?: number | null;
   /** Зона под курсором / hover с расшифровки. */
   highlightRegion?: PageTextRegion | null;
   /** При наведении с текста — подтянуть участок в кадр. */
   panToHighlight?: boolean;
   /** Зоны для hit-test при наведении / клике. */
   hoverRegions?: PageTextRegion[];
-  onScrollRatioChange?: (ratio: number) => void;
-  onScrollAnchorChange?: (y: number) => void;
-  onTextRegionsReady?: (regions: PageTextRegion[]) => void;
   onHoverRegion?: (regionId: string | null) => void;
   /** Клик по фрагменту (режим подсветки). */
   onSelectRegion?: (regionId: string | null) => void;
@@ -63,16 +49,9 @@ export function PdfPage({
   activeAnnotationId = null,
   highlightNonce = 0,
   highlightQuery = "",
-  scrollSync = false,
-  scrollRatio = null,
-  scrollAnchorY = null,
-  highlightAnchorY = null,
   highlightRegion = null,
   panToHighlight = false,
   hoverRegions = [],
-  onScrollRatioChange,
-  onScrollAnchorChange,
-  onTextRegionsReady,
   onHoverRegion,
   onSelectRegion,
   onMarkRect,
@@ -109,15 +88,11 @@ export function PdfPage({
   const clickRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const pdfDocRef = useRef<{ url: string; pdf: any } | null>(null);
-  const onTextRegionsReadyRef = useRef(onTextRegionsReady);
   const textContentRef = useRef<{
     items: Array<{ str?: string; transform?: number[]; width?: number }>;
     viewport: { width: number; height: number; transform: number[] };
   } | null>(null);
 
-  useEffect(() => {
-    onTextRegionsReadyRef.current = onTextRegionsReady;
-  }, [onTextRegionsReady]);
   useEffect(() => {
     panRef.current = pan;
   }, [pan]);
@@ -240,16 +215,6 @@ export function PdfPage({
           items: content.items as Array<{ str?: string; transform?: number[]; width?: number }>,
           viewport,
         };
-        onTextRegionsReadyRef.current?.(
-          regionsFromPdfTextContent(
-            content.items as Array<{
-              str?: string;
-              transform?: number[];
-              width?: number;
-            }>,
-            viewport,
-          ),
-        );
 
         if (!cancelled) setLoading(false);
       } catch (err) {
@@ -328,23 +293,6 @@ export function PdfPage({
     setPan({ x: pad / 2, y: pad / 2 });
   }
 
-  function emitScrollPosition(nextPan: { x: number; y: number }, nextScale = scale) {
-    if (applyingSync.current) return;
-    const wrap = wrapRef.current;
-    if (!wrap) return;
-    const pad = 8;
-    if (onScrollAnchorChange) {
-      onScrollAnchorChange(
-        visibleAnchorY(nextPan.y, nextScale, natural.h, wrap.clientHeight, pad),
-      );
-    }
-    if (!onScrollRatioChange) return;
-    const contentH = natural.h * nextScale;
-    const maxPan = Math.max(1, contentH - wrap.clientHeight);
-    const ratio = Math.min(1, Math.max(0, (pad - nextPan.y) / maxPan));
-    onScrollRatioChange(ratio);
-  }
-
   useEffect(() => {
     if (loading || error) return;
     const cached =
@@ -397,53 +345,17 @@ export function PdfPage({
   }, [highlightRegion, panToHighlight, scale, natural.w, natural.h]);
 
   useEffect(() => {
-    if (!scrollSync) return;
-    const wrap = wrapRef.current;
-    if (!wrap) return;
-    applyingSync.current = true;
-    const pad = 8;
-    if (scrollAnchorY != null) {
-      setPan((prev) => ({
-        ...prev,
-        y: panYForAnchor(scrollAnchorY, scale, natural.h, wrap.clientHeight, pad),
-      }));
-    } else if (scrollRatio != null) {
-      const contentH = natural.h * scale;
-      const maxPan = Math.max(0, contentH - wrap.clientHeight);
-      setPan((prev) => ({
-        ...prev,
-        y: pad - scrollRatio * maxPan,
-      }));
-    } else {
-      applyingSync.current = false;
-      return;
-    }
-    requestAnimationFrame(() => {
-      applyingSync.current = false;
-    });
-  }, [
-    scrollRatio,
-    scrollAnchorY,
-    natural.h,
-    scale,
-    scrollSync,
-    onScrollAnchorChange,
-  ]);
-
-  useEffect(() => {
     const wrap = wrapRef.current;
     if (!wrap) return;
     const onWheelNative = (event: WheelEvent) => {
       event.preventDefault();
-      // Sync: колёсико — вертикальный пан; Ctrl+колёсико — зум в точку курсора.
-      if (scrollSync && !event.ctrlKey) {
+      if (!event.ctrlKey) {
         const next = {
           ...panRef.current,
           y: panRef.current.y - event.deltaY,
         };
         panRef.current = next;
         setPan(next);
-        emitScrollPosition(next, scaleRef.current);
         return;
       }
       const oldScale = scaleRef.current;
@@ -465,12 +377,10 @@ export function PdfPage({
       panRef.current = nextPan;
       setScale(nextScale);
       setPan(nextPan);
-      emitScrollPosition(nextPan, nextScale);
     };
     wrap.addEventListener("wheel", onWheelNative, { passive: false });
     return () => wrap.removeEventListener("wheel", onWheelNative);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onScrollRatioChange, onScrollAnchorChange, natural.h, scrollSync]);
+  }, [natural.h]);
 
   useEffect(() => {
     if (!markMode) return;
@@ -569,7 +479,6 @@ export function PdfPage({
             };
             panRef.current = next;
             setPan(next);
-            emitScrollPosition(next);
             return;
           }
           if (onHoverRegion && hoverRegions.length) {
@@ -638,15 +547,6 @@ export function PdfPage({
               ref={canvasRef}
               className="block bg-white shadow-[0_12px_40px_rgba(0,0,0,0.45)]"
             />
-            {highlightAnchorY != null && !highlightRegion ? (
-              <div
-                className="pointer-events-none absolute left-0 right-0 border-y-2 border-sky-500/90 bg-sky-400/15"
-                style={{
-                  top: `${Math.max(0, highlightAnchorY * 100 - 1.5)}%`,
-                  height: "3%",
-                }}
-              />
-            ) : null}
             {highlightRegion ? (
               <div
                 className="pointer-events-none absolute z-[5] bg-emerald-400/35 outline outline-2 outline-emerald-600 shadow-[0_0_0_4px_rgba(16,185,129,0.2)]"
@@ -763,7 +663,7 @@ export function PdfPage({
           ]}
         />
         <span className="pr-0.5 text-[11px] tabular-nums text-muted">
-          {Math.round(scale * 100)} %{scrollSync ? " · sync" : ""}
+          {Math.round(scale * 100)}%
         </span>
       </div>
     </div>

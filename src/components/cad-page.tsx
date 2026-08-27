@@ -13,10 +13,7 @@ import {
   type CadPrimitive,
 } from "@/lib/cad-geometry";
 import {
-  panYForAnchor,
   regionAtPoint,
-  regionsFromCadTexts,
-  visibleAnchorY,
   type PageTextRegion,
 } from "@/lib/content-sync";
 import type { AnnotationRect, PageAnnotation } from "@/types";
@@ -29,16 +26,9 @@ type CadPageProps = {
   activeAnnotationId?: string | null;
   highlightNonce?: number;
   highlightQuery?: string;
-  scrollSync?: boolean;
-  scrollRatio?: number | null;
-  scrollAnchorY?: number | null;
-  highlightAnchorY?: number | null;
   highlightRegion?: PageTextRegion | null;
   panToHighlight?: boolean;
   hoverRegions?: PageTextRegion[];
-  onScrollRatioChange?: (ratio: number) => void;
-  onScrollAnchorChange?: (y: number) => void;
-  onTextRegionsReady?: (regions: PageTextRegion[]) => void;
   onHoverRegion?: (regionId: string | null) => void;
   onSelectRegion?: (regionId: string | null) => void;
   onMarkRect?: (rect: AnnotationRect) => void;
@@ -71,16 +61,9 @@ export function CadPage({
   activeAnnotationId = null,
   highlightNonce = 0,
   highlightQuery = "",
-  scrollSync = false,
-  scrollRatio = null,
-  scrollAnchorY = null,
-  highlightAnchorY = null,
   highlightRegion = null,
   panToHighlight = false,
   hoverRegions = [],
-  onScrollRatioChange,
-  onScrollAnchorChange,
-  onTextRegionsReady,
   onHoverRegion,
   onSelectRegion,
   onMarkRect,
@@ -231,23 +214,6 @@ export function CadPage({
     setPan({ x: pad / 2, y: pad / 2 });
   }
 
-  function emitScrollPosition(nextPan: { x: number; y: number }, nextScale = scale) {
-    if (applyingSync.current) return;
-    const wrap = wrapRef.current;
-    if (!wrap) return;
-    const pad = 8;
-    if (onScrollAnchorChange) {
-      onScrollAnchorChange(
-        visibleAnchorY(nextPan.y, nextScale, natural.h, wrap.clientHeight, pad),
-      );
-    }
-    if (!onScrollRatioChange) return;
-    const contentH = natural.h * nextScale;
-    const maxPan = Math.max(1, contentH - wrap.clientHeight);
-    const ratio = Math.min(1, Math.max(0, (pad - nextPan.y) / maxPan));
-    onScrollRatioChange(ratio);
-  }
-
   useEffect(() => {
     if (loading || error) return;
     if (!geometry && !previewUrl) return;
@@ -298,52 +264,17 @@ export function CadPage({
   }, [highlightRegion, panToHighlight, scale, natural.w, natural.h]);
 
   useEffect(() => {
-    if (!scrollSync) return;
-    const wrap = wrapRef.current;
-    if (!wrap) return;
-    applyingSync.current = true;
-    const pad = 8;
-    if (scrollAnchorY != null) {
-      setPan((prev) => ({
-        ...prev,
-        y: panYForAnchor(scrollAnchorY, scale, natural.h, wrap.clientHeight, pad),
-      }));
-    } else if (scrollRatio != null) {
-      const contentH = natural.h * scale;
-      const maxPan = Math.max(0, contentH - wrap.clientHeight);
-      setPan((prev) => ({
-        ...prev,
-        y: pad - scrollRatio * maxPan,
-      }));
-    } else {
-      applyingSync.current = false;
-      return;
-    }
-    requestAnimationFrame(() => {
-      applyingSync.current = false;
-    });
-  }, [
-    scrollRatio,
-    scrollAnchorY,
-    natural.h,
-    scale,
-    scrollSync,
-    onScrollAnchorChange,
-  ]);
-
-  useEffect(() => {
     const wrap = wrapRef.current;
     if (!wrap) return;
     const onWheelNative = (event: WheelEvent) => {
       event.preventDefault();
-      if (scrollSync && !event.ctrlKey) {
+      if (!event.ctrlKey) {
         const next = {
           ...panRef.current,
           y: panRef.current.y - event.deltaY,
         };
         panRef.current = next;
         setPan(next);
-        emitScrollPosition(next, scaleRef.current);
         return;
       }
       const oldScale = scaleRef.current;
@@ -365,12 +296,10 @@ export function CadPage({
       panRef.current = nextPan;
       setScale(nextScale);
       setPan(nextPan);
-      emitScrollPosition(nextPan, nextScale);
     };
     wrap.addEventListener("wheel", onWheelNative, { passive: false });
     return () => wrap.removeEventListener("wheel", onWheelNative);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onScrollRatioChange, onScrollAnchorChange, natural.h, scrollSync]);
+  }, [natural.h]);
 
   useEffect(() => {
     if (!markMode) return;
@@ -452,11 +381,6 @@ export function CadPage({
     return hits;
   }, [geometry, needle, texts]);
 
-  useEffect(() => {
-    if (!geometry) return;
-    onTextRegionsReady?.(regionsFromCadTexts(texts, geometry.bbox));
-  }, [geometry, texts, onTextRegionsReady]);
-
   const preview = markMode && draw
     ? {
         x: Math.min(draw.x0, draw.x1),
@@ -521,7 +445,6 @@ export function CadPage({
             };
             panRef.current = next;
             setPan(next);
-            emitScrollPosition(next);
             return;
           }
           if (onHoverRegion && hoverRegions.length) {
@@ -658,15 +581,6 @@ export function CadPage({
               />
             ) : null}
 
-            {highlightAnchorY != null && !highlightRegion ? (
-              <div
-                className="pointer-events-none absolute left-0 right-0 border-y-2 border-sky-500/90 bg-sky-400/15"
-                style={{
-                  top: `${Math.max(0, highlightAnchorY * 100 - 1.5)}%`,
-                  height: "3%",
-                }}
-              />
-            ) : null}
             {highlightRegion ? (
               <div
                 className="pointer-events-none absolute z-[5] bg-emerald-400/35 outline outline-2 outline-emerald-600 shadow-[0_0_0_4px_rgba(16,185,129,0.2)]"
@@ -776,7 +690,7 @@ export function CadPage({
           ]}
         />
         <span className="pr-0.5 text-[11px] tabular-nums text-muted">
-          {Math.round(scale * 100)} %{scrollSync ? " · sync" : ""}
+          {Math.round(scale * 100)}%
           {geometry?.scale ? ` · ${geometry.scale}` : ""}
         </span>
       </div>

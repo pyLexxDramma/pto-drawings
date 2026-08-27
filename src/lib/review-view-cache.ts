@@ -8,7 +8,6 @@ export type PageViewCache = {
 
 export type DocumentViewCache = {
   pageNumber?: number;
-  scrollSync?: boolean;
   paneSolo?: "pdf" | "md" | null;
   galleryMode?: boolean;
   pages?: Record<number, PageViewCache>;
