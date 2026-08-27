@@ -319,7 +319,7 @@ export function ProcessingBottomBar({
     if (!isFinished) {
       wasActiveRef.current = false;
     }
-  }, [isActive, isFinished, document.id, onDismiss]);
+  }, [isActive, isFinished, document.status, onDismiss]);
 
   const target = processingPercent(document);
   const smooth = useSmoothProgress(target, {
