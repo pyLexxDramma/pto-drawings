@@ -32,7 +32,6 @@ import {
 import { formatDate } from "@/lib/format";
 import { getDrawingExt, isCadExt } from "@/lib/drawing-files";
 import {
-  ProcessingBottomBar,
   ProcessingProgressPanel,
 } from "@/components/processing-progress-panel";
 import { ReviewPaneHelp } from "@/components/review-pane-help";
@@ -77,6 +76,8 @@ type ReviewPaneProps = {
   activeJobDocument?: DocumentRecord | null;
   /** Связанный PDF или DWG из комплекта kitId. */
   kitSibling?: DocumentRecord | null;
+  /** Сообщить workspace: развёрнутая панель прогресса занимает правую колонку. */
+  onFullProgressVisible?: (visible: boolean) => void;
   onCancel?: () => void;
   onToggleFocus: () => void;
   onBackToProjects: () => void;
@@ -130,6 +131,7 @@ export function ReviewPane({
   liveJobLabel = null,
   activeJobDocument = null,
   kitSibling = null,
+  onFullProgressVisible,
   onCancel,
   onToggleFocus,
   onBackToProjects,
@@ -318,16 +320,15 @@ export function ReviewPane({
     progressLive &&
     ready.has(pageNumber) &&
     pageNumber !== activeProcessingPage;
-  /** Нижняя полоска прогресса (не развёрнутая панель справа). */
-  const [bottomProgressOpen, setBottomProgressOpen] = useState(() => progressLive);
-
-  useEffect(() => {
-    if (progressLive) setBottomProgressOpen(true);
-  }, [progressLive, progressDocument?.id, document.id]);
   const showFullProgress =
     progressIsCurrentDoc &&
     progressLive &&
     (!viewingProcessedSheet || progressExpanded);
+
+  useEffect(() => {
+    onFullProgressVisible?.(showFullProgress);
+    return () => onFullProgressVisible?.(false);
+  }, [showFullProgress, onFullProgressVisible]);
 
   useEffect(() => {
     if (viewingProcessedSheet) {
@@ -1548,32 +1549,6 @@ export function ReviewPane({
           ) : null}
         </div>
 
-        {bottomProgressOpen && progressDocument && !showFullProgress ? (
-          <ProcessingBottomBar
-            document={progressDocument}
-            errorCount={Object.keys(progressDocument.pageErrors ?? {}).length}
-            onDismiss={() => setBottomProgressOpen(false)}
-            onExpand={
-              !progressIsCurrentDoc && onGoToLiveJob
-                ? onGoToLiveJob
-                : viewingProcessedSheet && !progressExpanded
-                  ? () => setProgressExpanded(true)
-                  : undefined
-            }
-            onGoToCurrent={
-              progressLive &&
-              activeProcessingPage != null &&
-              (pageNumber !== activeProcessingPage || !progressIsCurrentDoc)
-                ? goToCurrentProcessing
-                : undefined
-            }
-            currentPage={
-              pageNumber !== activeProcessingPage || !progressIsCurrentDoc
-                ? activeProcessingPage
-                : null
-            }
-          />
-        ) : null}
           </>
         )}
       </div>

@@ -256,48 +256,65 @@ function processingBottomLine(
   errorCount = 0,
 ): string {
   const stopped = isCancelMessage(document.errorMessage);
-  const pages = `${document.readyPages}/${Math.max(document.pageCount, 1)} листов`;
+  const pages = `${document.readyPages}/${Math.max(document.pageCount, 1)}`;
+  const eta = !stopped ? processingEtaSec(document) : null;
+  const etaLabel =
+    eta != null && eta > 0 ? `~${formatProgressDuration(eta)}` : null;
   const elapsed =
     document.pipelineElapsedSec != null
-      ? `время ${formatProgressDuration(document.pipelineElapsedSec)}`
+      ? formatProgressDuration(document.pipelineElapsedSec)
       : null;
 
   if (stopped) {
-    return ["Обработка остановлена", pages, elapsed].filter(Boolean).join(" · ");
+    return ["Остановлено", pages, elapsed].filter(Boolean).join(" · ");
   }
   if (document.status === "error") {
-    const base = document.errorMessage
-      ? `Ошибка обработки: ${document.errorMessage}`
-      : "Ошибка обработки";
-    return [base, pages, elapsed].filter(Boolean).join(" · ");
+    return ["Ошибка", pages, elapsed].filter(Boolean).join(" · ");
   }
   if (document.status === "done") {
     return [
-      `Обработка завершена · ${formatProcessingPercent(100)}`,
+      `Готово · ${formatProcessingPercent(100)}`,
       pages,
       elapsed,
-      errorCount > 0 ? `ошибок листов: ${errorCount}` : null,
+      errorCount > 0 ? `ошибок: ${errorCount}` : null,
     ]
       .filter(Boolean)
       .join(" · ");
   }
 
   return [
-    processingStatusLabel(document),
     formatProcessingPercent(percent),
     pages,
-  ].join(" · ");
+    etaLabel,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 }
 
-/** Полоска прогресса внизу экрана; после завершения скрывается сама. */
-export function ProcessingBottomBar({
+/** Полоска прогресса внизу справа — одна на весь экран. */
+export function LiveProgressDock({
   document,
   errorCount = 0,
-  onExpand,
-  onGoToCurrent,
-  currentPage = null,
+  onOpen,
+  onCancel,
+  canceling = false,
   onDismiss,
-}: BottomBarProps) {
+  onHide,
+  collapsed = false,
+  onExpand,
+}: {
+  document: DocProgress;
+  errorCount?: number;
+  onOpen?: () => void;
+  onCancel?: () => void;
+  canceling?: boolean;
+  /** После авто-скрытия завершённого job. */
+  onDismiss?: () => void;
+  /** Скрыть плашку вручную — обработка не останавливается. */
+  onHide?: () => void;
+  collapsed?: boolean;
+  onExpand?: () => void;
+}) {
   const cancelPending = isCancelMessage(document.errorMessage);
   const isActive =
     document.status === "queued" ||
@@ -318,12 +335,10 @@ export function ProcessingBottomBar({
       const timer = window.setTimeout(() => {
         setVisible(false);
         onDismiss?.();
-      }, 1800);
+      }, 2200);
       return () => window.clearTimeout(timer);
     }
-    if (!isFinished) {
-      wasActiveRef.current = false;
-    }
+    if (!isFinished) wasActiveRef.current = false;
   }, [isActive, isFinished, document.status, onDismiss]);
 
   const target = processingPercent(document);
@@ -342,50 +357,107 @@ export function ProcessingBottomBar({
 
   if (!visible) return null;
 
-  const interactive = Boolean(onExpand);
+  // Свёрнутая точка: обработка идёт, плашка скрыта вручную.
+  if (collapsed && isActive) {
+    return (
+      <button
+        type="button"
+        onClick={onExpand}
+        className="pointer-events-auto fixed bottom-3 right-3 z-40 flex max-w-[11rem] items-center gap-1.5 rounded-full border border-sky-200 bg-white/95 px-2.5 py-1.5 text-[10px] font-semibold tabular-nums text-sky-950 shadow-lg backdrop-blur hover:bg-sky-50"
+        title="Показать прогресс (обработка продолжается)"
+        data-testid="live-progress-dock-collapsed"
+      >
+        {!cancelPending ? (
+          <Spinner className="h-2.5 w-2.5 shrink-0 text-sky-700" />
+        ) : null}
+        <span className="truncate">{formatProcessingPercent(percent)}</span>
+        <span className="text-sky-700/70">▸</span>
+      </button>
+    );
+  }
+
+  if (collapsed) return null;
 
   return (
     <div
-      className="pointer-events-auto fixed inset-x-0 bottom-0 z-40 border-t border-sky-200/80 bg-white/95 shadow-[0_-4px_16px_rgba(15,23,42,0.08)] backdrop-blur"
+      className="pointer-events-auto fixed bottom-3 right-3 z-40 w-[min(calc(100vw-1.5rem),17rem)] overflow-hidden rounded-lg border border-sky-200/90 bg-white/95 shadow-lg backdrop-blur"
       role="status"
       aria-live="polite"
+      data-testid="live-progress-dock"
     >
-      <button
-        type="button"
-        disabled={!interactive}
-        onClick={onExpand}
-        className={`flex w-full items-center gap-3 px-3 py-2 text-left ${
-          interactive ? "cursor-pointer hover:bg-sky-50/60" : "cursor-default"
-        }`}
-        title={interactive ? "Развернуть прогресс" : undefined}
-      >
-        <div className="flex min-w-0 flex-1 items-center gap-2">
-          {isActive && !cancelPending ? (
-            <Spinner className="h-3.5 w-3.5 shrink-0 text-sky-700" />
-          ) : null}
-          <span className="truncate text-[11px] font-medium text-sky-950">
-            {summaryLine}
-          </span>
-        </div>
-        {interactive ? (
-          <span className="shrink-0 text-[10px] font-medium text-sky-800">
-            Подробнее
-          </span>
-        ) : null}
-      </button>
-      <ProgressTrack value={percent} tone="sky" className="h-1 rounded-none" />
-      {isActive && onGoToCurrent && currentPage != null ? (
-        <div className="border-t border-sky-100 px-3 py-1.5">
+      <div className="flex items-start gap-1 px-2.5 pt-2">
+        <button
+          type="button"
+          onClick={onOpen}
+          disabled={!onOpen}
+          className={`min-w-0 flex-1 text-left ${
+            onOpen ? "cursor-pointer hover:opacity-90" : "cursor-default"
+          }`}
+          title={onOpen ? "Открыть обрабатываемый файл" : undefined}
+        >
+          <div className="flex items-start gap-2">
+            {isActive && !cancelPending ? (
+              <Spinner className="mt-0.5 h-3 w-3 shrink-0 text-sky-700" />
+            ) : null}
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[11px] font-semibold text-sky-950">
+                {document.originalName ?? "Обработка"}
+              </div>
+              <div className="mt-0.5 truncate text-[10px] tabular-nums text-sky-900/80">
+                {summaryLine}
+              </div>
+            </div>
+          </div>
+        </button>
+        {onHide && isActive ? (
           <button
             type="button"
-            onClick={onGoToCurrent}
-            className="w-full rounded-md border border-sky-200 bg-sky-50 px-2 py-1 text-[11px] font-semibold text-sky-950 hover:bg-sky-100"
+            onClick={onHide}
+            className="shrink-0 rounded px-1 py-0.5 text-[11px] leading-none text-sky-800/70 hover:bg-sky-50 hover:text-sky-950"
+            title="Скрыть (обработка не остановится)"
+            aria-label="Скрыть прогресс"
           >
-            К текущему листу {currentPage}
+            ×
+          </button>
+        ) : null}
+      </div>
+      <div className="px-2.5 pb-1.5 pt-1">
+        <ProgressTrack value={percent} tone="sky" className="h-0.5" />
+      </div>
+      {isActive && onCancel && !cancelPending ? (
+        <div className="flex items-center justify-between gap-2 border-t border-sky-100 px-2 py-1">
+          <span className="text-[9px] text-sky-800/60">Стоп — остановить</span>
+          <button
+            type="button"
+            disabled={canceling}
+            onClick={onCancel}
+            className="rounded border border-sky-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-sky-900 hover:bg-sky-50 disabled:opacity-50"
+            title="Остановить обработку"
+          >
+            {canceling ? "…" : "Стоп"}
           </button>
         </div>
       ) : null}
     </div>
+  );
+}
+
+/** @deprecated Используйте LiveProgressDock. */
+export function ProcessingBottomBar({
+  document,
+  errorCount = 0,
+  onExpand,
+  onGoToCurrent,
+  currentPage = null,
+  onDismiss,
+}: BottomBarProps) {
+  return (
+    <LiveProgressDock
+      document={document}
+      errorCount={errorCount}
+      onOpen={onExpand ?? onGoToCurrent}
+      onDismiss={onDismiss}
+    />
   );
 }
 

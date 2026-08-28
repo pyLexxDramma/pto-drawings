@@ -20,7 +20,6 @@ import {
 } from "@/components/toast";
 import {
   ActionMenu,
-  ProgressTrack,
   SegmentedTabs,
   Spinner,
   menuItemClass,
@@ -34,11 +33,7 @@ import {
   formatPages,
   formatTimeOnly,
 } from "@/lib/format";
-import {
-  formatProcessingPercent,
-  processingPercent,
-} from "@/lib/processing-progress";
-import { useSmoothProgress } from "@/hooks/use-smooth-progress";
+import { LiveProgressDock } from "@/components/processing-progress-panel";
 import {
   formatElapsed,
   formatPipelineUsage,
@@ -60,7 +55,6 @@ import {
 import { loadCachedProgress } from "@/lib/review-state";
 import {
   KIND_LABEL,
-  STEP_LABEL,
   type DocumentRecord,
   type DocumentStatus,
   type Project,
@@ -98,142 +92,29 @@ const STATUS_DOT: Record<DocumentStatus, string> = {
   error: "bg-red-500",
 };
 
-function pageProgress(doc: DocumentRecord) {
-  return processingPercent(doc);
-}
-
-/** Сводка для тонкой полосы под шапкой: % и стадия по активным файлам. */
-function processingOverview(
+function pickLiveJob(
   documents: DocumentRecord[],
   selectedId: string | null,
-  uploads: UploadItem[],
-) {
+): DocumentRecord | null {
   const active = documents.filter(
-    (doc) => doc.status === "queued" || doc.status === "processing",
+    (doc) =>
+      doc.status === "queued" ||
+      doc.status === "processing" ||
+      Boolean(doc.errorMessage?.startsWith("Отмена")),
   );
-  const uploading = uploads.filter((item) => !item.error);
-
-  if (active.length === 0 && uploading.length === 0) return null;
-
-  if (active.length === 0) {
-    const avg = Math.round(
-      uploading.reduce((sum, item) => sum + item.progress, 0) / uploading.length,
-    );
-    return {
-      percent: avg,
-      canceling: false,
-      documentId: null as string | null,
-      labelBase: `Загрузка PDF…`,
-      smooth: false,
-    };
-  }
-
-  const primary =
+  if (active.length === 0) return null;
+  return (
     active.find((doc) => doc.id === selectedId) ??
     active.find((doc) => doc.status === "processing") ??
-    active[0];
-
-  // Взвешенный % по файлам: каждый — continuous, не скачок по целым листам.
-  const weighted =
-    active.reduce((sum, doc) => sum + processingPercent(doc), 0) / active.length;
-  const percent = Math.min(99.5, Math.round(weighted * 10) / 10);
-  const canceling = active.some((doc) =>
-    doc.errorMessage?.startsWith("Отмена"),
+    active[0]
   );
-  const step =
-    primary.processingStep && STEP_LABEL[primary.processingStep]
-      ? STEP_LABEL[primary.processingStep].toLowerCase()
-      : primary.status === "queued"
-        ? "в очереди"
-        : "обработка";
-  const pageHint = primary.processingPage
-    ? `лист ${primary.processingPage}`
-    : null;
-  const fileHint =
-    active.length > 1
-      ? `${active.length} файла`
-      : primary.originalName;
-
-  return {
-    percent,
-    canceling,
-    documentId: primary.id,
-    labelBase: canceling
-      ? "Отмена…"
-      : [fileHint, pageHint, step].filter(Boolean).join(" · "),
-    smooth: !canceling,
-  };
 }
 
-function GlobalProcessBar({
-  percent,
-  canceling,
-  documentId,
-  labelBase,
-  smooth,
-  cancelingId,
-  onCancel,
-}: {
-  percent: number;
-  canceling: boolean;
-  documentId: string | null;
-  labelBase: string;
-  smooth: boolean;
-  cancelingId: string | null;
-  onCancel: (id: string) => void;
-}) {
-  const shown = useSmoothProgress(percent, {
-    active: smooth && !canceling,
-    max: 99.5,
-  });
-  const label = `${labelBase} · ${formatProcessingPercent(shown)}`;
-
-  return (
-    <div
-      className={`flex h-7 shrink-0 items-center gap-3 border-b px-4 ${
-        canceling
-          ? "border-amber-300 bg-amber-100"
-          : "border-emerald-200 bg-emerald-50"
-      }`}
-      role="progressbar"
-      data-testid="global-process-bar"
-      aria-valuenow={Math.round(shown)}
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-label={label}
-    >
-      <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-emerald-100">
-        <div
-          className={`h-full rounded-full ${
-            canceling ? "bg-amber-600" : "bg-emerald-500"
-          }`}
-          style={{
-            width: `${Math.max(shown, shown === 0 ? 6 : 2)}%`,
-            transition: "width 200ms linear",
-          }}
-        />
-      </div>
-      <span
-        className={`min-w-0 max-w-[50%] shrink truncate text-[11px] font-semibold tabular-nums ${
-          canceling ? "text-amber-950" : "text-emerald-950"
-        }`}
-        title={label}
-      >
-        {label}
-      </span>
-      {documentId ? (
-        <button
-          type="button"
-          disabled={canceling || cancelingId === documentId}
-          onClick={() => onCancel(documentId)}
-          className="shrink-0 rounded border border-amber-300 bg-white px-2 py-0.5 text-[11px] font-semibold text-amber-950 hover:bg-amber-50 disabled:opacity-50"
-          title="Остановить обработку"
-        >
-          {canceling || cancelingId === documentId ? "Останавливаем…" : "Стоп"}
-        </button>
-      ) : null}
-    </div>
-  );
+function liveJobPage(doc: DocumentRecord) {
+  const total = Math.max(doc.pageCount, 1);
+  const ready = Math.min(Math.max(doc.readyPages, 0), total);
+  if (doc.processingPage && doc.processingPage > 0) return doc.processingPage;
+  return ready < total ? ready + 1 : 1;
 }
 
 function kindSummary(doc: DocumentRecord) {
@@ -433,6 +314,10 @@ export function Workspace({
   const [uploadBusy, setUploadBusy] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [projectsWidth, setProjectsWidth] = useState(280);
+  /** Job обработки, переживает смену проекта. */
+  const [liveJobDoc, setLiveJobDoc] = useState<DocumentRecord | null>(null);
+  const [fullProgressVisible, setFullProgressVisible] = useState(false);
+  const [liveDockCollapsed, setLiveDockCollapsed] = useState(false);
   const [openPage, setOpenPage] = useState<{
     nonce: number;
     page: number;
@@ -453,32 +338,22 @@ export function Workspace({
     );
   }, [documents, selected]);
   const currentProject = projects.find((item) => item.id === projectId);
-  const busy = documents.some(
-    (doc) => doc.status === "queued" || doc.status === "processing",
-  );
-  const liveJob = (() => {
-    const active = documents.filter(
+  const busy =
+    documents.some(
       (doc) => doc.status === "queued" || doc.status === "processing",
+    ) ||
+    Boolean(
+      liveJobDoc &&
+        (liveJobDoc.status === "queued" || liveJobDoc.status === "processing"),
     );
-    if (active.length === 0) return null;
-    const primary =
-      active.find((doc) => doc.id === selectedId) ??
-      active.find((doc) => doc.status === "processing") ??
-      active[0];
-    const total = Math.max(primary.pageCount, 1);
-    const ready = Math.min(Math.max(primary.readyPages, 0), total);
-    const page =
-      primary.processingPage && primary.processingPage > 0
-        ? primary.processingPage
-        : ready < total
-          ? ready + 1
-          : 1;
-    return {
-      documentId: primary.id,
-      page,
-      label: `${primary.originalName} · лист ${page}`,
-    };
-  })();
+  const liveJob = liveJobDoc
+    ? {
+        documentId: liveJobDoc.id,
+        projectId: liveJobDoc.projectId,
+        page: liveJobPage(liveJobDoc),
+        label: `${liveJobDoc.originalName} · лист ${liveJobPage(liveJobDoc)}`,
+      }
+    : null;
 
   const loadProjects = useCallback(async (signal?: AbortSignal) => {
     const response = await fetch("/api/projects", { signal });
@@ -667,6 +542,65 @@ export function Workspace({
     // Только первый заход в workspace — иначе сброс projectId / remount input ломает выбор файла.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    const fromList = pickLiveJob(documents, selectedId);
+    if (fromList) {
+      setLiveJobDoc(fromList);
+      return;
+    }
+    setLiveJobDoc((prev) => prev ?? null);
+  }, [documents, selectedId, projectId]);
+
+  useEffect(() => {
+    setLiveDockCollapsed(false);
+  }, [liveJobDoc?.id]);
+
+  useEffect(() => {
+    if (
+      liveJobDoc &&
+      (liveJobDoc.status === "done" || liveJobDoc.status === "error")
+    ) {
+      setLiveDockCollapsed(false);
+    }
+  }, [liveJobDoc?.id, liveJobDoc?.status]);
+
+  // Поллинг live job даже после смены проекта.
+  useEffect(() => {
+    if (!liveJobDoc) return;
+    const id = liveJobDoc.id;
+    const active =
+      liveJobDoc.status === "queued" ||
+      liveJobDoc.status === "processing" ||
+      Boolean(liveJobDoc.errorMessage?.startsWith("Отмена"));
+    if (!active && liveJobDoc.status !== "done" && liveJobDoc.status !== "error") {
+      return;
+    }
+    if (liveJobDoc.status === "done" || liveJobDoc.status === "error") {
+      // финальный кадр уже есть — dock сам скроется
+      return;
+    }
+    const tick = async () => {
+      try {
+        const response = await fetch(`/api/documents/${id}`);
+        if (!response.ok) return;
+        const payload = (await response.json()) as { document?: DocumentRecord };
+        if (!payload.document) return;
+        setLiveJobDoc(payload.document);
+        applyFullDocument(payload.document);
+      } catch {
+        // сеть — следующий тик
+      }
+    };
+    void tick();
+    const timer = window.setInterval(() => void tick(), 1500);
+    return () => window.clearInterval(timer);
+  }, [
+    liveJobDoc?.id,
+    liveJobDoc?.status,
+    liveJobDoc?.errorMessage,
+    applyFullDocument,
+  ]);
 
   useEffect(() => {
     if (!projectId || !busy) return;
@@ -1166,6 +1100,34 @@ export function Workspace({
     }
   }
 
+  const openLiveJob = useCallback(async () => {
+    if (!liveJobDoc) return;
+    const targetProject = liveJobDoc.projectId;
+    const docId = liveJobDoc.id;
+    const page = liveJobPage(liveJobDoc);
+    if (targetProject && targetProject !== projectId) {
+      setProjectId(targetProject);
+      setProjectsCollapsed(false);
+      setSelectedId(null);
+      const project = projects.find((item) => item.id === targetProject);
+      setDescriptionDraft(project?.description ?? "");
+      await Promise.all([
+        loadDocuments(targetProject),
+        loadEdits(targetProject),
+        loadNotes(targetProject),
+      ]);
+    }
+    await openDocument(docId, page);
+  }, [
+    liveJobDoc,
+    projectId,
+    projects,
+    loadDocuments,
+    loadEdits,
+    loadNotes,
+    openDocument,
+  ]);
+
   async function handleCancel(id: string) {
     setCancelingId(id);
     setError(null);
@@ -1215,7 +1177,15 @@ export function Workspace({
     notes,
     showPipelineTech,
   );
-  const processBar = processingOverview(documents, selectedId, uploads);
+  const showLiveDock = Boolean(
+    liveJobDoc &&
+      !fullProgressVisible &&
+      (liveJobDoc.status === "queued" ||
+        liveJobDoc.status === "processing" ||
+        liveJobDoc.status === "done" ||
+        liveJobDoc.status === "error" ||
+        liveJobDoc.errorMessage?.startsWith("Отмена")),
+  );
   const filteredNotes = notes.filter((note) => {
     if (notesFilter === "all") return true;
     if (notesFilter === "open") return note.status === "open";
@@ -1345,15 +1315,25 @@ export function Workspace({
         </header>
       )}
 
-      {processBar ? (
-        <GlobalProcessBar
-          percent={processBar.percent}
-          canceling={processBar.canceling}
-          documentId={processBar.documentId}
-          labelBase={processBar.labelBase}
-          smooth={processBar.smooth}
-          cancelingId={cancelingId}
-          onCancel={(id) => void handleCancel(id)}
+      {showLiveDock && liveJobDoc ? (
+        <LiveProgressDock
+          document={liveJobDoc}
+          errorCount={Object.keys(liveJobDoc.pageErrors ?? {}).length}
+          canceling={cancelingId === liveJobDoc.id}
+          collapsed={liveDockCollapsed}
+          onExpand={() => setLiveDockCollapsed(false)}
+          onHide={() => setLiveDockCollapsed(true)}
+          onCancel={() => void handleCancel(liveJobDoc.id)}
+          onOpen={() => void openLiveJob()}
+          onDismiss={() => {
+            if (
+              liveJobDoc.status === "done" ||
+              liveJobDoc.status === "error"
+            ) {
+              setLiveJobDoc(null);
+              setLiveDockCollapsed(false);
+            }
+          }}
         />
       ) : null}
 
@@ -1659,7 +1639,7 @@ export function Workspace({
             onGoToLiveJob={
               liveJob && liveJob.documentId !== selected.id
                 ? () => {
-                    void openDocument(liveJob.documentId, liveJob.page);
+                    void openLiveJob();
                   }
                 : null
             }
@@ -1669,10 +1649,14 @@ export function Workspace({
                 : null
             }
             activeJobDocument={
-              liveJob
-                ? documents.find((doc) => doc.id === liveJob.documentId) ?? null
+              liveJobDoc &&
+              (liveJobDoc.status === "queued" ||
+                liveJobDoc.status === "processing" ||
+                Boolean(liveJobDoc.errorMessage?.startsWith("Отмена")))
+                ? liveJobDoc
                 : null
             }
+            onFullProgressVisible={setFullProgressVisible}
             headerRight={
               <>
                 {visiblePipelineChip ? (
@@ -1715,7 +1699,7 @@ export function Workspace({
             {liveJob ? (
               <button
                 type="button"
-                onClick={() => void openDocument(liveJob.documentId, liveJob.page)}
+                onClick={() => void openLiveJob()}
                 className="rounded-md border border-sky-300 bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-950 hover:bg-sky-100"
               >
                 К обработке · {liveJob.label}
