@@ -1448,10 +1448,10 @@ export function Workspace({
                 ) : (
                   <div
                     key={project.id}
-                    className={`mb-1 rounded-md ${
+                    className={`mb-1.5 rounded-md border-2 ${
                       project.id === projectId
-                        ? "bg-blue-50/80 ring-1 ring-accent/20"
-                        : "hover:bg-surface-2"
+                        ? "border-slate-500 bg-blue-50/80"
+                        : "border-slate-300 bg-white hover:border-slate-400 hover:bg-surface-2"
                     }`}
                     data-project-row={project.id}
                   >
@@ -1541,8 +1541,8 @@ export function Workspace({
                             key={doc.id}
                             className={`mb-0.5 flex items-stretch gap-0.5 rounded ${
                               selectedId === doc.id
-                                ? "bg-accent/10 ring-1 ring-accent/30"
-                                : "hover:bg-white"
+                                ? "bg-accent/15 ring-1 ring-accent/40"
+                                : "hover:bg-slate-200/90"
                             }`}
                             data-document-row={doc.id}
                           >
