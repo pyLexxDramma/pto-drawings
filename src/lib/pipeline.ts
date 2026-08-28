@@ -75,17 +75,61 @@ export async function fetchPipelineHealth(): Promise<PipelineHealth> {
 export async function findPipelineJob(
   documentId: string,
 ): Promise<PipelineJob | null> {
-  const response = await pipelineFetch(
-    `/jobs?documentId=${encodeURIComponent(documentId)}`,
-  );
-  if (!response.ok) return null;
-  const payload = (await response.json()) as { jobs?: PipelineJob[] } | PipelineJob[];
-  const jobs = Array.isArray(payload) ? payload : (payload.jobs ?? []);
+  const jobs = await listPipelineJobs(documentId);
   return (
     jobs.find((job) => job.status === "processing" || job.status === "queued") ??
     jobs[jobs.length - 1] ??
     null
   );
+}
+
+export async function listPipelineJobs(documentId: string): Promise<PipelineJob[]> {
+  try {
+    const response = await pipelineFetch(
+      `/jobs?documentId=${encodeURIComponent(documentId)}`,
+    );
+    if (!response.ok) return [];
+    const payload = (await response.json()) as
+      | { jobs?: PipelineJob[] }
+      | PipelineJob[];
+    return Array.isArray(payload) ? payload : (payload.jobs ?? []);
+  } catch {
+    return [];
+  }
+}
+
+/** Отменить и удалить все job документа на конвейере (при удалении файла в UI). */
+export async function purgePipelineJobsForDocument(
+  documentId: string,
+): Promise<void> {
+  const jobs = await listPipelineJobs(documentId);
+  for (const job of jobs) {
+    if (job.status === "queued" || job.status === "processing") {
+      try {
+        await cancelPipelineJob(job.id);
+      } catch (error) {
+        console.warn(
+          `[pto] cancel job ${job.id} before purge:`,
+          error instanceof Error ? error.message : error,
+        );
+      }
+    }
+    try {
+      const response = await pipelineFetch(`/jobs/${job.id}?purge=true`, {
+        method: "DELETE",
+      });
+      if (!response.ok && response.status !== 404) {
+        console.warn(
+          `[pto] purge job ${job.id} → HTTP ${response.status}`,
+        );
+      }
+    } catch (error) {
+      console.warn(
+        `[pto] purge job ${job.id}:`,
+        error instanceof Error ? error.message : error,
+      );
+    }
+  }
 }
 
 /** Прокси к конвейеру: геометрия / превью листа DWG. */

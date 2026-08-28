@@ -7,8 +7,8 @@ import {
   isZipFile,
   kitLabelFromName,
 } from "@/lib/drawing-kit";
-import { activeDocumentIds, processDocument } from "@/lib/process-document";
-import { listDocuments, resetStuckDocuments, saveDocumentKit } from "@/lib/storage";
+import { processDocument, reconcileOrphanedJobs } from "@/lib/process-document";
+import { listDocuments, saveDocumentKit } from "@/lib/storage";
 
 export const maxDuration = 120;
 
@@ -122,7 +122,7 @@ export async function GET(request: Request) {
   if (!isPublicUser(user)) return user;
   const { searchParams } = new URL(request.url);
   const projectId = searchParams.get("projectId") ?? undefined;
-  await resetStuckDocuments(activeDocumentIds());
+  await reconcileOrphanedJobs();
   const documents = await listDocuments(projectId, { lite: true });
   const kits = new Map<
     string,

@@ -7,8 +7,8 @@ import {
   isDrawingFile,
   resolveDisplayName,
 } from "@/lib/drawing-files";
-import { activeDocumentIds, processDocument } from "@/lib/process-document";
-import { listDocuments, resetStuckDocuments, saveDocument } from "@/lib/storage";
+import { processDocument, reconcileOrphanedJobs } from "@/lib/process-document";
+import { listDocuments, saveDocument } from "@/lib/storage";
 
 export const maxDuration = 60;
 
@@ -20,7 +20,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const projectId = searchParams.get("projectId") ?? undefined;
   const lite = searchParams.get("lite") !== "0";
-  await resetStuckDocuments(activeDocumentIds());
+  await reconcileOrphanedJobs();
   const documents = await listDocuments(projectId, { lite });
   return NextResponse.json(
     { documents },

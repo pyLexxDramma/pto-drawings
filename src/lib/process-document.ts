@@ -1,27 +1,16 @@
 /**
- * ЗАМЕНА ДЛЯ src/lib/process-document.ts во фронтенде (pto-drawings).
+ * Документ уходит в конвейер PTO-work и возвращается листами по мере готовности.
  *
- * Вместо разбора текстового слоя через unpdf документ уходит в наш конвейер
- * (backend/service) и возвращается листами по мере готовности.
- *
- * Интерфейс модуля не меняется: наружу по-прежнему торчит processDocument(id),
- * поэтому src/app/api/documents/route.ts и .../process/route.ts править не надо.
- *
- * Что важно знать:
- *  - PDF не пересылается: сервис читает его прямо из uploads/ фронта, поэтому
- *    бэкенд должен быть запущен с PTO_ALLOWED_PDF_ROOTS на эту папку;
- *  - при перезапуске Next идущий прогон не теряется — клиент находит задачу
- *    по documentId и подхватывает прогресс;
- *  - листы, посчитанные раньше, конвейер не пересчитывает.
- *
- * Про устойчивость. Прогон документа идёт часами (лист чертежа — до 15 минут),
- * то есть клиент успевает сделать тысячи запросов. Сетевой сбой на этой
- * дистанции неизбежен: keep-alive соединение закрывается на той стороне, и
- * fetch падает с «fetch failed». Поэтому здесь есть ретраи, а одиночная
- * ошибка не имеет права уронить весь прогон — иначе бэкенд досчитывает
- * документ до конца, а интерфейс показывает ошибку и половину листов.
+ * PDF/DWG не пересылаются: сервис читает файл из uploads/ фронта
+ * (PTO_ALLOWED_PDF_ROOTS на бэке).
  */
-import { getDocument, updateDocument } from "@/lib/storage";
+import { runInBackground } from "@/lib/background";
+import {
+  fetchPipelineHealth,
+  findPipelineJob,
+  purgePipelineJobsForDocument,
+} from "@/lib/pipeline";
+import { getDocument, listDocuments, updateDocument } from "@/lib/storage";
 import type { DocumentPage, DocumentRecord, ProcessingStep } from "@/types";
 import path from "path";
 
@@ -30,12 +19,10 @@ const BACKEND_URL = (
 ).replace(/\/+$/, "");
 const POLL_MS = Number(process.env.PTO_POLL_MS ?? 3000);
 const PAGES_PER_TICK = 40;
-// Одна попытка запроса из трёх обычно проходит; сдаёмся только если сервис
-// молчит подряд столько тиков, что это уже не икота, а падение.
 const REQUEST_ATTEMPTS = 3;
-const MAX_CONSECUTIVE_FAILURES = Number(process.env.PTO_MAX_FAILURES ?? 20);
+/** Раньше 20 — на длинном PDF UI сдавался раньше конвейера. */
+const MAX_CONSECUTIVE_FAILURES = Number(process.env.PTO_MAX_FAILURES ?? 40);
 
-// Так же, как persist.ts вычисляет папку загрузок.
 const ROOT = process.env.DATA_ROOT || process.cwd();
 const UPLOAD_DIR = path.join(ROOT, "uploads");
 
@@ -68,10 +55,8 @@ type BackendPage = {
 };
 
 const running = new Set<string>();
-/** Отмена запрошена из UI — поллер не должен возвращать документ в «активную» обработку. */
 const canceling = new Set<string>();
 
-/** Идентификаторы документов, которые реально обрабатываются в этом процессе. */
 export function activeDocumentIds() {
   return new Set(running);
 }
@@ -82,7 +67,6 @@ function isCancelMessage(message: string | null | undefined) {
   return Boolean(message && message.startsWith("Отмена"));
 }
 
-/** Ошибка, которую нет смысла повторять (неверный запрос, нет задачи). */
 class PermanentError extends Error {}
 
 async function api<T>(pathname: string, init?: RequestInit): Promise<T> {
@@ -101,7 +85,6 @@ async function api<T>(pathname: string, init?: RequestInit): Promise<T> {
       const message = `Конвейер ответил ${response.status}${
         detail ? `: ${detail.slice(0, 200)}` : ""
       }`;
-      // 4xx (кроме 429) — наша ошибка, повтор не поможет.
       if (response.status < 500 && response.status !== 429) {
         throw new PermanentError(message);
       }
@@ -125,7 +108,6 @@ async function findExistingJob(documentId: string): Promise<BackendJob | null> {
   );
   const jobs = payload.jobs ?? [];
   if (jobs.length === 0) return null;
-  // Живая задача важнее завершённой: после перезапуска Next подхватываем её.
   return (
     jobs.find((job) => job.status === "processing" || job.status === "queued") ??
     jobs[jobs.length - 1]
@@ -144,8 +126,6 @@ async function findActiveJob(documentId: string): Promise<BackendJob | null> {
 }
 
 async function createJob(document: DocumentRecord): Promise<BackendJob> {
-  // Файл не пересылается: бэкенд стоит рядом и читает его из той же папки
-  // uploads по пути. Поэтому сервису нужен PTO_ALLOWED_PDF_ROOTS на неё.
   return api<BackendJob>("/jobs", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -170,7 +150,6 @@ async function fetchPages(
 }
 
 function mapStatus(status: BackendStatus): DocumentRecord["status"] {
-  // У фронта нет отдельного «отменён» — показываем как ошибку с пояснением.
   if (status === "canceled") return "error";
   return status;
 }
@@ -211,10 +190,78 @@ function cancelMessage(job: BackendJob | null) {
     : "Обработка отменена.";
 }
 
+/** Остановить поллер документа (удаление / ручная отмена). */
+export function abandonDocumentProcessing(id: string) {
+  canceling.add(id);
+}
+
+/**
+ * После рестарта Next: если на конвейере job ещё жив — подхватить поллер,
+ * а не помечать документ ошибкой (длинный PDF).
+ */
+export async function reconcileOrphanedJobs() {
+  const active = activeDocumentIds();
+  let documents: DocumentRecord[];
+  try {
+    documents = await listDocuments(undefined, { lite: true });
+  } catch {
+    return;
+  }
+
+  for (const doc of documents) {
+    if (doc.status !== "queued" && doc.status !== "processing") continue;
+    if (active.has(doc.id)) continue;
+    if (canceling.has(doc.id)) continue;
+
+    try {
+      const job = await findPipelineJob(doc.id);
+      if (
+        job &&
+        (job.status === "queued" ||
+          job.status === "processing" ||
+          job.status === "done")
+      ) {
+        runInBackground(processDocument(doc.id));
+        continue;
+      }
+      if (job && (job.status === "error" || job.status === "canceled")) {
+        await updateDocument(doc.id, {
+          status: "error",
+          processingStep: null,
+          processingPage: null,
+          pipelineFinishedAt: new Date().toISOString(),
+          errorMessage:
+            job.status === "canceled"
+              ? "Обработка отменена."
+              : "Ошибка конвейера. Нажмите «Обработать заново».",
+        });
+        continue;
+      }
+      await updateDocument(doc.id, {
+        status: "error",
+        processingStep: null,
+        processingPage: null,
+        pipelineFinishedAt: new Date().toISOString(),
+        errorMessage: "Обработка прервалась. Нажмите «Повтор».",
+      });
+    } catch (error) {
+      console.warn(
+        `[pto] reconcile ${doc.id}:`,
+        error instanceof Error ? error.message : error,
+      );
+    }
+  }
+}
+
+/** Удаление файла: остановить поллер + снять job с конвейера. */
+export async function purgeDocumentPipeline(id: string) {
+  abandonDocumentProcessing(id);
+  await purgePipelineJobsForDocument(id);
+}
+
 export async function cancelDocument(id: string) {
   canceling.add(id);
 
-  // Сразу в БД — UI и поллер увидят отмену даже если бэкенд тормозит / HMR сбросил Set.
   const pending = await updateDocument(id, {
     processingStep: null,
     errorMessage: CANCEL_PENDING,
@@ -253,7 +300,6 @@ export async function cancelDocument(id: string) {
       })) ?? pending
     );
   } catch (error) {
-    // Флаг в БД уже стоит — поллер/processDocument продолжат дожимать отмену.
     const message =
       error instanceof Error ? error.message : "Не удалось связаться с конвейером";
     return (
@@ -273,23 +319,22 @@ export async function processDocument(id: string) {
     const document = await getDocument(id);
     if (!document) return;
 
-    await updateDocument(id, {
-      status: "processing",
-      processingStep: "queued",
-      processingPage: null,
-      errorMessage: null,
-      pageErrors: {},
-      pipelineFinishedAt: null,
-      pipelineElapsedSec: null,
-    });
+    if (!canceling.has(id) && !isCancelMessage(document.errorMessage)) {
+      await updateDocument(id, {
+        status: "processing",
+        processingStep: "queued",
+        processingPage: null,
+        errorMessage: null,
+        pageErrors: {},
+        pipelineFinishedAt: null,
+        pipelineElapsedSec: null,
+      });
+    }
 
     const job = (await findExistingJob(id)) ?? (await createJob(document));
     const pages = new Map<number, DocumentPage>(
       document.pages.map((page) => [page.pageNumber, page]),
     );
-    // storage.ts переписывает весь db.json целиком, поэтому пишем только когда
-    // реально что-то изменилось. Иначе на длинном прогоне мы бы перезаписывали
-    // базу каждые POLL_MS без причины.
     let lastSignature = "";
     let failures = 0;
     let cancelPosted = false;
@@ -316,10 +361,18 @@ export async function processDocument(id: string) {
       } catch (error) {
         if (error instanceof PermanentError) throw error;
         failures += 1;
-        // Бэкенд считает документ часами и переживает сетевые сбои. Клиент
-        // обязан вести себя так же, иначе прогон продолжится, а интерфейс
-        // покажет ошибку и половину листов.
-        if (failures >= MAX_CONSECUTIVE_FAILURES) throw error;
+        if (failures >= MAX_CONSECUTIVE_FAILURES) {
+          const soft = await shouldKeepPolling(id);
+          if (soft) {
+            failures = Math.floor(MAX_CONSECUTIVE_FAILURES / 2);
+            console.warn(
+              `[pto] poll fail, но job/health живы — продолжаем (${id})`,
+            );
+            await sleep(POLL_MS * 2);
+            continue;
+          }
+          throw error;
+        }
         console.warn(
           `[pto] конвейер не ответил (${failures}/${MAX_CONSECUTIVE_FAILURES}), повтор:`,
           error instanceof Error ? error.message : error,
@@ -329,9 +382,13 @@ export async function processDocument(id: string) {
       }
 
       const snap = await getDocument(id);
+      if (!snap) {
+        // Файл удалили в UI — выходим; purge уже на стороне DELETE.
+        return;
+      }
       const wantsCancel =
         canceling.has(id) ||
-        isCancelMessage(snap?.errorMessage) ||
+        isCancelMessage(snap.errorMessage) ||
         Boolean(current.cancelRequested);
 
       if (
@@ -344,10 +401,10 @@ export async function processDocument(id: string) {
           await api<BackendJob>(`/jobs/${job.id}/cancel`, { method: "POST" });
           cancelPosted = true;
           current = await api<BackendJob>(`/jobs/${job.id}`);
-        } catch (error) {
+        } catch (err) {
           console.warn(
             "[pto] не удалось отправить cancel на конвейер:",
-            error instanceof Error ? error.message : error,
+            err instanceof Error ? err.message : err,
           );
         }
       }
@@ -382,8 +439,7 @@ export async function processDocument(id: string) {
             : wantsCancel
               ? "processing"
               : mapStatus(current.status),
-          processingStep:
-            canceled || wantsCancel ? null : stepFor(current),
+          processingStep: canceled || wantsCancel ? null : stepFor(current),
           processingPage: canceled ? null : current.processingPage,
           pageCount: current.pageCount || document.pageCount,
           pages: [...pages.values()].sort((a, b) => a.pageNumber - b.pageNumber),
@@ -408,11 +464,9 @@ export async function processDocument(id: string) {
       await sleep(POLL_MS);
     }
   } catch (error) {
+    if (!(await getDocument(id))) return;
     const message =
       error instanceof Error ? error.message : "Не удалось обработать файл";
-    // Листы, которые успели прийти, уже лежат в базе — статус ошибки их не
-    // стирает. Повторный запуск обработки заберёт остальное с бэкенда, ничего
-    // не пересчитывая.
     await updateDocument(id, {
       status: "error",
       processingStep: null,
@@ -424,4 +478,20 @@ export async function processDocument(id: string) {
     running.delete(id);
     canceling.delete(id);
   }
+}
+
+/** Если health и/или job ещё живы — не сдаёмся с ошибкой UI. */
+async function shouldKeepPolling(documentId: string): Promise<boolean> {
+  try {
+    const health = await fetchPipelineHealth();
+    if (!health.reachable) return false;
+    const job = await findExistingJob(documentId).catch(() => null);
+    if (job && (job.status === "queued" || job.status === "processing")) {
+      return true;
+    }
+    if (health.ok) return true;
+  } catch {
+    // ignore
+  }
+  return false;
 }
