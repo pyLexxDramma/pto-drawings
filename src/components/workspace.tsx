@@ -767,7 +767,34 @@ export function Workspace({
     };
   }, []);
 
+  function openProjectsList() {
+    setProjectsCollapsed(false);
+    setProjectId("");
+    setSelectedId(null);
+    setFocusMode(false);
+    setDocuments([]);
+    setEdits([]);
+    setNotes([]);
+    setDescriptionDraft("");
+    setShowEdits(false);
+    setProjectQuery("");
+    setHits([]);
+    setError(null);
+  }
+
   async function selectProject(id: string) {
+    if (projectId === id) {
+      setProjectId("");
+      setSelectedId(null);
+      setDocuments([]);
+      setEdits([]);
+      setNotes([]);
+      setDescriptionDraft("");
+      setShowEdits(false);
+      setProjectQuery("");
+      setHits([]);
+      return;
+    }
     setProjectId(id);
     setSelectedId(null);
     setFocusMode(false);
@@ -1345,7 +1372,7 @@ export function Workspace({
                 type="button"
                 role="tab"
                 aria-selected={false}
-                onClick={() => setProjectsCollapsed(false)}
+                onClick={() => openProjectsList()}
                 className="flex-1 text-xs text-muted hover:bg-bg"
                 title="Показать проекты"
                 aria-expanded={false}
@@ -1718,7 +1745,7 @@ export function Workspace({
                 </label>
                 <button
                   type="button"
-                  onClick={() => setProjectsCollapsed(false)}
+                  onClick={() => openProjectsList()}
                   className="inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-text hover:border-accent hover:text-accent"
                 >
                   Открыть проект
