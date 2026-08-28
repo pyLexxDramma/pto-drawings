@@ -742,8 +742,11 @@ export function ReviewPane({
     filters.find((item) => item.id === filter)?.label.toLowerCase() ?? "этот тип";
   const openNotes = notes.filter((item) => item.status === "open").length;
   const pageError = document.pageErrors?.[String(pageNumber)] ?? null;
+  const pageWarning = document.pageWarnings?.[String(pageNumber)] ?? null;
   const isMockPage = Boolean(page?.markdown.includes("[MOCK]"));
   const errorCount = Object.keys(document.pageErrors ?? {}).length;
+  const suspectNumbers =
+    page?.numbers?.suspect?.filter((item) => item.trim().length > 0) ?? [];
 
   useEffect(() => {
     setHoverNoteId(null);
@@ -1018,6 +1021,15 @@ export function ReviewPane({
                           {document.pageErrors?.[String(number)] ? (
                             <span className="text-amber-600" title="Ошибка обработки">
                               !
+                            </span>
+                          ) : null}
+                          {!document.pageErrors?.[String(number)] &&
+                          document.pageWarnings?.[String(number)] ? (
+                            <span
+                              className="text-orange-500"
+                              title={document.pageWarnings[String(number)]}
+                            >
+                              △
                             </span>
                           ) : null}
                           {viewedSet.has(number) ? (
@@ -1408,6 +1420,14 @@ export function ReviewPane({
                 ) : null}
               </div>
               <div className="flex items-center gap-2">
+                {sidePanel === "text" && page?.source === "model" ? (
+                  <span
+                    className="text-[10px] text-orange-700"
+                    title="Текстового слоя нет — содержимое прочитано по изображению; сверьте числа и марки с оригиналом"
+                  >
+                    По изображению · сверить
+                  </span>
+                ) : null}
                 {showTech && sidePanel === "text" && page ? (
                   <span className="text-[10px] text-muted">
                     {SOURCE_LABEL[page.source]}
@@ -1447,6 +1467,21 @@ export function ReviewPane({
                 {page.warnings.map((warning) => (
                   <div key={warning}>{warning}</div>
                 ))}
+              </div>
+            ) : null}
+
+            {pageWarning && !(page && page.warnings.length > 0) ? (
+              <div className="border-b border-orange-200 bg-orange-50 px-3 py-2 text-[11px] text-orange-900">
+                {pageWarning}
+              </div>
+            ) : null}
+
+            {suspectNumbers.length > 0 ? (
+              <div className="border-b border-rose-200 bg-rose-50 px-3 py-2 text-[11px] text-rose-900">
+                <div className="font-medium">Числа для сверки с оригиналом</div>
+                <div className="mt-0.5 break-words">
+                  {suspectNumbers.join(" · ")}
+                </div>
               </div>
             ) : null}
 

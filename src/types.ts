@@ -53,6 +53,14 @@ export type DocumentPage = {
   extractedText: string;
   source: PageSource;
   warnings: string[];
+  /** Проверка чисел из описания модели против текстового слоя (schema 8). */
+  numbers?: {
+    checked: boolean;
+    total: number;
+    found: number;
+    precision: number | null;
+    suspect: string[];
+  } | null;
 };
 
 export type EditLogEntry = {
@@ -135,6 +143,8 @@ export type DocumentMeta = {
   pipelineFinishedAt: string | null;
   pipelineUsage: Record<string, number>;
   pageErrors: Record<string, string>;
+  /** Лист есть, но с дырами (в отличие от pageErrors — листа нет). */
+  pageWarnings: Record<string, string>;
   createdAt: string;
 };
 

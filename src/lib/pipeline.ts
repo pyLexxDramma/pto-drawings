@@ -17,6 +17,14 @@ export type PipelineHealth = {
     model?: string | null;
     provider?: string | null;
   };
+  queue?: {
+    queued: number;
+    processing: number;
+    done: number;
+    error: number;
+    canceled: number;
+  };
+  currentJobs?: { model: string | null; vector: string | null };
   reachable: boolean;
   error?: string;
   /** Суммарный расход токенов по документам в базе фронта. */
@@ -59,6 +67,8 @@ export async function fetchPipelineHealth(): Promise<PipelineHealth> {
       modeSource:
         data.modeSource ?? data.profile?.modeSource ?? undefined,
       profile: data.profile ?? {},
+      queue: data.queue,
+      currentJobs: data.currentJobs,
       reachable: true,
     };
   } catch (error) {

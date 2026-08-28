@@ -29,7 +29,18 @@ function baseName(path: string): string {
   const name = parts[parts.length - 1] ?? path;
   if (name.startsWith("._") || name.startsWith(".")) return "";
   if (path.includes("__MACOSX/")) return "";
-  return name;
+  return fixZipName(name);
+}
+
+/** Проводник Windows пишет имена в ZIP как cp866 без флага UTF-8. */
+function fixZipName(name: string): string {
+  if (!/[\u0080-\u00FF]/.test(name)) return name;
+  const bytes = Uint8Array.from(name, (ch) => ch.charCodeAt(0) & 0xff);
+  try {
+    return new TextDecoder("ibm866").decode(bytes);
+  } catch {
+    return name;
+  }
 }
 
 export function extractDrawingKitFromZip(buffer: Buffer): DrawingKitFiles {

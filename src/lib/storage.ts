@@ -134,6 +134,23 @@ function normalizeEditLog(raw: Partial<EditLogEntry> & { id: string }): EditLogE
 
 function normalizePage(raw: Partial<DocumentPage> & { pageNumber: number }): DocumentPage {
   const kinds: PageKind[] = ["drawing", "text", "table", "mixed"];
+  const numbers =
+    raw.numbers && typeof raw.numbers === "object"
+      ? {
+          checked: Boolean(raw.numbers.checked),
+          total: Number(raw.numbers.total) || 0,
+          found: Number(raw.numbers.found) || 0,
+          precision:
+            typeof raw.numbers.precision === "number"
+              ? raw.numbers.precision
+              : null,
+          suspect: Array.isArray(raw.numbers.suspect)
+            ? raw.numbers.suspect.filter((item) => typeof item === "string")
+            : [],
+        }
+      : raw.numbers === null
+        ? null
+        : undefined;
   return {
     pageNumber: raw.pageNumber,
     kind: kinds.includes(raw.kind as PageKind) ? (raw.kind as PageKind) : "text",
@@ -141,6 +158,7 @@ function normalizePage(raw: Partial<DocumentPage> & { pageNumber: number }): Doc
     extractedText: raw.extractedText ?? "",
     source: raw.source === "model" ? "model" : "heuristic",
     warnings: Array.isArray(raw.warnings) ? raw.warnings.filter((item) => Boolean(item)) : [],
+    ...(numbers !== undefined ? { numbers } : {}),
   };
 }
 
@@ -281,6 +299,14 @@ function normalizeMeta(raw: Partial<DocumentMeta> & { id: string }): DocumentMet
       raw.pageErrors && typeof raw.pageErrors === "object"
         ? Object.fromEntries(
             Object.entries(raw.pageErrors).filter(
+              ([, value]) => typeof value === "string",
+            ),
+          )
+        : {},
+    pageWarnings:
+      raw.pageWarnings && typeof raw.pageWarnings === "object"
+        ? Object.fromEntries(
+            Object.entries(raw.pageWarnings).filter(
               ([, value]) => typeof value === "string",
             ),
           )
@@ -831,6 +857,7 @@ export async function saveDocument(input: {
       pipelineFinishedAt: null,
       pipelineUsage: {},
       pageErrors: {},
+      pageWarnings: {},
       createdAt: new Date().toISOString(),
     };
 
@@ -917,6 +944,7 @@ export type DocumentPatch = {
   pipelineFinishedAt?: string | null;
   pipelineUsage?: Record<string, number>;
   pageErrors?: Record<string, string>;
+  pageWarnings?: Record<string, string>;
 };
 
 export async function updateDocument(
@@ -943,6 +971,7 @@ export async function updateDocument(
     }
     if (patch.pipelineUsage !== undefined) meta.pipelineUsage = patch.pipelineUsage;
     if (patch.pageErrors !== undefined) meta.pageErrors = patch.pageErrors;
+    if (patch.pageWarnings !== undefined) meta.pageWarnings = patch.pageWarnings;
 
     let body: DocumentBody | null = null;
     if (patch.pages !== undefined) {

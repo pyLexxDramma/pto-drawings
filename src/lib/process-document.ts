@@ -41,6 +41,7 @@ type BackendJob = {
   processingStep: ProcessingStep | null;
   errorMessage: string | null;
   pageErrors: Record<string, string>;
+  pageWarnings?: Record<string, string>;
   usage?: Record<string, number>;
   elapsedSec?: number | null;
   cancelRequested?: boolean;
@@ -52,6 +53,19 @@ type BackendPage = {
   kind: DocumentPage["kind"];
   markdown: string;
   extractedText: string;
+  trust?: {
+    level: "dwg" | "layer" | "vlm" | "none";
+    title: string;
+    warnings: string[];
+  };
+  warnings?: string[];
+  numbers?: {
+    checked: boolean;
+    total: number;
+    found: number;
+    precision: number | null;
+    suspect: string[];
+  } | null;
 };
 
 const running = new Set<string>();
@@ -180,6 +194,7 @@ function pipelinePatch(job: BackendJob, options?: { finished?: boolean }) {
     ...(finished ? { pipelineFinishedAt: new Date().toISOString() } : {}),
     pipelineUsage: job.usage ?? {},
     pageErrors: job.pageErrors ?? {},
+    pageWarnings: job.pageWarnings ?? {},
   };
 }
 
@@ -353,8 +368,10 @@ export async function processDocument(id: string) {
             kind: page.kind,
             markdown: page.markdown,
             extractedText: page.extractedText,
-            source: "model",
-            warnings: [],
+            // trust.level: dwg | layer — из данных; vlm — по изображению; none — пусто
+            source: page.trust?.level === "vlm" ? "model" : "heuristic",
+            warnings: page.warnings ?? [],
+            numbers: page.numbers ?? null,
           });
         }
         failures = 0;

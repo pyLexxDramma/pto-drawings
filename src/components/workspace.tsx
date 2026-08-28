@@ -1209,6 +1209,40 @@ export function Workspace({
   const noteFileOptions = Array.from(
     new Map(notes.map((note) => [note.documentId, note.originalName])).entries(),
   );
+  const queueChip = (() => {
+    if (!pipelineHealth?.reachable || !pipelineHealth.queue) return null;
+    const { queued, processing } = pipelineHealth.queue;
+    if (queued <= 0 && processing <= 0) return null;
+    const liveBusy =
+      liveJobDoc &&
+      (liveJobDoc.status === "queued" || liveJobDoc.status === "processing")
+        ? `${liveJobDoc.originalName}${
+            liveJobDoc.pageCount > 0
+              ? `, лист ${liveJobDoc.processingPage ?? "…"} из ${liveJobDoc.pageCount}`
+              : ""
+          }`
+        : null;
+    const lanes = pipelineHealth.currentJobs;
+    const laneHint =
+      !liveBusy && (lanes?.model || lanes?.vector)
+        ? `считается: ${[lanes.model ? "модель" : null, lanes.vector ? "вектор" : null]
+            .filter(Boolean)
+            .join(" + ")}`
+        : liveBusy
+          ? `считается: ${liveBusy}`
+          : processing > 0
+            ? `считается: ${processing}`
+            : null;
+    const parts = [
+      queued > 0 ? `в очереди ${queued}` : null,
+      laneHint,
+    ].filter(Boolean);
+    if (!parts.length) return null;
+    return {
+      className: "border-sky-200 bg-sky-50 text-sky-950",
+      text: parts.join(", "),
+    };
+  })();
   const pipelineChip = (() => {
     if (!pipelineHealth) return null;
     if (!pipelineHealth.reachable) {
@@ -1245,6 +1279,7 @@ export function Workspace({
     return null;
   })();
   const visiblePipelineChip = showPipelineTech ? pipelineChip : null;
+  const visibleQueueChip = queueChip;
 
   const backToProjects = () => {
     setSelectedId(null);
@@ -1299,12 +1334,23 @@ export function Workspace({
             </div>
           </button>
           <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
+            {visibleQueueChip ? (
+              <div
+                className={`hidden min-w-0 items-center gap-1.5 whitespace-nowrap rounded-md border px-2.5 py-1 text-[11px] md:flex ${visibleQueueChip.className}`}
+                title={visibleQueueChip.text}
+              >
+                {busy ? <Spinner className="h-3 w-3 opacity-80" /> : null}
+                <span className="truncate">{visibleQueueChip.text}</span>
+              </div>
+            ) : null}
             {visiblePipelineChip ? (
               <div
                 className={`hidden min-w-0 items-center gap-1.5 whitespace-nowrap rounded-md border px-2.5 py-1 text-[11px] md:flex ${visiblePipelineChip.className}`}
                 title={visiblePipelineChip.text}
               >
-                {busy ? <Spinner className="h-3 w-3 opacity-80" /> : null}
+                {busy && !visibleQueueChip ? (
+                  <Spinner className="h-3 w-3 opacity-80" />
+                ) : null}
                 <span>{visiblePipelineChip.text}</span>
               </div>
             ) : null}
@@ -1674,6 +1720,14 @@ export function Workspace({
             onFullProgressVisible={setFullProgressVisible}
             headerRight={
               <>
+                {visibleQueueChip ? (
+                  <span
+                    className={`hidden max-w-[220px] truncate whitespace-nowrap rounded-md border px-2.5 py-1 text-[11px] sm:inline-block ${visibleQueueChip.className}`}
+                    title={visibleQueueChip.text}
+                  >
+                    {visibleQueueChip.text}
+                  </span>
+                ) : null}
                 {visiblePipelineChip ? (
                   <span
                     className={`hidden whitespace-nowrap rounded-md border px-2.5 py-1 text-[11px] sm:inline-block ${visiblePipelineChip.className}`}
