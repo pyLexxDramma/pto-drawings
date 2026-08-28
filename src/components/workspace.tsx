@@ -368,13 +368,23 @@ export function Workspace({
     return list;
   }, [onLogout]);
 
-  const applyFullDocument = useCallback((document: DocumentRecord) => {
-    setDocuments((prev) => {
-      const exists = prev.some((doc) => doc.id === document.id);
-      if (!exists) return [document, ...prev];
-      return prev.map((doc) => (doc.id === document.id ? document : doc));
-    });
-  }, []);
+  const applyFullDocument = useCallback(
+    (document: DocumentRecord, options?: { insertIfMissing?: boolean }) => {
+      setDocuments((prev) => {
+        const exists = prev.some((doc) => doc.id === document.id);
+        if (!exists) {
+          // Не вставлять чужой проект в список — иначе строки «скачут» при поллинге.
+          if (options?.insertIfMissing === false) return prev;
+          if (document.projectId && projectId && document.projectId !== projectId) {
+            return prev;
+          }
+          return [document, ...prev];
+        }
+        return prev.map((doc) => (doc.id === document.id ? document : doc));
+      });
+    },
+    [projectId],
+  );
 
   const refreshDocument = useCallback(
     async (id: string, signal?: AbortSignal) => {
@@ -587,7 +597,8 @@ export function Workspace({
         const payload = (await response.json()) as { document?: DocumentRecord };
         if (!payload.document) return;
         setLiveJobDoc(payload.document);
-        applyFullDocument(payload.document);
+        // Только обновляем запись, если файл уже в открытом проекте — не вставляем чужой.
+        applyFullDocument(payload.document, { insertIfMissing: false });
       } catch {
         // сеть — следующий тик
       }
@@ -602,23 +613,27 @@ export function Workspace({
     applyFullDocument,
   ]);
 
+  // Поллить список файлов только если в ТЕКУЩЕМ проекте идёт обработка.
+  const localBusy = documents.some(
+    (doc) => doc.status === "queued" || doc.status === "processing",
+  );
   useEffect(() => {
-    if (!projectId || !busy) return;
+    if (!projectId || !localBusy) return;
     const timer = setInterval(() => {
       void loadDocuments(projectId);
     }, 900);
     return () => clearInterval(timer);
-  }, [busy, loadDocuments, projectId]);
+  }, [localBusy, loadDocuments, projectId]);
 
   // lite-опрос не несёт страницы — пока идёт обработка, тянем полный документ
   useEffect(() => {
-    if (!selectedId || !busy) return;
+    if (!selectedId || !localBusy) return;
     void refreshDocument(selectedId);
     const timer = setInterval(() => {
       void refreshDocument(selectedId);
     }, 1500);
     return () => clearInterval(timer);
-  }, [busy, refreshDocument, selectedId]);
+  }, [localBusy, refreshDocument, selectedId]);
 
   // после done lite мог оставить пустые pages — один раз догружаем текст
   useEffect(() => {
