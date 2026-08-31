@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { isPublicUser, requireUser } from "@/lib/auth";
 import { runInBackground } from "@/lib/background";
-import { getDrawingExt, isOfficeExt } from "@/lib/drawing-files";
+import { getDrawingExt } from "@/lib/drawing-files";
 import { processDocument } from "@/lib/process-document";
 import { getDocument, updateDocument } from "@/lib/storage";
 
@@ -18,9 +18,9 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Документ не найден" }, { status: 404 });
   }
 
-  if (isOfficeExt(getDrawingExt(document.originalName))) {
+  if (getDrawingExt(document.originalName) === "doc") {
     return NextResponse.json(
-      { error: "Word-документ уже разобран при загрузке — повтор не нужен" },
+      { error: ".doc разобран при загрузке — повтор не нужен" },
       { status: 400 },
     );
   }

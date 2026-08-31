@@ -1,16 +1,15 @@
-import mammoth from "mammoth";
 import WordExtractor from "word-extractor";
 import type { DocumentPage } from "@/types";
 
 const PAGE_CHARS = 4500;
 
-/** Текст из .doc / .docx → страницы markdown для расшифровки. */
+/** Текст из старого .doc → страницы markdown (без конвейера). .docx идёт в POST /jobs. */
 export async function pagesFromOfficeFile(
   buffer: Buffer,
-  ext: "doc" | "docx",
+  ext: "doc",
   originalName: string,
 ): Promise<DocumentPage[]> {
-  const text = (await extractOfficeText(buffer, ext)).replace(/\r\n/g, "\n").trim();
+  const text = (await extractOfficeText(buffer)).replace(/\r\n/g, "\n").trim();
   if (!text) {
     throw Object.assign(
       new Error("В файле Word нет текста для расшифровки"),
@@ -32,21 +31,14 @@ export async function pagesFromOfficeFile(
       extractedText: chunk,
       source: "heuristic" as const,
       warnings: [
-        "Текст извлечён из Word (.doc/.docx), без конвейера PDF/модели.",
+        "Старый формат .doc разобран на фронте. Для таблиц и сводки комплекта сохраните файл как .docx.",
       ],
       numbers: null,
     };
   });
 }
 
-async function extractOfficeText(
-  buffer: Buffer,
-  ext: "doc" | "docx",
-): Promise<string> {
-  if (ext === "docx") {
-    const result = await mammoth.extractRawText({ buffer });
-    return result.value ?? "";
-  }
+async function extractOfficeText(buffer: Buffer): Promise<string> {
   const extractor = new WordExtractor();
   const doc = await extractor.extract(buffer);
   return [doc.getBody(), doc.getHeaders(), doc.getFooters()]

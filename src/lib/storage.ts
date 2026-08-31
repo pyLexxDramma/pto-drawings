@@ -821,7 +821,7 @@ export async function saveDocument(input: {
     } catch {
       throw Object.assign(new Error("Не удалось прочитать PDF"), { status: 400 });
     }
-  } else if (ext === "doc" || ext === "docx") {
+  } else if (ext === "doc") {
     officePages = await pagesFromOfficeFile(
       input.buffer,
       ext,

@@ -54,7 +54,7 @@ type BackendPage = {
   markdown: string;
   extractedText: string;
   trust?: {
-    level: "dwg" | "layer" | "vlm" | "none";
+    level: "dwg" | "layer" | "vlm" | "docx" | "none";
     title: string;
     warnings: string[];
   };
