@@ -16,6 +16,7 @@ import {
   regionAtPoint,
   type PageTextRegion,
 } from "@/lib/content-sync";
+import { clampPan } from "@/lib/page-viewport";
 import type { AnnotationRect, PageAnnotation } from "@/types";
 
 type CadPageProps = {
@@ -198,6 +199,18 @@ export function CadPage({
     };
   }, [documentId, pageNumber]);
 
+  function boundPan(next: { x: number; y: number }, s = scaleRef.current) {
+    const wrap = wrapRef.current;
+    const n = naturalRef.current;
+    if (!wrap) return next;
+    return clampPan(next, {
+      viewW: wrap.clientWidth,
+      viewH: wrap.clientHeight,
+      contentW: n.w * s,
+      contentH: n.h * s,
+    });
+  }
+
   function fit(mode: "page" | "width") {
     const wrap = wrapRef.current;
     if (!wrap) return;
@@ -210,10 +223,20 @@ export function CadPage({
     const contentH = natural.h * s;
     setFitMode(mode);
     setScale(s);
-    setPan({
-      x: Math.max(pad / 2, (wrap.clientWidth - contentW) / 2),
-      y: Math.max(pad / 2, (wrap.clientHeight - contentH) / 2),
-    });
+    setPan(
+      clampPan(
+        {
+          x: Math.max(pad / 2, (wrap.clientWidth - contentW) / 2),
+          y: Math.max(pad / 2, (wrap.clientHeight - contentH) / 2),
+        },
+        {
+          viewW: wrap.clientWidth,
+          viewH: wrap.clientHeight,
+          contentW,
+          contentH,
+        },
+      ),
+    );
   }
 
   useEffect(() => {
@@ -223,7 +246,18 @@ export function CadPage({
     if (cached) {
       setFitMode(cached.fitMode);
       setScale(cached.scale);
-      setPan(cached.pan);
+      scaleRef.current = cached.scale;
+      const wrap = wrapRef.current;
+      const clamped = wrap
+        ? clampPan(cached.pan, {
+            viewW: wrap.clientWidth,
+            viewH: wrap.clientHeight,
+            contentW: natural.w * cached.scale,
+            contentH: natural.h * cached.scale,
+          })
+        : cached.pan;
+      panRef.current = clamped;
+      setPan(clamped);
       return;
     }
     fit("width");
@@ -257,7 +291,7 @@ export function CadPage({
     else if (cy > wrap.clientHeight - margin) ny -= cy - (wrap.clientHeight - margin);
     if (nx === p.x && ny === p.y) return;
     applyingSync.current = true;
-    const next = { x: nx, y: ny };
+    const next = boundPan({ x: nx, y: ny });
     panRef.current = next;
     setPan(next);
     requestAnimationFrame(() => {
@@ -271,10 +305,10 @@ export function CadPage({
     const onWheelNative = (event: WheelEvent) => {
       event.preventDefault();
       if (!event.ctrlKey) {
-        const next = {
+        const next = boundPan({
           ...panRef.current,
           y: panRef.current.y - event.deltaY,
-        };
+        });
         panRef.current = next;
         setPan(next);
         return;
@@ -290,10 +324,13 @@ export function CadPage({
       const oldPan = panRef.current;
       const contentX = (cx - oldPan.x) / oldScale;
       const contentY = (cy - oldPan.y) / oldScale;
-      const nextPan = {
-        x: cx - contentX * nextScale,
-        y: cy - contentY * nextScale,
-      };
+      const nextPan = boundPan(
+        {
+          x: cx - contentX * nextScale,
+          y: cy - contentY * nextScale,
+        },
+        nextScale,
+      );
       scaleRef.current = nextScale;
       panRef.current = nextPan;
       setScale(nextScale);
@@ -441,10 +478,10 @@ export function CadPage({
             ) {
               clickRef.current.moved = true;
             }
-            const next = {
+            const next = boundPan({
               x: drag.panX + (event.clientX - drag.x),
               y: drag.panY + (event.clientY - drag.y),
-            };
+            });
             panRef.current = next;
             setPan(next);
             return;
