@@ -32,6 +32,8 @@ run_as_app git reset --hard "origin/$BRANCH"
 step "HEAD=$(run_as_app git rev-parse --short HEAD)"
 
 step "npm ci"
+# После обрыва SSH npm часто оставляет полуснесённый node_modules → ENOTEMPTY.
+rm -rf node_modules
 run_as_app npm ci --no-audit --no-fund
 step "npm run build"
 run_as_app npm run build
