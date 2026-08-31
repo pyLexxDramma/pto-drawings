@@ -30,7 +30,7 @@ import {
   IconThumbs,
 } from "@/components/tool-icons";
 import { formatDate } from "@/lib/format";
-import { getDrawingExt, isCadExt } from "@/lib/drawing-files";
+import { getDrawingExt, isCadExt, isOfficeExt } from "@/lib/drawing-files";
 import {
   ProcessingProgressPanel,
 } from "@/components/processing-progress-panel";
@@ -184,20 +184,23 @@ export function ReviewPane({
 
   const total = Math.max(document.pageCount, document.pages.length, 1);
   const isCadSource = isCadExt(getDrawingExt(document.originalName));
+  const isOfficeSource = isOfficeExt(getDrawingExt(document.originalName));
   const kitPdfDoc = useMemo(() => {
+    if (isOfficeSource) return null;
     if (isCadSource) {
       return kitSibling && !isCadExt(getDrawingExt(kitSibling.originalName))
         ? kitSibling
         : null;
     }
     return document;
-  }, [document, kitSibling, isCadSource]);
+  }, [document, kitSibling, isCadSource, isOfficeSource]);
   const kitCadDoc = useMemo(() => {
+    if (isOfficeSource) return null;
     if (isCadSource) return document;
     return kitSibling && isCadExt(getDrawingExt(kitSibling.originalName))
       ? kitSibling
       : null;
-  }, [document, kitSibling, isCadSource]);
+  }, [document, kitSibling, isCadSource, isOfficeSource]);
   const hasKitDrawing = Boolean(kitPdfDoc && kitCadDoc);
   const [kitDrawingView, setKitDrawingView] = useState<"pdf" | "cad">(
     isCadSource ? "cad" : "pdf",
@@ -205,6 +208,9 @@ export function ReviewPane({
   useEffect(() => {
     setKitDrawingView(isCadSource ? "cad" : "pdf");
   }, [document.id, isCadSource]);
+  useEffect(() => {
+    if (isOfficeSource && paneSolo === null) setPaneSolo("md");
+  }, [document.id, isOfficeSource]); // eslint-disable-line react-hooks/exhaustive-deps
   const processing =
     document.status === "queued" || document.status === "processing";
   const cancelPending = Boolean(document.errorMessage?.startsWith("Отмена"));
@@ -1248,7 +1254,7 @@ export function ReviewPane({
           />
         ) : (
           <>
-        {stripOpen ? (
+        {stripOpen && !isOfficeSource ? (
           <>
             <PageStrip
               url={`/api/documents/${document.id}/file`}
@@ -1340,6 +1346,14 @@ export function ReviewPane({
                     setPendingRect(null);
                   }}
                 />
+              ) : isOfficeSource ? (
+                <div className="flex h-full min-h-0 flex-col items-center justify-center gap-2 bg-[#f7f8fa] px-6 text-center text-sm text-muted">
+                  <div className="font-medium text-text">Документ Word</div>
+                  <div>
+                    Чертежа нет — текст расшифровки справа. Исходный файл можно
+                    скачать из меню.
+                  </div>
+                </div>
               ) : (
                 <PdfPage
                   url={`/api/documents/${document.id}/file`}

@@ -3,6 +3,7 @@ import {
   getDrawingExt,
   mimeForExt,
 } from "@/lib/drawing-files";
+import { pagesFromOfficeFile } from "@/lib/office-document";
 import {
   deleteDocumentFile,
   deletePdfBytes,
@@ -783,7 +784,7 @@ export async function hasDefaultAdminPassword(): Promise<boolean> {
 // ---------------------------------------------------------------- документы
 
 export function assertStoredName(storedName: string) {
-  if (!/^((spec-)?[0-9a-f-]{36})\.(pdf|dwg|dxf)$/i.test(storedName)) {
+  if (!/^((spec-)?[0-9a-f-]{36})\.(pdf|dwg|dxf|doc|docx)$/i.test(storedName)) {
     throw new Error("Invalid path");
   }
 }
@@ -793,7 +794,7 @@ export async function readStoredPdf(storedName: string) {
   return readPdfBytes(storedName);
 }
 
-/** Сохранить чертёж: PDF (с pageCount) или CAD DWG/DXF (без pdf-lib). */
+/** Сохранить чертёж/документ: PDF, CAD или Word (.doc/.docx). */
 export async function saveDocument(input: {
   projectId: string;
   originalName: string;
@@ -804,12 +805,13 @@ export async function saveDocument(input: {
 }): Promise<DocumentRecord> {
   const ext = getDrawingExt(input.originalName);
   if (!ext) {
-    throw Object.assign(new Error("Нужен файл .pdf, .dwg или .dxf"), {
+    throw Object.assign(new Error("Нужен файл .pdf, .dwg, .dxf, .doc или .docx"), {
       status: 400,
     });
   }
 
   let pageCount = 0;
+  let officePages: DocumentPage[] | null = null;
   if (ext === "pdf") {
     try {
       const pdf = await PDFDocument.load(input.buffer, {
@@ -819,6 +821,13 @@ export async function saveDocument(input: {
     } catch {
       throw Object.assign(new Error("Не удалось прочитать PDF"), { status: 400 });
     }
+  } else if (ext === "doc" || ext === "docx") {
+    officePages = await pagesFromOfficeFile(
+      input.buffer,
+      ext,
+      input.originalName,
+    );
+    pageCount = officePages.length;
   }
 
   return withDataLock(async () => {
@@ -832,6 +841,7 @@ export async function saveDocument(input: {
     const storedName = `${id}.${ext}`;
     await writePdfBytes(storedName, input.buffer);
 
+    const ready = Boolean(officePages?.length);
     const meta: DocumentMeta = {
       id,
       projectId: input.projectId,
@@ -843,18 +853,20 @@ export async function saveDocument(input: {
       mimeType: mimeForExt(ext),
       sizeBytes: input.buffer.byteLength,
       pageCount,
-      status: "queued",
-      processingStep: "queued",
+      status: ready ? "done" : "queued",
+      processingStep: ready ? "done" : "queued",
       processingPage: null,
       errorMessage: null,
-      readyPages: 0,
-      kindCounts: emptyKindCounts(),
+      readyPages: ready ? pageCount : 0,
+      kindCounts: ready
+        ? { drawing: 0, text: pageCount, table: 0, mixed: 0 }
+        : emptyKindCounts(),
       openAnnotations: 0,
       viewedCounts: {},
       pipelineMode: null,
       pipelineModel: null,
       pipelineElapsedSec: null,
-      pipelineFinishedAt: null,
+      pipelineFinishedAt: ready ? new Date().toISOString() : null,
       pipelineUsage: {},
       pageErrors: {},
       pageWarnings: {},
@@ -863,8 +875,15 @@ export async function saveDocument(input: {
 
     db.documents.push(meta);
     await writeIndex(db);
-    await writeBody(id, emptyBody());
-    return liteRecord(meta);
+    await writeBody(
+      id,
+      officePages
+        ? { ...emptyBody(), pages: officePages }
+        : emptyBody(),
+    );
+    return ready
+      ? merge(meta, { ...emptyBody(), pages: officePages! })
+      : liteRecord(meta);
   });
 }
 

@@ -69,7 +69,7 @@ export function extractDrawingKitFromZip(buffer: Buffer): DrawingKitFiles {
       pdf = { name, buffer: Buffer.from(data) };
       continue;
     }
-    if (isCadExt(ext)) {
+    if (ext === "dwg" || ext === "dxf") {
       if (cad) {
         throw Object.assign(
           new Error("В архиве должен быть один DWG или DXF"),

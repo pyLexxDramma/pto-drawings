@@ -33,7 +33,7 @@ function defaultTitle(files: File[], mode: UploadMode) {
     return files[0].name.replace(/\.(pdf|dwg|dxf)$/i, "");
   }
   if (files.length !== 1) return "";
-  return files[0].name.replace(/\.(pdf|dwg|dxf)$/i, "");
+  return files[0].name.replace(/\.(pdf|dwg|dxf|docx?)$/i, "");
 }
 
 export function UploadDialog({
@@ -160,7 +160,7 @@ export function UploadDialog({
                 disabled={busy}
                 placeholder={
                   uploadMode === "files"
-                    ? "Без расширения .pdf / .dwg / .dxf"
+                    ? "Без расширения .pdf / .dwg / .doc"
                     : "Имя комплекта в списке файлов"
                 }
                 className="mt-1 w-full rounded-md border border-border bg-white px-3 py-2 text-sm text-text outline-none focus:border-accent disabled:opacity-60"

@@ -57,7 +57,7 @@ export async function POST(request: Request) {
 
   if (!getDrawingExt(file.name)) {
     return NextResponse.json(
-      { error: "У файла должно быть расширение .pdf, .dwg или .dxf" },
+      { error: "У файла должно быть расширение .pdf, .dwg, .dxf, .doc или .docx" },
       { status: 400 },
     );
   }
@@ -75,7 +75,10 @@ export async function POST(request: Request) {
       originalName: displayName,
       buffer,
     });
-    runInBackground(processDocument(document.id));
+    // Word уже разобран в markdown при сохранении — конвейер не нужен.
+    if (document.status !== "done") {
+      runInBackground(processDocument(document.id));
+    }
     return NextResponse.json({ document }, { status: 201 });
   } catch (error) {
     const status = (error as { status?: number }).status ?? 500;
