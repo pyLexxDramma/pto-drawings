@@ -218,25 +218,27 @@ export function CadPage({
     const scaleW = (wrap.clientWidth - pad) / natural.w;
     const scaleH = (wrap.clientHeight - pad) / natural.h;
     const next = mode === "width" ? scaleW : Math.min(scaleW, scaleH);
-    const s = Math.max(0.15, next);
+    const s = Math.max(0.05, next);
     const contentW = natural.w * s;
     const contentH = natural.h * s;
+    const nextPan = clampPan(
+      {
+        x: (wrap.clientWidth - contentW) / 2,
+        y: (wrap.clientHeight - contentH) / 2,
+      },
+      {
+        viewW: wrap.clientWidth,
+        viewH: wrap.clientHeight,
+        contentW,
+        contentH,
+      },
+    );
+    fitModeRef.current = mode;
+    scaleRef.current = s;
+    panRef.current = nextPan;
     setFitMode(mode);
     setScale(s);
-    setPan(
-      clampPan(
-        {
-          x: Math.max(pad / 2, (wrap.clientWidth - contentW) / 2),
-          y: Math.max(pad / 2, (wrap.clientHeight - contentH) / 2),
-        },
-        {
-          viewW: wrap.clientWidth,
-          viewH: wrap.clientHeight,
-          contentW,
-          contentH,
-        },
-      ),
-    );
+    setPan(nextPan);
   }
 
   useEffect(() => {
@@ -315,7 +317,7 @@ export function CadPage({
       }
       const oldScale = scaleRef.current;
       const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
-      const nextScale = Math.min(12, Math.max(0.15, oldScale * factor));
+      const nextScale = Math.min(12, Math.max(0.05, oldScale * factor));
       if (nextScale === oldScale) return;
 
       const rect = wrap.getBoundingClientRect();
