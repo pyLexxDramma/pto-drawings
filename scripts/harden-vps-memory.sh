@@ -65,11 +65,11 @@ for unit in pto-pipeline.service pto-backend.service pto-work.service; do
   drop_in_memory "$unit" "$PIPELINE_MEM_MAX"
 done
 
-# Если конвейер в docker compose — лимит через update (best-effort).
+# Конвейер в docker compose на проде — контейнер pto-backend.
 if command -v docker >/dev/null 2>&1; then
   for name in $(docker ps --format '{{.Names}}' 2>/dev/null || true); do
     case "$name" in
-      *backend*|*pipeline*|*pto-work*|*pto_work*)
+      pto-backend|*backend*|*pipeline*|*pto-work*|*pto_work*)
         echo "[harden] docker update --memory=$PIPELINE_MEM_MAX $name"
         docker update --memory="$PIPELINE_MEM_MAX" --memory-swap="$PIPELINE_MEM_MAX" "$name" >/dev/null \
           || echo "[harden] docker update failed for $name"
