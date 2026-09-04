@@ -39,6 +39,15 @@ step "npm run build"
 run_as_app npm run build
 step "build ok"
 
+step "harden memory (swap + MemoryMax)"
+if [[ "$(id -u)" -eq 0 ]]; then
+  bash "$APP_DIR/scripts/harden-vps-memory.sh" || echo "[deploy] harden skipped/failed"
+elif command -v sudo >/dev/null 2>&1; then
+  sudo bash "$APP_DIR/scripts/harden-vps-memory.sh" || echo "[deploy] harden skipped/failed"
+else
+  echo "[deploy] harden needs root — skip"
+fi
+
 if command -v systemctl >/dev/null 2>&1; then
   step "systemctl restart pto"
   systemctl restart pto

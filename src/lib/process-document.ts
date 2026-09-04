@@ -22,6 +22,16 @@ const PAGES_PER_TICK = 40;
 const REQUEST_ATTEMPTS = 3;
 /** Раньше 20 — на длинном PDF UI сдавался раньше конвейера. */
 const MAX_CONSECUTIVE_FAILURES = Number(process.env.PTO_MAX_FAILURES ?? 40);
+/**
+ * Сколько документов фронт одновременно гоняет к конвейеру (create+poll).
+ * На VPS 4 ГБ больше 1–2 кладут хост; остальные ждут слот, статус — queued.
+ */
+const MAX_PARALLEL_JOBS = Math.max(
+  1,
+  Number(process.env.PTO_MAX_PARALLEL_JOBS ?? 1),
+);
+/** Сколько раз подряд «смягчать» провал poll, если health ещё ок. */
+const MAX_SOFT_KEEP = Number(process.env.PTO_MAX_SOFT_KEEP ?? 3);
 
 const ROOT = process.env.DATA_ROOT || process.cwd();
 const UPLOAD_DIR = path.join(ROOT, "uploads");
@@ -70,6 +80,29 @@ type BackendPage = {
 
 const running = new Set<string>();
 const canceling = new Set<string>();
+
+/** Слоты параллельных поллеров — не стартуем 5 PDF сразу на маленьком VPS. */
+let activeSlots = 0;
+const slotWaiters: Array<() => void> = [];
+
+function acquireJobSlot(): Promise<void> {
+  if (activeSlots < MAX_PARALLEL_JOBS) {
+    activeSlots += 1;
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    slotWaiters.push(() => {
+      activeSlots += 1;
+      resolve();
+    });
+  });
+}
+
+function releaseJobSlot() {
+  activeSlots = Math.max(0, activeSlots - 1);
+  const next = slotWaiters.shift();
+  if (next) next();
+}
 
 export function activeDocumentIds() {
   return new Set(running);
@@ -330,11 +363,32 @@ export async function processDocument(id: string) {
   if (running.has(id)) return;
   running.add(id);
 
+  let slotHeld = false;
   try {
     const document = await getDocument(id);
     if (!document) return;
 
+    // Пока ждём слот — queued, не «processing» (на VPS слот обычно 1).
     if (!canceling.has(id) && !isCancelMessage(document.errorMessage)) {
+      await updateDocument(id, {
+        status: "queued",
+        processingStep: "queued",
+        processingPage: null,
+        errorMessage: null,
+        pageErrors: {},
+        pipelineFinishedAt: null,
+        pipelineElapsedSec: null,
+      });
+    }
+
+    await acquireJobSlot();
+    slotHeld = true;
+    if (canceling.has(id)) return;
+
+    const latest = await getDocument(id);
+    if (!latest) return;
+
+    if (!canceling.has(id) && !isCancelMessage(latest.errorMessage)) {
       await updateDocument(id, {
         status: "processing",
         processingStep: "queued",
@@ -346,12 +400,13 @@ export async function processDocument(id: string) {
       });
     }
 
-    const job = (await findExistingJob(id)) ?? (await createJob(document));
+    const job = (await findExistingJob(id)) ?? (await createJob(latest));
     const pages = new Map<number, DocumentPage>(
-      document.pages.map((page) => [page.pageNumber, page]),
+      latest.pages.map((page) => [page.pageNumber, page]),
     );
     let lastSignature = "";
     let failures = 0;
+    let softKeeps = 0;
     let cancelPosted = false;
 
     for (;;) {
@@ -378,23 +433,26 @@ export async function processDocument(id: string) {
       } catch (error) {
         if (error instanceof PermanentError) throw error;
         failures += 1;
+        const backoff = POLL_MS * Math.min(8, 2 ** Math.min(failures - 1, 3));
         if (failures >= MAX_CONSECUTIVE_FAILURES) {
-          const soft = await shouldKeepPolling(id);
+          const soft =
+            softKeeps < MAX_SOFT_KEEP && (await shouldKeepPolling(id));
           if (soft) {
+            softKeeps += 1;
             failures = Math.floor(MAX_CONSECUTIVE_FAILURES / 2);
             console.warn(
-              `[pto] poll fail, но job/health живы — продолжаем (${id})`,
+              `[pto] poll fail, job/health живы — soft ${softKeeps}/${MAX_SOFT_KEEP} (${id})`,
             );
-            await sleep(POLL_MS * 2);
+            await sleep(backoff);
             continue;
           }
           throw error;
         }
         console.warn(
-          `[pto] конвейер не ответил (${failures}/${MAX_CONSECUTIVE_FAILURES}), повтор:`,
+          `[pto] конвейер не ответил (${failures}/${MAX_CONSECUTIVE_FAILURES}), повтор через ${backoff}ms:`,
           error instanceof Error ? error.message : error,
         );
-        await sleep(POLL_MS);
+        await sleep(backoff);
         continue;
       }
 
@@ -458,7 +516,7 @@ export async function processDocument(id: string) {
               : mapStatus(current.status),
           processingStep: canceled || wantsCancel ? null : stepFor(current),
           processingPage: canceled ? null : current.processingPage,
-          pageCount: current.pageCount || document.pageCount,
+          pageCount: current.pageCount || latest.pageCount,
           pages: [...pages.values()].sort((a, b) => a.pageNumber - b.pageNumber),
           errorMessage: canceled
             ? cancelMessage(current)
@@ -492,6 +550,7 @@ export async function processDocument(id: string) {
       errorMessage: `${message}. Нажмите «Обработать заново» — готовые листы подтянутся без пересчёта.`,
     });
   } finally {
+    if (slotHeld) releaseJobSlot();
     running.delete(id);
     canceling.delete(id);
   }
