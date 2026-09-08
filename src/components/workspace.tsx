@@ -290,7 +290,7 @@ export function Workspace({
   const [newProjectDescription, setNewProjectDescription] = useState("");
   const [creatingProject, setCreatingProject] = useState(false);
   const [showNewProject, setShowNewProject] = useState(false);
-  const [projectsCollapsed, setProjectsCollapsed] = useState(true);
+  const [projectsCollapsed, setProjectsCollapsed] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
   const [renameId, setRenameId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
@@ -1413,7 +1413,7 @@ export function Workspace({
                 type="button"
                 role="tab"
                 aria-selected={false}
-                onClick={() => openProjectsList()}
+                onClick={() => setProjectsCollapsed(false)}
                 className="flex-1 text-xs text-muted hover:bg-bg"
                 title="Показать проекты"
                 aria-expanded={false}

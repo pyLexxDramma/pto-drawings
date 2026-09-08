@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { isPublicUser, requireUser } from "@/lib/auth";
 import { runInBackground } from "@/lib/background";
-import { resolveDisplayName } from "@/lib/drawing-files";
+import { resolveDisplayName, normalizeFileName } from "@/lib/drawing-files";
 import {
   extractDrawingKitFromZip,
   isZipFile,
@@ -46,7 +46,7 @@ export async function POST(request: Request) {
         buffer: extracted.pdf.buffer,
       };
       cad = {
-        originalName: extracted.cad.name,
+        originalName: normalizeFileName(extracted.cad.name),
         buffer: extracted.cad.buffer,
         ext: extracted.cad.ext,
       };
@@ -76,7 +76,7 @@ export async function POST(request: Request) {
         buffer: Buffer.from(await pdfFile.arrayBuffer()),
       };
       cad = {
-        originalName: cadFile.name,
+        originalName: normalizeFileName(cadFile.name),
         buffer: Buffer.from(await cadFile.arrayBuffer()),
         ext: cadExt,
       };

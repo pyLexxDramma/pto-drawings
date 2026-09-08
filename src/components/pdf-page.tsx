@@ -290,6 +290,31 @@ export function PdfPage({
     });
   }
 
+  /** Зум к точке в координатах wrap; без якоря — к центру панели (кнопки +/−). */
+  function zoomBy(factor: number, anchor?: { x: number; y: number }) {
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    const oldScale = scaleRef.current;
+    const nextScale = Math.min(8, Math.max(0.05, oldScale * factor));
+    if (nextScale === oldScale) return;
+    const cx = anchor?.x ?? wrap.clientWidth / 2;
+    const cy = anchor?.y ?? wrap.clientHeight / 2;
+    const oldPan = panRef.current;
+    const contentX = (cx - oldPan.x) / oldScale;
+    const contentY = (cy - oldPan.y) / oldScale;
+    const nextPan = boundPan(
+      {
+        x: cx - contentX * nextScale,
+        y: cy - contentY * nextScale,
+      },
+      nextScale,
+    );
+    scaleRef.current = nextScale;
+    panRef.current = nextPan;
+    setScale(nextScale);
+    setPan(nextPan);
+  }
+
   function fit(mode: "page" | "width") {
     const wrap = wrapRef.current;
     if (!wrap) return;
@@ -348,6 +373,26 @@ export function PdfPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, error, natural.w, natural.h, pageNumber, viewCacheKey]);
 
+  // Панель проектов / сплит меняют ширину без remount — пересчитываем fit.
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap || loading || error) return;
+    let prevW = wrap.clientWidth;
+    let prevH = wrap.clientHeight;
+    const ro = new ResizeObserver(() => {
+      const w = wrap.clientWidth;
+      const h = wrap.clientHeight;
+      if (w < 8 || h < 8) return;
+      if (Math.abs(w - prevW) < 2 && Math.abs(h - prevH) < 2) return;
+      prevW = w;
+      prevH = h;
+      fit(fitModeRef.current);
+    });
+    ro.observe(wrap);
+    return () => ro.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, error, natural.w, natural.h, pageNumber]);
+
   useEffect(() => {
     if (!highlightNonce) return;
     fit("page");
@@ -388,7 +433,9 @@ export function PdfPage({
     if (!wrap) return;
     const onWheelNative = (event: WheelEvent) => {
       event.preventDefault();
-      if (!event.ctrlKey) {
+      // Ctrl (Win) / Cmd (Mac) + колесо; pinch на трекпаде Mac тоже шлёт ctrlKey.
+      const zoomGesture = event.ctrlKey || event.metaKey;
+      if (!zoomGesture) {
         const next = boundPan({
           ...panRef.current,
           y: panRef.current.y - event.deltaY,
@@ -397,28 +444,12 @@ export function PdfPage({
         setPan(next);
         return;
       }
-      const oldScale = scaleRef.current;
-      const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
-      const nextScale = Math.min(8, Math.max(0.05, oldScale * factor));
-      if (nextScale === oldScale) return;
-
       const rect = wrap.getBoundingClientRect();
-      const cx = event.clientX - rect.left;
-      const cy = event.clientY - rect.top;
-      const oldPan = panRef.current;
-      const contentX = (cx - oldPan.x) / oldScale;
-      const contentY = (cy - oldPan.y) / oldScale;
-      const nextPan = boundPan(
-        {
-          x: cx - contentX * nextScale,
-          y: cy - contentY * nextScale,
-        },
-        nextScale,
-      );
-      scaleRef.current = nextScale;
-      panRef.current = nextPan;
-      setScale(nextScale);
-      setPan(nextPan);
+      const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
+      zoomBy(factor, {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top,
+      });
     };
     wrap.addEventListener("wheel", onWheelNative, { passive: false });
     return () => wrap.removeEventListener("wheel", onWheelNative);
@@ -693,7 +724,7 @@ export function PdfPage({
       {/* Масштаб меняют редко, а чертёж читают постоянно — панель проявляется по наведению. */}
       <div
         onMouseDown={(event) => event.stopPropagation()}
-        className="absolute bottom-2 right-2 z-30 flex items-center gap-2 rounded-md border border-border bg-white/90 px-1.5 py-1 opacity-0 shadow-sm backdrop-blur transition-opacity focus-within:opacity-100 hover:opacity-100 group-hover:opacity-100"
+        className="absolute bottom-2 right-2 z-30 flex items-center gap-1.5 rounded-md border border-border bg-white/90 px-1.5 py-1 opacity-0 shadow-sm backdrop-blur transition-opacity focus-within:opacity-100 hover:opacity-100 group-hover:opacity-100"
       >
         <SegmentedTabs
           size="xs"
@@ -704,9 +735,29 @@ export function PdfPage({
             { id: "width", label: "По ширине" },
           ]}
         />
-        <span className="pr-0.5 text-[11px] tabular-nums text-muted">
-          {Math.round(scale * 100)}%
-        </span>
+        <div className="flex items-center gap-0.5 border-l border-border pl-1.5">
+          <button
+            type="button"
+            title="Отдалить"
+            aria-label="Отдалить"
+            onClick={() => zoomBy(1 / 1.25)}
+            className="flex h-6 w-6 items-center justify-center rounded text-sm leading-none text-muted hover:bg-bg hover:text-text"
+          >
+            −
+          </button>
+          <span className="min-w-[2.75rem] text-center text-[11px] tabular-nums text-muted">
+            {Math.round(scale * 100)}%
+          </span>
+          <button
+            type="button"
+            title="Приблизить"
+            aria-label="Приблизить"
+            onClick={() => zoomBy(1.25)}
+            className="flex h-6 w-6 items-center justify-center rounded text-sm leading-none text-muted hover:bg-bg hover:text-text"
+          >
+            +
+          </button>
+        </div>
       </div>
     </div>
   );

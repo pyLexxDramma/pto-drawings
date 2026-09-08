@@ -3,6 +3,7 @@ import {
   getDrawingExt,
   isCadExt,
   isDrawingFile,
+  normalizeFileName,
   type DrawingExt,
 } from "@/lib/drawing-files";
 
@@ -32,14 +33,23 @@ function baseName(path: string): string {
   return fixZipName(name);
 }
 
-/** Проводник Windows пишет имена в ZIP как cp866 без флага UTF-8. */
+/**
+ * Имена в ZIP без UTF-8 flag: Windows Explorer → CP866, macOS → UTF-8.
+ * Сначала пробуем UTF-8 (иначе кириллица ломается в «коробки»).
+ */
 function fixZipName(name: string): string {
-  if (!/[\u0080-\u00FF]/.test(name)) return name;
+  if (!/[\u0080-\u00FF]/.test(name)) return normalizeFileName(name);
   const bytes = Uint8Array.from(name, (ch) => ch.charCodeAt(0) & 0xff);
   try {
-    return new TextDecoder("ibm866").decode(bytes);
+    const asUtf8 = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    if (/[А-Яа-яЁёA-Za-z]/.test(asUtf8)) return normalizeFileName(asUtf8);
   } catch {
-    return name;
+    /* не UTF-8 — ниже CP866 */
+  }
+  try {
+    return normalizeFileName(new TextDecoder("ibm866").decode(bytes));
+  } catch {
+    return normalizeFileName(name);
   }
 }
 

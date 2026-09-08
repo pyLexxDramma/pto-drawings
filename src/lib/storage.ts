@@ -2,6 +2,7 @@ import { PDFDocument } from "pdf-lib";
 import {
   getDrawingExt,
   mimeForExt,
+  normalizeFileName,
 } from "@/lib/drawing-files";
 import { pagesFromOfficeFile } from "@/lib/office-document";
 import {
@@ -116,7 +117,9 @@ function normalizeProject(raw: Partial<Project> & { id: string }): Project {
     name: raw.name ?? "Проект",
     description: raw.description ?? "",
     specStoredName: raw.specStoredName ?? null,
-    specOriginalName: raw.specOriginalName ?? null,
+    specOriginalName: raw.specOriginalName
+      ? normalizeFileName(raw.specOriginalName)
+      : null,
     createdAt: raw.createdAt ?? new Date().toISOString(),
   };
 }
@@ -257,9 +260,9 @@ function normalizeMeta(raw: Partial<DocumentMeta> & { id: string }): DocumentMet
       : null,
     kitLabel:
       typeof raw.kitLabel === "string" && raw.kitLabel.trim()
-        ? raw.kitLabel.trim()
+        ? normalizeFileName(raw.kitLabel)
         : null,
-    originalName: raw.originalName ?? "document.pdf",
+    originalName: normalizeFileName(raw.originalName ?? "document.pdf"),
     storedName: raw.storedName ?? `${raw.id}.pdf`,
     mimeType: raw.mimeType ?? "application/pdf",
     sizeBytes: raw.sizeBytes ?? 0,
@@ -380,6 +383,14 @@ async function readIndex(): Promise<Database> {
   for (const item of Array.isArray(parsed.documents) ? parsed.documents : []) {
     if (!item?.id) continue;
     const meta = normalizeMeta(item);
+    const rawName = item.originalName ?? "document.pdf";
+    const rawKit =
+      typeof item.kitLabel === "string" && item.kitLabel.trim()
+        ? item.kitLabel.trim()
+        : null;
+    if (meta.originalName !== rawName || meta.kitLabel !== rawKit) {
+      changed = true;
+    }
     // Старый формат держал страницы и журнал внутри индекса — раскладываем по файлам.
     const inlineBody = Array.isArray(item.pages) || Array.isArray(item.editLog);
     if (inlineBody) {
@@ -516,7 +527,7 @@ export async function saveProjectSpec(input: {
     }
     await writePdfBytes(storedName, input.buffer);
     project.specStoredName = storedName;
-    project.specOriginalName = input.originalName;
+    project.specOriginalName = normalizeFileName(input.originalName);
     await writeIndex(db);
     return project;
   });
@@ -847,8 +858,8 @@ export async function saveDocument(input: {
       projectId: input.projectId,
       kitId: input.kitId ?? null,
       kitRole: input.kitRole ?? null,
-      kitLabel: input.kitLabel ?? null,
-      originalName: input.originalName,
+      kitLabel: input.kitLabel ? normalizeFileName(input.kitLabel) : null,
+      originalName: normalizeFileName(input.originalName),
       storedName,
       mimeType: mimeForExt(ext),
       sizeBytes: input.buffer.byteLength,
@@ -895,7 +906,7 @@ export async function saveDocumentKit(input: {
   cad: { originalName: string; buffer: Buffer; ext: "dwg" | "dxf" };
 }): Promise<{ kitId: string; pdf: DocumentRecord; cad: DocumentRecord }> {
   const kitId = crypto.randomUUID();
-  const kitLabel = input.kitLabel.trim() || "Комплект PDF+DWG";
+  const kitLabel = normalizeFileName(input.kitLabel.trim() || "Комплект PDF+DWG");
   const pdf = await saveDocument({
     projectId: input.projectId,
     originalName: input.pdf.originalName,

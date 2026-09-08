@@ -47,11 +47,69 @@ export function mimeForExt(ext: DrawingExt): string {
   return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 }
 
+/** UTF-8 имя, ошибочно прочитанное как CP866 (коробки ░║ вместо кириллицы). */
+let cp866EncodeMap: Map<number, number> | null = null;
+
+function getCp866EncodeMap(): Map<number, number> {
+  if (cp866EncodeMap) return cp866EncodeMap;
+  const bytes = new Uint8Array(256);
+  for (let i = 0; i < 256; i++) bytes[i] = i;
+  const decoded = new TextDecoder("ibm866").decode(bytes);
+  const map = new Map<number, number>();
+  for (let i = 0; i < 256; i++) map.set(decoded.charCodeAt(i), i);
+  cp866EncodeMap = map;
+  return map;
+}
+
+function countBoxDrawing(s: string): number {
+  return (s.match(/[\u2500-\u259F]/g) ?? []).length;
+}
+
+function countCyrillic(s: string): number {
+  return (s.match(/[А-Яа-яЁё]/g) ?? []).length;
+}
+
+/** Восстановить UTF-8, если имя сохранили после decode(ibm866) поверх UTF-8 байт. */
+function repairUtf8MisreadAsCp866(name: string): string | null {
+  if (countBoxDrawing(name) < 2) return null;
+  try {
+    const map = getCp866EncodeMap();
+    const bytes = new Uint8Array(name.length);
+    for (let i = 0; i < name.length; i++) {
+      const b = map.get(name.charCodeAt(i));
+      if (b === undefined) return null;
+      bytes[i] = b;
+    }
+    const fixed = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    if (
+      countCyrillic(fixed) >= 2 &&
+      countBoxDrawing(fixed) < countBoxDrawing(name) &&
+      !fixed.includes("\uFFFD")
+    ) {
+      return fixed;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+/**
+ * Имя для UI/хранилища: NFC (macOS отдаёт NFD) + починка известного CP866-mojibake.
+ */
+export function normalizeFileName(name: string): string {
+  let s = name.normalize("NFC").trim();
+  const repaired = repairUtf8MisreadAsCp866(s);
+  if (repaired) s = repaired.normalize("NFC").trim();
+  return s;
+}
+
 /** Собрать displayName из title + расширения исходного файла. */
 export function resolveDisplayName(titleRaw: string, fileName: string): string {
-  const ext = getDrawingExt(fileName) ?? "pdf";
-  const title = titleRaw.trim();
-  if (!title) return fileName;
+  const safeFile = normalizeFileName(fileName);
+  const ext = getDrawingExt(safeFile) ?? "pdf";
+  const title = normalizeFileName(titleRaw);
+  if (!title) return safeFile;
   if (getDrawingExt(title)) return title;
   return `${title}.${ext}`;
 }

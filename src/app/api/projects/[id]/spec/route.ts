@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { isPublicUser, requireUser } from "@/lib/auth";
+import { normalizeFileName } from "@/lib/drawing-files";
 import { clearProjectSpec, getProject, saveProjectSpec } from "@/lib/storage";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -32,7 +33,7 @@ export async function POST(request: Request, context: RouteContext) {
   try {
     const project = await saveProjectSpec({
       projectId: id,
-      originalName: file.name,
+      originalName: normalizeFileName(file.name),
       buffer: Buffer.from(await file.arrayBuffer()),
     });
     if (!project) {
