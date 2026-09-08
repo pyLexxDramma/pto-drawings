@@ -12,10 +12,12 @@ import { SegmentedTabs, Spinner } from "@/components/ui-chrome";
 import { IconDownload } from "@/components/tool-icons";
 import { groupReviews, type GroupBy } from "@/lib/reviews-group";
 import {
+  REVIEW_ORIGIN_LABEL,
   REVIEW_SEVERITY_LABEL,
   REVIEW_SEVERITY_ORDER,
   REVIEW_VERDICT_LABEL,
   type Review,
+  type ReviewOrigin,
   type ReviewSeverity,
   type ReviewVerdict,
 } from "@/types";
@@ -77,6 +79,20 @@ const VERDICTS: ReviewVerdict[] = [
 
 type SeverityFilter = "all" | ReviewSeverity;
 type VerdictFilter = "all" | "pending" | "done";
+type OriginFilter = "all" | ReviewOrigin;
+
+/** Потоки не смешиваются: находки конвейера и замечания инженеров различимы. */
+const ORIGIN_CHIP: Record<ReviewOrigin, string> = {
+  ai: "border-violet-300 bg-violet-50 text-violet-900",
+  engineer: "border-slate-300 bg-white text-muted",
+  both: "border-sky-300 bg-sky-50 text-sky-900",
+};
+
+const ORIGIN_SHORT: Record<ReviewOrigin, string> = {
+  ai: "ИИ",
+  engineer: "Инженер",
+  both: "Совпало",
+};
 
 export function ReviewsTable({
   projectId,
@@ -101,6 +117,7 @@ export function ReviewsTable({
   const [verdictFilter, setVerdictFilter] = useState<VerdictFilter>("all");
   const [sectionFilter, setSectionFilter] = useState<string>("all");
   const [groupBy, setGroupBy] = useState<GroupBy>("section");
+  const [originFilter, setOriginFilter] = useState<OriginFilter>("all");
   const [query, setQuery] = useState("");
   const [adding, setAdding] = useState(false);
   const [draftSection, setDraftSection] = useState("ПЗ");
@@ -156,6 +173,7 @@ export function ReviewsTable({
       }
       if (verdictFilter === "pending" && item.verdict !== "pending") return false;
       if (verdictFilter === "done" && item.verdict === "pending") return false;
+      if (originFilter !== "all" && item.origin !== originFilter) return false;
       if (sectionFilter !== "all" && item.section !== sectionFilter) return false;
       if (!needle) return true;
       const haystack = [
@@ -169,7 +187,14 @@ export function ReviewsTable({
         .toLowerCase();
       return haystack.includes(needle);
     });
-  }, [query, reviews, sectionFilter, severityFilter, verdictFilter]);
+  }, [
+    originFilter,
+    query,
+    reviews,
+    sectionFilter,
+    severityFilter,
+    verdictFilter,
+  ]);
 
   /** Разбор идёт построчно, поэтому счётчик «сколько осталось» всегда на виду. */
   const stats = useMemo(() => {
@@ -177,7 +202,19 @@ export function ReviewsTable({
     const pending = reviews.filter((item) => item.verdict === "pending").length;
     const exportable = reviews.filter((item) => item.severity !== "skip").length;
     const high = reviews.filter((item) => item.severity === "high").length;
-    return { total, pending, done: total - pending, exportable, high };
+    const ai = reviews.filter((item) => item.origin === "ai").length;
+    const engineer = reviews.filter((item) => item.origin === "engineer").length;
+    const both = reviews.filter((item) => item.origin === "both").length;
+    return {
+      total,
+      pending,
+      done: total - pending,
+      exportable,
+      high,
+      ai,
+      engineer,
+      both,
+    };
   }, [reviews]);
 
   useEffect(() => {
@@ -292,6 +329,11 @@ export function ReviewsTable({
               ? "загрузка…"
               : `${stats.total} всего · ${stats.pending} не разобрано · ${stats.high} высокой важности · ${stats.exportable} в выгрузку`}
           </div>
+          {loading ? null : (
+            <div className="text-[11px] tabular-nums text-muted">
+              {`нашла ИИ ${stats.ai} · инженеры ${stats.engineer} · совпало ${stats.both}`}
+            </div>
+          )}
         </div>
 
         <div className="ml-auto flex flex-wrap items-center gap-2">
@@ -333,6 +375,29 @@ export function ReviewsTable({
             { id: "all" as VerdictFilter, label: "Все" },
             { id: "pending" as VerdictFilter, label: "Не разобрано" },
             { id: "done" as VerdictFilter, label: "Разобрано" },
+          ]}
+        />
+        <SegmentedTabs
+          size="xs"
+          value={originFilter}
+          onChange={setOriginFilter}
+          options={[
+            { id: "all" as OriginFilter, label: "Оба потока" },
+            {
+              id: "ai" as OriginFilter,
+              label: "Нашла ИИ",
+              title: "Только находки конвейера",
+            },
+            {
+              id: "engineer" as OriginFilter,
+              label: "Инженер",
+              title: "Только замечания, заведённые руками",
+            },
+            {
+              id: "both" as OriginFilter,
+              label: "Совпало",
+              title: "Инженер завёл, конвейер подтвердил",
+            },
           ]}
         />
         <SegmentedTabs
@@ -554,15 +619,22 @@ function ReviewRow({
         </span>
       </td>
       <td className="px-2 py-1.5">
-        <div className="whitespace-pre-wrap leading-snug text-text">{wording}</div>
-        {review.text && review.aiFinding ? (
-          <div className="mt-1 whitespace-pre-wrap border-l-2 border-slate-300 pl-2 text-[11px] leading-snug text-muted">
-            ИИ: {review.aiFinding}
+        <div className="flex items-start gap-1.5">
+          <span
+            className={`mt-0.5 shrink-0 rounded border px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide ${
+              ORIGIN_CHIP[review.origin]
+            }`}
+            title={REVIEW_ORIGIN_LABEL[review.origin]}
+          >
+            {ORIGIN_SHORT[review.origin]}
+          </span>
+          <div className="min-w-0 whitespace-pre-wrap leading-snug text-text">
+            {wording}
           </div>
-        ) : null}
-        {review.origin === "both" ? (
-          <div className="mt-1 inline-block rounded border border-sky-300 bg-sky-50 px-1.5 py-0.5 text-[10px] text-sky-900">
-            Совпало: клиент + ИИ
+        </div>
+        {review.text && review.aiFinding ? (
+          <div className="mt-1 whitespace-pre-wrap border-l-2 border-violet-300 pl-2 text-[11px] leading-snug text-muted">
+            Нашла ИИ: {review.aiFinding}
           </div>
         ) : null}
       </td>

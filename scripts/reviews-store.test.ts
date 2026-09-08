@@ -42,7 +42,7 @@ describe("ingestReviews", () => {
       finding("Объём резервуара расходится"),
       finding("Расход на внутреннее пожаротушение не сходится", 920),
     ]);
-    assert.deepEqual(result, { added: 2, updated: 0, total: 2 });
+    assert.deepEqual(result, { added: 2, updated: 0, enriched: 0, total: 2 });
 
     const list = await store.listReviews(PROJECT);
     assert.deepEqual(
@@ -64,7 +64,7 @@ describe("ingestReviews", () => {
     const result = await store.ingestReviews(PROJECT, [
       { section: "ПБ", aiFinding: "   " },
     ]);
-    assert.deepEqual(result, { added: 0, updated: 0, total: 2 });
+    assert.deepEqual(result, { added: 0, updated: 0, enriched: 0, total: 2 });
   });
 
   it("не сбрасывает разбор с заказчиком при повторном прогоне", async () => {
@@ -126,6 +126,113 @@ describe("ingestReviews", () => {
     const merged = list.find((item) => item.id === own.id);
     assert.ok(merged);
     assert.equal(merged.origin, "both");
+  });
+
+  it("дописывает путь в ПД к замечанию, заведённому руками", async () => {
+    const own = await store.createReview(PROJECT, {
+      section: "ИОС2",
+      text: "Диаметр стояка К1 не сходится с аксонометрией",
+    });
+    assert.deepEqual(own.locations, []);
+    assert.equal(own.aiFinding, "");
+
+    const result = await store.ingestReviews(PROJECT, [
+      {
+        section: "ИОС2",
+        severity: "high",
+        aiFinding:
+          "Диаметр стояка К1 расходится: на плане Ду 100, аксонометрия даёт Ду 150.",
+        locations: [
+          {
+            documentId: "doc-ios2",
+            documentName: "Раздел ПД №5 (ИОС2)",
+            pageNumber: 77,
+            quote: "Ду 100",
+          },
+        ],
+      },
+    ]);
+    assert.equal(result.added, 0, "дубля быть не должно");
+    assert.equal(result.enriched, 1);
+
+    const list = await store.listReviews(PROJECT);
+    const same = list.find((item) => item.id === own.id);
+    assert.ok(same);
+    assert.equal(same.origin, "both");
+    // Формулировку инженера агент не перебивает.
+    assert.equal(same.text, "Диаметр стояка К1 не сходится с аксонометрией");
+    assert.match(same.aiFinding, /аксонометрия даёт Ду 150/);
+    assert.equal(same.locations.length, 1);
+    assert.equal(same.locations[0].pageNumber, 77);
+    assert.equal(same.severity, "high");
+  });
+
+  it("не склеивает замечания из разных разделов", async () => {
+    const own = await store.createReview(PROJECT, {
+      section: "ПОС",
+      text: "Ограждение стройплощадки не показано на схеме движения",
+    });
+    const result = await store.ingestReviews(PROJECT, [
+      {
+        section: "ОДИ",
+        aiFinding:
+          "Ограждение стройплощадки не показано на схеме движения транспорта",
+        locations: [],
+      },
+    ]);
+    assert.equal(result.enriched, 0);
+    assert.equal(result.added, 1, "разные разделы — разные замечания");
+
+    const list = await store.listReviews(PROJECT);
+    assert.equal(list.find((item) => item.id === own.id)?.origin, "engineer");
+  });
+
+  it("не склеивает замечания про разное в одном разделе", async () => {
+    const before = (await store.listReviews(PROJECT)).length;
+    const result = await store.ingestReviews(PROJECT, [
+      {
+        section: "ПОС",
+        aiFinding: "Календарный график не согласуется с ведомостью объёмов",
+        locations: [],
+      },
+    ]);
+    assert.equal(result.enriched, 0);
+    assert.equal(result.added, 1);
+    assert.equal((await store.listReviews(PROJECT)).length, before + 1);
+  });
+
+  it("одна находка цепляется только к одному ручному замечанию", async () => {
+    const first = await store.createReview(PROJECT, {
+      section: "ТБЭ",
+      text: "Периодичность обследования конструкций не указана",
+    });
+    const second = await store.createReview(PROJECT, {
+      section: "ТБЭ",
+      text: "Периодичность обследования конструкций не указана",
+    });
+    const result = await store.ingestReviews(PROJECT, [
+      {
+        section: "ТБЭ",
+        aiFinding:
+          "Периодичность обследования несущих конструкций не указана в разделе",
+        locations: [
+          {
+            documentId: "doc-tbe",
+            documentName: "Раздел ПД №12 (ТБЭ)",
+            pageNumber: 5,
+            quote: "обследование",
+          },
+        ],
+      },
+    ]);
+    assert.equal(result.enriched, 1);
+    assert.equal(result.added, 0);
+
+    const list = await store.listReviews(PROJECT);
+    const enrichedCount = [first.id, second.id].filter(
+      (id) => list.find((item) => item.id === id)?.origin === "both",
+    ).length;
+    assert.equal(enrichedCount, 1, "второе замечание должно остаться как было");
   });
 
   it("удаляет замечание и пересчитывает номера", async () => {

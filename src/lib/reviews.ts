@@ -120,6 +120,41 @@ function ingestKey(item: {
   return `${flat(item.section)}::${flat(item.aiFinding)}::${places}`;
 }
 
+/**
+ * Значимые слова формулировки: по ним ищем, к чему прицепить находку ИИ.
+ * Слова режем до основы, иначе падежи не совпадут: инженер пишет
+ * «с аксонометрией», агент — «аксонометрия даёт».
+ */
+const STEM_LENGTH = 5;
+
+function meaningfulWords(value: string): Set<string> {
+  return new Set(
+    value
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}\s]/gu, " ")
+      .split(/\s+/)
+      .filter((word) => word.length > 3)
+      .map((word) => word.slice(0, STEM_LENGTH)),
+  );
+}
+
+const MERGE_MIN_WORDS = 3;
+const MERGE_MIN_SHARED = 3;
+const MERGE_THRESHOLD = 0.7;
+
+/**
+ * Похожесть формулировок. Делим на меньший набор, потому что инженер пишет
+ * коротко («площадь КПП не сходится»), а агент — подробно; при делении на
+ * объединение такая пара никогда бы не совпала.
+ */
+function wordOverlap(left: Set<string>, right: Set<string>): number {
+  if (left.size < MERGE_MIN_WORDS || right.size < MERGE_MIN_WORDS) return 0;
+  let shared = 0;
+  for (const word of left) if (right.has(word)) shared += 1;
+  if (shared < MERGE_MIN_SHARED) return 0;
+  return shared / Math.min(left.size, right.size);
+}
+
 /** Группировка по разделу, внутри — важное сверху, затем стабильно по дате. */
 export function sortReviews(items: Review[]): Review[] {
   return [...items].sort((a, b) => {
@@ -257,6 +292,8 @@ export async function deleteReview(
 export type IngestResult = {
   added: number;
   updated: number;
+  /** Сколько находок прицепилось к замечаниям, заведённым руками. */
+  enriched: number;
   total: number;
 };
 
@@ -270,10 +307,30 @@ export async function ingestReviews(
 ): Promise<IngestResult> {
   return withDataLock(async () => {
     const items = await readAll(projectId);
-    const byKey = new Map(items.map((item) => [ingestKey(item), item]));
+    const byId = new Map(items.map((item) => [item.id, item]));
+    const idByKey = new Map(items.map((item) => [ingestKey(item), item.id]));
+
+    /**
+     * Замечания инженеров без пути в ПД: агент дописывает им файл и страницу,
+     * а не создаёт рядом дубль. Точное совпадение строк тут не работает —
+     * человек и агент формулируют по-разному.
+     */
+    const manual = items
+      .filter((item) => item.origin !== "ai" && item.text)
+      .map((item) => ({
+        id: item.id,
+        section: item.section.toLowerCase().trim(),
+        words: meaningfulWords(item.text),
+      }));
+
     const now = new Date().toISOString();
     let added = 0;
     let updated = 0;
+    let enriched = 0;
+
+    function rememberKey(review: Review) {
+      idByKey.set(ingestKey(review), review.id);
+    }
 
     for (const raw of incoming) {
       const candidate = {
@@ -285,8 +342,31 @@ export async function ingestReviews(
       };
       if (!candidate.aiFinding) continue;
 
-      const key = ingestKey(candidate);
-      const existing = byKey.get(key);
+      const exactId = idByKey.get(ingestKey(candidate));
+      let existing = exactId ? byId.get(exactId) : undefined;
+      let isEnrichment = false;
+
+      if (!existing) {
+        // Ищем формулировку инженера про то же самое в том же разделе.
+        const words = meaningfulWords(
+          `${candidate.aiFinding} ${text(raw.text)}`,
+        );
+        const section = candidate.section.toLowerCase().trim();
+        let best: { id: string; score: number } | null = null;
+        for (const item of manual) {
+          if (item.section !== section) continue;
+          const score = wordOverlap(item.words, words);
+          if (score < MERGE_THRESHOLD) continue;
+          if (!best || score > best.score) best = { id: item.id, score };
+        }
+        if (best) {
+          existing = byId.get(best.id);
+          isEnrichment = true;
+          // Одна находка на одно ручное замечание.
+          const index = manual.findIndex((item) => item.id === best.id);
+          if (index >= 0) manual.splice(index, 1);
+        }
+      }
 
       if (!existing) {
         const review = normalizeReview({
@@ -302,7 +382,8 @@ export async function ingestReviews(
           createdAt: now,
           updatedAt: now,
         });
-        byKey.set(key, review);
+        byId.set(review.id, review);
+        rememberKey(review);
         added += 1;
         continue;
       }
@@ -310,7 +391,12 @@ export async function ingestReviews(
       // Текст инженера и цитаты можно уточнять, вердикт и комментарий — нет.
       const merged: Review = normalizeReview({
         ...existing,
-        text: text(raw.text) || existing.text,
+        // Формулировку инженера агент не перебивает, свою — уточняет.
+        text:
+          existing.origin === "ai"
+            ? text(raw.text) || existing.text
+            : existing.text || text(raw.text),
+        aiFinding: candidate.aiFinding,
         locations: candidate.locations.length
           ? candidate.locations
           : existing.locations,
@@ -325,11 +411,13 @@ export async function ingestReviews(
             : existing.severity,
         updatedAt: now,
       });
-      byKey.set(key, merged);
-      updated += 1;
+      byId.set(merged.id, merged);
+      rememberKey(merged);
+      if (isEnrichment) enriched += 1;
+      else updated += 1;
     }
 
-    const saved = await writeAll(projectId, [...byKey.values()]);
-    return { added, updated, total: saved.length };
+    const saved = await writeAll(projectId, [...byId.values()]);
+    return { added, updated, enriched, total: saved.length };
   });
 }

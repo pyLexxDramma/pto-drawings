@@ -13,7 +13,10 @@ import { PasswordPanel } from "@/components/password-panel";
 import { ColumnResizer, clamp } from "@/components/column-resizer";
 import { ReviewPane } from "@/components/review-pane";
 import { ReviewsTable } from "@/components/reviews-table";
-import { ProjectStages, type ReviewStats } from "@/components/project-stages";
+import {
+  ProjectStagesBar,
+  type ReviewStats,
+} from "@/components/project-stages";
 import { PtoLogo } from "@/components/pto-logo";
 import {
   ToastHost,
@@ -323,6 +326,7 @@ export function Workspace({
   const [liveDockCollapsed, setLiveDockCollapsed] = useState(false);
   const [showReviews, setShowReviews] = useState(false);
   const [reviewStats, setReviewStats] = useState<ReviewStats | null>(null);
+  const [stagesCollapsed, setStagesCollapsed] = useState(false);
   const [openPage, setOpenPage] = useState<{
     nonce: number;
     page: number;
@@ -1435,8 +1439,20 @@ export function Workspace({
         </div>
       ) : null}
 
+      {currentProject && !focusMode ? (
+        <ProjectStagesBar
+          projectName={currentProject.name}
+          documents={documents}
+          reviews={reviewStats}
+          reviewsOpen={showReviews}
+          collapsed={stagesCollapsed}
+          onToggleCollapsed={() => setStagesCollapsed((value) => !value)}
+          onOpenReviews={() => setShowReviews(true)}
+        />
+      ) : null}
+
       <div className={gridClass}>
-        {focusMode ? null : projectsCollapsed ? (
+        {focusMode || showReviews ? null : projectsCollapsed ? (
           selected ? (
             <div className="flex w-11 shrink-0 flex-col border-b border-border bg-surface md:border-b-0">
               <button
@@ -1591,12 +1607,6 @@ export function Workspace({
                             {documents.length === 0 ? UPLOAD_BUTTON_LABEL : "+ файл"}
                           </div>
                         </label>
-                        <ProjectStages
-                          documents={documents}
-                          reviews={reviewStats}
-                          reviewsOpen={showReviews}
-                          onOpenReviews={() => setShowReviews(true)}
-                        />
                         {error ? (
                           <div className="mb-1 rounded bg-red-50 px-2 py-1 text-[10px] text-red-700">
                             {error}
@@ -1709,7 +1719,7 @@ export function Workspace({
           </aside>
         )}
 
-        {focusMode || projectsCollapsed ? null : (
+        {focusMode || showReviews || projectsCollapsed ? null : (
           <ColumnResizer
             className="hidden md:block"
             onDelta={(dx) => setProjectsWidth((w) => clamp(w + dx, 200, 420))}
