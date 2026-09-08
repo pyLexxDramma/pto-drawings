@@ -28,10 +28,27 @@ function percent(done: number, total: number): number {
   return Math.round((done / total) * 100);
 }
 
+/** Пока данные не пришли — прочерк вместо цифр, иначе мелькают чужие. */
+const PENDING: Omit<Stage, "id" | "label"> = {
+  count: "…",
+  percent: 0,
+  state: "waiting",
+  hint: "Загружаем…",
+};
+
 function buildStages(
   documents: DocumentRecord[],
+  documentsReady: boolean,
   reviews: ReviewStats | null,
 ): Stage[] {
+  if (!documentsReady) {
+    return [
+      { id: "intake", label: "Обработка", ...PENDING },
+      { id: "transcribe", label: "Расшифровка", ...PENDING },
+      { id: "reviews", label: "Замечания", ...PENDING },
+    ];
+  }
+
   const filesTotal = documents.length;
   // Лист появляется только после нарезки, поэтому pageCount и есть признак обработки.
   const filesSliced = documents.filter((doc) => doc.pageCount > 0).length;
@@ -73,24 +90,24 @@ function buildStages(
           ? "Ждём обработку файлов"
           : `Листов расшифровано: ${pagesReady} из ${pagesTotal}`,
     },
-    {
-      id: "reviews",
-      label: "Замечания",
-      count: reviewsTotal > 0 ? `${reviewsDone}/${reviewsTotal}` : "—",
-      percent: percent(reviewsDone, reviewsTotal),
-      state:
-        reviewsTotal === 0
-          ? "waiting"
-          : reviewsDone >= reviewsTotal
-            ? "done"
-            : "active",
-      hint:
-        reviews === null
-          ? "Считаем замечания…"
-          : reviewsTotal === 0
-            ? "Замечаний пока нет — конвейер их ещё не присылал"
-            : `Разобрано с заказчиком: ${reviewsDone} из ${reviewsTotal}`,
-    },
+    reviews === null
+      ? { id: "reviews", label: "Замечания", ...PENDING }
+      : {
+          id: "reviews",
+          label: "Замечания",
+          count: reviewsTotal > 0 ? `${reviewsDone}/${reviewsTotal}` : "—",
+          percent: percent(reviewsDone, reviewsTotal),
+          state:
+            reviewsTotal === 0
+              ? "waiting"
+              : reviewsDone >= reviewsTotal
+                ? "done"
+                : "active",
+          hint:
+            reviewsTotal === 0
+              ? "Замечаний пока нет — конвейер их ещё не присылал"
+              : `Разобрано с заказчиком: ${reviewsDone} из ${reviewsTotal}`,
+        },
   ];
 }
 
@@ -102,6 +119,8 @@ function buildStages(
 export function ProjectStagesBar({
   projectName,
   documents,
+  /** false — список файлов ещё от прошлого проекта, цифры показывать нельзя. */
+  documentsReady,
   /** null — ещё не загрузили счётчик замечаний. */
   reviews,
   reviewsOpen,
@@ -111,16 +130,19 @@ export function ProjectStagesBar({
 }: {
   projectName: string;
   documents: DocumentRecord[];
+  documentsReady: boolean;
   reviews: ReviewStats | null;
   reviewsOpen: boolean;
   collapsed: boolean;
   onToggleCollapsed: () => void;
   onOpenReviews: () => void;
 }) {
-  const stages = buildStages(documents, reviews);
-  const busy = documents.some(
-    (doc) => doc.status === "queued" || doc.status === "processing",
-  );
+  const stages = buildStages(documents, documentsReady, reviews);
+  const busy =
+    documentsReady &&
+    documents.some(
+      (doc) => doc.status === "queued" || doc.status === "processing",
+    );
 
   if (collapsed) {
     return (

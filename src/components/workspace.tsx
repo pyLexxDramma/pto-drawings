@@ -327,6 +327,9 @@ export function Workspace({
   const [showReviews, setShowReviews] = useState(false);
   const [reviewStats, setReviewStats] = useState<ReviewStats | null>(null);
   const [stagesCollapsed, setStagesCollapsed] = useState(false);
+  const [documentsProjectId, setDocumentsProjectId] = useState<string | null>(
+    null,
+  );
   const [openPage, setOpenPage] = useState<{
     nonce: number;
     page: number;
@@ -435,6 +438,9 @@ export function Workspace({
         return lite;
       });
     });
+    // Чей это список: имя проекта в шапке меняется сразу, а файлы приходят
+    // запросом позже — без этой метки этапы успевают показать чужие цифры.
+    setDocumentsProjectId(id);
     return list;
   }, []);
 
@@ -1443,6 +1449,7 @@ export function Workspace({
         <ProjectStagesBar
           projectName={currentProject.name}
           documents={documents}
+          documentsReady={documentsProjectId === currentProject.id}
           reviews={reviewStats}
           reviewsOpen={showReviews}
           collapsed={stagesCollapsed}
