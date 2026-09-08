@@ -4,6 +4,7 @@ import path from "path";
 const ROOT = process.env.DATA_ROOT || process.cwd();
 const DATA_DIR = path.join(ROOT, "data");
 const DOCS_DIR = path.join(DATA_DIR, "documents");
+const REVIEWS_DIR = path.join(DATA_DIR, "reviews");
 const UPLOAD_DIR = path.join(ROOT, "uploads");
 const DB_PATH = path.join(DATA_DIR, "db.json");
 const LOCK_DIR = path.join(DATA_DIR, ".lock");
@@ -15,7 +16,7 @@ const LOCK_POLL_MS = 25;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-export const DATA_PATHS = { DATA_DIR, DOCS_DIR, UPLOAD_DIR, DB_PATH };
+export const DATA_PATHS = { DATA_DIR, DOCS_DIR, REVIEWS_DIR, UPLOAD_DIR, DB_PATH };
 
 function assertDocumentId(id: string) {
   if (!/^[0-9a-f-]{36}$/i.test(id)) {
@@ -26,6 +27,11 @@ function assertDocumentId(id: string) {
 function documentPath(id: string) {
   assertDocumentId(id);
   return path.join(DOCS_DIR, `${id}.json`);
+}
+
+function reviewsPath(projectId: string) {
+  assertDocumentId(projectId);
+  return path.join(REVIEWS_DIR, `${projectId}.json`);
 }
 
 async function writeTextAtomic(file: string, text: string) {
@@ -125,6 +131,19 @@ export async function writeDocumentText(id: string, json: string) {
 
 export async function deleteDocumentFile(id: string) {
   await unlink(documentPath(id)).catch(() => undefined);
+}
+
+/** Замечания живут на уровне проекта: «межраздел» не привязан к одному файлу. */
+export async function readReviewsText(projectId: string): Promise<string | null> {
+  return readText(reviewsPath(projectId));
+}
+
+export async function writeReviewsText(projectId: string, json: string) {
+  await writeTextAtomic(reviewsPath(projectId), json);
+}
+
+export async function deleteReviewsFile(projectId: string) {
+  await unlink(reviewsPath(projectId)).catch(() => undefined);
 }
 
 export async function writePdfBytes(storedName: string, buffer: Buffer) {

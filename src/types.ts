@@ -106,6 +106,93 @@ export type PageProgress = {
   updatedAt: string;
 };
 
+// ------------------------------------------------------------------ замечания
+
+/** «Не нужно» (skip) не попадает в выгрузку проектировщикам. */
+export type ReviewSeverity = "high" | "medium" | "low" | "skip";
+
+/** Итог разбора замечания с заказчиком. */
+export type ReviewVerdict =
+  | "pending"
+  | "confirmed"
+  | "partial"
+  | "discuss"
+  | "outdated";
+
+export type ReviewOrigin = "ai" | "engineer" | "both";
+
+/**
+ * Место в ПД. Расхождение живёт сразу в двух местах, поэтому у замечания
+ * список локаций, а не одно поле.
+ */
+export type ReviewLocation = {
+  /** null для замечаний уровня «межраздел». */
+  documentId: string | null;
+  documentName: string;
+  pageNumber: number | null;
+  quote: string;
+};
+
+export type Review = {
+  id: string;
+  projectId: string;
+  /** Сквозной номер в выгрузке; пересчитывается при сортировке. */
+  number: number;
+  section: string;
+  origin: ReviewOrigin;
+  /** Формулировка инженера. */
+  text: string;
+  /** Обоснование от конвейера. */
+  aiFinding: string;
+  locations: ReviewLocation[];
+  severity: ReviewSeverity;
+  verdict: ReviewVerdict;
+  comment: string;
+  createdAt: string;
+  updatedAt: string;
+  authorId: string | null;
+  authorName: string | null;
+};
+
+/** Что присылает агент конвейера: без полей, которые правит человек. */
+export type ReviewIngestItem = {
+  section: string;
+  origin?: ReviewOrigin;
+  text?: string;
+  aiFinding: string;
+  severity?: ReviewSeverity;
+  locations?: ReviewLocation[];
+};
+
+export const REVIEW_SEVERITY_LABEL: Record<ReviewSeverity, string> = {
+  high: "Высокий",
+  medium: "Средний",
+  low: "Низкий",
+  skip: "Не нужно",
+};
+
+export const REVIEW_VERDICT_LABEL: Record<ReviewVerdict, string> = {
+  pending: "Не разобрано",
+  confirmed: "Верно",
+  partial: "Частично верно",
+  discuss: "Обсудить",
+  outdated: "Неактуально",
+};
+
+export const REVIEW_ORIGIN_LABEL: Record<ReviewOrigin, string> = {
+  ai: "Нашла ИИ",
+  engineer: "Инженер",
+  both: "Клиент + ИИ",
+};
+
+/** Порядок в таблице и в выгрузке: важное сверху. */
+export const REVIEW_SEVERITY_ORDER: ReviewSeverity[] = [
+  "high",
+  "medium",
+  "low",
+  "skip",
+];
+
 export type KindCounts = Record<PageKind, number>;
 
 export type PipelineMode = "mock" | "real";

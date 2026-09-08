@@ -12,6 +12,7 @@ import {
 import { PasswordPanel } from "@/components/password-panel";
 import { ColumnResizer, clamp } from "@/components/column-resizer";
 import { ReviewPane } from "@/components/review-pane";
+import { ReviewsTable } from "@/components/reviews-table";
 import { PtoLogo } from "@/components/pto-logo";
 import {
   ToastHost,
@@ -318,6 +319,7 @@ export function Workspace({
   const [liveJobDoc, setLiveJobDoc] = useState<DocumentRecord | null>(null);
   const [fullProgressVisible, setFullProgressVisible] = useState(false);
   const [liveDockCollapsed, setLiveDockCollapsed] = useState(false);
+  const [showReviews, setShowReviews] = useState(false);
   const [openPage, setOpenPage] = useState<{
     nonce: number;
     page: number;
@@ -431,6 +433,7 @@ export function Workspace({
 
   const openDocument = useCallback(
     async (id: string, page?: number) => {
+      setShowReviews(false);
       setSelectedId(id);
       setOpenPage(
         page && page > 0
@@ -465,6 +468,7 @@ export function Workspace({
 
   const jumpToPage = useCallback(
     (documentId: string, page: number) => {
+      setShowReviews(false);
       setOpenPage({ nonce: Date.now(), page, documentId });
       void openDocument(documentId);
     },
@@ -732,6 +736,7 @@ export function Workspace({
   }
 
   async function selectProject(id: string) {
+    setShowReviews(false);
     if (projectId === id) {
       setProjectId("");
       setSelectedId(null);
@@ -1561,6 +1566,18 @@ export function Workspace({
                             {documents.length === 0 ? UPLOAD_BUTTON_LABEL : "+ файл"}
                           </div>
                         </label>
+                        <button
+                          type="button"
+                          onClick={() => setShowReviews(true)}
+                          className={`mb-1.5 block w-full rounded-md border px-2 py-1.5 text-[11px] font-semibold ${
+                            showReviews
+                              ? "border-accent bg-accent/10 text-accent"
+                              : "border-slate-300 bg-white/70 text-text hover:border-accent/60 hover:text-accent"
+                          }`}
+                          title="Таблица замечаний по проекту"
+                        >
+                          Замечания
+                        </button>
                         {error ? (
                           <div className="mb-1 rounded bg-red-50 px-2 py-1 text-[10px] text-red-700">
                             {error}
@@ -1680,7 +1697,15 @@ export function Workspace({
           />
         )}
 
-        {selected ? (
+        {showReviews && currentProject ? (
+          <ReviewsTable
+            key={currentProject.id}
+            projectId={currentProject.id}
+            projectName={currentProject.name}
+            onJumpToPage={jumpToPage}
+            onClose={() => setShowReviews(false)}
+          />
+        ) : selected ? (
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <ReviewPane
             key={selected.id}

@@ -8,6 +8,7 @@ import { pagesFromOfficeFile } from "@/lib/office-document";
 import {
   deleteDocumentFile,
   deletePdfBytes,
+  deleteReviewsFile,
   listStoredDocumentIds,
   readDbText,
   readDocumentText,
@@ -558,6 +559,7 @@ export async function deleteProject(id: string): Promise<boolean> {
       await deletePdfBytes(meta.storedName);
     }
     if (project.specStoredName) await deletePdfBytes(project.specStoredName);
+    await deleteReviewsFile(id);
 
     db.documents = db.documents.filter((doc) => doc.projectId !== id);
     db.projects = db.projects.filter((item) => item.id !== id);

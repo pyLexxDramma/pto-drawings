@@ -1,5 +1,5 @@
-import { timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
+import { ingestGuard } from "@/lib/ingest-auth";
 import { ingestPage } from "@/lib/storage";
 import type { PageKind, PageSource } from "@/types";
 
@@ -7,32 +7,9 @@ type RouteContext = { params: Promise<{ id: string; pageNumber: string }> };
 
 const KINDS: PageKind[] = ["drawing", "text", "table", "mixed"];
 
-function tokenFrom(request: Request) {
-  const header = request.headers.get("authorization") ?? "";
-  if (header.toLowerCase().startsWith("bearer ")) return header.slice(7).trim();
-  return request.headers.get("x-ingest-token")?.trim() ?? "";
-}
-
-function authorized(request: Request) {
-  const expected = process.env.PTO_INGEST_TOKEN ?? "";
-  if (!expected) return null;
-  const provided = tokenFrom(request);
-  const a = Buffer.from(provided);
-  const b = Buffer.from(expected);
-  return a.length === b.length && timingSafeEqual(a, b);
-}
-
 export async function PUT(request: Request, context: RouteContext) {
-  const check = authorized(request);
-  if (check === null) {
-    return NextResponse.json(
-      { error: "Сервисный ингест выключен: не задан PTO_INGEST_TOKEN" },
-      { status: 503 },
-    );
-  }
-  if (!check) {
-    return NextResponse.json({ error: "Нужен токен ингеста" }, { status: 401 });
-  }
+  const denied = ingestGuard(request);
+  if (denied) return denied;
 
   const { id, pageNumber } = await context.params;
   const page = Number(pageNumber);
