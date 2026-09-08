@@ -184,13 +184,13 @@ describe("buildReviewsXlsx", () => {
 });
 
 describe("sortReviews", () => {
-  it("ставит межраздел последним, неизвестный раздел — после известных", () => {
+  it("известные разделы, за ними незнакомые, межраздел последним", () => {
     const out = sortReviews([
       review({ id: "m", section: "межраздел" }),
       review({ id: "x", section: "ХЗ" }),
       review({ id: "p", section: "ПЗ" }),
     ]).map((item) => item.id);
-    assert.deepEqual(out, ["p", "m", "x"]);
+    assert.deepEqual(out, ["p", "x", "m"]);
   });
 });
 

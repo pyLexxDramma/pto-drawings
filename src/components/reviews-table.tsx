@@ -11,6 +11,7 @@ import {
 import { SegmentedTabs, Spinner } from "@/components/ui-chrome";
 import { IconDownload } from "@/components/tool-icons";
 import { groupReviews, type GroupBy } from "@/lib/reviews-group";
+import { CROSS_SECTION, KNOWN_SECTIONS } from "@/lib/sections";
 import {
   REVIEW_ORIGIN_LABEL,
   REVIEW_SEVERITY_LABEL,
@@ -21,31 +22,6 @@ import {
   type ReviewSeverity,
   type ReviewVerdict,
 } from "@/types";
-
-/** Разделы ПД для формы нового замечания. */
-const SECTIONS = [
-  "ПЗ",
-  "ПЗУ",
-  "АР1",
-  "АР2",
-  "АР3",
-  "АР4",
-  "АР5",
-  "КР1",
-  "КР2",
-  "КР3",
-  "КР4",
-  "ИОС1",
-  "ИОС2",
-  "ИОС3",
-  "ИОС4",
-  "ИОС5",
-  "ПОС",
-  "ПБ",
-  "ТБЭ",
-  "ОДИ",
-  "межраздел",
-];
 
 const SEVERITY_ROW: Record<ReviewSeverity, string> = {
   high: "border-l-red-500 bg-red-50/60",
@@ -567,17 +543,19 @@ export function ReviewsTable({
             <span className="text-[10px] uppercase tracking-wider text-muted">
               Раздел
             </span>
-            <select
+            {/* Не список, а подсказка: у РД раздел бывает шифром тома. */}
+            <input
               value={draftSection}
               onChange={(event) => setDraftSection(event.target.value)}
-              className="rounded-md border border-border bg-white px-2 py-1.5 text-xs outline-none focus:border-accent"
-            >
-              {SECTIONS.map((section) => (
-                <option key={section} value={section}>
-                  {section}
-                </option>
+              list="review-sections"
+              placeholder="ИОС2 или 250910-ВА-Р-ОВ1"
+              className="w-40 rounded-md border border-border bg-white px-2 py-1.5 text-xs outline-none focus:border-accent"
+            />
+            <datalist id="review-sections">
+              {[...KNOWN_SECTIONS, CROSS_SECTION].map((section) => (
+                <option key={section} value={section} />
               ))}
-            </select>
+            </datalist>
           </label>
           <label className="flex min-w-0 flex-1 flex-col gap-0.5">
             <span className="text-[10px] uppercase tracking-wider text-muted">

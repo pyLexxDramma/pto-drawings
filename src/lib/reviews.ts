@@ -4,6 +4,12 @@ import {
   writeReviewsText,
 } from "@/lib/persist";
 import {
+  CROSS_RANK,
+  UNKNOWN_RANK,
+  isCrossSection,
+  knownSectionRank,
+} from "@/lib/sections";
+import {
   REVIEW_SEVERITY_ORDER,
   type Review,
   type ReviewIngestItem,
@@ -23,34 +29,32 @@ const verdicts: ReviewVerdict[] = [
 ];
 const origins: ReviewOrigin[] = ["ai", "engineer", "both"];
 
-/** Порядок разделов ПД: в таблице и выгрузке идём как в комплекте. */
-const SECTION_ORDER = [
-  "ПЗ",
-  "ПЗУ",
-  "АР1",
-  "АР2",
-  "АР3",
-  "АР4",
-  "АР5",
-  "КР1",
-  "КР2",
-  "КР3",
-  "КР4",
-  "ИОС1",
-  "ИОС2",
-  "ИОС3",
-  "ИОС4",
-  "ИОС5",
-  "ПОС",
-  "ПБ",
-  "ТБЭ",
-  "ОДИ",
-  "межраздел",
-];
+/**
+ * Ранг раздела. Известные — по составу комплекта, незнакомые (шифры РД вроде
+ * 250910-ВА-Р-ОВ1) — по порядку первого появления, чтобы не сваливались в конец
+ * одной кучей. «Межраздел» всегда последний.
+ */
+function sectionRanker(items: Review[]): (section: string) => number {
+  const firstSeen = new Map<string, string>();
+  for (const item of items) {
+    const key = item.section.trim().toLowerCase();
+    if (knownSectionRank(key) !== null || isCrossSection(key)) continue;
+    const seen = firstSeen.get(key);
+    if (!seen || item.createdAt < seen) firstSeen.set(key, item.createdAt);
+  }
+  const order = new Map(
+    [...firstSeen.entries()]
+      .sort((left, right) => left[1].localeCompare(right[1]))
+      .map(([section], index) => [section, UNKNOWN_RANK + index]),
+  );
 
-function sectionRank(section: string): number {
-  const index = SECTION_ORDER.indexOf(section);
-  return index < 0 ? SECTION_ORDER.length : index;
+  return (section: string) => {
+    const key = section.trim().toLowerCase();
+    if (isCrossSection(key)) return CROSS_RANK;
+    const known = knownSectionRank(key);
+    if (known !== null) return known;
+    return order.get(key) ?? UNKNOWN_RANK;
+  };
 }
 
 function severityRank(severity: ReviewSeverity): number {
@@ -127,14 +131,23 @@ function ingestKey(item: {
  */
 const STEM_LENGTH = 5;
 
+/**
+ * Числа и шифры («310», «К1», «ОВ1», «42.5») короче четырёх букв, но именно
+ * они точнее всего указывают, что речь об одном и том же: их оставляем целиком.
+ */
+function isCode(word: string): boolean {
+  return word.length >= 2 && /\d/.test(word);
+}
+
 function meaningfulWords(value: string): Set<string> {
   return new Set(
     value
       .toLowerCase()
-      .replace(/[^\p{L}\p{N}\s]/gu, " ")
+      .replace(/[^\p{L}\p{N}.,\s]/gu, " ")
       .split(/\s+/)
-      .filter((word) => word.length > 3)
-      .map((word) => word.slice(0, STEM_LENGTH)),
+      .map((word) => word.replace(/^[.,]+|[.,]+$/g, ""))
+      .filter((word) => word.length > 3 || isCode(word))
+      .map((word) => (isCode(word) ? word : word.slice(0, STEM_LENGTH))),
   );
 }
 
@@ -157,6 +170,7 @@ function wordOverlap(left: Set<string>, right: Set<string>): number {
 
 /** Группировка по разделу, внутри — важное сверху, затем стабильно по дате. */
 export function sortReviews(items: Review[]): Review[] {
+  const sectionRank = sectionRanker(items);
   return [...items].sort((a, b) => {
     const bySection = sectionRank(a.section) - sectionRank(b.section);
     if (bySection !== 0) return bySection;

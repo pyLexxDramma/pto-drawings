@@ -235,6 +235,68 @@ describe("ingestReviews", () => {
     assert.equal(enrichedCount, 1, "второе замечание должно остаться как было");
   });
 
+  it("склеивает по шифрам и числам, которые короче слова", async () => {
+    const own = await store.createReview(PROJECT, {
+      section: "ОВ",
+      text: "Нагрузка на калорифер П1 не сходится: 42.5 против 38.2",
+    });
+    const result = await store.ingestReviews(PROJECT, [
+      {
+        section: "ОВ",
+        aiFinding:
+          "Нагрузка калорифера П1 в спецификации 38.2 кВт, в расчёте 42.5 кВт",
+        locations: [
+          {
+            documentId: "doc-ov",
+            documentName: "250910-ВА-Р-ОВ1",
+            pageNumber: 4,
+            quote: "42.5 кВт",
+          },
+        ],
+      },
+    ]);
+    assert.equal(result.enriched, 1);
+    assert.equal(result.added, 0);
+
+    const same = (await store.listReviews(PROJECT)).find(
+      (item) => item.id === own.id,
+    );
+    assert.equal(same?.origin, "both");
+    assert.equal(same?.locations[0]?.pageNumber, 4);
+  });
+
+  it("незнакомые разделы идут по появлению, межраздел последним", async () => {
+    const project = "df97da8f-2222-4222-8333-444444444444";
+    await store.ingestReviews(project, [
+      { section: "межраздел", aiFinding: "Отметки 0.000 расходятся" },
+      { section: "250910-ВА-Р-ОВ1", aiFinding: "Нет расхода приточки" },
+      { section: "ИОС2", aiFinding: "Диаметр стояка не сходится" },
+      { section: "250910-ВА-Р-ВК1", aiFinding: "Нет уклона выпуска" },
+    ]);
+
+    const list = await store.listReviews(project);
+    assert.deepEqual(
+      list.map((item) => item.section),
+      ["ИОС2", "250910-ВА-Р-ОВ1", "250910-ВА-Р-ВК1", "межраздел"],
+    );
+  });
+
+  it("марки рабочей документации идут составом тома", async () => {
+    const project = "df97da8f-3333-4222-8333-444444444444";
+    await store.ingestReviews(project, [
+      { section: "ЭО", aiFinding: "Нет селективности защит" },
+      { section: "АР", aiFinding: "Узел примыкания не показан" },
+      { section: "ОВ", aiFinding: "Расход приточки не сходится" },
+      { section: "КЖ", aiFinding: "Класс бетона не указан" },
+    ]);
+
+    const list = await store.listReviews(project);
+    assert.deepEqual(
+      list.map((item) => item.section),
+      ["АР", "КЖ", "ОВ", "ЭО"],
+    );
+  });
+
   it("удаляет замечание и пересчитывает номера", async () => {
     const list = await store.listReviews(PROJECT);
     const removed = await store.deleteReview(PROJECT, list[0].id);
