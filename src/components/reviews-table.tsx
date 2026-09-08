@@ -30,6 +30,18 @@ const SEVERITY_ROW: Record<ReviewSeverity, string> = {
   skip: "border-l-slate-300 bg-slate-50 opacity-60",
 };
 
+/**
+ * Итог разбора перекрывает заливку по важности: на разборе с заказчиком важно
+ * видеть, что со строкой уже решили, а важность остаётся в левой полосе и в
+ * порядке сортировки. `pending` цвета не меняет — там правит важность.
+ */
+const VERDICT_ROW: Partial<Record<ReviewVerdict, string>> = {
+  confirmed: "bg-emerald-100/70",
+  partial: "bg-amber-100/60",
+  discuss: "bg-sky-100/60",
+  outdated: "bg-slate-100 opacity-60",
+};
+
 const SEVERITY_CHIP: Record<ReviewSeverity, string> = {
   high: "border-red-300 bg-red-100 text-red-900",
   medium: "border-amber-300 bg-amber-100 text-amber-900",
@@ -69,6 +81,35 @@ const ORIGIN_SHORT: Record<ReviewOrigin, string> = {
   engineer: "Инженер",
   both: "Совпало",
 };
+
+/**
+ * Поиск не только отсеивает строки, но и показывает, где именно совпало:
+ * иначе в длинной формулировке приходится искать слово глазами.
+ */
+function highlight(text: string, needle: string) {
+  if (!needle) return text;
+  const lower = text.toLowerCase();
+  const parts: (string | { match: string })[] = [];
+  let from = 0;
+  for (;;) {
+    const at = lower.indexOf(needle, from);
+    if (at < 0) break;
+    if (at > from) parts.push(text.slice(from, at));
+    parts.push({ match: text.slice(at, at + needle.length) });
+    from = at + needle.length;
+  }
+  if (parts.length === 0) return text;
+  if (from < text.length) parts.push(text.slice(from));
+  return parts.map((part, index) =>
+    typeof part === "string" ? (
+      <Fragment key={index}>{part}</Fragment>
+    ) : (
+      <mark key={index} className="rounded bg-yellow-200 px-0.5 text-text">
+        {part.match}
+      </mark>
+    ),
+  );
+}
 
 /**
  * Компактный фильтр вместо ряда вкладок: над таблицей их четыре, вкладками
@@ -522,6 +563,7 @@ export function ReviewsTable({
                     <ReviewRow
                       key={review.id}
                       review={review}
+                      needle={query.trim().toLowerCase()}
                       active={activeId === review.id}
                       saving={savingId === review.id}
                       onActivate={() => setActiveId(review.id)}
@@ -605,6 +647,7 @@ export function ReviewsTable({
 
 function ReviewRow({
   review,
+  needle,
   active,
   saving,
   onActivate,
@@ -613,6 +656,8 @@ function ReviewRow({
   onJumpToPage,
 }: {
   review: Review;
+  /** Уже приведённая к нижнему регистру строка поиска — что подсветить. */
+  needle: string;
   active: boolean;
   saving: boolean;
   onActivate: () => void;
@@ -645,7 +690,11 @@ function ReviewRow({
       onClick={onActivate}
       className={`border-b border-slate-200 border-l-4 align-top ${
         SEVERITY_ROW[review.severity]
-      } ${active ? "outline outline-1 -outline-offset-1 outline-accent/50" : ""}`}
+      } ${VERDICT_ROW[review.verdict] ?? ""} ${
+        active
+          ? "outline outline-2 -outline-offset-2 outline-accent ring-1 ring-inset ring-accent/20"
+          : ""
+      }`}
     >
       <td className="px-2 py-1.5 tabular-nums text-muted">{review.number}</td>
       <td className="px-2 py-1.5">
@@ -664,12 +713,12 @@ function ReviewRow({
             {ORIGIN_SHORT[review.origin]}
           </span>
           <div className="min-w-0 whitespace-pre-wrap leading-snug text-text">
-            {wording}
+            {highlight(wording, needle)}
           </div>
         </div>
         {review.text && review.aiFinding ? (
           <div className="mt-1 whitespace-pre-wrap border-l-2 border-violet-300 pl-2 text-[11px] leading-snug text-muted">
-            Нашла ИИ: {review.aiFinding}
+            Нашла ИИ: {highlight(review.aiFinding, needle)}
           </div>
         ) : null}
       </td>
@@ -697,14 +746,16 @@ function ReviewRow({
                       }}
                       className="text-left text-[11px] font-medium text-accent underline decoration-dotted hover:no-underline"
                     >
-                      {label}
+                      {highlight(label, needle)}
                     </button>
                   ) : (
-                    <span className="text-[11px] font-medium text-text">{label}</span>
+                    <span className="text-[11px] font-medium text-text">
+                      {highlight(label, needle)}
+                    </span>
                   )}
                   {location.quote ? (
                     <div className="text-[10px] leading-snug text-muted">
-                      «{location.quote}»
+                      «{highlight(location.quote, needle)}»
                     </div>
                   ) : null}
                 </li>
