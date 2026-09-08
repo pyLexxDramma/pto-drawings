@@ -94,6 +94,46 @@ const ORIGIN_SHORT: Record<ReviewOrigin, string> = {
   both: "Совпало",
 };
 
+/**
+ * Компактный фильтр вместо ряда вкладок: над таблицей их четыре, вкладками
+ * они занимали всю полосу и мешали читать сами замечания.
+ */
+function FilterSelect<T extends string>({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: T;
+  onChange: (value: T) => void;
+  options: { id: T; label: string }[];
+}) {
+  const active = value !== "all";
+  return (
+    <label
+      className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] ${
+        active
+          ? "border-accent/60 bg-accent/5 text-text"
+          : "border-border bg-white text-muted"
+      }`}
+    >
+      <span>{label}</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value as T)}
+        className="max-w-[8rem] bg-transparent text-[11px] font-medium text-text outline-none"
+      >
+        {options.map((option) => (
+          <option key={option.id} value={option.id}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 export function ReviewsTable({
   projectId,
   projectName,
@@ -164,6 +204,13 @@ export function ReviewsTable({
     }
     return seen;
   }, [reviews]);
+
+  const filtersOn =
+    severityFilter !== "all" ||
+    verdictFilter !== "all" ||
+    originFilter !== "all" ||
+    sectionFilter !== "all" ||
+    query.trim().length > 0;
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -357,51 +404,6 @@ export function ReviewsTable({
       <div className="flex flex-wrap items-center gap-2 border-b border-border bg-surface-2 px-3 py-1.5">
         <SegmentedTabs
           size="xs"
-          value={severityFilter}
-          onChange={setSeverityFilter}
-          options={[
-            { id: "all" as SeverityFilter, label: "Вся важность" },
-            ...REVIEW_SEVERITY_ORDER.map((item) => ({
-              id: item as SeverityFilter,
-              label: REVIEW_SEVERITY_LABEL[item],
-            })),
-          ]}
-        />
-        <SegmentedTabs
-          size="xs"
-          value={verdictFilter}
-          onChange={setVerdictFilter}
-          options={[
-            { id: "all" as VerdictFilter, label: "Все" },
-            { id: "pending" as VerdictFilter, label: "Не разобрано" },
-            { id: "done" as VerdictFilter, label: "Разобрано" },
-          ]}
-        />
-        <SegmentedTabs
-          size="xs"
-          value={originFilter}
-          onChange={setOriginFilter}
-          options={[
-            { id: "all" as OriginFilter, label: "Оба потока" },
-            {
-              id: "ai" as OriginFilter,
-              label: "Нашла ИИ",
-              title: "Только находки конвейера",
-            },
-            {
-              id: "engineer" as OriginFilter,
-              label: "Инженер",
-              title: "Только замечания, заведённые руками",
-            },
-            {
-              id: "both" as OriginFilter,
-              label: "Совпало",
-              title: "Инженер завёл, конвейер подтвердил",
-            },
-          ]}
-        />
-        <SegmentedTabs
-          size="xs"
           value={groupBy}
           onChange={setGroupBy}
           options={[
@@ -409,19 +411,74 @@ export function ReviewsTable({
             { id: "file" as GroupBy, label: "По файлам" },
           ]}
         />
+        <FilterSelect
+          label="Важность"
+          value={severityFilter}
+          onChange={setSeverityFilter}
+          options={[
+            { id: "all" as SeverityFilter, label: "любая" },
+            ...REVIEW_SEVERITY_ORDER.map((item) => ({
+              id: item as SeverityFilter,
+              label: REVIEW_SEVERITY_LABEL[item].toLowerCase(),
+            })),
+          ]}
+        />
+        <FilterSelect
+          label="Разбор"
+          value={verdictFilter}
+          onChange={setVerdictFilter}
+          options={[
+            { id: "all" as VerdictFilter, label: "любой" },
+            { id: "pending" as VerdictFilter, label: "не разобрано" },
+            { id: "done" as VerdictFilter, label: "разобрано" },
+          ]}
+        />
+        <FilterSelect
+          label="Поток"
+          value={originFilter}
+          onChange={setOriginFilter}
+          options={[
+            { id: "all" as OriginFilter, label: "оба" },
+            {
+              id: "ai" as OriginFilter,
+              label: "нашла ИИ",
+            },
+            {
+              id: "engineer" as OriginFilter,
+              label: "инженер",
+            },
+            {
+              id: "both" as OriginFilter,
+              label: "совпало",
+            },
+          ]}
+        />
         {sections.length > 1 ? (
-          <select
+          <FilterSelect
+            label="Раздел"
             value={sectionFilter}
-            onChange={(event) => setSectionFilter(event.target.value)}
-            className="rounded-md border border-border bg-white px-2 py-1 text-[11px] outline-none focus:border-accent"
+            onChange={setSectionFilter}
+            options={[
+              { id: "all", label: "все" },
+              ...sections.map((section) => ({ id: section, label: section })),
+            ]}
+          />
+        ) : null}
+        {filtersOn ? (
+          <button
+            type="button"
+            onClick={() => {
+              setSeverityFilter("all");
+              setVerdictFilter("all");
+              setOriginFilter("all");
+              setSectionFilter("all");
+              setQuery("");
+            }}
+            className="rounded-md border border-border bg-white px-2 py-1 text-[11px] text-muted hover:text-text"
+            title="Показать все замечания"
           >
-            <option value="all">Все разделы</option>
-            {sections.map((section) => (
-              <option key={section} value={section}>
-                {section}
-              </option>
-            ))}
-          </select>
+            Сбросить
+          </button>
         ) : null}
         <span className="text-[11px] tabular-nums text-muted">
           показано {visible.length}

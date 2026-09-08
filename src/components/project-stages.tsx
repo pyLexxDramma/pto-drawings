@@ -5,10 +5,12 @@ import type { DocumentRecord } from "@/types";
 
 export type ReviewStats = { total: number; pending: number };
 
+export type StageId = "intake" | "transcribe" | "reviews";
+
 type StageState = "waiting" | "active" | "done";
 
 type Stage = {
-  id: string;
+  id: StageId;
   label: string;
   /** Короткая подпись: сколько сделано. */
   count: string;
@@ -21,6 +23,13 @@ const DOT: Record<StageState, string> = {
   waiting: "border-slate-300 bg-white text-muted",
   active: "border-sky-400 bg-sky-100 text-sky-900",
   done: "border-emerald-400 bg-emerald-100 text-emerald-900",
+};
+
+/** Что произойдёт по клику — подсказка в title, чтобы этап не выглядел мёртвым. */
+const ACTION: Record<StageId, string> = {
+  intake: "открыть файлы проекта",
+  transcribe: "открыть первый нерасшифрованный лист",
+  reviews: "открыть таблицу замечаний",
 };
 
 function percent(done: number, total: number): number {
@@ -126,7 +135,7 @@ export function ProjectStagesBar({
   reviewsOpen,
   collapsed,
   onToggleCollapsed,
-  onOpenReviews,
+  onOpenStage,
 }: {
   projectName: string;
   documents: DocumentRecord[];
@@ -135,7 +144,8 @@ export function ProjectStagesBar({
   reviewsOpen: boolean;
   collapsed: boolean;
   onToggleCollapsed: () => void;
-  onOpenReviews: () => void;
+  /** Каждый этап ведёт к своей работе: файлы, нерасшифрованный лист, таблица. */
+  onOpenStage: (stage: StageId) => void;
 }) {
   const stages = buildStages(documents, documentsReady, reviews);
   const busy =
@@ -216,26 +226,17 @@ export function ProjectStagesBar({
             </>
           );
 
-          if (!isReviews) {
-            return (
-              <li
-                key={stage.id}
-                title={stage.hint}
-                className="min-w-[10rem] flex-1 rounded-md border border-slate-300 bg-white/70 px-2 py-1.5 text-text"
-              >
-                {body}
-              </li>
-            );
-          }
+          const current = isReviews && reviewsOpen;
           return (
             <li key={stage.id} className="min-w-[10rem] flex-1">
               <button
                 type="button"
-                onClick={onOpenReviews}
-                title={`${stage.hint} · открыть таблицу`}
-                aria-current={reviewsOpen ? "page" : undefined}
-                className={`h-full w-full rounded-md border px-2 py-1.5 text-left ${
-                  reviewsOpen
+                onClick={() => onOpenStage(stage.id)}
+                disabled={stage.count === PENDING.count}
+                title={`${stage.hint} · ${ACTION[stage.id]}`}
+                aria-current={current ? "page" : undefined}
+                className={`h-full w-full rounded-md border px-2 py-1.5 text-left disabled:cursor-default ${
+                  current
                     ? "border-accent bg-accent/10 text-accent"
                     : "border-slate-300 bg-white/70 text-text hover:border-accent/60"
                 }`}

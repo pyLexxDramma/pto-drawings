@@ -16,6 +16,7 @@ import { ReviewsTable } from "@/components/reviews-table";
 import {
   ProjectStagesBar,
   type ReviewStats,
+  type StageId,
 } from "@/components/project-stages";
 import { PtoLogo } from "@/components/pto-logo";
 import {
@@ -457,6 +458,38 @@ export function Workspace({
       await refreshDocument(id);
     },
     [refreshDocument],
+  );
+
+  /**
+   * Полоса этапов — не индикатор, а навигация: каждый этап открывает свою
+   * работу. «Обработка» ведёт к файлам, «Расшифровка» — к первому листу без
+   * текста, «Замечания» — к таблице.
+   */
+  const openStage = useCallback(
+    (stage: StageId) => {
+      if (stage === "reviews") {
+        setShowReviews(true);
+        return;
+      }
+      setShowReviews(false);
+      setProjectsCollapsed(false);
+
+      if (stage === "intake") {
+        const pending = documents.find(
+          (doc) => doc.status !== "done" || doc.pageCount === 0,
+        );
+        if (pending) void openDocument(pending.id);
+        return;
+      }
+
+      const target =
+        documents.find((doc) => doc.readyPages < doc.pageCount) ?? documents[0];
+      if (!target) return;
+      // Листы приходят по порядку, поэтому первый нерасшифрованный — следующий.
+      const page = Math.min(target.readyPages + 1, target.pageCount || 1);
+      void openDocument(target.id, page);
+    },
+    [documents, openDocument],
   );
 
   const loadEdits = useCallback(async (id: string, signal?: AbortSignal) => {
@@ -1454,7 +1487,7 @@ export function Workspace({
           reviewsOpen={showReviews}
           collapsed={stagesCollapsed}
           onToggleCollapsed={() => setStagesCollapsed((value) => !value)}
-          onOpenReviews={() => setShowReviews(true)}
+          onOpenStage={openStage}
         />
       ) : null}
 

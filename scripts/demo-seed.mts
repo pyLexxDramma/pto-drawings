@@ -149,11 +149,13 @@ async function recognize(doc: Uploaded, upto: number, body: (page: number) => st
       source: "model",
     });
   }
-  const done = last >= doc.pageCount;
+  // Файл считаем принятым целиком: статус «в обработке» без живой задачи
+  // конвейера фронт справедливо превращает в ошибку. Недобор листов виден
+  // на этапе «Расшифровка» и так.
   await storage.updateDocument(doc.id, {
-    status: done ? "done" : "processing",
-    processingStep: done ? "done" : "text",
-    processingPage: done ? null : last + 1,
+    status: "done",
+    processingStep: "done",
+    processingPage: null,
     errorMessage: null,
   });
   console.log(`  ${doc.name}: ${last}/${doc.pageCount}`);
