@@ -10,6 +10,7 @@ import {
 } from "react";
 import { SegmentedTabs, Spinner } from "@/components/ui-chrome";
 import { IconDownload } from "@/components/tool-icons";
+import { groupReviews, type GroupBy } from "@/lib/reviews-group";
 import {
   REVIEW_SEVERITY_LABEL,
   REVIEW_SEVERITY_ORDER,
@@ -81,12 +82,15 @@ export function ReviewsTable({
   projectId,
   projectName,
   onJumpToPage,
+  onStatsChange,
   onClose,
 }: {
   projectId: string;
   projectName: string;
   /** Открыть место в ПД в просмотрщике. */
   onJumpToPage: (documentId: string, pageNumber: number) => void;
+  /** Держит счётчик этапа «Замечания» в панели проекта в согласии с таблицей. */
+  onStatsChange?: (stats: { total: number; pending: number }) => void;
   onClose: () => void;
 }) {
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -96,6 +100,7 @@ export function ReviewsTable({
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>("all");
   const [verdictFilter, setVerdictFilter] = useState<VerdictFilter>("all");
   const [sectionFilter, setSectionFilter] = useState<string>("all");
+  const [groupBy, setGroupBy] = useState<GroupBy>("section");
   const [query, setQuery] = useState("");
   const [adding, setAdding] = useState(false);
   const [draftSection, setDraftSection] = useState("ПЗ");
@@ -174,6 +179,15 @@ export function ReviewsTable({
     const high = reviews.filter((item) => item.severity === "high").length;
     return { total, pending, done: total - pending, exportable, high };
   }, [reviews]);
+
+  useEffect(() => {
+    onStatsChange?.({ total: stats.total, pending: stats.pending });
+  }, [onStatsChange, stats.pending, stats.total]);
+
+  const groups = useMemo(() => groupReviews(visible, groupBy), [
+    groupBy,
+    visible,
+  ]);
 
   const patch = useCallback(
     async (reviewId: string, body: Partial<Review>) => {
@@ -321,6 +335,15 @@ export function ReviewsTable({
             { id: "done" as VerdictFilter, label: "Разобрано" },
           ]}
         />
+        <SegmentedTabs
+          size="xs"
+          value={groupBy}
+          onChange={setGroupBy}
+          options={[
+            { id: "section" as GroupBy, label: "По разделам" },
+            { id: "file" as GroupBy, label: "По файлам" },
+          ]}
+        />
         {sections.length > 1 ? (
           <select
             value={sectionFilter}
@@ -384,34 +407,31 @@ export function ReviewsTable({
               </tr>
             </thead>
             <tbody>
-              {visible.map((review, index) => (
-                <Fragment key={review.id}>
-                  {visible[index - 1]?.section !== review.section ? (
-                    <tr>
-                      <th
-                        colSpan={8}
-                        className="border-y border-slate-300 bg-slate-200/80 px-2 py-1 text-left text-[11px] font-semibold text-text"
-                      >
-                        {review.section}
-                        <span className="ml-2 font-normal tabular-nums text-muted">
-                          {
-                            visible.filter(
-                              (item) => item.section === review.section,
-                            ).length
-                          }
-                        </span>
-                      </th>
-                    </tr>
-                  ) : null}
-                  <ReviewRow
-                    review={review}
-                    active={activeId === review.id}
-                    saving={savingId === review.id}
-                    onActivate={() => setActiveId(review.id)}
-                    onPatch={(body) => void patch(review.id, body)}
-                    onDelete={() => void handleDelete(review.id)}
-                    onJumpToPage={onJumpToPage}
-                  />
+              {groups.map((group) => (
+                <Fragment key={group.key}>
+                  <tr>
+                    <th
+                      colSpan={8}
+                      className="border-y border-slate-300 bg-slate-200/80 px-2 py-1 text-left text-[11px] font-semibold text-text"
+                    >
+                      {group.key}
+                      <span className="ml-2 font-normal tabular-nums text-muted">
+                        {group.items.length}
+                      </span>
+                    </th>
+                  </tr>
+                  {group.items.map((review) => (
+                    <ReviewRow
+                      key={review.id}
+                      review={review}
+                      active={activeId === review.id}
+                      saving={savingId === review.id}
+                      onActivate={() => setActiveId(review.id)}
+                      onPatch={(body) => void patch(review.id, body)}
+                      onDelete={() => void handleDelete(review.id)}
+                      onJumpToPage={onJumpToPage}
+                    />
+                  ))}
                 </Fragment>
               ))}
             </tbody>

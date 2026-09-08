@@ -8,7 +8,12 @@ import {
   reviewsFileName,
 } from "../src/lib/reviews-export.ts";
 import { sortReviews } from "../src/lib/reviews.ts";
-import type { Review, ReviewSeverity } from "../src/types.ts";
+import { CROSS_FILE_GROUP, groupReviews } from "../src/lib/reviews-group.ts";
+import type { Review, ReviewLocation, ReviewSeverity } from "../src/types.ts";
+
+function loc(documentName: string, pageNumber: number): ReviewLocation {
+  return { documentId: null, documentName, pageNumber, quote: "" };
+}
 
 function review(patch: Partial<Review> & { id: string }): Review {
   return {
@@ -186,6 +191,99 @@ describe("sortReviews", () => {
       review({ id: "p", section: "ПЗ" }),
     ]).map((item) => item.id);
     assert.deepEqual(out, ["p", "m", "x"]);
+  });
+});
+
+describe("groupReviews", () => {
+  const items = [
+    review({
+      id: "pb-low",
+      section: "ПБ",
+      severity: "low",
+      locations: [loc("Раздел ПД №9 (ПБ)", 919)],
+    }),
+    review({
+      id: "pz-high",
+      section: "ПЗ",
+      severity: "high",
+      locations: [loc("Раздел ПД №1 (ПЗ)", 21)],
+    }),
+    review({
+      id: "cross",
+      section: "межраздел",
+      severity: "high",
+      locations: [loc("Раздел ПД №1 (ПЗ)", 21), loc("Раздел ПД №9 (ПБ)", 919)],
+    }),
+    review({
+      id: "pb-high",
+      section: "ПБ",
+      severity: "high",
+      locations: [loc("Раздел ПД №9 (ПБ)", 4089)],
+    }),
+  ];
+
+  it("по разделам держит порядок с сервера", () => {
+    const groups = groupReviews(items, "section");
+    assert.deepEqual(
+      groups.map((group) => group.key),
+      ["ПБ", "ПЗ", "межраздел"],
+    );
+  });
+
+  it("по файлам сводит разные разделы одного файла в одну группу", () => {
+    const groups = groupReviews(items, "file");
+    assert.deepEqual(
+      groups.map((group) => group.key),
+      ["Раздел ПД №9 (ПБ)", "Раздел ПД №1 (ПЗ)", CROSS_FILE_GROUP],
+    );
+    assert.deepEqual(
+      groups[0].items.map((item) => item.id),
+      ["pb-high", "pb-low"],
+    );
+  });
+
+  it("замечание на двух файлах уходит в сборную группу в конце", () => {
+    const groups = groupReviews(items, "file");
+    const last = groups[groups.length - 1];
+    assert.equal(last.key, CROSS_FILE_GROUP);
+    assert.deepEqual(
+      last.items.map((item) => item.id),
+      ["cross"],
+    );
+  });
+
+  it("замечание без локаций тоже попадает в сборную группу", () => {
+    const groups = groupReviews(
+      [review({ id: "bare", section: "АР5", locations: [] })],
+      "file",
+    );
+    assert.deepEqual(
+      groups.map((group) => group.key),
+      [CROSS_FILE_GROUP],
+    );
+  });
+
+  it("внутри группы важное сверху", () => {
+    const groups = groupReviews(
+      [
+        review({ id: "a", section: "ПБ", severity: "skip" }),
+        review({ id: "b", section: "ПБ", severity: "high" }),
+        review({ id: "c", section: "ПБ", severity: "medium" }),
+      ],
+      "section",
+    );
+    assert.deepEqual(
+      groups[0].items.map((item) => item.id),
+      ["b", "c", "a"],
+    );
+  });
+
+  it("не теряет и не дублирует замечания", () => {
+    for (const mode of ["section", "file"] as const) {
+      const flat = groupReviews(items, mode).flatMap((group) => group.items);
+      assert.equal(flat.length, items.length, mode);
+      assert.equal(new Set(flat.map((item) => item.id)).size, items.length, mode);
+    }
   });
 });
 

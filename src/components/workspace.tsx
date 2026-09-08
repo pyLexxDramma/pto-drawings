@@ -13,6 +13,7 @@ import { PasswordPanel } from "@/components/password-panel";
 import { ColumnResizer, clamp } from "@/components/column-resizer";
 import { ReviewPane } from "@/components/review-pane";
 import { ReviewsTable } from "@/components/reviews-table";
+import { ProjectStages, type ReviewStats } from "@/components/project-stages";
 import { PtoLogo } from "@/components/pto-logo";
 import {
   ToastHost,
@@ -62,6 +63,7 @@ import {
   type ProjectAnnotation,
   type ProjectEdit,
   type PublicUser,
+  type Review,
   type SearchHit,
 } from "@/types";
 
@@ -320,6 +322,7 @@ export function Workspace({
   const [fullProgressVisible, setFullProgressVisible] = useState(false);
   const [liveDockCollapsed, setLiveDockCollapsed] = useState(false);
   const [showReviews, setShowReviews] = useState(false);
+  const [reviewStats, setReviewStats] = useState<ReviewStats | null>(null);
   const [openPage, setOpenPage] = useState<{
     nonce: number;
     page: number;
@@ -465,6 +468,28 @@ export function Workspace({
     const payload = (await response.json()) as { annotations: ProjectAnnotation[] };
     setNotes(payload.annotations ?? []);
   }, []);
+
+  // Счётчик для этапа «Замечания»: одним запросом на проект, без поллинга.
+  useEffect(() => {
+    if (!projectId) {
+      setReviewStats(null);
+      return;
+    }
+    const controller = new AbortController();
+    setReviewStats(null);
+    fetch(`/api/projects/${projectId}/reviews`, { signal: controller.signal })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload: { reviews?: Review[] } | null) => {
+        if (!payload?.reviews) return;
+        setReviewStats({
+          total: payload.reviews.length,
+          pending: payload.reviews.filter((item) => item.verdict === "pending")
+            .length,
+        });
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [projectId]);
 
   const jumpToPage = useCallback(
     (documentId: string, page: number) => {
@@ -1566,18 +1591,12 @@ export function Workspace({
                             {documents.length === 0 ? UPLOAD_BUTTON_LABEL : "+ файл"}
                           </div>
                         </label>
-                        <button
-                          type="button"
-                          onClick={() => setShowReviews(true)}
-                          className={`mb-1.5 block w-full rounded-md border px-2 py-1.5 text-[11px] font-semibold ${
-                            showReviews
-                              ? "border-accent bg-accent/10 text-accent"
-                              : "border-slate-300 bg-white/70 text-text hover:border-accent/60 hover:text-accent"
-                          }`}
-                          title="Таблица замечаний по проекту"
-                        >
-                          Замечания
-                        </button>
+                        <ProjectStages
+                          documents={documents}
+                          reviews={reviewStats}
+                          reviewsOpen={showReviews}
+                          onOpenReviews={() => setShowReviews(true)}
+                        />
                         {error ? (
                           <div className="mb-1 rounded bg-red-50 px-2 py-1 text-[10px] text-red-700">
                             {error}
@@ -1703,6 +1722,7 @@ export function Workspace({
             projectId={currentProject.id}
             projectName={currentProject.name}
             onJumpToPage={jumpToPage}
+            onStatsChange={setReviewStats}
             onClose={() => setShowReviews(false)}
           />
         ) : selected ? (
