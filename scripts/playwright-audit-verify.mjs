@@ -57,6 +57,12 @@ for (const tab of [
 
 const releasesText = (await dialog.innerText()).replace(/\s+/g, " ");
 check("прод: коммиты видны", /коммиты в main/i.test(releasesText));
+check("прод: ветки коллег видны", /ветки коллег/i.test(releasesText));
+check(
+  "прод: ветка со статусом",
+  /слита|не выкачена/.test(releasesText),
+  releasesText.slice(0, 200),
+);
 check(
   "прод: история не пустая",
   !/История коммитов недоступна/.test(releasesText),

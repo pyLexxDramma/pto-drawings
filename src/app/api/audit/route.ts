@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { isPublicUser, requireUser } from "@/lib/auth";
-import { listReleaseCommits, listReleaseStarts, recordAppStart } from "@/lib/releases";
+import {
+  listBranchTips,
+  listReleaseCommits,
+  listReleaseStarts,
+  recordAppStart,
+} from "@/lib/releases";
 import { listReviewEvents, listReviews } from "@/lib/reviews";
 import {
   listDocuments,
@@ -36,11 +41,12 @@ export async function GET(request: Request) {
 
   if (kind === "releases") {
     await recordAppStart();
-    const [commits, starts] = await Promise.all([
+    const [commits, starts, branches] = await Promise.all([
       listReleaseCommits(60),
       listReleaseStarts(),
+      listBranchTips(40),
     ]);
-    return NextResponse.json({ kind, commits, starts });
+    return NextResponse.json({ kind, commits, starts, branches });
   }
 
   const projects = await listProjects();

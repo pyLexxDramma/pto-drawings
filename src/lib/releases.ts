@@ -23,6 +23,17 @@ export type ReleaseCommit = {
   merge: boolean;
 };
 
+export type BranchTip = {
+  /** Без префикса origin/: в списке важна ветка, а не откуда её принесли. */
+  branch: string;
+  shortSha: string;
+  author: string;
+  at: string;
+  subject: string;
+  /** Уже в main — значит на проде; иначе ждёт слияния. */
+  merged: boolean;
+};
+
 export type ReleaseStart = {
   sha: string;
   shortSha: string;
@@ -72,6 +83,58 @@ export async function listReleaseCommits(limit = 50): Promise<ReleaseCommit[]> {
         merge: (parents ?? "").trim().split(/\s+/).filter(Boolean).length > 1,
       };
     });
+}
+
+/**
+ * Ветки коллег: в main попадает только слитое, поэтому чужую работу показываем
+ * отдельно. Список берётся из refs, которые притянул последний деплой
+ * (`git fetch --all --prune`), — сами в сеть не ходим.
+ */
+export async function listBranchTips(limit = 40): Promise<BranchTip[]> {
+  const format = [
+    "%(refname:short)",
+    "%(objectname)",
+    "%(authorname)",
+    "%(committerdate:iso-strict)",
+    "%(contents:subject)",
+  ].join(FIELD);
+  const out = await git([
+    "for-each-ref",
+    "--sort=-committerdate",
+    `--count=${Math.min(limit, 100)}`,
+    `--format=${format}`,
+    "refs/remotes",
+    "refs/heads",
+  ]);
+  if (!out) return [];
+
+  const merged = new Set(
+    ((await git(["branch", "-a", "--merged", "HEAD", "--format=%(refname:short)"])) ?? "")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean),
+  );
+
+  const seen = new Set<string>();
+  const tips: BranchTip[] = [];
+  for (const line of out.split("\n")) {
+    if (!line.trim()) continue;
+    const [ref, sha, author, at, subject] = line.split(FIELD);
+    if (!ref || ref.endsWith("/HEAD")) continue;
+    const branch = ref.replace(/^origin\//, "");
+    if (branch === "main" || branch === "master") continue;
+    if (seen.has(branch)) continue;
+    seen.add(branch);
+    tips.push({
+      branch,
+      shortSha: (sha ?? "").slice(0, 7),
+      author: author ?? "—",
+      at: at ?? "",
+      subject: subject ?? "",
+      merged: merged.has(ref),
+    });
+  }
+  return tips;
 }
 
 async function readStarts(): Promise<ReleaseStart[]> {

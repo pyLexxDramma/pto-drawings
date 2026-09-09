@@ -33,7 +33,7 @@ const HINT: Record<Tab, string> = {
   marks: "Отметки «Ошибка» на чертежах: что обвели и что должно быть.",
   files: "Загрузки файлов: кто, когда, каким конвейером расшифровали.",
   releases:
-    "Что выкатили на прод: коммиты в main (в том числе слитые ветки) и отметки запуска приложения.",
+    "Что выкатили на прод: main — то, что работает сейчас; ветки коллег — что ещё ждёт слияния.",
 };
 
 type ReviewRow = ReviewEvent & {
@@ -75,11 +75,20 @@ type Commit = {
   merge: boolean;
 };
 type Start = { sha: string; shortSha: string; at: string; version: string | null };
+type Branch = {
+  branch: string;
+  shortSha: string;
+  author: string;
+  at: string;
+  subject: string;
+  merged: boolean;
+};
 
 type Payload = {
   rows?: unknown[];
   commits?: Commit[];
   starts?: Start[];
+  branches?: Branch[];
   error?: string;
 };
 
@@ -351,6 +360,54 @@ export function AuditPanel({ open, onClose }: { open: boolean; onClose: () => vo
                 ) : (
                   <div className="text-xs text-muted">
                     Отметок пока нет — появятся при следующем обновлении.
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted">
+                  Ветки коллег
+                </div>
+                <div className="mb-1 text-[11px] text-muted">
+                  Состояние на момент последнего деплоя: прод подтягивает все ветки, но выкатывает
+                  только main. «Слита» — код уже на проде.
+                </div>
+                {payload?.branches?.length ? (
+                  <table className="w-full border-collapse text-[11px]">
+                    <thead className="bg-slate-100 text-[10px] uppercase tracking-wide text-muted">
+                      <tr>
+                        <th className={head}>Ветка</th>
+                        <th className={head}>Автор</th>
+                        <th className={head}>Когда</th>
+                        <th className={head}>Коммит</th>
+                        <th className={head}>Что сделано</th>
+                        <th className={head}>Статус</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {payload.branches.map((row) => (
+                        <tr key={row.branch} className="border-b border-slate-200">
+                          <td className={`${cell} font-medium`}>{row.branch}</td>
+                          <td className={`${cell} whitespace-nowrap`}>{row.author}</td>
+                          <td className={`${cell} whitespace-nowrap text-muted`}>
+                            {row.at ? formatDate(row.at) : "—"}
+                          </td>
+                          <td className={`${cell} font-mono`}>{row.shortSha}</td>
+                          <td className={cell}>{row.subject}</td>
+                          <td className={`${cell} whitespace-nowrap`}>
+                            {row.merged ? (
+                              <span className="text-emerald-700">слита</span>
+                            ) : (
+                              <span className="text-amber-700">не выкачена</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <div className="text-xs text-muted">
+                    Кроме main ветвей нет — вся работа идёт напрямую в main.
                   </div>
                 )}
               </div>
