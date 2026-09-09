@@ -96,7 +96,9 @@ async function resolvePipelineDir(): Promise<string | null> {
 
 async function git(cwd: string, args: string[]): Promise<string | null> {
   try {
-    const { stdout } = await run("git", args, {
+    // Копия конвейера на VPS принадлежит деплой-пользователю, а приложение
+    // работает от своего: без safe.directory git отказывается её читать.
+    const { stdout } = await run("git", ["-c", `safe.directory=${cwd}`, ...args], {
       cwd,
       windowsHide: true,
       timeout: 10_000,
@@ -228,10 +230,17 @@ export async function listBranchTips(limit = 40): Promise<BranchTip[]> {
 
 /** Какие репозитории удалось прочитать — чтобы объяснить пустой список. */
 export async function listReleaseSources(): Promise<
-  { repo: RepoId; label: string; dir: string }[]
+  { repo: RepoId; label: string; dir: string; readable: boolean }[]
 > {
   const dirs = await repoDirs();
-  return dirs.map(({ repo, dir }) => ({ repo, label: REPO_LABEL[repo], dir }));
+  return Promise.all(
+    dirs.map(async ({ repo, dir }) => ({
+      repo,
+      label: REPO_LABEL[repo],
+      dir,
+      readable: Boolean(await git(dir, ["rev-parse", "HEAD"])),
+    })),
+  );
 }
 
 async function readStarts(): Promise<ReleaseStart[]> {

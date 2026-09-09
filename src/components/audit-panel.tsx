@@ -92,7 +92,7 @@ type Payload = {
   commits?: Commit[];
   starts?: Start[];
   branches?: Branch[];
-  sources?: { repo: Repo; label: string; dir: string }[];
+  sources?: { repo: Repo; label: string; dir: string; readable: boolean }[];
   error?: string;
 };
 
@@ -396,9 +396,10 @@ export function AuditPanel({ open, onClose }: { open: boolean; onClose: () => vo
                   Состояние на момент последнего деплоя: прод подтягивает все ветки, но выкатывает
                   только main. «Слита» — код уже на проде.
                 </div>
-                {payload?.sources && !payload.sources.some((item) => item.repo === "pipeline") ? (
+                {payload?.sources &&
+                !payload.sources.some((item) => item.repo === "pipeline" && item.readable) ? (
                   <div className="mb-1 rounded-md bg-amber-50 px-2 py-1 text-[11px] text-amber-900">
-                    Копия конвейера рядом не найдена — видны только правки фронта. Путь к ней
+                    Копию конвейера прочитать не удалось — видны только правки фронта. Путь к ней
                     задаётся переменной PTO_PIPELINE_REPO.
                   </div>
                 ) : null}
