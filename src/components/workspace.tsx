@@ -1631,18 +1631,8 @@ export function Workspace({
                     </div>
                     {project.id === projectId ? (
                       <div className="border-t border-border/70 px-1.5 pb-2 pt-1" data-project-files>
-                        <label
-                          htmlFor="pto-drawing-upload"
-                          className={`mb-1.5 block cursor-pointer rounded-lg border border-dashed px-2 py-2 text-center transition-colors ${
-                            dragOver
-                              ? "border-accent bg-blue-50"
-                              : "border-slate-300 bg-white/70 hover:border-accent/60"
-                          }`}
-                        >
-                          <div className="text-[11px] font-semibold text-text">
-                            {documents.length === 0 ? UPLOAD_BUTTON_LABEL : "+ файл"}
-                          </div>
-                        </label>
+                        {/* Своей кнопки загрузки здесь нет: дублировала
+                            «Загрузить для расшифровки» в шапке. */}
                         {error ? (
                           <div className="mb-1 rounded bg-red-50 px-2 py-1 text-[10px] text-red-700">
                             {error}
