@@ -1,5 +1,5 @@
 import { execFile } from "child_process";
-import { readFile, mkdir, writeFile } from "fs/promises";
+import { access, readFile, mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { promisify } from "util";
 import { DATA_PATHS } from "@/lib/persist";
@@ -8,12 +8,21 @@ const run = promisify(execFile);
 
 /**
  * Журнал обновлений прода. Деплой — это `git reset --hard origin/main` в
- * рабочей копии на VPS, поэтому историю берём прямо из git: там видно и свои
- * коммиты, и слитые ветки коллег. Отдельно храним отметки запуска приложения:
- * коммит может быть в истории, но выкатили его позже.
+ * рабочей копии на VPS, поэтому историю берём прямо из git.
+ *
+ * Репозиториев два: фронт (это приложение) и конвейер PTO-work, который правит
+ * коллега по ИИ. Без второго в журнале видно только свои коммиты.
  */
 
+export type RepoId = "front" | "pipeline";
+
+export const REPO_LABEL: Record<RepoId, string> = {
+  front: "Фронт",
+  pipeline: "Конвейер",
+};
+
 export type ReleaseCommit = {
+  repo: RepoId;
   sha: string;
   shortSha: string;
   author: string;
@@ -24,6 +33,7 @@ export type ReleaseCommit = {
 };
 
 export type BranchTip = {
+  repo: RepoId;
   /** Без префикса origin/: в списке важна ветка, а не откуда её принесли. */
   branch: string;
   shortSha: string;
@@ -47,12 +57,47 @@ const START_LIMIT = 200;
 const FIELD = "\u001f";
 const ROW = "\u001e";
 
-let startRecorded = false;
+/**
+ * Где искать копию конвейера: путь можно задать явно, иначе пробуем обычные
+ * места на VPS и рядом с фронтом при локальной разработке.
+ */
+const PIPELINE_CANDIDATES = [
+  process.env.PTO_PIPELINE_REPO,
+  "/opt/pto/backend",
+  "/opt/pto-work",
+  "/var/www/pto-work",
+  "/srv/pto-work",
+  path.join(process.cwd(), "..", "PTO-work"),
+].filter((item): item is string => Boolean(item));
 
-async function git(args: string[]): Promise<string | null> {
+let startRecorded = false;
+let pipelineDir: string | null | undefined;
+
+async function isGitRepo(dir: string): Promise<boolean> {
+  try {
+    await access(path.join(dir, ".git"));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function resolvePipelineDir(): Promise<string | null> {
+  if (pipelineDir !== undefined) return pipelineDir;
+  for (const candidate of PIPELINE_CANDIDATES) {
+    if (await isGitRepo(candidate)) {
+      pipelineDir = candidate;
+      return pipelineDir;
+    }
+  }
+  pipelineDir = null;
+  return null;
+}
+
+async function git(cwd: string, args: string[]): Promise<string | null> {
   try {
     const { stdout } = await run("git", args, {
-      cwd: process.cwd(),
+      cwd,
       windowsHide: true,
       timeout: 10_000,
       maxBuffer: 2_000_000,
@@ -64,9 +109,26 @@ async function git(args: string[]): Promise<string | null> {
   }
 }
 
-export async function listReleaseCommits(limit = 50): Promise<ReleaseCommit[]> {
+async function repoDirs(): Promise<{ repo: RepoId; dir: string }[]> {
+  const dirs: { repo: RepoId; dir: string }[] = [
+    { repo: "front", dir: process.cwd() },
+  ];
+  const pipeline = await resolvePipelineDir();
+  if (pipeline) dirs.push({ repo: "pipeline", dir: pipeline });
+  return dirs;
+}
+
+async function commitsFrom(
+  repo: RepoId,
+  dir: string,
+  limit: number,
+): Promise<ReleaseCommit[]> {
   const format = ["%H", "%an", "%aI", "%s", "%P"].join(FIELD) + ROW;
-  const out = await git(["log", `-n${Math.min(limit, 200)}`, `--pretty=format:${format}`]);
+  const out = await git(dir, [
+    "log",
+    `-n${Math.min(limit, 200)}`,
+    `--pretty=format:${format}`,
+  ]);
   if (!out) return [];
   return out
     .split(ROW)
@@ -75,6 +137,7 @@ export async function listReleaseCommits(limit = 50): Promise<ReleaseCommit[]> {
     .map((line) => {
       const [sha, author, at, subject, parents] = line.split(FIELD);
       return {
+        repo,
         sha,
         shortSha: sha.slice(0, 7),
         author,
@@ -85,12 +148,23 @@ export async function listReleaseCommits(limit = 50): Promise<ReleaseCommit[]> {
     });
 }
 
-/**
- * Ветки коллег: в main попадает только слитое, поэтому чужую работу показываем
- * отдельно. Список берётся из refs, которые притянул последний деплой
- * (`git fetch --all --prune`), — сами в сеть не ходим.
- */
-export async function listBranchTips(limit = 40): Promise<BranchTip[]> {
+/** История обоих репозиториев в одном списке: свежее сверху. */
+export async function listReleaseCommits(limit = 50): Promise<ReleaseCommit[]> {
+  const dirs = await repoDirs();
+  const lists = await Promise.all(
+    dirs.map(({ repo, dir }) => commitsFrom(repo, dir, limit)),
+  );
+  return lists
+    .flat()
+    .sort((a, b) => b.at.localeCompare(a.at))
+    .slice(0, limit * 2);
+}
+
+async function branchesFrom(
+  repo: RepoId,
+  dir: string,
+  limit: number,
+): Promise<BranchTip[]> {
   const format = [
     "%(refname:short)",
     "%(objectname)",
@@ -98,7 +172,7 @@ export async function listBranchTips(limit = 40): Promise<BranchTip[]> {
     "%(committerdate:iso-strict)",
     "%(contents:subject)",
   ].join(FIELD);
-  const out = await git([
+  const out = await git(dir, [
     "for-each-ref",
     "--sort=-committerdate",
     `--count=${Math.min(limit, 100)}`,
@@ -109,7 +183,7 @@ export async function listBranchTips(limit = 40): Promise<BranchTip[]> {
   if (!out) return [];
 
   const merged = new Set(
-    ((await git(["branch", "-a", "--merged", "HEAD", "--format=%(refname:short)"])) ?? "")
+    ((await git(dir, ["branch", "-a", "--merged", "HEAD", "--format=%(refname:short)"])) ?? "")
       .split("\n")
       .map((line) => line.trim())
       .filter(Boolean),
@@ -120,12 +194,14 @@ export async function listBranchTips(limit = 40): Promise<BranchTip[]> {
   for (const line of out.split("\n")) {
     if (!line.trim()) continue;
     const [ref, sha, author, at, subject] = line.split(FIELD);
-    if (!ref || ref.endsWith("/HEAD")) continue;
+    // origin/HEAD git сокращает до «origin» — это не ветка, а указатель.
+    if (!ref || ref.endsWith("/HEAD") || ref === "origin") continue;
     const branch = ref.replace(/^origin\//, "");
     if (branch === "main" || branch === "master") continue;
     if (seen.has(branch)) continue;
     seen.add(branch);
     tips.push({
+      repo,
       branch,
       shortSha: (sha ?? "").slice(0, 7),
       author: author ?? "—",
@@ -135,6 +211,27 @@ export async function listBranchTips(limit = 40): Promise<BranchTip[]> {
     });
   }
   return tips;
+}
+
+/**
+ * Ветки: в main попадает только слитое, поэтому незакрытую работу показываем
+ * отдельно. Список берётся из refs, которые притянул последний деплой
+ * (`git fetch --all --prune`), — сами в сеть не ходим.
+ */
+export async function listBranchTips(limit = 40): Promise<BranchTip[]> {
+  const dirs = await repoDirs();
+  const lists = await Promise.all(
+    dirs.map(({ repo, dir }) => branchesFrom(repo, dir, limit)),
+  );
+  return lists.flat().sort((a, b) => b.at.localeCompare(a.at));
+}
+
+/** Какие репозитории удалось прочитать — чтобы объяснить пустой список. */
+export async function listReleaseSources(): Promise<
+  { repo: RepoId; label: string; dir: string }[]
+> {
+  const dirs = await repoDirs();
+  return dirs.map(({ repo, dir }) => ({ repo, label: REPO_LABEL[repo], dir }));
 }
 
 async function readStarts(): Promise<ReleaseStart[]> {
@@ -159,7 +256,7 @@ async function writeStarts(starts: ReleaseStart[]) {
 export async function recordAppStart(): Promise<void> {
   if (startRecorded) return;
   startRecorded = true;
-  const sha = (await git(["rev-parse", "HEAD"])) ?? "";
+  const sha = (await git(process.cwd(), ["rev-parse", "HEAD"])) ?? "";
   const version = process.env.npm_package_version ?? null;
   const starts = await readStarts();
   const last = starts[0];

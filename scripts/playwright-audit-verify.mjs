@@ -63,6 +63,18 @@ check(
   /слита|не выкачена/.test(releasesText),
   releasesText.slice(0, 200),
 );
+
+const releases = await (await context.request.get(`${BASE}/api/audit?kind=releases`)).json();
+const repos = (releases.sources ?? []).map((item) => item.repo);
+console.log(`инфо — источники истории: ${repos.join(", ") || "нет"}`);
+check("прод: конвейер в источниках", repos.includes("pipeline"), repos.join(", "));
+check(
+  "прод: коммиты конвейера есть",
+  (releases.commits ?? []).some((item) => item.repo === "pipeline"),
+);
+const authors = new Set((releases.commits ?? []).map((item) => item.author));
+console.log(`инфо — авторы в истории: ${[...authors].join(", ")}`);
+check("прод: авторов больше одного", authors.size > 1, String(authors.size));
 check(
   "прод: история не пустая",
   !/История коммитов недоступна/.test(releasesText),

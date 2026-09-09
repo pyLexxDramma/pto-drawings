@@ -61,7 +61,15 @@ PTO_SESSION_SECRET=...
 PTO_INGEST_TOKEN=...
 NODE_ENV=production
 PORT=8080
+# Копия репозитория конвейера: нужна журналу «Обновления прода», чтобы
+# показывать правки коллеги по ИИ, а не только фронт.
+PTO_PIPELINE_REPO=/opt/pto/backend
 ```
+
+Без `PTO_PIPELINE_REPO` приложение само пробует `/opt/pto/backend`,
+`/opt/pto-work`, `/var/www/pto-work`, `/srv/pto-work` и каталог `PTO-work`
+рядом с фронтом. Если ни один не оказался git-копией, в журнале появляется
+предупреждение и остаются только правки фронта.
 
 ## Бэкап
 

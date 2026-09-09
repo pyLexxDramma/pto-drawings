@@ -66,7 +66,9 @@ type FileRow = {
   elapsedSec: number | null;
   userName: string | null;
 };
+type Repo = "front" | "pipeline";
 type Commit = {
+  repo: Repo;
   sha: string;
   shortSha: string;
   author: string;
@@ -76,6 +78,7 @@ type Commit = {
 };
 type Start = { sha: string; shortSha: string; at: string; version: string | null };
 type Branch = {
+  repo: Repo;
   branch: string;
   shortSha: string;
   author: string;
@@ -89,8 +92,29 @@ type Payload = {
   commits?: Commit[];
   starts?: Start[];
   branches?: Branch[];
+  sources?: { repo: Repo; label: string; dir: string }[];
   error?: string;
 };
+
+const REPO_LABEL: Record<Repo, string> = {
+  front: "Фронт",
+  pipeline: "Конвейер",
+};
+
+const REPO_CHIP: Record<Repo, string> = {
+  front: "border-sky-200 bg-sky-50 text-sky-900",
+  pipeline: "border-violet-200 bg-violet-50 text-violet-900",
+};
+
+function RepoChip({ repo }: { repo: Repo }) {
+  return (
+    <span
+      className={`whitespace-nowrap rounded border px-1 py-0.5 text-[9px] uppercase ${REPO_CHIP[repo]}`}
+    >
+      {REPO_LABEL[repo]}
+    </span>
+  );
+}
 
 const MARK_STATUS: Record<string, string> = {
   open: "открыта",
@@ -372,10 +396,17 @@ export function AuditPanel({ open, onClose }: { open: boolean; onClose: () => vo
                   Состояние на момент последнего деплоя: прод подтягивает все ветки, но выкатывает
                   только main. «Слита» — код уже на проде.
                 </div>
+                {payload?.sources && !payload.sources.some((item) => item.repo === "pipeline") ? (
+                  <div className="mb-1 rounded-md bg-amber-50 px-2 py-1 text-[11px] text-amber-900">
+                    Копия конвейера рядом не найдена — видны только правки фронта. Путь к ней
+                    задаётся переменной PTO_PIPELINE_REPO.
+                  </div>
+                ) : null}
                 {payload?.branches?.length ? (
                   <table className="w-full border-collapse text-[11px]">
                     <thead className="bg-slate-100 text-[10px] uppercase tracking-wide text-muted">
                       <tr>
+                        <th className={head}>Где</th>
                         <th className={head}>Ветка</th>
                         <th className={head}>Автор</th>
                         <th className={head}>Когда</th>
@@ -386,7 +417,10 @@ export function AuditPanel({ open, onClose }: { open: boolean; onClose: () => vo
                     </thead>
                     <tbody>
                       {payload.branches.map((row) => (
-                        <tr key={row.branch} className="border-b border-slate-200">
+                        <tr key={`${row.repo}-${row.branch}`} className="border-b border-slate-200">
+                          <td className={cell}>
+                            <RepoChip repo={row.repo} />
+                          </td>
                           <td className={`${cell} font-medium`}>{row.branch}</td>
                           <td className={`${cell} whitespace-nowrap`}>{row.author}</td>
                           <td className={`${cell} whitespace-nowrap text-muted`}>
@@ -416,10 +450,15 @@ export function AuditPanel({ open, onClose }: { open: boolean; onClose: () => vo
                 <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted">
                   Коммиты в main
                 </div>
+                <div className="mb-1 text-[11px] text-muted">
+                  Фронт и конвейер вместе: правки коллеги по ИИ лежат в репозитории конвейера, в
+                  истории фронта их не видно.
+                </div>
                 {payload?.commits?.length ? (
                   <table className="w-full border-collapse text-[11px]">
                     <thead className="bg-slate-100 text-[10px] uppercase tracking-wide text-muted">
                       <tr>
+                        <th className={head}>Где</th>
                         <th className={head}>Когда</th>
                         <th className={head}>Автор</th>
                         <th className={head}>Коммит</th>
@@ -428,7 +467,10 @@ export function AuditPanel({ open, onClose }: { open: boolean; onClose: () => vo
                     </thead>
                     <tbody>
                       {payload.commits.map((row) => (
-                        <tr key={row.sha} className="border-b border-slate-200">
+                        <tr key={`${row.repo}-${row.sha}`} className="border-b border-slate-200">
+                          <td className={cell}>
+                            <RepoChip repo={row.repo} />
+                          </td>
                           <td className={`${cell} whitespace-nowrap text-muted`}>
                             {formatDate(row.at)}
                           </td>

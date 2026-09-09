@@ -3,6 +3,7 @@ import { isPublicUser, requireUser } from "@/lib/auth";
 import {
   listBranchTips,
   listReleaseCommits,
+  listReleaseSources,
   listReleaseStarts,
   recordAppStart,
 } from "@/lib/releases";
@@ -41,12 +42,13 @@ export async function GET(request: Request) {
 
   if (kind === "releases") {
     await recordAppStart();
-    const [commits, starts, branches] = await Promise.all([
+    const [commits, starts, branches, sources] = await Promise.all([
       listReleaseCommits(60),
       listReleaseStarts(),
       listBranchTips(40),
+      listReleaseSources(),
     ]);
-    return NextResponse.json({ kind, commits, starts, branches });
+    return NextResponse.json({ kind, commits, starts, branches, sources });
   }
 
   const projects = await listProjects();
