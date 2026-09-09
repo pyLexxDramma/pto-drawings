@@ -10,6 +10,7 @@
     "lint": "eslint",
     "test:content-sync": "npx --yes tsx --test scripts/content-sync.test.ts",
     "test:reviews": "npx --yes tsx --test scripts/reviews-export.test.ts scripts/reviews-store.test.ts",
+    "test:uploads": "npx --yes tsx --test scripts/drawing-kit.test.ts",
     "demo:seed": "npx --yes tsx scripts/demo-seed.mts",
     "demo:agent": "npx --yes tsx scripts/demo-agent.mts",
     "demo:guide": "npx --yes tsx scripts/demo-guide.mts",

@@ -12,6 +12,8 @@ import {
 import {
   REVIEW_SEVERITY_ORDER,
   type Review,
+  type ReviewEvent,
+  type ReviewEventField,
   type ReviewIngestItem,
   type ReviewLocation,
   type ReviewOrigin,
@@ -26,8 +28,18 @@ const verdicts: ReviewVerdict[] = [
   "partial",
   "discuss",
   "outdated",
+  "wrong",
 ];
 const origins: ReviewOrigin[] = ["ai", "engineer", "both"];
+
+/** Кто правит замечание — попадает в журнал разбора. */
+export type ReviewActor = { userId: string | null; userName: string | null };
+
+/**
+ * Журнал не растёт бесконечно: на разборе важны последние решения, а файл
+ * проекта читается целиком на каждый запрос таблицы.
+ */
+const EVENT_LIMIT = 3000;
 
 /**
  * Ранг раздела. Известные — по составу комплекта, незнакомые (шифры РД вроде
@@ -100,6 +112,7 @@ function normalizeReview(raw: Partial<Review> & { id: string }): Review {
       ? (raw.verdict as ReviewVerdict)
       : "pending",
     comment: text(raw.comment),
+    wrongReason: text(raw.wrongReason),
     createdAt: text(raw.createdAt, now) || now,
     updatedAt: text(raw.updatedAt, now) || now,
     authorId: text(raw.authorId) || null,
@@ -188,32 +201,104 @@ function renumber(items: Review[]): Review[] {
   }));
 }
 
-async function readAll(projectId: string): Promise<Review[]> {
+type Store = { reviews: Review[]; events: ReviewEvent[] };
+
+function normalizeEvent(
+  raw: Partial<ReviewEvent> & { id: string },
+): ReviewEvent {
+  return {
+    id: raw.id,
+    reviewId: text(raw.reviewId),
+    field: (raw.field ?? "comment") as ReviewEventField,
+    from: text(raw.from),
+    to: text(raw.to),
+    at: text(raw.at) || new Date().toISOString(),
+    userId: text(raw.userId) || null,
+    userName: text(raw.userName) || null,
+  };
+}
+
+async function readStore(projectId: string): Promise<Store> {
   const raw = await readReviewsText(projectId);
-  if (!raw) return [];
+  if (!raw) return { reviews: [], events: [] };
   try {
-    const parsed = JSON.parse(raw) as { reviews?: unknown };
+    const parsed = JSON.parse(raw) as { reviews?: unknown; events?: unknown };
     const list = Array.isArray(parsed.reviews) ? parsed.reviews : [];
-    return list
-      .filter(
-        (item): item is Partial<Review> & { id: string } =>
-          Boolean(item) && typeof (item as { id?: unknown }).id === "string",
-      )
-      .map((item) => normalizeReview({ ...item, projectId }));
+    const log = Array.isArray(parsed.events) ? parsed.events : [];
+    return {
+      reviews: list
+        .filter(
+          (item): item is Partial<Review> & { id: string } =>
+            Boolean(item) && typeof (item as { id?: unknown }).id === "string",
+        )
+        .map((item) => normalizeReview({ ...item, projectId })),
+      events: log
+        .filter(
+          (item): item is Partial<ReviewEvent> & { id: string } =>
+            Boolean(item) && typeof (item as { id?: unknown }).id === "string",
+        )
+        .map((item) => normalizeEvent(item)),
+    };
   } catch {
     // Не перезаписываем битый файл молча — иначе потеряем разбор с заказчиком.
     throw new Error(`data/reviews/${projectId}.json повреждён`);
   }
 }
 
-async function writeAll(projectId: string, items: Review[]) {
+async function readAll(projectId: string): Promise<Review[]> {
+  return (await readStore(projectId)).reviews;
+}
+
+async function writeStore(
+  projectId: string,
+  items: Review[],
+  events: ReviewEvent[],
+) {
   const reviews = renumber(items);
-  await writeReviewsText(projectId, JSON.stringify({ reviews }, null, 2));
+  const log = events.slice(0, EVENT_LIMIT);
+  await writeReviewsText(
+    projectId,
+    JSON.stringify({ reviews, events: log }, null, 2),
+  );
   return reviews;
+}
+
+async function writeAll(projectId: string, items: Review[]) {
+  const { events } = await readStore(projectId);
+  return writeStore(projectId, items, events);
+}
+
+/** Новые записи журнала — сверху: читают всегда последние решения. */
+function logEvents(
+  events: ReviewEvent[],
+  reviewId: string,
+  actor: ReviewActor | undefined,
+  changes: { field: ReviewEventField; from: string; to: string }[],
+): ReviewEvent[] {
+  if (changes.length === 0) return events;
+  const at = new Date().toISOString();
+  const fresh = changes.map((change) => ({
+    id: crypto.randomUUID(),
+    reviewId,
+    field: change.field,
+    from: change.from,
+    to: change.to,
+    at,
+    userId: actor?.userId ?? null,
+    userName: actor?.userName ?? null,
+  }));
+  return [...fresh, ...events];
 }
 
 export async function listReviews(projectId: string): Promise<Review[]> {
   return withDataLock(async () => renumber(await readAll(projectId)));
+}
+
+/** Журнал разбора проекта: кто менял важность, разбор и комментарии. */
+export async function listReviewEvents(
+  projectId: string,
+): Promise<ReviewEvent[]> {
+  return withDataLock(async () => (await readStore(projectId)).events);
 }
 
 export async function createReview(
@@ -230,7 +315,7 @@ export async function createReview(
   },
 ): Promise<Review> {
   return withDataLock(async () => {
-    const items = await readAll(projectId);
+    const { reviews: items, events } = await readStore(projectId);
     const now = new Date().toISOString();
     const review = normalizeReview({
       id: crypto.randomUUID(),
@@ -247,7 +332,16 @@ export async function createReview(
       authorId: input.authorId ?? null,
       authorName: input.authorName ?? null,
     });
-    const saved = await writeAll(projectId, [...items, review]);
+    const saved = await writeStore(
+      projectId,
+      [...items, review],
+      logEvents(
+        events,
+        review.id,
+        { userId: review.authorId, userName: review.authorName },
+        [{ field: "created", from: "", to: review.text }],
+      ),
+    );
     return saved.find((item) => item.id === review.id) ?? review;
   });
 }
@@ -256,6 +350,7 @@ export type ReviewPatch = {
   severity?: ReviewSeverity;
   verdict?: ReviewVerdict;
   comment?: string;
+  wrongReason?: string;
   text?: string;
   section?: string;
 };
@@ -264,9 +359,10 @@ export async function updateReview(
   projectId: string,
   reviewId: string,
   patch: ReviewPatch,
+  actor?: ReviewActor,
 ): Promise<Review | null> {
   return withDataLock(async () => {
-    const items = await readAll(projectId);
+    const { reviews: items, events } = await readStore(projectId);
     const current = items.find((item) => item.id === reviewId);
     if (!current) return null;
 
@@ -275,14 +371,47 @@ export async function updateReview(
       severity: patch.severity ?? current.severity,
       verdict: patch.verdict ?? current.verdict,
       comment: patch.comment ?? current.comment,
+      // Причина брака живёт только при вердикте «Неверно»: иначе в таблице
+      // остаётся висеть объяснение к статусу, который уже сняли.
+      wrongReason:
+        (patch.verdict ?? current.verdict) === "wrong"
+          ? (patch.wrongReason ?? current.wrongReason)
+          : "",
       text: patch.text ?? current.text,
       section: patch.section ?? current.section,
       updatedAt: new Date().toISOString(),
     });
 
-    const saved = await writeAll(
+    const changes: { field: ReviewEventField; from: string; to: string }[] = [];
+    if (next.severity !== current.severity) {
+      changes.push({
+        field: "severity",
+        from: current.severity,
+        to: next.severity,
+      });
+    }
+    if (next.verdict !== current.verdict) {
+      changes.push({
+        field: "verdict",
+        from: current.verdict,
+        // Причину брака пишем в тот же переход: без неё запись бесполезна.
+        to: next.wrongReason ? `${next.verdict}: ${next.wrongReason}` : next.verdict,
+      });
+    }
+    if (next.comment !== current.comment) {
+      changes.push({ field: "comment", from: current.comment, to: next.comment });
+    }
+    if (next.text !== current.text) {
+      changes.push({ field: "text", from: current.text, to: next.text });
+    }
+    if (next.section !== current.section) {
+      changes.push({ field: "section", from: current.section, to: next.section });
+    }
+
+    const saved = await writeStore(
       projectId,
       items.map((item) => (item.id === reviewId ? next : item)),
+      logEvents(events, reviewId, actor, changes),
     );
     return saved.find((item) => item.id === reviewId) ?? next;
   });
@@ -291,13 +420,18 @@ export async function updateReview(
 export async function deleteReview(
   projectId: string,
   reviewId: string,
+  actor?: ReviewActor,
 ): Promise<boolean> {
   return withDataLock(async () => {
-    const items = await readAll(projectId);
-    if (!items.some((item) => item.id === reviewId)) return false;
-    await writeAll(
+    const { reviews: items, events } = await readStore(projectId);
+    const current = items.find((item) => item.id === reviewId);
+    if (!current) return false;
+    await writeStore(
       projectId,
       items.filter((item) => item.id !== reviewId),
+      logEvents(events, reviewId, actor, [
+        { field: "deleted", from: current.text || current.aiFinding, to: "" },
+      ]),
     );
     return true;
   });

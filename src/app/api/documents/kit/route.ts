@@ -3,12 +3,13 @@ import { isPublicUser, requireUser } from "@/lib/auth";
 import { runInBackground } from "@/lib/background";
 import { resolveDisplayName, normalizeFileName } from "@/lib/drawing-files";
 import {
-  extractDrawingKitFromZip,
+  asDrawingKit,
+  extractDrawingFilesFromZip,
   isZipFile,
   kitLabelFromName,
 } from "@/lib/drawing-kit";
 import { processDocument, reconcileOrphanedJobs } from "@/lib/process-document";
-import { listDocuments, saveDocumentKit } from "@/lib/storage";
+import { listDocuments, saveDocument, saveDocumentKit } from "@/lib/storage";
 
 export const maxDuration = 120;
 
@@ -40,15 +41,44 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Архив больше 80 МБ" }, { status: 400 });
       }
       if (!kitLabel) kitLabel = kitLabelFromName(zip.name);
-      const extracted = extractDrawingKitFromZip(Buffer.from(await zip.arrayBuffer()));
+      const entries = extractDrawingFilesFromZip(
+        Buffer.from(await zip.arrayBuffer()),
+      );
+      const kit = asDrawingKit(entries);
+
+      // Пачка файлов, а не комплект PDF+DWG: каждый файл — отдельный документ.
+      if (!kit) {
+        const saved = [];
+        for (const entry of entries) {
+          const document = await saveDocument({
+            projectId,
+            originalName: normalizeFileName(entry.name),
+            buffer: entry.buffer,
+          });
+          if (document.status !== "done") {
+            runInBackground(processDocument(document.id));
+          }
+          saved.push(document);
+        }
+        return NextResponse.json(
+          {
+            kitId: null,
+            kitLabel,
+            documents: saved,
+            primaryDocumentId: saved[0]?.id ?? null,
+          },
+          { status: 201 },
+        );
+      }
+
       pdf = {
-        originalName: resolveDisplayName(kitLabel, extracted.pdf.name),
-        buffer: extracted.pdf.buffer,
+        originalName: resolveDisplayName(kitLabel, kit.pdf.name),
+        buffer: kit.pdf.buffer,
       };
       cad = {
-        originalName: normalizeFileName(extracted.cad.name),
-        buffer: extracted.cad.buffer,
-        ext: extracted.cad.ext,
+        originalName: normalizeFileName(kit.cad.name),
+        buffer: kit.cad.buffer,
+        ext: kit.cad.ext,
       };
     } else if (pdfFile instanceof File && cadFile instanceof File) {
       const pdfExt = pdfFile.name.toLowerCase().endsWith(".pdf");

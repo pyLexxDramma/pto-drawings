@@ -316,3 +316,63 @@ describe("ingestReviews", () => {
     assert.deepEqual(list, []);
   });
 });
+
+describe("журнал разбора", () => {
+  const project = "df97da8f-4444-4222-8333-444444444444";
+
+  it("пишет, кто менял важность, разбор и комментарий", async () => {
+    await store.ingestReviews(project, [
+      { section: "ОВ", aiFinding: "Расход приточки не сходится" },
+    ]);
+    const [review] = await store.listReviews(project);
+
+    await store.updateReview(
+      project,
+      review.id,
+      { severity: "high", comment: "спросить у ОВ" },
+      { userId: "u-1", userName: "Темников Алексей" },
+    );
+
+    const events = await store.listReviewEvents(project);
+    const fields = events.map((item) => item.field);
+    assert.ok(fields.includes("severity"));
+    assert.ok(fields.includes("comment"));
+    const severity = events.find((item) => item.field === "severity");
+    assert.equal(severity?.from, "medium");
+    assert.equal(severity?.to, "high");
+    assert.equal(severity?.userName, "Темников Алексей");
+  });
+
+  it("причина брака живёт только при вердикте «Неверно»", async () => {
+    const [review] = await store.listReviews(project);
+
+    const wrong = await store.updateReview(
+      project,
+      review.id,
+      { verdict: "wrong", wrongReason: "Такого в чертеже нет" },
+      { userId: "u-1", userName: "Темников Алексей" },
+    );
+    assert.equal(wrong?.verdict, "wrong");
+    assert.equal(wrong?.wrongReason, "Такого в чертеже нет");
+
+    const events = await store.listReviewEvents(project);
+    const verdict = events.find((item) => item.field === "verdict");
+    assert.match(verdict?.to ?? "", /Такого в чертеже нет/);
+
+    const back = await store.updateReview(project, review.id, {
+      verdict: "confirmed",
+    });
+    assert.equal(back?.wrongReason, "", "причина не должна переезжать в другой статус");
+  });
+
+  it("удаление тоже попадает в журнал", async () => {
+    const [review] = await store.listReviews(project);
+    await store.deleteReview(project, review.id, {
+      userId: "u-2",
+      userName: "Дархан",
+    });
+    const events = await store.listReviewEvents(project);
+    const removed = events.find((item) => item.field === "deleted");
+    assert.equal(removed?.userName, "Дархан");
+  });
+});

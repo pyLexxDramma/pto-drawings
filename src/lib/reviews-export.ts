@@ -1,6 +1,11 @@
 import { buildXlsx, type Cell, type CellFill } from "@/lib/xlsx";
 import { sortReviews } from "@/lib/reviews";
-import type { Review, ReviewLocation, ReviewSeverity } from "@/types";
+import {
+  REVIEW_VERDICT_HIDDEN,
+  type Review,
+  type ReviewLocation,
+  type ReviewSeverity,
+} from "@/types";
 
 /** Формат официальной отправки проектировщикам: № · Раздел · Замечание · Где в ПД. */
 const HEADERS = ["№", "Раздел", "Замечание", "Где в ПД"];
@@ -29,8 +34,15 @@ function wording(review: Review): string {
   return review.text || review.aiFinding;
 }
 
+/**
+ * В выгрузку не идут «Не нужно» (важность), «Неактуально» (снято на разборе)
+ * и «Неверно» (брак находки ИИ — отправлять проектировщикам нечего).
+ */
 export function exportableReviews(reviews: Review[]): Review[] {
-  return sortReviews(reviews).filter((item) => item.severity !== "skip");
+  return sortReviews(reviews).filter(
+    (item) =>
+      item.severity !== "skip" && !REVIEW_VERDICT_HIDDEN.includes(item.verdict),
+  );
 }
 
 export function buildReviewsXlsx(input: {

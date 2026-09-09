@@ -5,7 +5,11 @@ import type { DocumentRecord } from "@/types";
 
 export type ReviewStats = { total: number; pending: number };
 
-export type StageId = "intake" | "transcribe" | "reviews";
+/**
+ * Нарезку архива на листы инженеру видеть незачем (решение Дархана 09.09):
+ * этапов два — расшифровка и разбор замечаний.
+ */
+export type StageId = "transcribe" | "reviews";
 
 type StageState = "waiting" | "active" | "done";
 
@@ -27,7 +31,6 @@ const DOT: Record<StageState, string> = {
 
 /** Что произойдёт по клику — подсказка в title, чтобы этап не выглядел мёртвым. */
 const ACTION: Record<StageId, string> = {
-  intake: "открыть файлы проекта",
   transcribe: "открыть первый нерасшифрованный лист",
   reviews: "открыть таблицу замечаний",
 };
@@ -52,7 +55,6 @@ function buildStages(
 ): Stage[] {
   if (!documentsReady) {
     return [
-      { id: "intake", label: "Обработка", ...PENDING },
       { id: "transcribe", label: "Расшифровка", ...PENDING },
       { id: "reviews", label: "Замечания", ...PENDING },
     ];
@@ -68,22 +70,6 @@ function buildStages(
 
   return [
     {
-      id: "intake",
-      label: "Обработка",
-      count: filesTotal > 0 ? `${filesSliced}/${filesTotal}` : "—",
-      percent: percent(filesSliced, filesTotal),
-      state:
-        filesTotal === 0
-          ? "waiting"
-          : filesSliced === filesTotal
-            ? "done"
-            : "active",
-      hint:
-        filesTotal === 0
-          ? "Загрузите файлы проекта"
-          : `Файлов нарезано на листы: ${filesSliced} из ${filesTotal}`,
-    },
-    {
       id: "transcribe",
       label: "Расшифровка",
       count: pagesTotal > 0 ? `${pagesReady}/${pagesTotal}` : "—",
@@ -95,9 +81,13 @@ function buildStages(
             ? "done"
             : "active",
       hint:
-        pagesTotal === 0
-          ? "Ждём обработку файлов"
-          : `Листов расшифровано: ${pagesReady} из ${pagesTotal}`,
+        filesTotal === 0
+          ? "Загрузите файлы проекта"
+          : // Пока файл нарезается, листов ещё нет — говорим про нарезку,
+            // иначе прочерк выглядит поломкой.
+            filesSliced < filesTotal
+            ? `Файлы режем на листы: ${filesSliced} из ${filesTotal}`
+            : `Листов расшифровано: ${pagesReady} из ${pagesTotal}`,
     },
     reviews === null
       ? { id: "reviews", label: "Замечания", ...PENDING }
@@ -121,9 +111,9 @@ function buildStages(
 }
 
 /**
- * Полоса этапов проекта: Обработка → Расшифровка → Замечания. Нужна, чтобы на
- * дейли было видно, где проект стоит, без открытия каждого файла. Скрывается,
- * чтобы не отнимать высоту у чертежа.
+ * Полоса этапов проекта: Расшифровка → Замечания. Нужна, чтобы было видно, где
+ * проект стоит, без открытия каждого файла. По умолчанию свёрнута в строку:
+ * прогресс-бары отнимали у чертежа заметную часть экрана.
  */
 export function ProjectStagesBar({
   projectName,
@@ -156,26 +146,39 @@ export function ProjectStagesBar({
 
   if (collapsed) {
     return (
-      <div className="flex shrink-0 items-center gap-2 border-b border-border bg-surface-2 px-3 py-1">
+      <div className="flex shrink-0 items-center gap-1.5 border-b border-border bg-surface-2 px-3 py-1">
+        {/* Этапы работают и в свёрнутом виде: полоса по умолчанию закрыта,
+            и лишать её навигации нельзя. */}
+        {stages.map((stage) => {
+          const current = stage.id === "reviews" && reviewsOpen;
+          return (
+            <button
+              key={stage.id}
+              type="button"
+              onClick={() => onOpenStage(stage.id)}
+              disabled={stage.count === PENDING.count}
+              title={`${stage.hint} · ${ACTION[stage.id]}`}
+              aria-current={current ? "page" : undefined}
+              className={`whitespace-nowrap rounded border px-2 py-0.5 text-[11px] tabular-nums disabled:cursor-default ${
+                current
+                  ? "border-accent bg-accent/10 font-medium text-accent"
+                  : "border-transparent text-muted hover:border-border hover:bg-white hover:text-text"
+              }`}
+            >
+              {stage.label} {stage.count}
+            </button>
+          );
+        })}
+        {busy ? <Spinner className="h-2.5 w-2.5 text-sky-700" /> : null}
         <button
           type="button"
           onClick={onToggleCollapsed}
-          className="flex items-center gap-1.5 rounded border border-border bg-white px-2 py-0.5 text-[11px] text-muted hover:text-text"
+          className="ml-auto rounded border border-border bg-white px-2 py-0.5 text-[11px] text-muted hover:text-text"
           aria-expanded={false}
-          title="Показать этапы проекта"
+          title="Показать прогресс этапов"
         >
-          Этапы
-          {busy ? <Spinner className="h-2.5 w-2.5 text-sky-700" /> : null}
+          Прогресс ▾
         </button>
-        {stages.map((stage) => (
-          <span
-            key={stage.id}
-            className="whitespace-nowrap text-[11px] tabular-nums text-muted"
-            title={stage.hint}
-          >
-            {stage.label} {stage.count}
-          </span>
-        ))}
       </div>
     );
   }
@@ -192,9 +195,9 @@ export function ProjectStagesBar({
           onClick={onToggleCollapsed}
           className="ml-auto rounded border border-border bg-white px-2 py-0.5 text-[11px] text-muted hover:text-text"
           aria-expanded
-          title="Свернуть этапы"
+          title="Свернуть прогресс этапов"
         >
-          Скрыть
+          Свернуть ▴
         </button>
       </div>
       <ol className="flex flex-wrap items-stretch gap-2">

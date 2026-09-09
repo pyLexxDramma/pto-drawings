@@ -118,7 +118,7 @@ export const DRAWING_ACCEPT =
   "application/pdf,.pdf,.dwg,.dxf,application/acad,image/vnd.dwg,application/dxf,image/vnd.dxf,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.zip,application/zip,application/x-zip-compressed";
 
 export const DRAWING_ACCEPT_HINT =
-  "PDF, DWG, DXF, DOC/DOCX или ZIP (PDF + DWG)";
+  "PDF, DWG, DXF, DOC/DOCX или ZIP с файлами";
 
 /** Короткая подсказка в кнопках и drag-drop. */
 export const UPLOAD_BUTTON_LABEL = "Загрузить для расшифровки";
@@ -128,4 +128,5 @@ export const UPLOAD_HELP_LINES = [
   "PDF, DWG или .docx — через конвейер (таблицы и сводка комплекта).",
   "Старый .doc — разбор текста на фронте; лучше пересохранить в .docx.",
   "PDF и DWG вместе — оба файла или ZIP: текст из PDF, чертёж DWG для сверки.",
+  "ZIP с пачкой файлов — распакуем и возьмём в работу каждый по отдельности.",
 ] as const;

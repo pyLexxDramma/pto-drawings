@@ -27,6 +27,7 @@ function review(patch: Partial<Review> & { id: string }): Review {
     severity: "medium",
     verdict: "pending",
     comment: "",
+    wrongReason: "",
     createdAt: "2026-09-01T00:00:00.000Z",
     updatedAt: "2026-09-01T00:00:00.000Z",
     authorId: null,
@@ -102,6 +103,25 @@ describe("exportableReviews", () => {
     ];
     const out = exportableReviews(items).map((item) => item.id);
     assert.deepEqual(out, ["d", "c", "a"]);
+  });
+
+  it("не отдаёт проектировщикам «Неактуально» и «Неверно»", () => {
+    const items = [
+      review({ id: "a", section: "ПЗ", severity: "high", verdict: "outdated" }),
+      review({
+        id: "b",
+        section: "ПЗ",
+        severity: "high",
+        verdict: "wrong",
+        wrongReason: "Такого в чертеже нет",
+      }),
+      review({ id: "c", section: "ПЗ", severity: "high", verdict: "confirmed" }),
+      review({ id: "d", section: "ПЗ", severity: "high", verdict: "discuss" }),
+    ];
+    assert.deepEqual(
+      exportableReviews(items).map((item) => item.id),
+      ["c", "d"],
+    );
   });
 
   it("нумерует подряд после отбрасывания «Не нужно»", () => {

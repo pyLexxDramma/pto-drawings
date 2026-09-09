@@ -24,7 +24,6 @@ import {
   IconExpand,
   IconGrid,
   IconMark,
-  IconPencil,
   IconSearch,
   IconSplit,
   IconThumbs,
@@ -47,11 +46,13 @@ import {
 } from "@/lib/review-state";
 import {
   KIND_LABEL,
+  REVIEW_SEVERITY_LABEL,
   SOURCE_LABEL,
   type AnnotationRect,
   type DocumentRecord,
   type PageAnnotation,
   type PageKind,
+  type Review,
 } from "@/types";
 
 type KindFilter = "all" | "drawing" | "table" | "text" | "flagged";
@@ -59,6 +60,8 @@ type PaneSolo = null | "pdf" | "md";
 
 type ReviewPaneProps = {
   document: DocumentRecord;
+  /** Замечания проекта из таблицы — счётчик по листам и подсветка мест. */
+  reviews?: Review[];
   focusMode: boolean;
   openPage?: { nonce: number; page: number; documentId: string } | null;
   canceling?: boolean;
@@ -81,7 +84,6 @@ type ReviewPaneProps = {
   onCancel?: () => void;
   onToggleFocus: () => void;
   onBackToProjects: () => void;
-  onSavePage: (pageNumber: number, markdown: string) => Promise<void>;
   onAnnotationsChanged?: () => void;
 };
 
@@ -119,6 +121,7 @@ function activePageForJob(doc: DocumentRecord) {
 
 export function ReviewPane({
   document,
+  reviews = [],
   focusMode,
   openPage,
   canceling = false,
@@ -135,7 +138,6 @@ export function ReviewPane({
   onCancel,
   onToggleFocus,
   onBackToProjects,
-  onSavePage,
   onAnnotationsChanged,
 }: ReviewPaneProps) {
   const [rawPage, setRawPage] = useState(() => {
@@ -143,9 +145,6 @@ export function ReviewPane({
     if (cached?.pageNumber && cached.pageNumber > 0) return cached.pageNumber;
     return loadCachedProgress(document.id).lastPage;
   });
-  const [mode, setMode] = useState<"view" | "edit">("view");
-  const [draft, setDraft] = useState("");
-  const [saving, setSaving] = useState(false);
   const [split, setSplit] = useState(50);
   const [stripWidth, setStripWidth] = useState(108);
   // Миниатюры по умолчанию свёрнуты: место отдано чертежу и расшифровке.
@@ -176,9 +175,7 @@ export function ReviewPane({
   /** Пользователь развернул прогресс поверх просмотра готового листа. */
   const [progressExpanded, setProgressExpanded] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
-  const draftRef = useRef(draft);
   const pageRef = useRef(rawPage);
-  const timerRef = useRef<number | null>(null);
   const navigatedRef = useRef(false);
   const deferredQuery = useDeferredValue(query);
 
@@ -231,6 +228,28 @@ export function ReviewPane({
     () => new Set(document.editLog.map((entry) => entry.pageNumber)),
     [document.editLog],
   );
+
+  /**
+   * Замечания таблицы, разложенные по листам этого файла: инженер сразу видит,
+   * где конвейер что-то нашёл, и не листает комплект наугад.
+   */
+  const reviewsByPage = useMemo(() => {
+    const map = new Map<number, Review[]>();
+    for (const review of reviews) {
+      if (review.severity === "skip") continue;
+      for (const location of review.locations) {
+        if (location.documentId !== document.id) continue;
+        if (!location.pageNumber) continue;
+        const list = map.get(location.pageNumber);
+        if (list) {
+          if (!list.some((item) => item.id === review.id)) list.push(review);
+        } else {
+          map.set(location.pageNumber, [review]);
+        }
+      }
+    }
+    return map;
+  }, [document.id, reviews]);
   const kinds = useMemo(() => {
     const map = new Map<number, PageKind>();
     for (const item of document.pages) map.set(item.pageNumber, item.kind);
@@ -320,6 +339,18 @@ export function ReviewPane({
     : pageNumber;
   const page = document.pages.find((item) => item.pageNumber === pageNumber);
   const pageNotes = notes.filter((item) => item.pageNumber === pageNumber);
+  const pageReviews = reviewsByPage.get(pageNumber) ?? [];
+  const pageReviewQuotes = pageReviews
+    .flatMap((review) =>
+      review.locations
+        .filter(
+          (location) =>
+            location.documentId === document.id &&
+            location.pageNumber === pageNumber,
+        )
+        .map((location) => location.quote),
+    )
+    .filter((quote) => quote.trim().length > 0);
   const activeNoteId = hoverNoteId;
   const viewingProcessedSheet =
     progressIsCurrentDoc &&
@@ -342,10 +373,6 @@ export function ReviewPane({
       setProgressExpanded(false);
     }
   }, [pageNumber, viewingProcessedSheet]);
-
-  useEffect(() => {
-    draftRef.current = draft;
-  }, [draft]);
 
   useEffect(() => {
     pageRef.current = pageNumber;
@@ -386,7 +413,6 @@ export function ReviewPane({
     // Переход из фида проекта: внешнее событие, поэтому состояние двигаем здесь.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setRawPage(openPage.page);
-    setMode("view");
   }, [document.id, openPage]);
 
   useEffect(() => {
@@ -414,52 +440,12 @@ export function ReviewPane({
     if (page?.kind === "table") setSplit(42);
   }, [page?.kind]);
 
-  async function flush(pageToSave = pageRef.current, text = draftRef.current) {
-    const current = document.pages.find((item) => item.pageNumber === pageToSave);
-    if (!current || current.markdown === text) return;
-    // В режиме просмотра draft не синхронизирован — не затираем сохранённый текст.
-    if (mode !== "edit" && !text.trim() && current.markdown.trim()) return;
-    setSaving(true);
-    try {
-      await onSavePage(pageToSave, text);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  function queueSave(next: string) {
-    setDraft(next);
-    if (timerRef.current) window.clearTimeout(timerRef.current);
-    timerRef.current = window.setTimeout(() => {
-      void flush(pageNumber, next);
-    }, 700);
-  }
-
-  async function exitEditMode() {
-    if (timerRef.current) {
-      window.clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-    await flush();
-    setMode("view");
-  }
-
-  function enterEditMode() {
-    setDraft(page?.markdown ?? "");
-    setMode("edit");
-  }
-
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) window.clearTimeout(timerRef.current);
-    };
-  }, []);
-
-  async function goToPage(next: number) {
-    if (timerRef.current) window.clearTimeout(timerRef.current);
+  /**
+   * Текст расшифровки не правится руками (решение Дархана 09.09): исправления
+   * идут только через «Ошибка» — тогда у конвейера остаётся, чему учиться.
+   */
+  function goToPage(next: number) {
     navigatedRef.current = true;
-    if (mode === "edit") await flush();
-    setMode("view");
     setRawPage(next);
   }
 
@@ -507,12 +493,6 @@ export function ReviewPane({
       const target = event.target as HTMLElement | null;
       const typing = target && ["INPUT", "TEXTAREA"].includes(target.tagName);
 
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
-        event.preventDefault();
-        void flush();
-        return;
-      }
-
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
         event.preventDefault();
         openSearch();
@@ -520,11 +500,6 @@ export function ReviewPane({
       }
 
       if (event.key === "Escape") {
-        if (mode === "edit") {
-          event.preventDefault();
-          void exitEditMode();
-          return;
-        }
         if (moreMenuOpen) {
           setMoreMenuOpen(false);
           return;
@@ -614,7 +589,7 @@ export function ReviewPane({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusMode, markMode, pendingRect, onBackToProjects, onToggleFocus, visiblePages, document.pages, moreMenuOpen, showLog, paneSolo, searchOpen, readOnly, galleryMode, mode]);
+  }, [focusMode, markMode, pendingRect, onBackToProjects, onToggleFocus, visiblePages, document.pages, moreMenuOpen, showLog, paneSolo, searchOpen, readOnly, galleryMode]);
 
   const hits = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -960,9 +935,6 @@ export function ReviewPane({
             <span className="ml-2 font-normal text-muted">
               · лист {pageNumber} из {total}
             </span>
-            {saving ? (
-              <span className="ml-1 text-[11px] font-normal text-muted">· сохранение…</span>
-            ) : null}
           </div>
           <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted">
             <ActionMenu
@@ -1019,6 +991,16 @@ export function ReviewPane({
                           {kind ? ` · ${KIND_LABEL[kind].toLowerCase()}` : ""}
                         </span>
                         <span className="shrink-0 pl-2">
+                          {reviewsByPage.get(number)?.length ? (
+                            <span
+                              className="mr-1 rounded bg-violet-100 px-1 text-[10px] font-semibold tabular-nums text-violet-900"
+                              title={`Замечаний из таблицы: ${
+                                reviewsByPage.get(number)!.length
+                              }`}
+                            >
+                              {reviewsByPage.get(number)!.length}
+                            </span>
+                          ) : null}
                           {annotatedPages.has(number) ? (
                             <span className="text-red-600" title="Есть замечание">
                               ●
@@ -1448,26 +1430,12 @@ export function ReviewPane({
                   </span>
                 ) : null}
                 {sidePanel === "text" && !readOnly ? (
-                  <button
-                    type="button"
-                    aria-pressed={mode === "edit"}
-                    title={
-                      mode === "edit"
-                        ? "Вернуться к чтению расшифровки"
-                        : "Исправить расшифровку"
-                    }
-                    onClick={() => {
-                      if (mode === "edit") void exitEditMode();
-                      else enterEditMode();
-                    }}
-                    className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border ${
-                      mode === "edit"
-                        ? "border-accent bg-accent text-white"
-                        : "border-border bg-white text-muted hover:bg-bg hover:text-text"
-                    }`}
+                  <span
+                    className="text-[10px] text-muted"
+                    title="Текст расшифровки не правится вручную: обведите место кнопкой «Ошибка» — правку сделает конвейер"
                   >
-                    <IconPencil />
-                  </button>
+                    Правки — через «Ошибка»
+                  </span>
                 ) : null}
               </div>
             </div>
@@ -1557,15 +1525,6 @@ export function ReviewPane({
                       ? `Лист не обработан: ${pageError}`
                       : "Для этого листа ещё нет текста."}
                 </div>
-              ) : mode === "edit" ? (
-                <textarea
-                  value={draft}
-                  onChange={(event) => queueSave(event.target.value)}
-                  spellCheck={false}
-                  className={`h-full min-h-[320px] w-full resize-none bg-[#f7f8fa] p-4 font-mono text-[13px] leading-6 text-text outline-none ${
-                    page.kind === "table" ? "overflow-auto whitespace-pre" : ""
-                  }`}
-                />
               ) : (
                 <div
                   className={`markdown-body p-5 ${page.kind === "table" ? "markdown-body--table" : ""}`}
@@ -1580,9 +1539,33 @@ export function ReviewPane({
                       Это ответ режима [MOCK], не работа модели.
                     </div>
                   ) : null}
+                  {/* Что нашёл конвейер на этом листе: места в тексте
+                      подсвечены розовым, чтобы не искать их глазами. */}
+                  {pageReviews.length > 0 ? (
+                    <div className="mb-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-900">
+                      <div className="font-medium">
+                        Замечаний по листу: {pageReviews.length}
+                      </div>
+                      <ul className="mt-1 space-y-0.5">
+                        {pageReviews.map((review) => (
+                          <li key={review.id} className="leading-snug">
+                            <span className="font-medium tabular-nums">
+                              № {review.number}
+                            </span>
+                            {` · ${REVIEW_SEVERITY_LABEL[
+                              review.severity
+                            ].toLowerCase()} · ${
+                              review.text || review.aiFinding
+                            }`}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
                   <MarkdownView
                     singlePass={page.kind === "table"}
                     highlightQuery={deferredQuery}
+                    flagQuotes={pageReviewQuotes}
                   >
                     {page.markdown}
                   </MarkdownView>

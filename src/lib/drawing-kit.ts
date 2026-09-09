@@ -53,7 +53,13 @@ function fixZipName(name: string): string {
   }
 }
 
-export function extractDrawingKitFromZip(buffer: Buffer): DrawingKitFiles {
+export type ZipEntry = { name: string; buffer: Buffer; ext: DrawingExt };
+
+/**
+ * Всё пригодное из архива, в порядке имён. Ограничения «один PDF на архив»
+ * нет: инженеры кидают комплект целиком, и каждый файл идёт своим документом.
+ */
+export function extractDrawingFilesFromZip(buffer: Buffer): ZipEntry[] {
   let entries: Record<string, Uint8Array>;
   try {
     entries = unzipSync(new Uint8Array(buffer));
@@ -61,46 +67,43 @@ export function extractDrawingKitFromZip(buffer: Buffer): DrawingKitFiles {
     throw Object.assign(new Error("Не удалось распаковать ZIP"), { status: 400 });
   }
 
-  let pdf: { name: string; buffer: Buffer } | null = null;
-  let cad: DrawingKitFiles["cad"] | null = null;
-
+  const found: ZipEntry[] = [];
   for (const [path, data] of Object.entries(entries)) {
     const name = baseName(path);
     if (!name) continue;
     const ext = getDrawingExt(name);
     if (!ext) continue;
-    if (ext === "pdf") {
-      if (pdf) {
-        throw Object.assign(
-          new Error("В архиве должен быть один PDF"),
-          { status: 400 },
-        );
-      }
-      pdf = { name, buffer: Buffer.from(data) };
-      continue;
-    }
-    if (ext === "dwg" || ext === "dxf") {
-      if (cad) {
-        throw Object.assign(
-          new Error("В архиве должен быть один DWG или DXF"),
-          { status: 400 },
-        );
-      }
-      cad = { name, buffer: Buffer.from(data), ext };
-    }
+    if (data.byteLength === 0) continue;
+    found.push({ name, buffer: Buffer.from(data), ext });
   }
 
-  if (!pdf) {
-    throw Object.assign(new Error("В архиве не найден PDF"), { status: 400 });
-  }
-  if (!cad) {
+  if (found.length === 0) {
     throw Object.assign(
-      new Error("В архиве не найден DWG или DXF"),
+      new Error("В архиве нет PDF, DWG, DXF или DOC/DOCX"),
       { status: 400 },
     );
   }
 
-  return { pdf, cad };
+  return found.sort((left, right) => left.name.localeCompare(right.name, "ru"));
+}
+
+/**
+ * Комплект «чертёж + модель»: ровно один PDF и ровно один DWG/DXF. Если в
+ * архиве больше файлов — это не комплект, а пачка, её грузим по одному.
+ */
+export function asDrawingKit(entries: ZipEntry[]): DrawingKitFiles | null {
+  if (entries.length !== 2) return null;
+  const pdf = entries.find((item) => item.ext === "pdf");
+  const cad = entries.find((item) => item.ext === "dwg" || item.ext === "dxf");
+  if (!pdf || !cad) return null;
+  return {
+    pdf: { name: pdf.name, buffer: pdf.buffer },
+    cad: {
+      name: cad.name,
+      buffer: cad.buffer,
+      ext: cad.ext as "dwg" | "dxf",
+    },
+  };
 }
 
 export function detectDrawingKitUpload(files: File[]): File[] | null {

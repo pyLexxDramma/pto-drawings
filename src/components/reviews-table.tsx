@@ -12,12 +12,16 @@ import { SegmentedTabs, Spinner } from "@/components/ui-chrome";
 import { IconDownload } from "@/components/tool-icons";
 import { groupReviews, type GroupBy } from "@/lib/reviews-group";
 import { CROSS_SECTION, KNOWN_SECTIONS } from "@/lib/sections";
+import { formatDate } from "@/lib/format";
 import {
+  REVIEW_EVENT_LABEL,
   REVIEW_ORIGIN_LABEL,
   REVIEW_SEVERITY_LABEL,
   REVIEW_SEVERITY_ORDER,
+  REVIEW_VERDICT_HIDDEN,
   REVIEW_VERDICT_LABEL,
   type Review,
+  type ReviewEvent,
   type ReviewOrigin,
   type ReviewSeverity,
   type ReviewVerdict,
@@ -40,6 +44,7 @@ const VERDICT_ROW: Partial<Record<ReviewVerdict, string>> = {
   partial: "bg-amber-100/60",
   discuss: "bg-sky-100/60",
   outdated: "bg-slate-100 opacity-60",
+  wrong: "bg-rose-100/70",
 };
 
 const SEVERITY_CHIP: Record<ReviewSeverity, string> = {
@@ -55,6 +60,7 @@ const VERDICT_CHIP: Record<ReviewVerdict, string> = {
   partial: "border-amber-300 bg-amber-50 text-amber-900",
   discuss: "border-sky-300 bg-sky-50 text-sky-900",
   outdated: "border-slate-300 bg-slate-100 text-slate-500 line-through",
+  wrong: "border-rose-400 bg-rose-100 font-semibold text-rose-900",
 };
 
 const VERDICTS: ReviewVerdict[] = [
@@ -63,6 +69,20 @@ const VERDICTS: ReviewVerdict[] = [
   "partial",
   "discuss",
   "outdated",
+  "wrong",
+];
+
+/**
+ * Готовые причины брака: инженеру на разборе некогда печатать, а конвейер
+ * без формулировки «что не так» не починить.
+ */
+const WRONG_TAGS = [
+  "Такого в чертеже нет",
+  "Не то место в ПД",
+  "Числа сходятся",
+  "Дубль другого замечания",
+  "Формулировка мимо",
+  "Не наша зона ответственности",
 ];
 
 type SeverityFilter = "all" | ReviewSeverity;
@@ -167,9 +187,13 @@ export function ReviewsTable({
   onClose: () => void;
 }) {
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [events, setEvents] = useState<ReviewEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
+  /** Строка, по которой открыто окно «что именно неверно». */
+  const [wrongFor, setWrongFor] = useState<Review | null>(null);
+  const [logFor, setLogFor] = useState<Review | null>(null);
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>("all");
   const [verdictFilter, setVerdictFilter] = useState<VerdictFilter>("all");
   const [sectionFilter, setSectionFilter] = useState<string>("all");
@@ -193,11 +217,37 @@ export function ReviewsTable({
         };
         throw new Error(payload.error ?? "Не удалось загрузить замечания");
       }
-      const payload = (await response.json()) as { reviews: Review[] };
+      const payload = (await response.json()) as {
+        reviews: Review[];
+        events?: ReviewEvent[];
+      };
       setReviews(payload.reviews ?? []);
+      setEvents(payload.events ?? []);
     },
     [projectId],
   );
+
+  /** После правки журнал обновляем отдельно: строку уже вернул PATCH. */
+  const refreshEvents = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/projects/${projectId}/reviews`);
+      if (!response.ok) return;
+      const payload = (await response.json()) as { events?: ReviewEvent[] };
+      setEvents(payload.events ?? []);
+    } catch {
+      // журнал не критичен для разбора
+    }
+  }, [projectId]);
+
+  /** Последняя правка по строке — подпись «кто и когда» прямо в таблице. */
+  const lastEventByReview = useMemo(() => {
+    const map = new Map<string, ReviewEvent>();
+    for (const event of events) {
+      if (event.field === "created") continue;
+      if (!map.has(event.reviewId)) map.set(event.reviewId, event);
+    }
+    return map;
+  }, [events]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -264,11 +314,16 @@ export function ReviewsTable({
   const stats = useMemo(() => {
     const total = reviews.length;
     const pending = reviews.filter((item) => item.verdict === "pending").length;
-    const exportable = reviews.filter((item) => item.severity !== "skip").length;
+    // В выгрузку идёт то же, что и в XLSX: без «Не нужно», «Неактуально» и «Неверно».
+    const exportable = reviews.filter(
+      (item) =>
+        item.severity !== "skip" && !REVIEW_VERDICT_HIDDEN.includes(item.verdict),
+    ).length;
     const high = reviews.filter((item) => item.severity === "high").length;
     const ai = reviews.filter((item) => item.origin === "ai").length;
     const engineer = reviews.filter((item) => item.origin === "engineer").length;
     const both = reviews.filter((item) => item.origin === "both").length;
+    const wrong = reviews.filter((item) => item.verdict === "wrong").length;
     return {
       total,
       pending,
@@ -278,6 +333,7 @@ export function ReviewsTable({
       ai,
       engineer,
       both,
+      wrong,
     };
   }, [reviews]);
 
@@ -308,7 +364,12 @@ export function ReviewsTable({
             body: JSON.stringify(body),
           },
         );
-        if (!response.ok) throw new Error("Не удалось сохранить");
+        if (!response.ok) {
+          const payload = (await response.json().catch(() => ({}))) as {
+            error?: string;
+          };
+          throw new Error(payload.error ?? "Не удалось сохранить");
+        }
         const payload = (await response.json()) as { review: Review };
         setReviews((prev) =>
           prev.map((item) =>
@@ -316,14 +377,17 @@ export function ReviewsTable({
           ),
         );
         setError(null);
+        void refreshEvents();
+        return true;
       } catch (err) {
         setError(err instanceof Error ? err.message : "Ошибка сохранения");
         await load().catch(() => undefined);
+        return false;
       } finally {
         setSavingId(null);
       }
     },
-    [load, projectId],
+    [load, projectId, refreshEvents],
   );
 
   async function handleAdd() {
@@ -366,6 +430,7 @@ export function ReviewsTable({
       );
       if (!response.ok) throw new Error("Не удалось удалить");
       setReviews((prev) => prev.filter((item) => item.id !== reviewId));
+      void refreshEvents();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ошибка удаления");
     } finally {
@@ -396,6 +461,11 @@ export function ReviewsTable({
           {loading ? null : (
             <div className="text-[11px] tabular-nums text-muted">
               {`нашла ИИ ${stats.ai} · инженеры ${stats.engineer} · совпало ${stats.both}`}
+              {stats.wrong ? (
+                <span className="text-rose-700">
+                  {` · брак ИИ ${stats.wrong}`}
+                </span>
+              ) : null}
             </div>
           )}
         </div>
@@ -566,8 +636,11 @@ export function ReviewsTable({
                       needle={query.trim().toLowerCase()}
                       active={activeId === review.id}
                       saving={savingId === review.id}
+                      lastEvent={lastEventByReview.get(review.id) ?? null}
                       onActivate={() => setActiveId(review.id)}
                       onPatch={(body) => void patch(review.id, body)}
+                      onMarkWrong={() => setWrongFor(review)}
+                      onShowLog={() => setLogFor(review)}
                       onDelete={() => void handleDelete(review.id)}
                       onJumpToPage={onJumpToPage}
                     />
@@ -641,8 +714,209 @@ export function ReviewsTable({
           </button>
         </div>
       </footer>
+
+      {wrongFor ? (
+        <WrongDialog
+          review={wrongFor}
+          onCancel={() => setWrongFor(null)}
+          onSave={async (reason) => {
+            const ok = await patch(wrongFor.id, {
+              verdict: "wrong",
+              wrongReason: reason,
+            });
+            if (ok) setWrongFor(null);
+            return ok;
+          }}
+        />
+      ) : null}
+
+      {logFor ? (
+        <ReviewLogDialog
+          review={logFor}
+          events={events.filter((item) => item.reviewId === logFor.id)}
+          onClose={() => setLogFor(null)}
+        />
+      ) : null}
     </div>
   );
+}
+
+/**
+ * «Неверно» без объяснения — потерянный сигнал: строка уйдёт из выгрузки, а
+ * конвейер останется с той же ошибкой. Поэтому статус ставится только вместе
+ * с причиной.
+ */
+function WrongDialog({
+  review,
+  onCancel,
+  onSave,
+}: {
+  review: Review;
+  onCancel: () => void;
+  onSave: (reason: string) => Promise<boolean>;
+}) {
+  const [reason, setReason] = useState(review.wrongReason);
+  const [busy, setBusy] = useState(false);
+
+  async function submit() {
+    const text = reason.trim();
+    if (!text) return;
+    setBusy(true);
+    const ok = await onSave(text);
+    if (!ok) setBusy(false);
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/40 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Что неверно в замечании"
+      onClick={onCancel}
+    >
+      <div
+        className="w-full max-w-md rounded-lg border border-rose-200 bg-white p-4 shadow-xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="text-sm font-semibold text-rose-900">
+          Замечание № {review.number} неверно
+        </div>
+        <div className="mt-1 line-clamp-3 text-[11px] leading-snug text-muted">
+          {review.text || review.aiFinding}
+        </div>
+        <textarea
+          autoFocus
+          value={reason}
+          rows={3}
+          onChange={(event) => setReason(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+              event.preventDefault();
+              void submit();
+            }
+          }}
+          placeholder="Что именно неверно: в чертеже этого нет, числа сходятся…"
+          className="mt-2 w-full resize-none rounded-md border border-border bg-white px-2 py-1.5 text-xs outline-none focus:border-accent"
+        />
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {WRONG_TAGS.map((label) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() =>
+                setReason((prev) =>
+                  prev.trim() ? `${prev.trim()}. ${label}` : label,
+                )
+              }
+              className="rounded-full border border-rose-200 bg-white px-2 py-0.5 text-[10px] text-rose-800 hover:bg-rose-50"
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="mt-3 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void submit()}
+            disabled={busy || reason.trim().length === 0}
+            className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#1d4ed8] disabled:opacity-50"
+          >
+            {busy ? "Сохраняем…" : "Сохранить"}
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-md border border-slate-300 px-3 py-1.5 text-xs"
+          >
+            Отмена
+          </button>
+          <span className="ml-auto text-[10px] text-muted">Ctrl+Enter</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Журнал строки: кто и когда менял важность, разбор и комментарий. */
+function ReviewLogDialog({
+  review,
+  events,
+  onClose,
+}: {
+  review: Review;
+  events: ReviewEvent[];
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/40 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Журнал разбора замечания"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md rounded-lg border border-border bg-white p-4 shadow-xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <div className="text-sm font-medium">
+            Журнал замечания № {review.number}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-xs text-muted hover:text-text"
+          >
+            Закрыть
+          </button>
+        </div>
+        <div className="max-h-72 space-y-1.5 overflow-auto">
+          {events.length === 0 ? (
+            <div className="text-xs text-muted">
+              Правок не было — замечание в том виде, в котором пришло.
+            </div>
+          ) : (
+            events.map((event) => (
+              <div
+                key={event.id}
+                className="rounded-md bg-surface-2 px-2 py-1.5 text-[11px] leading-snug"
+              >
+                <div className="text-muted">
+                  {formatDate(event.at)}
+                  {event.userName ? ` · ${event.userName}` : ""}
+                </div>
+                <div className="text-text">
+                  {REVIEW_EVENT_LABEL[event.field]}
+                  {event.field === "created" || event.field === "deleted"
+                    ? ""
+                    : `: ${verdictish(event.field, event.from)} → ${verdictish(
+                        event.field,
+                        event.to,
+                      )}`}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** В журнале лежат коды (`high`, `wrong`) — читаем их по-русски. */
+function verdictish(field: ReviewEvent["field"], value: string): string {
+  if (!value) return "пусто";
+  if (field === "severity") {
+    return REVIEW_SEVERITY_LABEL[value as ReviewSeverity] ?? value;
+  }
+  if (field === "verdict") {
+    const [code, ...rest] = value.split(":");
+    const label = REVIEW_VERDICT_LABEL[code.trim() as ReviewVerdict] ?? code;
+    const reason = rest.join(":").trim();
+    return reason ? `${label} (${reason})` : label;
+  }
+  return value;
 }
 
 function ReviewRow({
@@ -650,8 +924,11 @@ function ReviewRow({
   needle,
   active,
   saving,
+  lastEvent,
   onActivate,
   onPatch,
+  onMarkWrong,
+  onShowLog,
   onDelete,
   onJumpToPage,
 }: {
@@ -660,13 +937,19 @@ function ReviewRow({
   needle: string;
   active: boolean;
   saving: boolean;
+  /** Последняя правка строки — подпись «кто и когда». */
+  lastEvent: ReviewEvent | null;
   onActivate: () => void;
   onPatch: (body: Partial<Review>) => void;
+  onMarkWrong: () => void;
+  onShowLog: () => void;
   onDelete: () => void;
   onJumpToPage: (documentId: string, pageNumber: number) => void;
 }) {
   const [comment, setComment] = useState(review.comment);
   const commentRef = useRef(review.comment);
+  /** Показываем «сохранено» пару секунд: иначе непонятно, ушла ли заметка. */
+  const [savedFlash, setSavedFlash] = useState(false);
 
   // Правку с сервера подхватываем, набранный текст не сбрасываем.
   useEffect(() => {
@@ -676,11 +959,20 @@ function ReviewRow({
     }
   }, [review.comment]);
 
+  useEffect(() => {
+    if (!savedFlash) return;
+    const timer = window.setTimeout(() => setSavedFlash(false), 2000);
+    return () => window.clearTimeout(timer);
+  }, [savedFlash]);
+
+  const commentDirty = comment.trim() !== review.comment;
+
   function commitComment() {
     const next = comment.trim();
     if (next === review.comment) return;
     commentRef.current = next;
     onPatch({ comment: next });
+    setSavedFlash(true);
   }
 
   const wording = review.text || review.aiFinding;
@@ -719,6 +1011,11 @@ function ReviewRow({
         {review.text && review.aiFinding ? (
           <div className="mt-1 whitespace-pre-wrap border-l-2 border-violet-300 pl-2 text-[11px] leading-snug text-muted">
             Нашла ИИ: {highlight(review.aiFinding, needle)}
+          </div>
+        ) : null}
+        {review.wrongReason ? (
+          <div className="mt-1 whitespace-pre-wrap border-l-2 border-rose-400 pl-2 text-[11px] leading-snug text-rose-800">
+            Неверно: {highlight(review.wrongReason, needle)}
           </div>
         ) : null}
       </td>
@@ -785,9 +1082,12 @@ function ReviewRow({
       <td className="px-2 py-1.5">
         <select
           value={review.verdict}
-          onChange={(event) =>
-            onPatch({ verdict: event.target.value as ReviewVerdict })
-          }
+          onChange={(event) => {
+            const next = event.target.value as ReviewVerdict;
+            // «Неверно» ставится только через окно с причиной.
+            if (next === "wrong") onMarkWrong();
+            else onPatch({ verdict: next });
+          }}
           onClick={(event) => event.stopPropagation()}
           className={`w-full rounded border px-1.5 py-1 text-[11px] font-medium outline-none ${
             VERDICT_CHIP[review.verdict]
@@ -799,17 +1099,81 @@ function ReviewRow({
             </option>
           ))}
         </select>
+        {review.verdict === "wrong" ? (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onMarkWrong();
+            }}
+            className="mt-1 w-full rounded border border-rose-200 bg-white px-1 py-0.5 text-[10px] text-rose-800 hover:bg-rose-50"
+          >
+            Уточнить причину
+          </button>
+        ) : null}
       </td>
       <td className="px-2 py-1.5">
         <textarea
           value={comment}
           rows={2}
           onChange={(event) => setComment(event.target.value)}
-          onBlur={commitComment}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+              event.preventDefault();
+              commitComment();
+            }
+          }}
           onClick={(event) => event.stopPropagation()}
           placeholder="Заметка проверяющего"
-          className="w-full resize-y rounded border border-slate-300 bg-white px-1.5 py-1 text-[11px] outline-none placeholder:text-muted focus:border-accent"
+          className={`w-full resize-y rounded border bg-white px-1.5 py-1 text-[11px] outline-none placeholder:text-muted focus:border-accent ${
+            commentDirty ? "border-accent" : "border-slate-300"
+          }`}
         />
+        {/* Заметка сохраняется только по кнопке: раньше она уходила молча по
+            потере фокуса, и было непонятно, записалась ли. */}
+        <div className="mt-0.5 flex min-h-[1.1rem] items-center gap-1.5">
+          {commentDirty ? (
+            <>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  commitComment();
+                }}
+                className="rounded bg-accent px-1.5 py-0.5 text-[10px] font-semibold text-white hover:bg-[#1d4ed8]"
+              >
+                Сохранить
+              </button>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setComment(review.comment);
+                }}
+                className="rounded border border-slate-300 px-1.5 py-0.5 text-[10px] text-muted hover:text-text"
+              >
+                Отмена
+              </button>
+              <span className="text-[9px] text-muted">Ctrl+Enter</span>
+            </>
+          ) : savedFlash ? (
+            <span className="text-[10px] text-emerald-700">Сохранено</span>
+          ) : lastEvent ? (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onShowLog();
+              }}
+              title="Журнал правок этого замечания"
+              className="truncate text-[10px] text-muted underline decoration-dotted hover:text-text"
+            >
+              {`${REVIEW_EVENT_LABEL[lastEvent.field].toLowerCase()} · ${
+                lastEvent.userName ?? "система"
+              } · ${formatDate(lastEvent.at)}`}
+            </button>
+          ) : null}
+        </div>
       </td>
       <td className="px-1 py-1.5 text-center">
         {saving ? (

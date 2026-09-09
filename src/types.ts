@@ -111,13 +111,17 @@ export type PageProgress = {
 /** «Не нужно» (skip) не попадает в выгрузку проектировщикам. */
 export type ReviewSeverity = "high" | "medium" | "low" | "skip";
 
-/** Итог разбора замечания с заказчиком. */
+/**
+ * Итог разбора замечания с заказчиком. «Неверно» — брак самой находки ИИ:
+ * инженер обязан написать, что не так, иначе конвейер не починить.
+ */
 export type ReviewVerdict =
   | "pending"
   | "confirmed"
   | "partial"
   | "discuss"
-  | "outdated";
+  | "outdated"
+  | "wrong";
 
 export type ReviewOrigin = "ai" | "engineer" | "both";
 
@@ -148,10 +152,37 @@ export type Review = {
   severity: ReviewSeverity;
   verdict: ReviewVerdict;
   comment: string;
+  /** Чем плоха находка ИИ: заполняется только вместе с verdict «Неверно». */
+  wrongReason: string;
   createdAt: string;
   updatedAt: string;
   authorId: string | null;
   authorName: string | null;
+};
+
+/** Что именно правили в замечании — для журнала разбора. */
+export type ReviewEventField =
+  | "created"
+  | "severity"
+  | "verdict"
+  | "comment"
+  | "text"
+  | "section"
+  | "deleted";
+
+/**
+ * Запись журнала: кто и когда поменял поле замечания. Нужна, чтобы на разборе
+ * с заказчиком можно было ответить «кто снял это замечание и почему».
+ */
+export type ReviewEvent = {
+  id: string;
+  reviewId: string;
+  field: ReviewEventField;
+  from: string;
+  to: string;
+  at: string;
+  userId: string | null;
+  userName: string | null;
 };
 
 /** Что присылает агент конвейера: без полей, которые правит человек. */
@@ -177,6 +208,23 @@ export const REVIEW_VERDICT_LABEL: Record<ReviewVerdict, string> = {
   partial: "Частично верно",
   discuss: "Обсудить",
   outdated: "Неактуально",
+  wrong: "Неверно",
+};
+
+/**
+ * Итоги, после которых замечание не уходит проектировщикам: «Неактуально» —
+ * снято на разборе, «Неверно» — ошибка конвейера, отправлять её стыдно.
+ */
+export const REVIEW_VERDICT_HIDDEN: ReviewVerdict[] = ["outdated", "wrong"];
+
+export const REVIEW_EVENT_LABEL: Record<ReviewEventField, string> = {
+  created: "Создано",
+  severity: "Важность",
+  verdict: "Разбор",
+  comment: "Комментарий",
+  text: "Формулировка",
+  section: "Раздел",
+  deleted: "Удалено",
 };
 
 export const REVIEW_ORIGIN_LABEL: Record<ReviewOrigin, string> = {

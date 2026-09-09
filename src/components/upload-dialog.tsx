@@ -93,7 +93,11 @@ export function UploadDialog({
       <div className="w-full max-w-md rounded-xl border border-border bg-white p-5 shadow-xl">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div className="text-sm font-semibold">
-            {uploadMode === "files" ? "Загрузка файла" : "Загрузка комплекта PDF + DWG"}
+            {uploadMode === "files"
+              ? "Загрузка файла"
+              : uploadMode === "kit-zip"
+                ? "Загрузка архива"
+                : "Загрузка комплекта PDF + DWG"}
           </div>
           <button
             type="button"
@@ -124,10 +128,11 @@ export function UploadDialog({
         >
           {uploadMode === "kit-zip" ? (
             <>
-              <div className="font-medium text-text">Комплект PDF + DWG из архива</div>
+              <div className="font-medium text-text">Архив с чертежами</div>
               <div className="mt-1">
-                Оба файла будут обработаны и связаны. Текст расшифровки — из PDF; чертёж DWG
-                откроется переключателем PDF / DWG при просмотре.
+                Распакуем сами. Пара PDF + DWG станет связанным комплектом: текст
+                расшифровки из PDF, чертёж DWG по переключателю. Пачку файлов
+                возьмём в работу по одному, имена сохраним как в архиве.
               </div>
             </>
           ) : uploadMode === "kit-pair" ? (

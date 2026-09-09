@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { isPublicUser, requireUser } from "@/lib/auth";
 import { ingestGuard } from "@/lib/ingest-auth";
-import { createReview, ingestReviews, listReviews } from "@/lib/reviews";
+import {
+  createReview,
+  ingestReviews,
+  listReviewEvents,
+  listReviews,
+} from "@/lib/reviews";
 import { getProject } from "@/lib/storage";
 import type {
   ReviewIngestItem,
@@ -23,8 +28,11 @@ export async function GET(request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Проект не найден" }, { status: 404 });
   }
   const reviews = await listReviews(id);
+  // Журнал отдаём вместе с таблицей: он нужен той же строке, отдельный запрос
+  // на каждый разбор ничего не экономит.
+  const events = await listReviewEvents(id);
   return NextResponse.json(
-    { reviews },
+    { reviews, events },
     { headers: { "Cache-Control": "private, max-age=0, must-revalidate" } },
   );
 }

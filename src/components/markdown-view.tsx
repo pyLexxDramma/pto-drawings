@@ -5,7 +5,7 @@ import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
-import { highlightNodes } from "@/lib/highlight-text";
+import { flagNodes, highlightNodes } from "@/lib/highlight-text";
 import { parseMarkdownBlocks } from "@/lib/content-sync";
 import { markdownSanitizeSchema } from "@/lib/markdown-schema";
 
@@ -13,6 +13,8 @@ type MarkdownViewProps = {
   children: string;
   /** Подсветка совпадений поиска в тексте. */
   highlightQuery?: string;
+  /** Цитаты из таблицы замечаний по этому листу — красная подсветка мест. */
+  flagQuotes?: string[];
   /** Лист-таблица: один Markdown без разбиения на блоки. */
   singlePass?: boolean;
 };
@@ -21,18 +23,22 @@ function wrapText(
   Tag: "h1" | "h2" | "h3" | "p" | "li" | "td" | "th" | "span",
   children: ReactNode,
   highlightQuery?: string,
+  flagQuotes?: string[],
   extra?: Record<string, unknown>,
 ) {
-  const body = highlightQuery ? highlightNodes(children, highlightQuery) : children;
+  const flagged = flagQuotes?.length ? flagNodes(children, flagQuotes) : children;
+  const body = highlightQuery ? highlightNodes(flagged, highlightQuery) : flagged;
   return <Tag {...extra}>{body}</Tag>;
 }
 
 function BlockMarkdown({
   source,
   highlightQuery,
+  flagQuotes,
 }: {
   source: string;
   highlightQuery: string;
+  flagQuotes: string[];
 }) {
   const q = highlightQuery.trim().length >= 2 ? highlightQuery : "";
   return (
@@ -40,13 +46,13 @@ function BlockMarkdown({
       remarkPlugins={[remarkGfm]}
       rehypePlugins={[rehypeRaw, [rehypeSanitize, markdownSanitizeSchema]]}
       components={{
-        h1: ({ children: c }) => wrapText("h1", c, q),
-        h2: ({ children: c }) => wrapText("h2", c, q),
-        h3: ({ children: c }) => wrapText("h3", c, q),
-        p: ({ children: c }) => wrapText("p", c, q),
-        li: ({ children: c }) => wrapText("li", c, q),
-        td: ({ children: c }) => wrapText("td", c, q),
-        th: ({ children: c }) => wrapText("th", c, q),
+        h1: ({ children: c }) => wrapText("h1", c, q, flagQuotes),
+        h2: ({ children: c }) => wrapText("h2", c, q, flagQuotes),
+        h3: ({ children: c }) => wrapText("h3", c, q, flagQuotes),
+        p: ({ children: c }) => wrapText("p", c, q, flagQuotes),
+        li: ({ children: c }) => wrapText("li", c, q, flagQuotes),
+        td: ({ children: c }) => wrapText("td", c, q, flagQuotes),
+        th: ({ children: c }) => wrapText("th", c, q, flagQuotes),
       }}
     >
       {source}
@@ -58,6 +64,7 @@ function BlockMarkdown({
 export function MarkdownView({
   children,
   highlightQuery = "",
+  flagQuotes = [],
   singlePass = false,
 }: MarkdownViewProps) {
   const blocks = useMemo(
@@ -67,14 +74,24 @@ export function MarkdownView({
   const q = highlightQuery.trim().length >= 2 ? highlightQuery : "";
 
   if (!blocks.length) {
-    return <BlockMarkdown source={children} highlightQuery={q} />;
+    return (
+      <BlockMarkdown
+        source={children}
+        highlightQuery={q}
+        flagQuotes={flagQuotes}
+      />
+    );
   }
 
   return (
     <>
       {blocks.map((block) => (
         <div key={block.id} className="scroll-mt-3">
-          <BlockMarkdown source={block.source} highlightQuery={q} />
+          <BlockMarkdown
+            source={block.source}
+            highlightQuery={q}
+            flagQuotes={flagQuotes}
+          />
         </div>
       ))}
     </>

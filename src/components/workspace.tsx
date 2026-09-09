@@ -225,10 +225,11 @@ function uploadPdf(
 }
 
 type KitUploadResult = {
-  kitId: string;
+  /** null — в архиве была пачка файлов, а не комплект PDF + DWG. */
+  kitId: string | null;
   kitLabel: string;
   documents: DocumentRecord[];
-  primaryDocumentId: string;
+  primaryDocumentId: string | null;
 };
 
 function uploadKit(
@@ -326,8 +327,12 @@ export function Workspace({
   const [fullProgressVisible, setFullProgressVisible] = useState(false);
   const [liveDockCollapsed, setLiveDockCollapsed] = useState(false);
   const [showReviews, setShowReviews] = useState(false);
+  /** Лист, открытый поверх таблицы замечаний по ссылке «Где в ПД». */
+  const [peekOpen, setPeekOpen] = useState(false);
   const [reviewStats, setReviewStats] = useState<ReviewStats | null>(null);
-  const [stagesCollapsed, setStagesCollapsed] = useState(false);
+  const [projectReviews, setProjectReviews] = useState<Review[]>([]);
+  /** Прогресс-бары этапов свёрнуты: место отдано чертежу, цифры остаются. */
+  const [stagesCollapsed, setStagesCollapsed] = useState(true);
   const [documentsProjectId, setDocumentsProjectId] = useState<string | null>(
     null,
   );
@@ -448,6 +453,7 @@ export function Workspace({
   const openDocument = useCallback(
     async (id: string, page?: number) => {
       setShowReviews(false);
+      setPeekOpen(false);
       setSelectedId(id);
       setOpenPage(
         page && page > 0
@@ -461,26 +467,18 @@ export function Workspace({
   );
 
   /**
-   * Полоса этапов — не индикатор, а навигация: каждый этап открывает свою
-   * работу. «Обработка» ведёт к файлам, «Расшифровка» — к первому листу без
-   * текста, «Замечания» — к таблице.
+   * Полоса этапов — не индикатор, а навигация: «Расшифровка» ведёт к первому
+   * листу без текста, «Замечания» — к таблице.
    */
   const openStage = useCallback(
     (stage: StageId) => {
       if (stage === "reviews") {
+        setPeekOpen(false);
         setShowReviews(true);
         return;
       }
       setShowReviews(false);
       setProjectsCollapsed(false);
-
-      if (stage === "intake") {
-        const pending = documents.find(
-          (doc) => doc.status !== "done" || doc.pageCount === 0,
-        );
-        if (pending) void openDocument(pending.id);
-        return;
-      }
 
       const target =
         documents.find((doc) => doc.readyPages < doc.pageCount) ?? documents[0];
@@ -512,18 +510,22 @@ export function Workspace({
     setNotes(payload.annotations ?? []);
   }, []);
 
-  // Счётчик для этапа «Замечания»: одним запросом на проект, без поллинга.
+  // Замечания проекта: счётчик этапа и метки по листам в расшифровке. Один
+  // запрос на проект, без поллинга.
   useEffect(() => {
     if (!projectId) {
       setReviewStats(null);
+      setProjectReviews([]);
       return;
     }
     const controller = new AbortController();
     setReviewStats(null);
+    setProjectReviews([]);
     fetch(`/api/projects/${projectId}/reviews`, { signal: controller.signal })
       .then((response) => (response.ok ? response.json() : null))
       .then((payload: { reviews?: Review[] } | null) => {
         if (!payload?.reviews) return;
+        setProjectReviews(payload.reviews);
         setReviewStats({
           total: payload.reviews.length,
           pending: payload.reviews.filter((item) => item.verdict === "pending")
@@ -534,14 +536,17 @@ export function Workspace({
     return () => controller.abort();
   }, [projectId]);
 
-  const jumpToPage = useCallback(
-    (documentId: string, page: number) => {
-      setShowReviews(false);
-      setOpenPage({ nonce: Date.now(), page, documentId });
-      void openDocument(documentId);
-    },
-    [openDocument],
-  );
+  /**
+   * Переход из таблицы замечаний: лист открывается поверх таблицы на весь
+   * экран, по закрытию инженер возвращается в ту же строку разбора.
+   */
+  const jumpToPage = useCallback((documentId: string, page: number) => {
+    setPeekOpen(true);
+    setSelectedId(documentId);
+    setOpenPage({ nonce: Date.now(), page, documentId });
+    autoReadyJumpRef.current = documentId;
+    void refreshDocument(documentId);
+  }, [refreshDocument]);
 
   useEffect(() => {
     try {
@@ -805,6 +810,7 @@ export function Workspace({
 
   async function selectProject(id: string) {
     setShowReviews(false);
+    setPeekOpen(false);
     if (projectId === id) {
       setProjectId("");
       setSelectedId(null);
@@ -931,7 +937,7 @@ export function Workspace({
 
     if (zipFiles.length > 0) {
       if (zipFiles.length > 1 || drawingFiles.length > 0) {
-        setError("Загружайте один ZIP-архив (PDF + DWG) без других файлов");
+        setError("Загружайте один ZIP-архив за раз, без других файлов рядом");
         return;
       }
       setError(null);
@@ -1035,7 +1041,7 @@ export function Workspace({
                 (doc) => !kit.documents.some((item) => item.id === doc.id),
               ),
             ]);
-            void openDocument(kit.primaryDocumentId);
+            if (kit.primaryDocumentId) void openDocument(kit.primaryDocumentId);
           } catch (err) {
             const message =
               err instanceof Error ? err.message : "Ошибка загрузки комплекта";
@@ -1104,22 +1110,6 @@ export function Workspace({
     },
     [loadDocuments, loadEdits, loadNotes, openDocument, pendingUploadMode, projectId],
   );
-
-  async function handleSavePage(pageNumber: number, markdown: string) {
-    if (!selectedId) return;
-    const response = await fetch(`/api/documents/${selectedId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pageNumber, markdown }),
-    });
-    const payload = (await response.json()) as { document?: DocumentRecord };
-    if (payload.document) {
-      setDocuments((prev) =>
-        prev.map((doc) => (doc.id === payload.document!.id ? payload.document! : doc)),
-      );
-      if (projectId) void loadEdits(projectId);
-    }
-  }
 
   async function handleDelete(id: string) {
     const doc = documents.find((item) => item.id === id);
@@ -1355,6 +1345,12 @@ export function Workspace({
   const visibleQueueChip = queueChip;
 
   const backToProjects = () => {
+    // Лист, открытый из таблицы замечаний, закрывается обратно в таблицу:
+    // разбор идёт построчно, и терять место в списке нельзя.
+    if (peekOpen) {
+      setPeekOpen(false);
+      return;
+    }
     setSelectedId(null);
     setFocusMode(false);
     setProjectsCollapsed(true);
@@ -1767,19 +1763,50 @@ export function Workspace({
         )}
 
         {showReviews && currentProject ? (
-          <ReviewsTable
-            key={currentProject.id}
-            projectId={currentProject.id}
-            projectName={currentProject.name}
-            onJumpToPage={jumpToPage}
-            onStatsChange={setReviewStats}
-            onClose={() => setShowReviews(false)}
-          />
-        ) : selected ? (
+          // Пока открыт лист, таблица остаётся живой, но спрятана: возврат
+          // приводит инженера в ту же строку, с теми же фильтрами и прокруткой.
+          <div className={peekOpen ? "hidden" : "flex min-h-0 min-w-0 flex-1"}>
+            <ReviewsTable
+              key={currentProject.id}
+              projectId={currentProject.id}
+              projectName={currentProject.name}
+              onJumpToPage={jumpToPage}
+              onStatsChange={setReviewStats}
+              onClose={() => setShowReviews(false)}
+            />
+          </div>
+        ) : null}
+
+        {(!showReviews || peekOpen) && selected ? (
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            {peekOpen ? (
+              <div className="flex shrink-0 items-center gap-2 border-b border-accent/30 bg-accent/5 px-3 py-1.5">
+                <button
+                  type="button"
+                  onClick={() => setPeekOpen(false)}
+                  className="rounded border border-accent bg-white px-2 py-0.5 text-[11px] font-semibold text-accent hover:bg-accent/10"
+                  title="Вернуться в таблицу замечаний (Esc)"
+                >
+                  ← К таблице замечаний
+                </button>
+                <span className="truncate text-[11px] text-muted">
+                  Лист открыт из разбора · Esc возвращает в ту же строку
+                </span>
+                <a
+                  href={`/api/documents/${selected.id}/file`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="ml-auto shrink-0 rounded border border-border bg-white px-2 py-0.5 text-[11px] text-muted hover:text-text"
+                  title="Открыть исходный файл в новой вкладке"
+                >
+                  Файл в новой вкладке
+                </a>
+              </div>
+            ) : null}
           <ReviewPane
             key={selected.id}
             document={selected}
+            reviews={projectReviews}
             kitSibling={kitSibling}
             focusMode={focusMode}
             openPage={openPage}
@@ -1849,7 +1876,6 @@ export function Workspace({
             onCancel={() => void handleCancel(selected.id)}
             onToggleFocus={() => setFocusMode((value) => !value)}
             onBackToProjects={backToProjects}
-            onSavePage={handleSavePage}
             onAnnotationsChanged={() => {
               if (projectId) {
                 void loadNotes(projectId);
@@ -1858,7 +1884,7 @@ export function Workspace({
             }}
           />
           </div>
-        ) : (
+        ) : showReviews ? null : (
           <div className="flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-4 bg-[#f4f6f9] p-10 text-center">
             {liveJob ? (
               <button
@@ -1920,7 +1946,7 @@ export function Workspace({
             <div className="text-base font-medium">Отпустите файлы для расшифровки</div>
             <div className="mt-1 text-sm text-muted">{DRAWING_ACCEPT_HINT}</div>
             <div className="mt-2 text-xs text-muted">
-              PDF + DWG — положите оба файла или один ZIP-архив
+              ZIP распакуем сами: пара PDF + DWG станет комплектом, пачка — файлами
             </div>
           </div>
         </div>

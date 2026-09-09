@@ -436,9 +436,13 @@ export function PdfPage({
       // Ctrl (Win) / Cmd (Mac) + колесо; pinch на трекпаде Mac тоже шлёт ctrlKey.
       const zoomGesture = event.ctrlKey || event.metaKey;
       if (!zoomGesture) {
+        // Горизонтальный скролл трекпада и колеса-качалки шлёт deltaX; Shift
+        // на обычном колесе тоже даёт горизонталь — иначе чертёж не сдвинуть.
+        const dx = event.shiftKey && event.deltaX === 0 ? event.deltaY : event.deltaX;
+        const dy = event.shiftKey && event.deltaX === 0 ? 0 : event.deltaY;
         const next = boundPan({
-          ...panRef.current,
-          y: panRef.current.y - event.deltaY,
+          x: panRef.current.x - dx,
+          y: panRef.current.y - dy,
         });
         panRef.current = next;
         setPan(next);
