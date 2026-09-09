@@ -980,6 +980,8 @@ function ReviewRow({
   return (
     <tr
       onClick={onActivate}
+      // Строка переезжает при смене важности и разбора — тестам нужна опора на id.
+      data-review-id={review.id}
       className={`border-b border-slate-200 border-l-4 align-top ${
         SEVERITY_ROW[review.severity]
       } ${VERDICT_ROW[review.verdict] ?? ""} ${

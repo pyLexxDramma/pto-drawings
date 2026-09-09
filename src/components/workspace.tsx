@@ -331,8 +331,8 @@ export function Workspace({
   const [peekOpen, setPeekOpen] = useState(false);
   const [reviewStats, setReviewStats] = useState<ReviewStats | null>(null);
   const [projectReviews, setProjectReviews] = useState<Review[]>([]);
-  /** Прогресс-бары этапов свёрнуты: место отдано чертежу, цифры остаются. */
-  const [stagesCollapsed, setStagesCollapsed] = useState(true);
+  /** Прогресс-бары этапов открыты: сразу видно, где проект встал. */
+  const [stagesCollapsed, setStagesCollapsed] = useState(false);
   const [documentsProjectId, setDocumentsProjectId] = useState<string | null>(
     null,
   );

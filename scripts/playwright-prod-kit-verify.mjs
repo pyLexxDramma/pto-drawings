@@ -116,7 +116,15 @@ try {
 
   // --- UI ---
   const page = await context.newPage();
-  await page.goto(BASE);
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      await page.goto(BASE, { waitUntil: "domcontentloaded", timeout: 60000 });
+      break;
+    } catch (err) {
+      if (attempt === 2) throw err;
+      await page.waitForTimeout(3000);
+    }
+  }
   await page.getByText("Загрузка…").waitFor({ state: "hidden", timeout: 45000 }).catch(() => {});
   if (await page.getByRole("button", { name: "Открыть проект" }).isVisible().catch(() => false)) {
     await page.getByRole("button", { name: "Открыть проект" }).click();
