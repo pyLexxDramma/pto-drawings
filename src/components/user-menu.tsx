@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { ControlsHelpDialog } from "@/components/review-pane-help";
 import { ROLE_LABEL, type PublicUser } from "@/types";
 
 type UserMenuProps = {
@@ -10,6 +11,8 @@ type UserMenuProps = {
   statusNote?: string | null;
   /** Только аватар без имени и роли — для узкой шапки ревью. */
   compact?: boolean;
+  /** Действия по открытому листу: над чертежом оставлена только «Ошибка». */
+  sheetMenu?: ReactNode;
   onUsers?: () => void;
   onPassword: () => void;
   onLogout: () => void;
@@ -20,11 +23,14 @@ export function UserMenu({
   defaultPasswordWarning = false,
   statusNote = null,
   compact = false,
+  sheetMenu = null,
   onUsers,
   onPassword,
   onLogout,
 }: UserMenuProps) {
   const [open, setOpen] = useState(false);
+  /** Инструкция по управлению переехала сюда из меню «⋯» над листом. */
+  const [helpOpen, setHelpOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -79,13 +85,25 @@ export function UserMenu({
       {open ? (
         <div
           role="menu"
-          className="absolute right-0 z-40 mt-1 w-56 rounded-md border border-border bg-white py-1 shadow-md"
+          className={`absolute right-0 z-40 mt-1 max-h-[80vh] overflow-y-auto rounded-md border border-border bg-white py-1 shadow-md ${
+            sheetMenu ? "w-[min(22rem,calc(100vw-2rem))]" : "w-56"
+          }`}
+          onClick={() => setOpen(false)}
         >
           {compact ? (
             <div className="border-b border-border px-3 pb-1.5 pt-1 text-[11px] leading-tight">
               <div className="font-medium text-text">{user.displayName}</div>
               <div className="text-muted">роль: {ROLE_LABEL[user.role]}</div>
             </div>
+          ) : null}
+          {sheetMenu ? (
+            <>
+              <div className="px-3 pb-1 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
+                Лист
+              </div>
+              {sheetMenu}
+              <div className="my-1 border-t border-border" />
+            </>
           ) : null}
           {user.role === "admin" && onUsers ? (
             <button
@@ -120,6 +138,17 @@ export function UserMenu({
             className="block w-full px-3 py-1.5 text-left text-xs hover:bg-bg"
             onClick={() => {
               setOpen(false);
+              setHelpOpen(true);
+            }}
+          >
+            Как управлять
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="block w-full px-3 py-1.5 text-left text-xs hover:bg-bg"
+            onClick={() => {
+              setOpen(false);
               onLogout();
             }}
           >
@@ -132,6 +161,7 @@ export function UserMenu({
           ) : null}
         </div>
       ) : null}
+      {helpOpen ? <ControlsHelpDialog onClose={() => setHelpOpen(false)} /> : null}
     </div>
   );
 }

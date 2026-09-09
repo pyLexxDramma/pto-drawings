@@ -4,6 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { KIND_LABEL, type DocumentPage, type PageKind } from "@/types";
 
+/**
+ * Сетка всех листов файла. Кнопку убрали из тулбара по просьбе Дархана (09.09):
+ * компонент оставлен целым, чтобы вернуть без переписывания.
+ */
 type SheetsGalleryProps = {
   documentId: string;
   fileUrl: string;

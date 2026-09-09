@@ -9,7 +9,6 @@ export type PageViewCache = {
 export type DocumentViewCache = {
   pageNumber?: number;
   paneSolo?: "pdf" | "md" | null;
-  galleryMode?: boolean;
   pages?: Record<number, PageViewCache>;
 };
 

@@ -1840,7 +1840,7 @@ export function Workspace({
                 : null
             }
             onFullProgressVisible={setFullProgressVisible}
-            headerRight={
+            headerRight={(sheetMenu) => (
               <>
                 {visibleQueueChip ? (
                   <span
@@ -1861,6 +1861,7 @@ export function Workspace({
                 <UserMenu
                   compact
                   user={user}
+                  sheetMenu={sheetMenu}
                   defaultPasswordWarning={defaultPasswordWarning}
                   onUsers={user.role === "admin" ? () => setShowUsers(true) : undefined}
                   onPassword={() => setShowPassword(true)}
@@ -1872,7 +1873,7 @@ export function Workspace({
                   }}
                 />
               </>
-            }
+            )}
             onCancel={() => void handleCancel(selected.id)}
             onToggleFocus={() => setFocusMode((value) => !value)}
             onBackToProjects={backToProjects}

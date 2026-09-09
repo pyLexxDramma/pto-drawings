@@ -61,9 +61,9 @@ await transcribeStage.waitFor({ timeout: 20000 });
 const barText = (await page.locator("body").innerText()).replace(/\s+/g, " ");
 check("этапы: нет «Обработка»", !new RegExp(`Обработка ${COUNT}`).test(barText));
 check(
-  "этапы: Расшифровка и Замечания",
+  "этапы: Расшифровка и Таблица замечаний",
   new RegExp(`Расшифровка ${COUNT}`).test(barText) &&
-    new RegExp(`Замечания ${COUNT}`).test(barText),
+    new RegExp(`Таблица замечаний ${COUNT}`).test(barText),
 );
 check(
   "этапы: открыты по умолчанию",
@@ -81,7 +81,7 @@ await page.getByRole("button", { name: "Свернуть ▴" }).waitFor({ timeo
 
 // --- переход в таблицу из полосы этапов ---
 await page
-  .getByRole("button", { name: new RegExp(`^Замечания ${COUNT}$`) })
+  .getByRole("button", { name: new RegExp(`^Таблица замечаний ${COUNT}$`) })
   .click();
 await page.getByRole("button", { name: /К чертежам/ }).waitFor({ timeout: 20000 });
 check("таблица открылась из этапа", true);

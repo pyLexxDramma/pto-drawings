@@ -16,13 +16,11 @@ import { PageStrip } from "@/components/page-strip";
 import { PdfPage } from "@/components/pdf-page";
 import { SegmentedTabs, ActionMenu, menuItemClass } from "@/components/ui-chrome";
 import { VoiceNoteButton } from "@/components/voice-note";
-import { SheetsGallery } from "@/components/sheets-gallery";
 import {
   IconCheck,
   IconDoc,
   IconDownload,
   IconExpand,
-  IconGrid,
   IconMark,
   IconSearch,
   IconSplit,
@@ -33,7 +31,6 @@ import { getDrawingExt, isCadExt, isOfficeExt } from "@/lib/drawing-files";
 import {
   ProcessingProgressPanel,
 } from "@/components/processing-progress-panel";
-import { ReviewPaneHelp } from "@/components/review-pane-help";
 import {
   getDocumentView,
   patchDocumentView,
@@ -70,8 +67,12 @@ type ReviewPaneProps = {
   showTech?: boolean;
   specHref?: string | null;
   specName?: string | null;
-  /** Правый край шапки: меню пользователя и статус конвейера из workspace. */
-  headerRight?: ReactNode;
+  /**
+   * Правый край шапки: меню пользователя и статус конвейера из workspace.
+   * Действия по листу отдаём аргументом — они живут в меню пользователя,
+   * чтобы над чертежом осталась только кнопка «Ошибка» (решение Дархана 09.09).
+   */
+  headerRight?: ((sheetMenu: ReactNode) => ReactNode) | null;
   /** Переход к активной обработке в другом файле проекта (если есть). */
   onGoToLiveJob?: (() => void) | null;
   liveJobLabel?: string | null;
@@ -162,14 +163,10 @@ export function ReviewPane({
   const [noteExpected, setNoteExpected] = useState("");
   const [hoverNoteId, setHoverNoteId] = useState<string | null>(null);
   const [noteError, setNoteError] = useState<string | null>(null);
-  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [paneSolo, setPaneSolo] = useState<PaneSolo>(() => {
     const cached = getDocumentView(document.id);
     return cached?.paneSolo ?? null;
   });
-  const [galleryMode, setGalleryMode] = useState(
-    () => getDocumentView(document.id)?.galleryMode ?? false,
-  );
   const [sidePanel, setSidePanel] = useState<"text" | "notes">("text");
   const [searchOpen, setSearchOpen] = useState(false);
   /** Пользователь развернул прогресс поверх просмотра готового листа. */
@@ -500,14 +497,6 @@ export function ReviewPane({
       }
 
       if (event.key === "Escape") {
-        if (moreMenuOpen) {
-          setMoreMenuOpen(false);
-          return;
-        }
-        if (galleryMode) {
-          setGalleryMode(false);
-          return;
-        }
         if (showLog) {
           setShowLog(false);
           return;
@@ -532,12 +521,6 @@ export function ReviewPane({
 
       if (typing) return;
 
-      if (event.key === "?" || (event.shiftKey && event.code === "Slash")) {
-        event.preventDefault();
-        setMoreMenuOpen((value) => !value);
-        return;
-      }
-
       // Дальше — одиночные клавиши: не перехватываем системные сочетания.
       if (event.ctrlKey || event.metaKey || event.altKey) return;
 
@@ -550,18 +533,9 @@ export function ReviewPane({
 
       if (event.code === "KeyF") {
         event.preventDefault();
-        if (galleryMode) setGalleryMode(false);
         setPaneSolo((prev) => (prev === null ? "pdf" : prev === "pdf" ? "md" : null));
         return;
       }
-
-      if (event.code === "KeyG") {
-        event.preventDefault();
-        setGalleryMode((value) => !value);
-        return;
-      }
-
-      if (galleryMode) return;
 
       if (event.code === "KeyV") {
         event.preventDefault();
@@ -589,7 +563,7 @@ export function ReviewPane({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusMode, markMode, pendingRect, onBackToProjects, onToggleFocus, visiblePages, document.pages, moreMenuOpen, showLog, paneSolo, searchOpen, readOnly, galleryMode]);
+  }, [focusMode, markMode, pendingRect, onBackToProjects, onToggleFocus, visiblePages, document.pages, showLog, paneSolo, searchOpen, readOnly]);
 
   const hits = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -737,9 +711,8 @@ export function ReviewPane({
     patchDocumentView(document.id, {
       pageNumber,
       paneSolo,
-      galleryMode,
     });
-  }, [document.id, pageNumber, paneSolo, galleryMode]);
+  }, [document.id, pageNumber, paneSolo]);
 
   useEffect(() => {
     if (pendingRect) setSidePanel("notes");
@@ -1050,26 +1023,8 @@ export function ReviewPane({
               Просмотр
             </span>
           )}
-          <button
-            type="button"
-            title={galleryMode ? "Вернуться к одному листу (G)" : "Все листы разом (G)"}
-            aria-pressed={galleryMode}
-            onClick={() => setGalleryMode((value) => !value)}
-            className={
-              galleryMode
-                ? "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-accent bg-accent text-white shadow-sm"
-                : toolBtnIcon
-            }
-          >
-            <IconGrid />
-          </button>
-          <ActionMenu
-            label="Ещё"
-            triggerClassName={toolBtnIcon}
-            open={moreMenuOpen}
-            onOpenChange={setMoreMenuOpen}
-            menuClassName="w-[min(22rem,calc(100vw-2rem))]"
-          >
+          {headerRight?.(
+            <>
             <button
               type="button"
               role="menuitem"
@@ -1115,17 +1070,6 @@ export function ReviewPane({
             <div className="px-3 pb-1 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
               Вид
             </div>
-            <button
-              type="button"
-              role="menuitem"
-              className={menuItemClass()}
-              onClick={() => setGalleryMode((value) => !value)}
-            >
-              <span className="inline-flex items-center gap-2">
-                <IconGrid /> {galleryMode ? "Один лист" : "Все листы"}
-              </span>
-              <span className="text-[10px] text-muted">G</span>
-            </button>
             <button
               type="button"
               role="menuitem"
@@ -1200,42 +1144,15 @@ export function ReviewPane({
                 </span>
               </button>
             ) : null}
-            <ReviewPaneHelp />
             {soloLabel ? (
               <div className="px-3 py-1.5 text-[10px] text-muted">Режим: {soloLabel}</div>
             ) : null}
-          </ActionMenu>
-          {headerRight}
+            </>,
+          )}
         </div>
       </div>
 
       <div className="relative flex min-h-0 flex-1">
-        {galleryMode ? (
-          <SheetsGallery
-            documentId={document.id}
-            fileUrl={`/api/documents/${document.id}/file`}
-            isCad={isCadSource}
-            pages={visiblePages}
-            pageRecords={pageRecords}
-            kinds={kinds}
-            viewed={viewedSet}
-            ready={ready}
-            annotated={annotatedPages}
-            edited={editedPages}
-            processingPage={document.processingPage}
-            currentPage={pageNumber}
-            emptyLabel={
-              filter === "flagged"
-                ? "Замечаний по этому файлу пока нет."
-                : `Листов типа «${filterLabel}» в комплекте нет.`
-            }
-            onSelect={(next) => {
-              setGalleryMode(false);
-              void goToPage(next);
-            }}
-          />
-        ) : (
-          <>
         {stripOpen && !isOfficeSource ? (
           <>
             <PageStrip
@@ -1398,7 +1315,7 @@ export function ReviewPane({
                       id: "notes",
                       label: (
                         <>
-                          Замечания
+                          Отметить ошибку
                           {pageNotes.length ? (
                             <span className="ml-1 tabular-nums opacity-70">
                               {pageNotes.length}
@@ -1580,9 +1497,6 @@ export function ReviewPane({
           </div>
           ) : null}
         </div>
-
-          </>
-        )}
       </div>
 
       {showLog ? (

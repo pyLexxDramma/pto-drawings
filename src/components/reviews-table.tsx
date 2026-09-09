@@ -1156,7 +1156,6 @@ function ReviewRow({
               >
                 Отмена
               </button>
-              <span className="text-[9px] text-muted">Ctrl+Enter</span>
             </>
           ) : savedFlash ? (
             <span className="text-[10px] text-emerald-700">Сохранено</span>

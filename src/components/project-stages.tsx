@@ -56,7 +56,7 @@ function buildStages(
   if (!documentsReady) {
     return [
       { id: "transcribe", label: "Расшифровка", ...PENDING },
-      { id: "reviews", label: "Замечания", ...PENDING },
+      { id: "reviews", label: "Таблица замечаний", ...PENDING },
     ];
   }
 
@@ -90,10 +90,10 @@ function buildStages(
             : `Листов расшифровано: ${pagesReady} из ${pagesTotal}`,
     },
     reviews === null
-      ? { id: "reviews", label: "Замечания", ...PENDING }
+      ? { id: "reviews", label: "Таблица замечаний", ...PENDING }
       : {
           id: "reviews",
-          label: "Замечания",
+          label: "Таблица замечаний",
           count: reviewsTotal > 0 ? `${reviewsDone}/${reviewsTotal}` : "—",
           percent: percent(reviewsDone, reviewsTotal),
           state:
