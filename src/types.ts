@@ -281,6 +281,9 @@ export type DocumentMeta = {
   /** Лист есть, но с дырами (в отличие от pageErrors — листа нет). */
   pageWarnings: Record<string, string>;
   createdAt: string;
+  /** Кто загрузил файл — нужно для журнала правок. */
+  authorId?: string | null;
+  authorName?: string | null;
 };
 
 /** Тело документа: лежит в data/documents/<id>.json. */

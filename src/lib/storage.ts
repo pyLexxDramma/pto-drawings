@@ -815,6 +815,8 @@ export async function saveDocument(input: {
   kitId?: string | null;
   kitRole?: KitRole | null;
   kitLabel?: string | null;
+  /** Кто грузит — попадёт в журнал правок. */
+  author?: { userId: string | null; userName: string | null } | null;
 }): Promise<DocumentRecord> {
   const ext = getDrawingExt(input.originalName);
   if (!ext) {
@@ -884,6 +886,8 @@ export async function saveDocument(input: {
       pageErrors: {},
       pageWarnings: {},
       createdAt: new Date().toISOString(),
+      authorId: input.author?.userId ?? null,
+      authorName: input.author?.userName ?? null,
     };
 
     db.documents.push(meta);
@@ -906,6 +910,7 @@ export async function saveDocumentKit(input: {
   kitLabel: string;
   pdf: { originalName: string; buffer: Buffer };
   cad: { originalName: string; buffer: Buffer; ext: "dwg" | "dxf" };
+  author?: { userId: string | null; userName: string | null } | null;
 }): Promise<{ kitId: string; pdf: DocumentRecord; cad: DocumentRecord }> {
   const kitId = crypto.randomUUID();
   const kitLabel = normalizeFileName(input.kitLabel.trim() || "Комплект PDF+DWG");
@@ -916,6 +921,7 @@ export async function saveDocumentKit(input: {
     kitId,
     kitRole: "pdf",
     kitLabel,
+    author: input.author,
   });
   const cad = await saveDocument({
     projectId: input.projectId,
@@ -924,6 +930,7 @@ export async function saveDocumentKit(input: {
     kitId,
     kitRole: input.cad.ext,
     kitLabel,
+    author: input.author,
   });
   return { kitId, pdf, cad };
 }

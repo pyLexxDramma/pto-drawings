@@ -54,6 +54,7 @@ export async function POST(request: Request) {
             projectId,
             originalName: normalizeFileName(entry.name),
             buffer: entry.buffer,
+            author: { userId: user.id, userName: user.displayName },
           });
           if (document.status !== "done") {
             runInBackground(processDocument(document.id));
@@ -125,6 +126,7 @@ export async function POST(request: Request) {
       kitLabel,
       pdf,
       cad,
+      author: { userId: user.id, userName: user.displayName },
     });
 
     runInBackground(processDocument(result.pdf.id));

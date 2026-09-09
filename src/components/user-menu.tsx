@@ -14,6 +14,8 @@ type UserMenuProps = {
   /** Действия по открытому листу: над чертежом оставлена только «Ошибка». */
   sheetMenu?: ReactNode;
   onUsers?: () => void;
+  /** Журналы правок — только админу. */
+  onAudit?: () => void;
   onPassword: () => void;
   onLogout: () => void;
 };
@@ -25,6 +27,7 @@ export function UserMenu({
   compact = false,
   sheetMenu = null,
   onUsers,
+  onAudit,
   onPassword,
   onLogout,
 }: UserMenuProps) {
@@ -116,6 +119,19 @@ export function UserMenu({
               }}
             >
               Пользователи
+            </button>
+          ) : null}
+          {onAudit ? (
+            <button
+              type="button"
+              role="menuitem"
+              className="block w-full px-3 py-1.5 text-left text-xs hover:bg-bg"
+              onClick={() => {
+                setOpen(false);
+                onAudit();
+              }}
+            >
+              Журналы правок
             </button>
           ) : null}
           <button

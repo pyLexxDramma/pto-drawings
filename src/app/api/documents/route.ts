@@ -74,6 +74,7 @@ export async function POST(request: Request) {
       projectId,
       originalName: displayName,
       buffer,
+      author: { userId: user.id, userName: user.displayName },
     });
     // Word уже разобран в markdown при сохранении — конвейер не нужен.
     if (document.status !== "done") {

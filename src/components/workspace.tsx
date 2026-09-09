@@ -9,6 +9,7 @@ import {
   type DragEvent,
   type FormEvent,
 } from "react";
+import { AuditPanel } from "@/components/audit-panel";
 import { PasswordPanel } from "@/components/password-panel";
 import { ColumnResizer, clamp } from "@/components/column-resizer";
 import { ReviewPane } from "@/components/review-pane";
@@ -306,6 +307,7 @@ export function Workspace({
   const [edits, setEdits] = useState<ProjectEdit[]>([]);
   const [showEdits, setShowEdits] = useState(false);
   const [showUsers, setShowUsers] = useState(false);
+  const [showAudit, setShowAudit] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [projectQuery, setProjectQuery] = useState("");
   const [hits, setHits] = useState<SearchHit[]>([]);
@@ -1412,21 +1414,12 @@ export function Workspace({
                 <span className="truncate">{visibleQueueChip.text}</span>
               </div>
             ) : null}
-            {visiblePipelineChip ? (
-              <div
-                className={`hidden min-w-0 items-center gap-1.5 whitespace-nowrap rounded-md border px-2.5 py-1 text-[11px] md:flex ${visiblePipelineChip.className}`}
-                title={visiblePipelineChip.text}
-              >
-                {busy && !visibleQueueChip ? (
-                  <Spinner className="h-3 w-3 opacity-80" />
-                ) : null}
-                <span>{visiblePipelineChip.text}</span>
-              </div>
-            ) : null}
             <UserMenu
               user={user}
+              statusNote={visiblePipelineChip?.text ?? null}
               defaultPasswordWarning={defaultPasswordWarning}
               onUsers={user.role === "admin" ? () => setShowUsers(true) : undefined}
+              onAudit={user.role === "admin" ? () => setShowAudit(true) : undefined}
               onPassword={() => setShowPassword(true)}
               onLogout={() => {
                 void (async () => {
@@ -1840,20 +1833,14 @@ export function Workspace({
                     {visibleQueueChip.text}
                   </span>
                 ) : null}
-                {visiblePipelineChip ? (
-                  <span
-                    className={`hidden whitespace-nowrap rounded-md border px-2.5 py-1 text-[11px] sm:inline-block ${visiblePipelineChip.className}`}
-                    title={visiblePipelineChip.text}
-                  >
-                    {visiblePipelineChip.text}
-                  </span>
-                ) : null}
                 <UserMenu
                   compact
                   user={user}
                   sheetMenu={sheetMenu}
+                  statusNote={visiblePipelineChip?.text ?? null}
                   defaultPasswordWarning={defaultPasswordWarning}
                   onUsers={user.role === "admin" ? () => setShowUsers(true) : undefined}
+                  onAudit={user.role === "admin" ? () => setShowAudit(true) : undefined}
                   onPassword={() => setShowPassword(true)}
                   onLogout={() => {
                     void (async () => {
@@ -1944,11 +1931,14 @@ export function Workspace({
       ) : null}
 
       {user.role === "admin" ? (
-        <UsersPanel
-          open={showUsers}
-          currentUserId={user.id}
-          onClose={() => setShowUsers(false)}
-        />
+        <>
+          <UsersPanel
+            open={showUsers}
+            currentUserId={user.id}
+            onClose={() => setShowUsers(false)}
+          />
+          <AuditPanel open={showAudit} onClose={() => setShowAudit(false)} />
+        </>
       ) : null}
 
       
