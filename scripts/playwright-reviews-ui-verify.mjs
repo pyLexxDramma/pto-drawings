@@ -31,6 +31,10 @@ if (!auth.ok()) {
   process.exit(1);
 }
 
+// Автора правки сверяем с тем, кем вошли: на проде это не «Админ».
+const me = await (await context.request.get(`${BASE}/api/auth/me`)).json();
+const myName = me?.user?.displayName || me?.user?.login || LOGIN;
+
 const page = await context.newPage();
 await page.goto(BASE, { waitUntil: "domcontentloaded", timeout: 60000 });
 await page.getByText("Загрузка…").waitFor({ state: "hidden", timeout: 45000 });
@@ -165,7 +169,7 @@ if (await logButton.count()) {
   await log.waitFor({ timeout: 10000 });
   const logText = await log.innerText();
   check("журнал: разбор и комментарий", /Разбор/.test(logText) && /Комментарий/.test(logText));
-  check("журнал: указан автор", /Админ/.test(logText));
+  check("журнал: указан автор", logText.includes(myName), myName);
   await log.getByRole("button", { name: "Закрыть" }).click();
 } else {
   check("журнал: подпись правки в строке", false, "кнопка журнала не найдена");
