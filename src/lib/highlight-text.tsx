@@ -1,7 +1,16 @@
 import { Fragment, type ReactNode } from "react";
 
+type HighlightOpts = {
+  /** Первое совпадение — якорь для scrollIntoView (Где в ПД). */
+  focusFirst?: boolean;
+};
+
 /** Разбивает строку и оборачивает вхождения query в <mark>. */
-export function highlightPlain(text: string, query: string): ReactNode {
+export function highlightPlain(
+  text: string,
+  query: string,
+  opts?: HighlightOpts,
+): ReactNode {
   const needle = query.trim();
   if (needle.length < 2 || !text) return text;
   const lower = text.toLowerCase();
@@ -12,8 +21,17 @@ export function highlightPlain(text: string, query: string): ReactNode {
   let key = 0;
   while (index >= 0) {
     if (index > start) parts.push(text.slice(start, index));
+    const focused = Boolean(opts?.focusFirst && key === 0);
     parts.push(
-      <mark key={`h-${key++}`} className="rounded-[2px] bg-amber-200 px-0.5 text-inherit">
+      <mark
+        key={`h-${key++}`}
+        className={
+          focused
+            ? "rounded-[2px] bg-sky-200 px-0.5 text-inherit ring-2 ring-sky-400"
+            : "rounded-[2px] bg-amber-200 px-0.5 text-inherit"
+        }
+        {...(focused ? { "data-focus-quote": "" } : {})}
+      >
         {text.slice(index, index + needle.length)}
       </mark>,
     );
@@ -82,16 +100,47 @@ export function flagNodes(children: ReactNode, quotes: string[]): ReactNode {
   return children;
 }
 
+export type FocusHighlightState = { focusLeft: boolean };
+
 /** Рекурсивно подсвечивает текстовые узлы в children react-markdown. */
-export function highlightNodes(children: ReactNode, query: string): ReactNode {
+export function highlightNodes(
+  children: ReactNode,
+  query: string,
+  opts?: HighlightOpts,
+): ReactNode {
   const needle = query.trim();
   if (needle.length < 2) return children;
+  const state: FocusHighlightState = { focusLeft: Boolean(opts?.focusFirst) };
+  return highlightNodesInner(children, needle, state);
+}
+
+/** Как highlightNodes, но с общим state (один якорь на весь markdown). */
+export function highlightNodesShared(
+  children: ReactNode,
+  query: string,
+  state: FocusHighlightState,
+): ReactNode {
+  const needle = query.trim();
+  if (needle.length < 2) return children;
+  return highlightNodesInner(children, needle, state);
+}
+
+function highlightNodesInner(
+  children: ReactNode,
+  needle: string,
+  state: FocusHighlightState,
+): ReactNode {
   if (typeof children === "string" || typeof children === "number") {
-    return highlightPlain(String(children), needle);
+    const text = String(children);
+    const focusFirst = state.focusLeft;
+    if (focusFirst && text.toLowerCase().includes(needle.toLowerCase())) {
+      state.focusLeft = false;
+    }
+    return highlightPlain(text, needle, focusFirst ? { focusFirst: true } : undefined);
   }
   if (Array.isArray(children)) {
     return children.map((child, index) => (
-      <Fragment key={index}>{highlightNodes(child, needle)}</Fragment>
+      <Fragment key={index}>{highlightNodesInner(child, needle, state)}</Fragment>
     ));
   }
   return children;

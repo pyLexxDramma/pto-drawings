@@ -359,7 +359,8 @@ async function writeBody(id: string, body: DocumentBody) {
 }
 
 async function writeIndex(db: Database) {
-  await writeDbText(JSON.stringify(db, null, 2));
+  // Без pretty-print: на большом индексе stringify+write держат event loop и DATA-lock.
+  await writeDbText(JSON.stringify(db));
 }
 
 async function readIndex(): Promise<Database> {
@@ -744,6 +745,7 @@ export async function changeOwnPassword(
     }
     user.passwordHash = hashPassword(nextPassword);
     await writeIndex(db);
+    clearDefaultAdminPasswordCache();
     return toPublicUser(user);
   });
 }
@@ -759,6 +761,7 @@ export async function resetUserPassword(
     if (!user) throw Object.assign(new Error("Пользователь не найден"), { status: 404 });
     user.passwordHash = hashPassword(nextPassword);
     await writeIndex(db);
+    clearDefaultAdminPasswordCache();
     return toPublicUser(user);
   });
 }
@@ -788,10 +791,24 @@ export async function setUserDisabled(
 }
 
 /** Подсказка для баннера: дефолтный пароль админа всё ещё не сменили. */
+let defaultAdminCache: { at: number; value: boolean } | null = null;
+
 export async function hasDefaultAdminPassword(): Promise<boolean> {
+  const now = Date.now();
+  if (defaultAdminCache && now - defaultAdminCache.at < 60_000) {
+    return defaultAdminCache.value;
+  }
   const admin = await getUserByLogin(DEFAULT_ADMIN_LOGIN);
-  if (!admin) return false;
-  return verifyPassword(DEFAULT_ADMIN_PASSWORD, admin.passwordHash);
+  const value = admin
+    ? verifyPassword(DEFAULT_ADMIN_PASSWORD, admin.passwordHash)
+    : false;
+  defaultAdminCache = { at: now, value };
+  return value;
+}
+
+/** Сброс кэша после смены пароля админа. */
+export function clearDefaultAdminPasswordCache() {
+  defaultAdminCache = null;
 }
 
 // ---------------------------------------------------------------- документы
@@ -990,6 +1007,18 @@ export async function updateDocument(
   id: string,
   patch: DocumentPatch,
 ): Promise<DocumentRecord | null> {
+  // Тяжёлый read/stringify/write тела — вне DATA-lock: иначе после прогона
+  // health/projects/auth/me ждут замок и падают по таймауту (~минута).
+  let body: DocumentBody | null = null;
+  if (patch.pages !== undefined) {
+    const prev = await readBody(id);
+    body = {
+      ...prev,
+      pages: patch.pages.map((page) => normalizePage(page)),
+    };
+    await writeBody(id, body);
+  }
+
   return withDataLock(async () => {
     const db = await readIndex();
     const meta = findMeta(db, id);
@@ -1012,16 +1041,11 @@ export async function updateDocument(
     if (patch.pageErrors !== undefined) meta.pageErrors = patch.pageErrors;
     if (patch.pageWarnings !== undefined) meta.pageWarnings = patch.pageWarnings;
 
-    let body: DocumentBody | null = null;
-    if (patch.pages !== undefined) {
-      body = await readBody(id);
-      body.pages = patch.pages.map((page) => normalizePage(page));
-      applyBodyToMeta(meta, body);
-      await writeBody(id, body);
-    }
+    if (body) applyBodyToMeta(meta, body);
 
     await writeIndex(db);
-    return merge(meta, body ?? (await readBody(id)));
+    if (body) return merge(meta, body);
+    return liteRecord(meta);
   });
 }
 

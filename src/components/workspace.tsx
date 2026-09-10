@@ -342,6 +342,8 @@ export function Workspace({
     nonce: number;
     page: number;
     documentId: string;
+    reviewId?: string;
+    quote?: string;
   } | null>(null);
   const autoReadyJumpRef = useRef<string | null>(null);
   const statusPrevRef = useRef<Map<string, DocumentStatus>>(new Map());
@@ -539,18 +541,27 @@ export function Workspace({
   }, [projectId]);
 
   /**
-   * Переход из таблицы замечаний: лист открывается в новой вкладке на весь
-   * экран — на маленьком мониторе overlay поверх таблицы теряется.
+   * Переход из таблицы замечаний: лист в новой вкладке + подсветка цитаты
+   * в расшифровке и на чертеже (по quote).
    */
-  const jumpToPage = useCallback((documentId: string, page: number) => {
-    if (!projectId) return;
-    const url = new URL(window.location.href);
-    url.search = "";
-    url.searchParams.set("project", projectId);
-    url.searchParams.set("doc", documentId);
-    url.searchParams.set("page", String(page));
-    window.open(url.toString(), "_blank", "noopener,noreferrer");
-  }, [projectId]);
+  const jumpToPage = useCallback(
+    (
+      documentId: string,
+      page: number,
+      options?: { reviewId?: string; quote?: string },
+    ) => {
+      if (!projectId) return;
+      const url = new URL(window.location.href);
+      url.search = "";
+      url.searchParams.set("project", projectId);
+      url.searchParams.set("doc", documentId);
+      url.searchParams.set("page", String(page));
+      if (options?.reviewId) url.searchParams.set("review", options.reviewId);
+      if (options?.quote) url.searchParams.set("quote", options.quote);
+      window.open(url.toString(), "_blank", "noopener,noreferrer");
+    },
+    [projectId],
+  );
 
   useEffect(() => {
     try {
@@ -617,6 +628,8 @@ export function Workspace({
         const deepProject = params.get("project");
         const deepDoc = params.get("doc");
         const deepPage = Number(params.get("page") || "0");
+        const deepReview = params.get("review") || undefined;
+        const deepQuote = params.get("quote") || undefined;
         const target =
           (deepProject && list.find((item) => item.id === deepProject)) ||
           list[0];
@@ -639,6 +652,8 @@ export function Workspace({
               nonce: Date.now(),
               page: deepPage,
               documentId: deepDoc,
+              reviewId: deepReview,
+              quote: deepQuote,
             });
             autoReadyJumpRef.current = deepDoc;
           }
@@ -1198,8 +1213,12 @@ export function Workspace({
     await selectProject(next.id);
   }
 
-  async function handleRetry(id: string) {
-    const response = await fetch(`/api/documents/${id}/process`, { method: "POST" });
+  async function handleRetry(id: string, reset = true) {
+    const response = await fetch(`/api/documents/${id}/process`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reset }),
+    });
     const payload = (await response.json()) as { document?: DocumentRecord };
     if (payload.document) {
       setDocuments((prev) =>
@@ -1740,6 +1759,19 @@ export function Workspace({
                                 align="right"
                                 triggerClassName="rounded px-1 py-0.5 text-[11px] leading-none text-muted hover:bg-bg hover:text-text"
                               >
+                                {doc.status === "error" ||
+                                doc.status === "done" ||
+                                Boolean(doc.errorMessage) ? (
+                                  <button
+                                    type="button"
+                                    role="menuitem"
+                                    className={menuItemClass()}
+                                    onClick={() => void handleRetry(doc.id, true)}
+                                    title="Полный пересчёт с нуля (retry?reset=true)"
+                                  >
+                                    Обработать заново
+                                  </button>
+                                ) : null}
                                 <button
                                   type="button"
                                   role="menuitem"

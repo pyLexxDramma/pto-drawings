@@ -5,7 +5,11 @@ import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
-import { flagNodes, highlightNodes } from "@/lib/highlight-text";
+import {
+  flagNodes,
+  highlightNodesShared,
+  type FocusHighlightState,
+} from "@/lib/highlight-text";
 import { parseMarkdownBlocks } from "@/lib/content-sync";
 import { markdownSanitizeSchema } from "@/lib/markdown-schema";
 
@@ -15,6 +19,8 @@ type MarkdownViewProps = {
   highlightQuery?: string;
   /** Цитаты из таблицы замечаний по этому листу — красная подсветка мест. */
   flagQuotes?: string[];
+  /** Первое совпадение highlightQuery — якорь scroll (Где в ПД). */
+  focusFirst?: boolean;
   /** Лист-таблица: один Markdown без разбиения на блоки. */
   singlePass?: boolean;
 };
@@ -22,12 +28,18 @@ type MarkdownViewProps = {
 function wrapText(
   Tag: "h1" | "h2" | "h3" | "p" | "li" | "td" | "th" | "span",
   children: ReactNode,
-  highlightQuery?: string,
-  flagQuotes?: string[],
+  highlightQuery: string,
+  flagQuotes: string[],
+  focusState: FocusHighlightState | null,
   extra?: Record<string, unknown>,
 ) {
-  const flagged = flagQuotes?.length ? flagNodes(children, flagQuotes) : children;
-  const body = highlightQuery ? highlightNodes(flagged, highlightQuery) : flagged;
+  const flagged = flagQuotes.length ? flagNodes(children, flagQuotes) : children;
+  const body =
+    highlightQuery && focusState
+      ? highlightNodesShared(flagged, highlightQuery, focusState)
+      : highlightQuery
+        ? highlightNodesShared(flagged, highlightQuery, { focusLeft: false })
+        : flagged;
   return <Tag {...extra}>{body}</Tag>;
 }
 
@@ -35,10 +47,12 @@ function BlockMarkdown({
   source,
   highlightQuery,
   flagQuotes,
+  focusState,
 }: {
   source: string;
   highlightQuery: string;
   flagQuotes: string[];
+  focusState: FocusHighlightState | null;
 }) {
   const q = highlightQuery.trim().length >= 2 ? highlightQuery : "";
   return (
@@ -46,13 +60,13 @@ function BlockMarkdown({
       remarkPlugins={[remarkGfm]}
       rehypePlugins={[rehypeRaw, [rehypeSanitize, markdownSanitizeSchema]]}
       components={{
-        h1: ({ children: c }) => wrapText("h1", c, q, flagQuotes),
-        h2: ({ children: c }) => wrapText("h2", c, q, flagQuotes),
-        h3: ({ children: c }) => wrapText("h3", c, q, flagQuotes),
-        p: ({ children: c }) => wrapText("p", c, q, flagQuotes),
-        li: ({ children: c }) => wrapText("li", c, q, flagQuotes),
-        td: ({ children: c }) => wrapText("td", c, q, flagQuotes),
-        th: ({ children: c }) => wrapText("th", c, q, flagQuotes),
+        h1: ({ children: c }) => wrapText("h1", c, q, flagQuotes, focusState),
+        h2: ({ children: c }) => wrapText("h2", c, q, flagQuotes, focusState),
+        h3: ({ children: c }) => wrapText("h3", c, q, flagQuotes, focusState),
+        p: ({ children: c }) => wrapText("p", c, q, flagQuotes, focusState),
+        li: ({ children: c }) => wrapText("li", c, q, flagQuotes, focusState),
+        td: ({ children: c }) => wrapText("td", c, q, flagQuotes, focusState),
+        th: ({ children: c }) => wrapText("th", c, q, flagQuotes, focusState),
       }}
     >
       {source}
@@ -65,6 +79,7 @@ export function MarkdownView({
   children,
   highlightQuery = "",
   flagQuotes = [],
+  focusFirst = false,
   singlePass = false,
 }: MarkdownViewProps) {
   const blocks = useMemo(
@@ -72,6 +87,9 @@ export function MarkdownView({
     [children, singlePass],
   );
   const q = highlightQuery.trim().length >= 2 ? highlightQuery : "";
+  // Новый state на каждый render: highlightNodes сбрасывает focusLeft при обходе.
+  const focusState: FocusHighlightState | null =
+    focusFirst && q ? { focusLeft: true } : null;
 
   if (!blocks.length) {
     return (
@@ -79,6 +97,7 @@ export function MarkdownView({
         source={children}
         highlightQuery={q}
         flagQuotes={flagQuotes}
+        focusState={focusState}
       />
     );
   }
@@ -91,6 +110,7 @@ export function MarkdownView({
             source={block.source}
             highlightQuery={q}
             flagQuotes={flagQuotes}
+            focusState={focusState}
           />
         </div>
       ))}

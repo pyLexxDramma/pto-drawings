@@ -25,6 +25,17 @@ export async function POST(request: Request, context: RouteContext) {
     );
   }
 
+  // По умолчанию полный пересчёт: иначе UI «Обработать заново» цепляет
+  // готовый job и не гоняет модель. ?reset=0 — только добрать дыры.
+  const url = new URL(request.url);
+  let reset = url.searchParams.get("reset") !== "0";
+  try {
+    const body = (await request.json()) as { reset?: boolean };
+    if (typeof body.reset === "boolean") reset = body.reset;
+  } catch {
+    // тело необязательно
+  }
+
   await updateDocument(id, {
     status: "queued",
     processingStep: "queued",
@@ -33,7 +44,7 @@ export async function POST(request: Request, context: RouteContext) {
     pipelineFinishedAt: null,
     pipelineElapsedSec: null,
   });
-  runInBackground(processDocument(id));
+  runInBackground(processDocument(id, { reset }));
   const queued = await getDocument(id);
-  return NextResponse.json({ document: queued });
+  return NextResponse.json({ document: queued, reset });
 }

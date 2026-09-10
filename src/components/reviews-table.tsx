@@ -180,8 +180,12 @@ export function ReviewsTable({
 }: {
   projectId: string;
   projectName: string;
-  /** Открыть место в ПД в просмотрщике. */
-  onJumpToPage: (documentId: string, pageNumber: number) => void;
+  /** Открыть место в ПД в просмотрщике (новая вкладка + подсветка). */
+  onJumpToPage: (
+    documentId: string,
+    pageNumber: number,
+    options?: { reviewId?: string; quote?: string },
+  ) => void;
   /** Держит счётчик этапа «Замечания» в панели проекта в согласии с таблицей. */
   onStatsChange?: (stats: { total: number; pending: number }) => void;
   onClose: () => void;
@@ -944,7 +948,11 @@ function ReviewRow({
   onMarkWrong: () => void;
   onShowLog: () => void;
   onDelete: () => void;
-  onJumpToPage: (documentId: string, pageNumber: number) => void;
+  onJumpToPage: (
+    documentId: string,
+    pageNumber: number,
+    options?: { reviewId?: string; quote?: string },
+  ) => void;
 }) {
   const [comment, setComment] = useState(review.comment);
   const commentRef = useRef(review.comment);
@@ -1041,7 +1049,14 @@ function ReviewRow({
                       type="button"
                       onClick={(event) => {
                         event.stopPropagation();
-                        onJumpToPage(location.documentId!, location.pageNumber!);
+                        onJumpToPage(
+                          location.documentId!,
+                          location.pageNumber!,
+                          {
+                            reviewId: review.id,
+                            quote: location.quote || undefined,
+                          },
+                        );
                       }}
                       title="Открыть лист в новой вкладке"
                       className="text-left text-[11px] font-medium text-accent underline decoration-dotted hover:no-underline"

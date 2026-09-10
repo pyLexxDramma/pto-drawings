@@ -359,9 +359,23 @@ export async function cancelDocument(id: string) {
   }
 }
 
-export async function processDocument(id: string) {
+async function retryJob(jobId: string, reset: boolean): Promise<BackendJob> {
+  const q = reset ? "?reset=true" : "";
+  return api<BackendJob>(`/jobs/${jobId}/retry${q}`, { method: "POST" });
+}
+
+/**
+ * Запустить или продолжить обработку. reset=true — пересчёт с нуля через
+ * POST /jobs/{id}/retry?reset=true (иначе подхватывается готовый job и
+ * «Повторная обработка» только подтягивает старые листы).
+ */
+export async function processDocument(
+  id: string,
+  options?: { reset?: boolean },
+) {
   if (running.has(id)) return;
   running.add(id);
+  const reset = Boolean(options?.reset);
 
   let slotHeld = false;
   try {
@@ -376,8 +390,15 @@ export async function processDocument(id: string) {
         processingPage: null,
         errorMessage: null,
         pageErrors: {},
+        pageWarnings: reset ? {} : undefined,
         pipelineFinishedAt: null,
         pipelineElapsedSec: null,
+        ...(reset
+          ? {
+              pages: [],
+              pageCount: document.pageCount,
+            }
+          : {}),
       });
     }
 
@@ -400,17 +421,34 @@ export async function processDocument(id: string) {
       });
     }
 
-    const job = (await findExistingJob(id)) ?? (await createJob(latest));
+    const existing = await findExistingJob(id);
+    let job: BackendJob;
+    if (existing && (existing.status === "queued" || existing.status === "processing")) {
+      job = existing;
+    } else if (existing && reset) {
+      // Явный пересчёт: backend чистит pages и ставит job в очередь заново.
+      job = await retryJob(existing.id, true);
+    } else if (existing && existing.status === "done" && !reset) {
+      // Продолжить без reset — добрать дыры, если есть; иначе просто синк.
+      job = await retryJob(existing.id, false);
+    } else if (existing && (existing.status === "error" || existing.status === "canceled")) {
+      job = await retryJob(existing.id, reset);
+    } else {
+      job = await createJob(latest);
+    }
+
     const pages = new Map<number, DocumentPage>(
-      latest.pages.map((page) => [page.pageNumber, page]),
+      reset ? [] : latest.pages.map((page) => [page.pageNumber, page]),
     );
     let lastSignature = "";
     let failures = 0;
     let softKeeps = 0;
     let cancelPosted = false;
+    let pagesDirty = reset;
 
     for (;;) {
       let current: BackendJob;
+      let fetched = 0;
       try {
         current = await api<BackendJob>(`/jobs/${job.id}`);
 
@@ -428,7 +466,9 @@ export async function processDocument(id: string) {
             warnings: page.warnings ?? [],
             numbers: page.numbers ?? null,
           });
+          fetched += 1;
         }
+        if (fetched > 0) pagesDirty = true;
         failures = 0;
       } catch (error) {
         if (error instanceof PermanentError) throw error;
@@ -508,6 +548,10 @@ export async function processDocument(id: string) {
 
       if (signature !== lastSignature) {
         lastSignature = signature;
+        // Полный pages пишем только когда появились новые листы.
+        // На finish без dirty — только meta: иначе повторный stringify
+        // всех листов блокирует event loop и /api/* отдают 500.
+        const writePages = pagesDirty;
         await updateDocument(id, {
           status: canceled
             ? "error"
@@ -517,7 +561,13 @@ export async function processDocument(id: string) {
           processingStep: canceled || wantsCancel ? null : stepFor(current),
           processingPage: canceled ? null : current.processingPage,
           pageCount: current.pageCount || latest.pageCount,
-          pages: [...pages.values()].sort((a, b) => a.pageNumber - b.pageNumber),
+          ...(writePages
+            ? {
+                pages: [...pages.values()].sort(
+                  (a, b) => a.pageNumber - b.pageNumber,
+                ),
+              }
+            : {}),
           errorMessage: canceled
             ? cancelMessage(current)
             : wantsCancel
@@ -530,6 +580,7 @@ export async function processDocument(id: string) {
             finished: canceled || (finished && !wantsCancel),
           }),
         });
+        if (writePages) pagesDirty = false;
       }
 
       if (canceled || finished) {
@@ -547,7 +598,7 @@ export async function processDocument(id: string) {
       processingStep: null,
       processingPage: null,
       pipelineFinishedAt: new Date().toISOString(),
-      errorMessage: `${message}. Нажмите «Обработать заново» — готовые листы подтянутся без пересчёта.`,
+      errorMessage: `${message}. Нажмите «Обработать заново».`,
     });
   } finally {
     if (slotHeld) releaseJobSlot();

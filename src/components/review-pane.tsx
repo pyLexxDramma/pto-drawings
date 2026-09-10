@@ -57,7 +57,13 @@ type ReviewPaneProps = {
   /** Замечания проекта из таблицы — счётчик по листам и подсветка мест. */
   reviews?: Review[];
   focusMode: boolean;
-  openPage?: { nonce: number; page: number; documentId: string } | null;
+  openPage?: {
+    nonce: number;
+    page: number;
+    documentId: string;
+    reviewId?: string;
+    quote?: string;
+  } | null;
   canceling?: boolean;
   readOnly?: boolean;
   /** Технические метрики прогона (токены, режим) — только для админа. */
@@ -173,6 +179,9 @@ export function ReviewPane({
   const navigatedRef = useRef(false);
   const textPaneRef = useRef<HTMLDivElement>(null);
   const deferredQuery = useDeferredValue(query);
+  /** Цитата из «Где в ПД»: подсветка в тексте и на чертеже. */
+  const [focusQuote, setFocusQuote] = useState("");
+  const [focusNonce, setFocusNonce] = useState(0);
 
   const total = Math.max(document.pageCount, document.pages.length, 1);
   const isCadSource = isCadExt(getDrawingExt(document.originalName));
@@ -370,6 +379,16 @@ export function ReviewPane({
         .map((location) => location.quote),
     )
     .filter((quote) => quote.trim().length > 0);
+  /** Ищем на чертеже: сначала цитата из ссылки, иначе строка поиска.
+   * PDF/CAD text items короткие — для длинной цитаты берём начало. */
+  const drawingHighlightQuery = (() => {
+    const raw =
+      focusQuote.trim().length >= 2 ? focusQuote.trim() : deferredQuery.trim();
+    if (raw.length <= 56) return raw;
+    const cut = raw.slice(0, 56).replace(/\s+\S*$/, "");
+    return cut.length >= 2 ? cut : raw.slice(0, 40);
+  })();
+  const focusDrawing = focusQuote.trim().length >= 2;
   const activeNoteId = hoverNoteId;
   const viewingProcessedSheet =
     progressIsCurrentDoc &&
@@ -432,7 +451,20 @@ export function ReviewPane({
     // Переход из фида проекта: внешнее событие, поэтому состояние двигаем здесь.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setRawPage(openPage.page);
+    const quote = (openPage.quote ?? "").trim();
+    setFocusQuote(quote);
+    if (quote) setFocusNonce(Date.now());
   }, [document.id, openPage]);
+
+  // После отрисовки markdown — к цитате в расшифровке.
+  useEffect(() => {
+    if (!focusQuote || focusNonce === 0) return;
+    const timer = window.setTimeout(() => {
+      const mark = textPaneRef.current?.querySelector("mark[data-focus-quote]");
+      mark?.scrollIntoView({ block: "center", behavior: "smooth" });
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [focusQuote, focusNonce, pageNumber, document.id]);
 
   useEffect(() => {
     cacheProgress(document.id, { viewed, lastPage: pageNumber });
@@ -1207,7 +1239,9 @@ export function ReviewPane({
                   annotations={pageNotes}
                   markMode={markMode && !readOnly}
                   activeAnnotationId={activeNoteId}
-                  highlightQuery={deferredQuery}
+                  highlightQuery={drawingHighlightQuery}
+                  panToHighlight={focusDrawing}
+                  highlightNonce={focusNonce}
                   onMarkRect={(rect) => setPendingRect(rect)}
                   onSelectAnnotation={(id) => setHoverNoteId(id)}
                   onCancelMark={() => {
@@ -1223,7 +1257,9 @@ export function ReviewPane({
                   annotations={pageNotes}
                   markMode={markMode && !readOnly}
                   activeAnnotationId={activeNoteId}
-                  highlightQuery={deferredQuery}
+                  highlightQuery={drawingHighlightQuery}
+                  panToHighlight={focusDrawing}
+                  highlightNonce={focusNonce}
                   onMarkRect={(rect) => setPendingRect(rect)}
                   onSelectAnnotation={(id) => setHoverNoteId(id)}
                   onCancelMark={() => {
@@ -1238,7 +1274,9 @@ export function ReviewPane({
                   annotations={pageNotes}
                   markMode={markMode && !readOnly}
                   activeAnnotationId={activeNoteId}
-                  highlightQuery={deferredQuery}
+                  highlightQuery={drawingHighlightQuery}
+                  panToHighlight={focusDrawing}
+                  highlightNonce={focusNonce}
                   onMarkRect={(rect) => setPendingRect(rect)}
                   onSelectAnnotation={(id) => setHoverNoteId(id)}
                   onCancelMark={() => {
@@ -1262,7 +1300,9 @@ export function ReviewPane({
                   annotations={pageNotes}
                   markMode={markMode && !readOnly}
                   activeAnnotationId={activeNoteId}
-                  highlightQuery={deferredQuery}
+                  highlightQuery={drawingHighlightQuery}
+                  panToHighlight={focusDrawing}
+                  highlightNonce={focusNonce}
                   onMarkRect={(rect) => setPendingRect(rect)}
                   onSelectAnnotation={(id) => setHoverNoteId(id)}
                   onCancelMark={() => {
@@ -1481,7 +1521,8 @@ export function ReviewPane({
                   ) : null}
                   <MarkdownView
                     singlePass={page.kind === "table"}
-                    highlightQuery={deferredQuery}
+                    highlightQuery={drawingHighlightQuery}
+                    focusFirst={focusDrawing}
                     flagQuotes={pageReviewQuotes}
                   >
                     {page.markdown}
