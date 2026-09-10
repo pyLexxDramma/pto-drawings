@@ -16,20 +16,17 @@ type StageState = "waiting" | "active" | "done";
 type Stage = {
   id: StageId;
   label: string;
-  /** Короткая подпись: сколько сделано. */
   count: string;
   percent: number;
   state: StageState;
   hint: string;
 };
 
-/** Что произойдёт по клику — подсказка в title, чтобы этап не выглядел мёртвым. */
 const ACTION: Record<StageId, string> = {
   transcribe: "открыть первый нерасшифрованный лист",
   reviews: "открыть таблицу замечаний",
 };
 
-/** Крупные вкладки этапов — разные цвета, чтобы сразу читались. */
 const STAGE_TAB: Record<
   StageId,
   { idle: string; current: string; track: "sky" | "accent" | "emerald" }
@@ -55,7 +52,6 @@ function percent(done: number, total: number): number {
   return Math.round((done / total) * 100);
 }
 
-/** Пока данные не пришли — прочерк вместо цифр, иначе мелькают чужие. */
 const PENDING: Omit<Stage, "id" | "label"> = {
   count: "…",
   percent: 0,
@@ -123,7 +119,7 @@ function buildStages(
 }
 
 /**
- * Одна верхняя полоса: крупные этапы + мелкие цветные контролы навигации.
+ * Этапы + мелкие контролы. В шапке (embedded) растягивается на всю ширину.
  */
 export function ProjectStagesBar({
   projectName,
@@ -139,6 +135,8 @@ export function ProjectStagesBar({
   docOpen,
   docTitle,
   onBackHome,
+  backLabel,
+  embedded = false,
 }: {
   projectName: string;
   documents: DocumentRecord[];
@@ -153,6 +151,9 @@ export function ProjectStagesBar({
   docOpen?: boolean;
   docTitle?: string | null;
   onBackHome?: () => void;
+  /** Подпись кнопки «назад»; если null — кнопки нет. */
+  backLabel?: string | null;
+  embedded?: boolean;
 }) {
   const stages = buildStages(documents, documentsReady, reviews);
   const busy =
@@ -162,15 +163,19 @@ export function ProjectStagesBar({
     );
 
   return (
-    <div className="flex shrink-0 items-center gap-1.5 border-b border-border bg-white px-2 py-1.5 sm:gap-2 sm:px-3">
+    <div
+      className={`flex min-w-0 flex-1 items-center gap-2 ${
+        embedded ? "" : "shrink-0 border-b border-border bg-white px-2 py-1.5 sm:px-3"
+      }`}
+    >
       <span
-        className="hidden max-w-[7rem] shrink-0 truncate text-[10px] font-medium uppercase tracking-wide text-muted xl:inline"
+        className="hidden max-w-[9rem] shrink-0 truncate text-[10px] font-medium uppercase tracking-wide text-muted 2xl:inline"
         title={projectName}
       >
         {projectName}
       </span>
 
-      <div className="flex min-w-0 items-stretch gap-1.5 sm:gap-2">
+      <div className="flex min-w-0 flex-[2] items-stretch gap-2">
         {stages.map((stage) => {
           const current =
             (stage.id === "reviews" && reviewsOpen) ||
@@ -184,17 +189,17 @@ export function ProjectStagesBar({
               disabled={stage.count === PENDING.count}
               title={`${stage.hint} · ${ACTION[stage.id]}`}
               aria-current={current ? "page" : undefined}
-              className={`flex min-w-0 flex-col justify-center rounded-md border px-2.5 py-1.5 text-left disabled:cursor-default sm:min-w-[9.5rem] sm:px-3 sm:py-2 ${
+              className={`flex min-w-0 flex-1 flex-col justify-center rounded-md border px-3 py-2 text-left disabled:cursor-default ${
                 current ? tone.current : tone.idle
               }`}
             >
-              <span className="flex items-baseline gap-1.5">
-                <span className="truncate text-[12px] font-semibold leading-tight sm:text-[13px]">
+              <span className="flex items-baseline gap-2">
+                <span className="truncate text-[13px] font-semibold leading-tight sm:text-sm">
                   {stage.label}
                 </span>
                 <span
-                  className={`shrink-0 text-[10px] tabular-nums sm:text-[11px] ${
-                    current ? "text-white/85" : "opacity-70"
+                  className={`shrink-0 text-[11px] tabular-nums sm:text-xs ${
+                    current ? "text-white/90" : "opacity-75"
                   }`}
                 >
                   {stage.count}
@@ -202,7 +207,7 @@ export function ProjectStagesBar({
                 </span>
               </span>
               <ProgressTrack
-                className={`mt-1 h-1 ${current ? "opacity-90" : ""}`}
+                className={`mt-1.5 h-1.5 ${current ? "opacity-90" : ""}`}
                 value={stage.percent}
                 tone={stage.state === "done" ? "emerald" : tone.track}
               />
@@ -211,16 +216,16 @@ export function ProjectStagesBar({
         })}
       </div>
 
-      <div className="mx-0.5 hidden h-7 w-px shrink-0 bg-border sm:block" />
+      <div className="hidden h-8 w-px shrink-0 bg-border sm:block" />
 
-      <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
+      <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
         {showProjectsChrome ? (
           <>
             <button
               type="button"
               onClick={onToggleProjects}
               title={projectsCollapsed ? "Показать проекты" : "Скрыть проекты"}
-              className="shrink-0 rounded border border-violet-300 bg-violet-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-900 hover:bg-violet-100"
+              className="shrink-0 rounded border border-violet-300 bg-violet-50 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-violet-900 hover:bg-violet-100"
             >
               Проекты
             </button>
@@ -229,7 +234,7 @@ export function ProjectStagesBar({
                 type="button"
                 onClick={onNewProject}
                 title="Новый проект"
-                className="shrink-0 rounded border border-fuchsia-300 bg-fuchsia-50 px-1.5 py-0.5 text-[10px] font-semibold text-fuchsia-900 hover:bg-fuchsia-100"
+                className="shrink-0 rounded border border-fuchsia-300 bg-fuchsia-50 px-2 py-1 text-[11px] font-semibold text-fuchsia-900 hover:bg-fuchsia-100"
               >
                 +
               </button>
@@ -238,7 +243,7 @@ export function ProjectStagesBar({
               <button
                 type="button"
                 onClick={onToggleProjects}
-                className="shrink-0 rounded border border-slate-300 bg-slate-50 px-1.5 py-0.5 text-[10px] font-medium text-slate-700 hover:bg-slate-100"
+                className="shrink-0 rounded border border-slate-300 bg-slate-50 px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-100"
               >
                 {projectsCollapsed ? "Показать" : "Скрыть"}
               </button>
@@ -246,20 +251,20 @@ export function ProjectStagesBar({
           </>
         ) : null}
 
-        {docOpen && onBackHome ? (
+        {backLabel && onBackHome ? (
           <button
             type="button"
             onClick={onBackHome}
-            title="На главную (Esc)"
-            className="shrink-0 rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-950 hover:bg-amber-100"
+            title={backLabel}
+            className="shrink-0 rounded border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-950 hover:bg-amber-100"
           >
-            ← На главную
+            {backLabel}
           </button>
         ) : null}
 
         {docTitle ? (
           <span
-            className="min-w-0 truncate rounded border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-950"
+            className="min-w-0 truncate rounded border border-sky-200 bg-sky-50 px-2 py-1 text-[11px] font-medium text-sky-950"
             title={docTitle}
           >
             {docTitle}
@@ -267,7 +272,7 @@ export function ProjectStagesBar({
         ) : null}
       </div>
 
-      {busy ? <Spinner className="h-3 w-3 shrink-0 text-sky-700" /> : null}
+      {busy ? <Spinner className="h-3.5 w-3.5 shrink-0 text-sky-700" /> : null}
     </div>
   );
 }

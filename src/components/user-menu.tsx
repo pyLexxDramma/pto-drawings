@@ -11,6 +11,8 @@ type UserMenuProps = {
   statusNote?: string | null;
   /** Только аватар без имени и роли — для узкой шапки ревью. */
   compact?: boolean;
+  /** Цветная вкладка роли (вместо «Загрузить» в шапке). */
+  accent?: boolean;
   /** Действия по открытому листу: над чертежом оставлена только «Ошибка». */
   sheetMenu?: ReactNode;
   onUsers?: () => void;
@@ -25,6 +27,7 @@ export function UserMenu({
   defaultPasswordWarning = false,
   statusNote = null,
   compact = false,
+  accent = false,
   sheetMenu = null,
   onUsers,
   onAudit,
@@ -60,28 +63,49 @@ export function UserMenu({
         aria-haspopup="menu"
         onClick={() => setOpen((value) => !value)}
         title={compact ? `${user.displayName} · роль: ${ROLE_LABEL[user.role]}` : undefined}
-        className={`flex items-center gap-2 rounded-md border text-left hover:bg-bg ${
+        className={`flex items-center gap-2 rounded-md border text-left ${
           compact ? "px-1.5 py-1" : "px-2.5 py-1.5"
         } ${
           defaultPasswordWarning
-            ? "border-amber-400 bg-amber-50"
-            : "border-border bg-white"
+            ? "border-amber-400 bg-amber-50 hover:bg-amber-100"
+            : accent
+              ? user.role === "admin"
+                ? "border-violet-700 bg-violet-600 text-white shadow-sm hover:bg-violet-700"
+                : "border-sky-700 bg-sky-600 text-white shadow-sm hover:bg-sky-700"
+              : "border-border bg-white hover:bg-bg"
         }`}
       >
         {compact ? null : (
           <span className="hidden text-right text-[11px] leading-tight sm:block">
-            <span className="block font-medium text-text">{user.displayName}</span>
-            <span className="block text-muted">роль: {ROLE_LABEL[user.role]}</span>
+            <span
+              className={`block font-semibold ${
+                accent ? "text-white" : "text-text"
+              }`}
+            >
+              {ROLE_LABEL[user.role]}
+            </span>
+            <span
+              className={`block ${accent ? "text-white/80" : "text-muted"}`}
+            >
+              {user.displayName}
+            </span>
           </span>
         )}
         <span
-          className={`flex items-center justify-center rounded-full bg-surface-2 text-[11px] font-semibold text-text ${
+          className={`flex items-center justify-center rounded-full text-[11px] font-semibold ${
             compact ? "h-6 w-6" : "h-7 w-7 sm:hidden"
+          } ${
+            accent
+              ? "bg-white/20 text-white"
+              : "bg-surface-2 text-text"
           }`}
         >
           {user.displayName.slice(0, 1).toUpperCase()}
         </span>
-        <span className="text-[10px] text-muted" aria-hidden>
+        <span
+          className={`text-[10px] ${accent ? "text-white/80" : "text-muted"}`}
+          aria-hidden
+        >
           ▾
         </span>
       </button>

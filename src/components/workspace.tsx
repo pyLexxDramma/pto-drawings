@@ -333,6 +333,8 @@ export function Workspace({
   /** Лист, открытый поверх таблицы замечаний по ссылке «Где в ПД». */
   const [peekOpen, setPeekOpen] = useState(false);
   const [reviewStats, setReviewStats] = useState<ReviewStats | null>(null);
+  /** Лист открыт из таблицы замечаний (в т.ч. новая вкладка) — «Назад» ведёт туда. */
+  const [navFromReviews, setNavFromReviews] = useState(false);
   const [projectReviews, setProjectReviews] = useState<Review[]>([]);
   /** Прогресс-бары этапов открыты: сразу видно, где проект встал. */
   const [documentsProjectId, setDocumentsProjectId] = useState<string | null>(
@@ -458,6 +460,7 @@ export function Workspace({
     async (id: string, page?: number) => {
       setShowReviews(false);
       setPeekOpen(false);
+      setNavFromReviews(false);
       setSelectedId(id);
       setOpenPage(
         page && page > 0
@@ -558,12 +561,14 @@ export function Workspace({
         page,
         reviewId: options?.reviewId,
         quote: options?.quote,
+        from: "reviews",
       });
       const url = new URL(window.location.href);
       url.search = "";
       url.searchParams.set("project", projectId);
       url.searchParams.set("doc", documentId);
       url.searchParams.set("page", String(page));
+      url.searchParams.set("from", "reviews");
       if (options?.reviewId) url.searchParams.set("review", options.reviewId);
       // Короткая цитата в URL — запасной канал; полная — в sessionStorage.
       const quote = (options?.quote ?? "").trim();
@@ -648,6 +653,8 @@ export function Workspace({
         const deepQuote =
           (storedJump?.quote || params.get("quote") || undefined)?.trim() ||
           undefined;
+        const fromReviews =
+          storedJump?.from === "reviews" || params.get("from") === "reviews";
         const target =
           (deepProject && list.find((item) => item.id === deepProject)) ||
           list[0];
@@ -664,6 +671,7 @@ export function Workspace({
         if (deepDoc) {
           setShowReviews(false);
           setPeekOpen(false);
+          setNavFromReviews(fromReviews);
           setSelectedId(deepDoc);
           if (deepPage > 0) {
             setOpenPage({
@@ -677,7 +685,11 @@ export function Workspace({
           }
           void refreshDocument(deepDoc, ac.signal);
           clearRemarkJump();
-          window.history.replaceState({}, "", window.location.pathname);
+          window.history.replaceState(
+            { pto: fromReviews ? "doc-from-reviews" : "doc" },
+            "",
+            window.location.pathname,
+          );
         }
       } catch {
         if (ac.signal.aborted) return;
@@ -1441,18 +1453,52 @@ export function Workspace({
   const visiblePipelineChip = showPipelineTech ? pipelineChip : null;
   const visibleQueueChip = queueChip;
 
-  const backToProjects = () => {
-    // Лист, открытый из таблицы замечаний, закрывается обратно в таблицу:
-    // разбор идёт построчно, и терять место в списке нельзя.
+  const goHome = useCallback(() => {
+    setPeekOpen(false);
+    setSelectedId(null);
+    setShowReviews(false);
+    setNavFromReviews(false);
+    setFocusMode(false);
+    setOpenPage(null);
+    setProjectsCollapsed(false);
+  }, []);
+
+  /** На шаг назад: замечания ← лист ← таблица ← главная проекта. */
+  const goBack = useCallback(() => {
     if (peekOpen) {
       setPeekOpen(false);
       return;
     }
-    setSelectedId(null);
-    setFocusMode(false);
-    setProjectsCollapsed(true);
-    setOpenPage(null);
-  };
+    if (selectedId && navFromReviews) {
+      setSelectedId(null);
+      setOpenPage(null);
+      setFocusMode(false);
+      setNavFromReviews(false);
+      setShowReviews(true);
+      setProjectsCollapsed(false);
+      return;
+    }
+    if (selectedId) {
+      setSelectedId(null);
+      setOpenPage(null);
+      setFocusMode(false);
+      setProjectsCollapsed(false);
+      return;
+    }
+    if (showReviews) {
+      setShowReviews(false);
+      return;
+    }
+    setProjectsCollapsed(false);
+  }, [peekOpen, selectedId, navFromReviews, showReviews]);
+
+  const backLabel = peekOpen || (selectedId && navFromReviews)
+    ? "← К замечаниям"
+    : selectedId
+      ? "← Назад"
+      : showReviews
+        ? "← Назад"
+        : null;
 
   return (
     <div
@@ -1483,26 +1529,61 @@ export function Workspace({
         }}
       />
 
-      {selected ? null : (
-        <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border bg-surface px-4">
+      {focusMode ? null : (
+        <header className="flex shrink-0 items-center gap-3 border-b border-border bg-surface px-3 py-1.5 sm:px-4">
           <button
             type="button"
-            onClick={backToProjects}
-            className="flex min-w-0 items-center gap-3 text-left"
+            onClick={goHome}
+            className="flex shrink-0 items-center gap-2.5 text-left"
             title="К списку проектов"
           >
             <PtoLogo className="h-8 w-8 shrink-0" title="PTO — проверка чертежей" />
-            <div className="min-w-0">
+            <div className="hidden min-w-0 sm:block">
               <div className="text-sm font-semibold leading-none tracking-tight">PTO</div>
               <div className="mt-0.5 text-[10px] leading-none text-muted">
                 проверка чертежей
               </div>
             </div>
           </button>
-          <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
+
+          {currentProject ? (
+            <ProjectStagesBar
+              embedded
+              projectName={currentProject.name}
+              documents={documents}
+              documentsReady={documentsProjectId === currentProject.id}
+              reviews={reviewStats}
+              reviewsOpen={showReviews}
+              onOpenStage={openStage}
+              showProjectsChrome={!showReviews}
+              projectsCollapsed={projectsCollapsed}
+              onToggleProjects={() => setProjectsCollapsed((value) => !value)}
+              onNewProject={() => setShowNewProject((value) => !value)}
+              docOpen={Boolean(selected) && !showReviews}
+              docTitle={
+                selected && !showReviews ? selected.originalName : null
+              }
+              onBackHome={goBack}
+              backLabel={backLabel}
+            />
+          ) : (
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              {backLabel ? (
+                <button
+                  type="button"
+                  onClick={goBack}
+                  className="shrink-0 rounded border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-950 hover:bg-amber-100"
+                >
+                  {backLabel}
+                </button>
+              ) : null}
+            </div>
+          )}
+
+          <div className="flex shrink-0 items-center gap-2">
             {visibleQueueChip ? (
               <div
-                className={`hidden min-w-0 items-center gap-1.5 whitespace-nowrap rounded-md border px-2.5 py-1 text-[11px] md:flex ${visibleQueueChip.className}`}
+                className={`hidden max-w-[12rem] items-center gap-1.5 truncate whitespace-nowrap rounded-md border px-2 py-1 text-[10px] lg:flex ${visibleQueueChip.className}`}
                 title={visibleQueueChip.text}
               >
                 {busy ? <Spinner className="h-3 w-3 opacity-80" /> : null}
@@ -1510,6 +1591,7 @@ export function Workspace({
               </div>
             ) : null}
             <UserMenu
+              accent
               user={user}
               statusNote={visiblePipelineChip?.text ?? null}
               defaultPasswordWarning={defaultPasswordWarning}
@@ -1523,12 +1605,6 @@ export function Workspace({
                 })();
               }}
             />
-            <label
-              htmlFor="pto-drawing-upload"
-              className="cursor-pointer rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-[#1d4ed8]"
-            >
-              {UPLOAD_BUTTON_LABEL}
-            </label>
           </div>
         </header>
       )}
@@ -1560,26 +1636,6 @@ export function Workspace({
           У аккаунта <span className="font-medium">admin</span> всё ещё стандартный
           пароль. Смените его в меню профиля («Пароль») до выдачи доступов команде.
         </div>
-      ) : null}
-
-      {currentProject && !focusMode ? (
-        <ProjectStagesBar
-          projectName={currentProject.name}
-          documents={documents}
-          documentsReady={documentsProjectId === currentProject.id}
-          reviews={reviewStats}
-          reviewsOpen={showReviews}
-          onOpenStage={openStage}
-          showProjectsChrome={!showReviews}
-          projectsCollapsed={projectsCollapsed}
-          onToggleProjects={() => setProjectsCollapsed((value) => !value)}
-          onNewProject={() => setShowNewProject((value) => !value)}
-          docOpen={Boolean(selected) && !showReviews}
-          docTitle={
-            selected && !showReviews ? selected.originalName : null
-          }
-          onBackHome={backToProjects}
-        />
       ) : null}
 
       <div className={gridClass}>
@@ -1710,8 +1766,12 @@ export function Workspace({
                     </div>
                     {project.id === projectId ? (
                       <div className="border-t border-border/70 px-1.5 pb-2 pt-1" data-project-files>
-                        {/* Своей кнопки загрузки здесь нет: дублировала
-                            «Загрузить для расшифровки» в шапке. */}
+                        <label
+                          htmlFor="pto-drawing-upload"
+                          className="mb-1.5 flex cursor-pointer items-center justify-center rounded-md bg-accent px-2 py-1.5 text-[11px] font-semibold text-white hover:bg-[#1d4ed8]"
+                        >
+                          {UPLOAD_BUTTON_LABEL}
+                        </label>
                         {error ? (
                           <div className="mb-1 rounded bg-red-50 px-2 py-1 text-[10px] text-red-700">
                             {error}
@@ -1854,7 +1914,7 @@ export function Workspace({
               projectName={currentProject.name}
               onJumpToPage={jumpToPage}
               onStatsChange={setReviewStats}
-              onClose={() => setShowReviews(false)}
+              onClose={goBack}
             />
           </div>
         ) : null}
@@ -1952,7 +2012,7 @@ export function Workspace({
             )}
             onCancel={() => void handleCancel(selected.id)}
             onToggleFocus={() => setFocusMode((value) => !value)}
-            onBackToProjects={backToProjects}
+            onBackToProjects={goBack}
             onAnnotationsChanged={() => {
               if (projectId) {
                 void loadNotes(projectId);

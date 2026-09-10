@@ -7,6 +7,8 @@ export type RemarkJumpPayload = {
   page: number;
   reviewId?: string;
   quote?: string;
+  /** Откуда открыли — чтобы «Назад» вернул в таблицу замечаний. */
+  from?: "reviews";
   at: number;
 };
 
