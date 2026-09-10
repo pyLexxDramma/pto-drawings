@@ -38,18 +38,24 @@ const myName = me?.user?.displayName || me?.user?.login || LOGIN;
 const page = await context.newPage();
 await page.goto(BASE, { waitUntil: "domcontentloaded", timeout: 60000 });
 await page.getByText("Загрузка…").waitFor({ state: "hidden", timeout: 45000 });
-await page.getByRole("button", { name: "Открыть проект" }).click();
+const openBtn = page.getByRole("button", { name: "Открыть проект" });
+if (await openBtn.count()) await openBtn.click().catch(() => undefined);
 await page.waitForTimeout(600);
 const projectRows = page.locator("[data-project-row]");
 await projectRows.first().waitFor({ timeout: 20000 }).catch(() => undefined);
-const wanted = projectRows.filter({ hasText: PROJECT.slice(0, 9) }).first();
-if (await wanted.count()) {
-  await wanted.locator("button").first().click();
-} else {
-  // На проде демо-проекта нет — берём первый в списке.
-  await projectRows.first().locator("button").first().click();
+// Первый проект уже открыт при загрузке — повторный клик его свернёт.
+const stagesVisible = await page
+  .getByRole("button", { name: /Расшифровка/ })
+  .count();
+if (stagesVisible === 0) {
+  const wanted = projectRows.filter({ hasText: PROJECT.slice(0, 9) }).first();
+  if (await wanted.count()) {
+    await wanted.locator("button").first().click();
+  } else {
+    await projectRows.first().locator("button").first().click();
+  }
+  await page.waitForTimeout(1200);
 }
-await page.waitForTimeout(1200);
 
 // --- полоса этапов ---
 const COUNT = String.raw`(\d+\/\d+|—)`;
@@ -175,24 +181,47 @@ if (await logButton.count()) {
   check("журнал: подпись правки в строке", false, "кнопка журнала не найдена");
 }
 
-// --- лист поверх таблицы и возврат в строку ---
+// --- лист из таблицы открывается в новой вкладке ---
 const placeLink = page
   .locator("tbody button")
   .filter({ hasText: /стр\. \d+/ })
   .first();
 if (await placeLink.count()) {
-  await placeLink.click();
-  await page.getByRole("button", { name: /К таблице замечаний/ }).waitFor({ timeout: 30000 });
-  check("лист открылся поверх таблицы", true);
+  const [popup] = await Promise.all([
+    context.waitForEvent("page", { timeout: 30000 }),
+    placeLink.click(),
+  ]);
+  await popup.waitForLoadState("domcontentloaded");
+  // Deep-link: ждём, пока workspace снимет «Загрузка…» и откроет лист.
+  await popup.getByText("Загрузка…").waitFor({ state: "hidden", timeout: 60000 });
+  await popup.getByRole("button", { name: "На главную" }).waitFor({ timeout: 30000 });
+  const popupText = (await popup.locator("body").innerText()).replace(/\s+/g, " ");
+  check(
+    "лист открылся в новой вкладке",
+    /лист \d+ из|На главную/.test(popupText) && !/^Загрузка/.test(popupText.trim()),
+    popupText.slice(0, 160),
+  );
   check(
     "лист: правка текста убрана",
-    (await page.locator('button[title="Исправить расшифровку"]').count()) === 0,
+    (await popup.locator('button[title="Исправить расшифровку"]').count()) === 0,
   );
-  await page.keyboard.press("Escape");
-  await page.getByRole("button", { name: /К чертежам/ }).waitFor({ timeout: 20000 });
-  check("Esc вернул в таблицу", true);
+  check(
+    "шапка: стрелки и поиск на месте",
+    (await popup.getByTitle(/Предыдущий лист/).count()) > 0 &&
+      (await popup.getByTitle(/Поиск по файлу|Закрыть поиск/).count()) > 0,
+  );
+  check(
+    "шапка: режимы вида Оба/Чертёж/Текст",
+    (await popup.getByRole("tab", { name: "Оба" }).count()) > 0,
+  );
+  await popup.close();
+  check(
+    "таблица замечаний на месте",
+    (await page.getByRole("button", { name: /К чертежам/ }).count()) > 0 ||
+      (await page.getByText(/Замечания ·/).count()) > 0,
+  );
 } else {
-  check("лист поверх таблицы", false, "нет ссылки на место в ПД");
+  check("лист в новой вкладке", false, "нет ссылки на место в ПД");
 }
 
 await browser.close();

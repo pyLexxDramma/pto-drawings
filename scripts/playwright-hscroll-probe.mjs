@@ -22,12 +22,15 @@ check("login", auth.ok(), String(auth.status()));
 const page = await context.newPage();
 await page.goto(BASE, { waitUntil: "domcontentloaded", timeout: 60000 });
 await page.getByText("Загрузка…").waitFor({ state: "hidden", timeout: 45000 });
-await page.getByRole("button", { name: "Открыть проект" }).click();
+const openProject = page.getByRole("button", { name: "Открыть проект" });
+if (await openProject.count()) await openProject.click().catch(() => undefined);
 await page.waitForTimeout(800);
 const rows = page.locator("[data-project-row]");
 await rows.first().waitFor({ timeout: 20000 });
-await rows.first().locator("button").first().click();
-await page.waitForTimeout(1500);
+if ((await page.locator("[data-document-row]").count()) === 0) {
+  await rows.first().locator("button").first().click();
+  await page.waitForTimeout(1500);
+}
 
 await page.locator("[data-document-row] button").first().click();
 await page.waitForTimeout(4000);

@@ -157,7 +157,7 @@ export function UserMenu({
               setHelpOpen(true);
             }}
           >
-            Как управлять
+            Инструкция
           </button>
           <button
             type="button"

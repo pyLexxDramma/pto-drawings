@@ -65,7 +65,8 @@ export function ControlsHelpContent() {
             <Kbd>E</Kbd> или кнопка «Ошибка» — обведите место на чертеже.
           </li>
           <li>
-            <Kbd>Esc</Kbd> — отмена разметки, поиска, solo-режима, выход на главную.
+            <Kbd>Esc</Kbd> — закрыть поиск / разметку, вернуть обычный вид
+            (чертёж и текст), затем «На главную».
           </li>
           <li>
             Текст расшифровки не правится вручную: отметьте «Ошибка» — место
@@ -75,6 +76,10 @@ export function ControlsHelpContent() {
             В таблице замечаний «Неверно» — для придуманных ИИ замечаний, причину
             указать обязательно.
           </li>
+          <li>
+            Ссылка «где в ПД» открывает лист в новой вкладке — удобнее, чем поверх
+            таблицы.
+          </li>
         </ul>
       </section>
 
@@ -82,7 +87,11 @@ export function ControlsHelpContent() {
         <div className="mb-1 font-medium text-text">Вид</div>
         <ul className="list-disc space-y-1 pl-4">
           <li>
-            <Kbd>F</Kbd> — сплит → только чертёж → только текст.
+            В шапке листа: <strong>Оба / Чертёж / Текст</strong> — или{" "}
+            <Kbd>F</Kbd> по кругу. «Обычный вид» сразу возвращает оба.
+          </li>
+          <li>
+            Стрелки ← → и лупа поиска — тоже в шапке, рядом с «Ошибка».
           </li>
           <li>Разделитель между панелями — изменить ширину чертежа и текста.</li>
           <li>Нижний угол чертежа — «Страница» / «По ширине» и масштаб.</li>
@@ -98,7 +107,7 @@ export function ControlsHelpDialog({ onClose }: { onClose: () => void }) {
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"
       role="dialog"
       aria-modal="true"
-      aria-label="Как управлять"
+      aria-label="Инструкция"
       onClick={onClose}
     >
       <div
@@ -106,7 +115,7 @@ export function ControlsHelpDialog({ onClose }: { onClose: () => void }) {
         onClick={(event) => event.stopPropagation()}
       >
         <div className="mb-3 flex items-center justify-between gap-2">
-          <div className="text-sm font-semibold text-text">Как управлять</div>
+          <div className="text-sm font-semibold text-text">Инструкция</div>
           <button
             type="button"
             onClick={onClose}

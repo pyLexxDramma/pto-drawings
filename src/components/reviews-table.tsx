@@ -1043,6 +1043,7 @@ function ReviewRow({
                         event.stopPropagation();
                         onJumpToPage(location.documentId!, location.pageNumber!);
                       }}
+                      title="Открыть лист в новой вкладке"
                       className="text-left text-[11px] font-medium text-accent underline decoration-dotted hover:no-underline"
                     >
                       {highlight(label, needle)}

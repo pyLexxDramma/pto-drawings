@@ -42,6 +42,8 @@ body {
   font-size: 14px;
   line-height: 1.65;
   overflow-x: auto;
+  /* Полоса видна сразу: иначе широкую таблицу некуда крутить. */
+  scrollbar-gutter: stable;
 }
 
 .markdown-body h1,

@@ -19,12 +19,9 @@ import { VoiceNoteButton } from "@/components/voice-note";
 import {
   IconCheck,
   IconDoc,
-  IconDownload,
   IconExpand,
   IconMark,
   IconSearch,
-  IconSplit,
-  IconThumbs,
 } from "@/components/tool-icons";
 import { formatDate } from "@/lib/format";
 import { getDrawingExt, isCadExt, isOfficeExt } from "@/lib/drawing-files";
@@ -88,14 +85,6 @@ type ReviewPaneProps = {
   onAnnotationsChanged?: () => void;
 };
 
-const STRIP_OPEN_KEY = "pto.review.stripOpen";
-
-function loadStripOpen() {
-  if (typeof window === "undefined") return false;
-  return window.localStorage.getItem(STRIP_OPEN_KEY) === "1";
-}
-
-/** Элемент реально можно двигать по горизонтали, а не просто шире экрана. */
 function canScrollX(element: HTMLElement) {
   if (element.scrollWidth - element.clientWidth <= 1) return false;
   const overflow = window.getComputedStyle(element).overflowX;
@@ -156,7 +145,8 @@ export function ReviewPane({
   const [split, setSplit] = useState(50);
   const [stripWidth, setStripWidth] = useState(108);
   // Миниатюры по умолчанию свёрнуты: место отдано чертежу и расшифровке.
-  const [stripOpen, setStripOpen] = useState(loadStripOpen);
+  /** Миниатюры убрали из меню: путали инженеров. Полосу оставляем выключенной. */
+  const [stripOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [showLog, setShowLog] = useState(false);
   const [filter, setFilter] = useState<KindFilter>("all");
@@ -443,10 +433,6 @@ export function ReviewPane({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setRawPage(openPage.page);
   }, [document.id, openPage]);
-
-  useEffect(() => {
-    window.localStorage.setItem(STRIP_OPEN_KEY, stripOpen ? "1" : "0");
-  }, [stripOpen]);
 
   useEffect(() => {
     cacheProgress(document.id, { viewed, lastPage: pageNumber });
@@ -750,9 +736,6 @@ export function ReviewPane({
     if (pendingRect) setSidePanel("notes");
   }, [pendingRect]);
 
-  const soloLabel =
-    paneSolo === "pdf" ? "Только чертёж" : paneSolo === "md" ? "Только текст" : null;
-
   const toolBtnIcon =
     "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-slate-300 bg-white text-text shadow-sm hover:border-slate-400 hover:bg-slate-50";
   const toolBtnDanger =
@@ -1040,6 +1023,77 @@ export function ReviewPane({
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
+          {!isOfficeSource ? (
+            <SegmentedTabs
+              size="xs"
+              value={paneSolo === null ? "split" : paneSolo}
+              onChange={(value) => {
+                if (value === "split") setPaneSolo(null);
+                else setPaneSolo(value as "pdf" | "md");
+              }}
+              options={[
+                { id: "split", label: "Оба", title: "Чертёж и текст (F)" },
+                { id: "pdf", label: "Чертёж", title: "Только чертёж" },
+                { id: "md", label: "Текст", title: "Только текст" },
+              ]}
+            />
+          ) : null}
+          {paneSolo !== null && !isOfficeSource ? (
+            <button
+              type="button"
+              onClick={() => setPaneSolo(null)}
+              title="Вернуть обычный вид: чертёж и текст (Esc)"
+              className="rounded-md border border-border bg-bg px-2 py-1 text-[11px] font-medium text-text hover:border-accent hover:bg-white"
+            >
+              Обычный вид
+            </button>
+          ) : null}
+          <div className="flex items-center rounded-md border border-slate-300 bg-white shadow-sm">
+            <button
+              type="button"
+              title="Предыдущий лист (K / ←)"
+              onClick={() => stepVisible(-1)}
+              disabled={visiblePages[0] === pageNumber}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-l-md text-text hover:bg-slate-50 disabled:cursor-default disabled:opacity-40"
+            >
+              ←
+            </button>
+            <button
+              type="button"
+              title="Следующий лист (J / → / пробел)"
+              onClick={() => stepVisible(1)}
+              disabled={visiblePages[visiblePages.length - 1] === pageNumber}
+              className="inline-flex h-8 w-8 items-center justify-center border-l border-slate-300 text-text hover:bg-slate-50 disabled:cursor-default disabled:opacity-40"
+            >
+              →
+            </button>
+            <button
+              type="button"
+              title={searchOpen ? "Закрыть поиск (Esc)" : "Поиск по файлу (/ или Ctrl+F)"}
+              onClick={() => (searchOpen ? closeSearch() : openSearch())}
+              className={`inline-flex h-8 w-8 items-center justify-center rounded-r-md border-l border-slate-300 hover:bg-slate-50 ${
+                searchOpen ? "bg-sky-50 text-sky-900" : "text-text"
+              }`}
+            >
+              <IconSearch className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          <button
+            type="button"
+            title={
+              viewedSet.has(pageNumber)
+                ? "Снять отметку «просмотрено» (V)"
+                : "Отметить лист просмотренным (V)"
+            }
+            onClick={toggleViewed}
+            className={`${toolBtnIcon} ${
+              viewedSet.has(pageNumber)
+                ? "border-accent/40 bg-accent/5 text-accent"
+                : ""
+            }`}
+          >
+            <IconCheck className="h-3.5 w-3.5" />
+          </button>
           {!readOnly ? (
             <button
               type="button"
@@ -1061,94 +1115,12 @@ export function ReviewPane({
               type="button"
               role="menuitem"
               className={menuItemClass()}
-              onClick={toggleViewed}
-            >
-              <span className="inline-flex items-center gap-2">
-                <IconCheck />
-                {viewedSet.has(pageNumber) ? "Снять просмотр" : "Просмотрено"}
-              </span>
-              <span className="text-[10px] text-muted">V</span>
-            </button>
-            <button
-              type="button"
-              role="menuitem"
-              className={menuItemClass()}
-              onClick={() => stepVisible(-1)}
-              disabled={visiblePages[0] === pageNumber}
-            >
-              ← Предыдущий лист
-            </button>
-            <button
-              type="button"
-              role="menuitem"
-              className={menuItemClass()}
-              onClick={() => stepVisible(1)}
-              disabled={visiblePages[visiblePages.length - 1] === pageNumber}
-            >
-              → Следующий лист
-            </button>
-            <button
-              type="button"
-              role="menuitem"
-              className={menuItemClass()}
-              onClick={() => (searchOpen ? closeSearch() : openSearch())}
-            >
-              <span className="inline-flex items-center gap-2">
-                <IconSearch /> Поиск по файлу
-              </span>
-              <span className="text-[10px] text-muted">/</span>
-            </button>
-            <div className="my-1 border-t border-border" />
-            <div className="px-3 pb-1 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
-              Вид
-            </div>
-            <button
-              type="button"
-              role="menuitem"
-              className={menuItemClass()}
-              onClick={() =>
-                setPaneSolo((prev) => (prev === null ? "pdf" : prev === "pdf" ? "md" : null))
-              }
-            >
-              <span className="inline-flex items-center gap-2">
-                <IconSplit /> {soloLabel ? `Вид: ${soloLabel}` : "Вид: чертёж и текст"}
-              </span>
-              <span className="text-[10px] text-muted">F</span>
-            </button>
-            <button
-              type="button"
-              role="menuitem"
-              className={menuItemClass()}
-              onClick={() => setStripOpen((value) => !value)}
-            >
-              <span className="inline-flex items-center gap-2">
-                <IconThumbs /> Миниатюры листов
-              </span>
-              <span className="text-[10px] text-muted">
-                {stripOpen ? "вкл" : "выкл"}
-              </span>
-            </button>
-            <button
-              type="button"
-              role="menuitem"
-              className={menuItemClass()}
               onClick={onToggleFocus}
             >
               <span className="inline-flex items-center gap-2">
-                <IconExpand /> {focusMode ? "Свернуть на весь экран" : "Развернуть на весь экран"}
+                <IconExpand /> {focusMode ? "Свернуть на весь экран" : "На весь экран"}
               </span>
             </button>
-            <div className="my-1 border-t border-border" />
-            <a
-              href={`/api/documents/${document.id}/markdown`}
-              download
-              role="menuitem"
-              className={menuItemClass()}
-            >
-              <span className="inline-flex items-center gap-2">
-                <IconDownload /> Скачать .md
-              </span>
-            </a>
             {specHref ? (
               <a
                 href={specHref}
@@ -1175,9 +1147,6 @@ export function ReviewPane({
                   {pageLogs.length}
                 </span>
               </button>
-            ) : null}
-            {soloLabel ? (
-              <div className="px-3 py-1.5 text-[10px] text-muted">Режим: {soloLabel}</div>
             ) : null}
             </>,
           )}
@@ -1332,61 +1301,60 @@ export function ReviewPane({
               />
             ) : (
               <>
-            <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
-              <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                <SegmentedTabs
-                  size="xs"
-                  value={sidePanel}
-                  onChange={setSidePanel}
-                  options={[
-                    {
-                      id: "text",
-                      label: page?.kind === "table" ? "Таблица" : "Расшифровка",
-                    },
-                    {
-                      id: "notes",
-                      label: (
-                        <>
-                          Отметить ошибку
-                          {pageNotes.length ? (
-                            <span className="ml-1 tabular-nums opacity-70">
-                              {pageNotes.length}
-                            </span>
-                          ) : null}
-                        </>
-                      ),
-                    },
-                  ]}
-                />
-                {hasKitDrawing && sidePanel === "text" ? (
-                  <span className="text-[10px] text-muted" title="Единая расшифровка после сверки — в работе у бэкенда">
-                    Markdown из PDF · DWG для сверки
-                  </span>
-                ) : null}
-              </div>
-              <div className="flex items-center gap-2">
-                {sidePanel === "text" && page?.source === "model" ? (
-                  <span
-                    className="text-[10px] text-orange-700"
-                    title="Текстового слоя нет — содержимое прочитано по изображению; сверьте числа и марки с оригиналом"
-                  >
-                    По изображению · сверить
-                  </span>
-                ) : null}
-                {showTech && sidePanel === "text" && page ? (
-                  <span className="text-[10px] text-muted">
-                    {SOURCE_LABEL[page.source]}
-                  </span>
-                ) : null}
-                {sidePanel === "text" && !readOnly ? (
-                  <span
-                    className="text-[10px] text-muted"
-                    title="Текст расшифровки не правится вручную: обведите место кнопкой «Ошибка» — правку сделает конвейер"
-                  >
-                    Правки — через «Ошибка»
-                  </span>
-                ) : null}
-              </div>
+            <div className="flex items-center gap-2 border-b border-border px-3 py-1">
+              <SegmentedTabs
+                size="xs"
+                value={sidePanel}
+                onChange={setSidePanel}
+                options={[
+                  {
+                    id: "text",
+                    label: page?.kind === "table" ? "Таблица" : "Расшифровка",
+                  },
+                  {
+                    id: "notes",
+                    label: (
+                      <>
+                        Отметить ошибку
+                        {pageNotes.length ? (
+                          <span className="ml-1 tabular-nums opacity-70">
+                            {pageNotes.length}
+                          </span>
+                        ) : null}
+                      </>
+                    ),
+                  },
+                ]}
+              />
+              {hasKitDrawing && sidePanel === "text" ? (
+                <span
+                  className="truncate text-[10px] text-muted"
+                  title="Единая расшифровка после сверки — в работе у бэкенда"
+                >
+                  PDF · DWG для сверки
+                </span>
+              ) : null}
+              {sidePanel === "text" && page?.source === "model" ? (
+                <span
+                  className="ml-auto truncate text-[10px] text-orange-700"
+                  title="Текстового слоя нет — содержимое прочитано по изображению; сверьте числа и марки с оригиналом"
+                >
+                  По изображению · сверить
+                </span>
+              ) : null}
+              {sidePanel === "text" && !readOnly && page?.source !== "model" ? (
+                <span
+                  className="ml-auto truncate text-[10px] text-muted"
+                  title="Текст расшифровки не правится вручную: обведите место кнопкой «Ошибка»"
+                >
+                  Правки — через «Ошибка»
+                </span>
+              ) : null}
+              {showTech && sidePanel === "text" && page ? (
+                <span className="shrink-0 text-[10px] text-muted">
+                  {SOURCE_LABEL[page.source]}
+                </span>
+              ) : null}
             </div>
 
             {sidePanel === "notes" ? (

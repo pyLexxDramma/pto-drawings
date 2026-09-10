@@ -539,16 +539,18 @@ export function Workspace({
   }, [projectId]);
 
   /**
-   * Переход из таблицы замечаний: лист открывается поверх таблицы на весь
-   * экран, по закрытию инженер возвращается в ту же строку разбора.
+   * Переход из таблицы замечаний: лист открывается в новой вкладке на весь
+   * экран — на маленьком мониторе overlay поверх таблицы теряется.
    */
   const jumpToPage = useCallback((documentId: string, page: number) => {
-    setPeekOpen(true);
-    setSelectedId(documentId);
-    setOpenPage({ nonce: Date.now(), page, documentId });
-    autoReadyJumpRef.current = documentId;
-    void refreshDocument(documentId);
-  }, [refreshDocument]);
+    if (!projectId) return;
+    const url = new URL(window.location.href);
+    url.search = "";
+    url.searchParams.set("project", projectId);
+    url.searchParams.set("doc", documentId);
+    url.searchParams.set("page", String(page));
+    window.open(url.toString(), "_blank", "noopener,noreferrer");
+  }, [projectId]);
 
   useEffect(() => {
     try {
@@ -609,13 +611,40 @@ export function Workspace({
         const list = await loadProjects(ac.signal);
         if (ac.signal.aborted) return;
         if (list.length === 0) return;
-        setProjectId(list[0].id);
-        setDescriptionDraft(list[0].description ?? "");
+
+        // Deep-link из таблицы замечаний: ?project=&doc=&page=
+        const params = new URLSearchParams(window.location.search);
+        const deepProject = params.get("project");
+        const deepDoc = params.get("doc");
+        const deepPage = Number(params.get("page") || "0");
+        const target =
+          (deepProject && list.find((item) => item.id === deepProject)) ||
+          list[0];
+
+        setProjectId(target.id);
+        setDescriptionDraft(target.description ?? "");
         await Promise.all([
-          loadDocuments(list[0].id, ac.signal),
-          loadEdits(list[0].id, ac.signal),
-          loadNotes(list[0].id, ac.signal),
+          loadDocuments(target.id, ac.signal),
+          loadEdits(target.id, ac.signal),
+          loadNotes(target.id, ac.signal),
         ]);
+        if (ac.signal.aborted) return;
+
+        if (deepDoc) {
+          setShowReviews(false);
+          setPeekOpen(false);
+          setSelectedId(deepDoc);
+          if (deepPage > 0) {
+            setOpenPage({
+              nonce: Date.now(),
+              page: deepPage,
+              documentId: deepDoc,
+            });
+            autoReadyJumpRef.current = deepDoc;
+          }
+          void refreshDocument(deepDoc, ac.signal);
+          window.history.replaceState({}, "", window.location.pathname);
+        }
       } catch {
         if (ac.signal.aborted) return;
         setError("Не удалось загрузить данные");
