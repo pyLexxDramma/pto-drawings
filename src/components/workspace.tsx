@@ -1568,7 +1568,7 @@ export function Workspace({
                 <button
                   type="button"
                   onClick={goBack}
-                  className="shrink-0 rounded border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-950 hover:bg-amber-100"
+                  className="shrink-0 rounded-md border-2 border-amber-500 bg-amber-500 px-2.5 py-1 text-[11px] font-bold text-white shadow-sm hover:bg-amber-600"
                 >
                   {backLabel}
                 </button>

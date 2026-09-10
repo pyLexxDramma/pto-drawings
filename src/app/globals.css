@@ -37,6 +37,37 @@ body {
   scrollbar-color: #c5ccd6 transparent;
 }
 
+/** Горизонтальный скролл расшифровки — заметная полоса с бегунком. */
+.pto-pane-scroll {
+  scrollbar-width: auto;
+  scrollbar-color: #0d9488 #ccfbf1;
+}
+
+.pto-pane-scroll::-webkit-scrollbar {
+  height: 14px;
+  width: 14px;
+}
+
+.pto-pane-scroll::-webkit-scrollbar-track {
+  background: #ccfbf1;
+  border-radius: 7px;
+  border: 1px solid #5eead4;
+}
+
+.pto-pane-scroll::-webkit-scrollbar-thumb {
+  background: #0d9488;
+  border-radius: 7px;
+  border: 2px solid #ccfbf1;
+}
+
+.pto-pane-scroll::-webkit-scrollbar-thumb:hover {
+  background: #0f766e;
+}
+
+.pto-pane-scroll::-webkit-scrollbar-corner {
+  background: #ccfbf1;
+}
+
 .markdown-body {
   color: var(--text);
   font-size: 14px;

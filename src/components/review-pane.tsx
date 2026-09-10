@@ -1058,13 +1058,13 @@ export function ReviewPane({
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
           {isOfficeSource ? (
-            <div className="flex items-center rounded-md border border-slate-300 bg-white shadow-sm">
+            <div className="flex items-center overflow-hidden rounded-md border-2 border-sky-500 bg-sky-600 shadow-sm">
               <button
                 type="button"
                 title="Предыдущий лист (K / ←)"
                 onClick={() => stepVisible(-1)}
                 disabled={visiblePages[0] === pageNumber}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-l-md text-text hover:bg-slate-50 disabled:cursor-default disabled:opacity-40"
+                className="inline-flex h-8 w-8 items-center justify-center text-sm font-bold text-white hover:bg-sky-700 disabled:cursor-default disabled:opacity-40"
               >
                 ←
               </button>
@@ -1073,7 +1073,7 @@ export function ReviewPane({
                 title="Следующий лист (J / → / пробел)"
                 onClick={() => stepVisible(1)}
                 disabled={visiblePages[visiblePages.length - 1] === pageNumber}
-                className="inline-flex h-8 w-8 items-center justify-center border-l border-slate-300 text-text hover:bg-slate-50 disabled:cursor-default disabled:opacity-40"
+                className="inline-flex h-8 w-8 items-center justify-center border-l border-sky-400 text-sm font-bold text-white hover:bg-sky-700 disabled:cursor-default disabled:opacity-40"
               >
                 →
               </button>
@@ -1081,8 +1081,8 @@ export function ReviewPane({
                 type="button"
                 title={searchOpen ? "Закрыть поиск (Esc)" : "Поиск по файлу (/ или Ctrl+F)"}
                 onClick={() => (searchOpen ? closeSearch() : openSearch())}
-                className={`inline-flex h-8 w-8 items-center justify-center rounded-r-md border-l border-slate-300 hover:bg-slate-50 ${
-                  searchOpen ? "bg-sky-50 text-sky-900" : "text-text"
+                className={`inline-flex h-8 w-8 items-center justify-center border-l border-sky-400 hover:bg-sky-700 ${
+                  searchOpen ? "bg-sky-800 text-white" : "text-white"
                 }`}
               >
                 <IconSearch className="h-3.5 w-3.5" />
@@ -1457,7 +1457,7 @@ export function ReviewPane({
 
             <div
               ref={textPaneRef}
-              className="min-h-0 flex-1 overflow-x-scroll overflow-y-auto [scrollbar-gutter:stable]"
+              className="pto-pane-scroll min-h-0 flex-1 overflow-x-scroll overflow-y-auto [scrollbar-gutter:stable]"
             >
               {filterEmpty ? (
                 <div className="p-6 text-sm text-muted">

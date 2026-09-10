@@ -839,17 +839,17 @@ export function CadPage({
 
       <div
         onMouseDown={(event) => event.stopPropagation()}
-        className="absolute bottom-2 right-2 z-30 flex items-center gap-1.5 rounded-md border border-border bg-white/95 px-1.5 py-1 shadow-sm backdrop-blur"
+        className="absolute bottom-2 right-2 z-30 flex items-center gap-1.5 rounded-md border-2 border-sky-400 bg-sky-50 px-1.5 py-1 shadow-md backdrop-blur"
       >
         {onPrevPage || onNextPage ? (
-          <div className="flex items-center">
+          <div className="flex items-center overflow-hidden rounded border border-sky-500 bg-sky-600">
             <button
               type="button"
               title="Предыдущий лист (K / ←)"
               aria-label="Предыдущий лист"
               onClick={() => onPrevPage?.()}
               disabled={!canPrevPage}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-l text-sm text-text hover:bg-bg disabled:cursor-default disabled:opacity-40"
+              className="inline-flex h-7 w-8 items-center justify-center text-sm font-bold text-white hover:bg-sky-700 disabled:cursor-default disabled:opacity-40"
             >
               ←
             </button>
@@ -859,7 +859,7 @@ export function CadPage({
               aria-label="Следующий лист"
               onClick={() => onNextPage?.()}
               disabled={!canNextPage}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-r border-l border-border text-sm text-text hover:bg-bg disabled:cursor-default disabled:opacity-40"
+              className="inline-flex h-7 w-8 items-center justify-center border-l border-sky-400 text-sm font-bold text-white hover:bg-sky-700 disabled:cursor-default disabled:opacity-40"
             >
               →
             </button>
@@ -867,7 +867,7 @@ export function CadPage({
         ) : null}
         <div
           className={`flex items-center gap-0.5 ${
-            onPrevPage || onNextPage ? "border-l border-border pl-1.5" : ""
+            onPrevPage || onNextPage ? "border-l border-sky-300 pl-1.5" : ""
           }`}
         >
           <button
