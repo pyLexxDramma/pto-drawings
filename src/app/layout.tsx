@@ -17,11 +17,15 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: ReactNode;
 }>) {
+  // Отметка обновления для журнала «Обновления прода». Ставим здесь, а не в
+  // instrumentation.ts: тот собирается и для edge-рантайма, где нет fs.
+  const { recordAppStart } = await import("@/lib/releases");
+  await recordAppStart().catch(() => undefined);
   return (
     <html lang="ru" className={`${inter.variable} h-full antialiased`}>
       <body className="min-h-full bg-bg font-sans text-text">{children}</body>

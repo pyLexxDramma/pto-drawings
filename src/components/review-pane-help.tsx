@@ -51,6 +51,10 @@ export function ControlsHelpContent() {
           <li>
             <Kbd>/</Kbd> или <Kbd>Ctrl+F</Kbd> — поиск по файлу.
           </li>
+          <li>
+            <Kbd>Shift</Kbd> + <strong>колёсико</strong> над текстом — сдвиг широкой
+            таблицы расшифровки влево/вправо.
+          </li>
         </ul>
       </section>
 

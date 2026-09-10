@@ -95,6 +95,13 @@ function loadStripOpen() {
   return window.localStorage.getItem(STRIP_OPEN_KEY) === "1";
 }
 
+/** Элемент реально можно двигать по горизонтали, а не просто шире экрана. */
+function canScrollX(element: HTMLElement) {
+  if (element.scrollWidth - element.clientWidth <= 1) return false;
+  const overflow = window.getComputedStyle(element).overflowX;
+  return overflow === "auto" || overflow === "scroll";
+}
+
 function stepLabel(document: DocumentRecord) {
   if (document.status === "queued") return "в очереди";
   if (document.processingStep === "text") return "текст и таблицы";
@@ -174,6 +181,7 @@ export function ReviewPane({
   const searchRef = useRef<HTMLInputElement>(null);
   const pageRef = useRef(rawPage);
   const navigatedRef = useRef(false);
+  const textPaneRef = useRef<HTMLDivElement>(null);
   const deferredQuery = useDeferredValue(query);
 
   const total = Math.max(document.pageCount, document.pages.length, 1);
@@ -205,6 +213,30 @@ export function ReviewPane({
   useEffect(() => {
     if (isOfficeSource && paneSolo === null) setPaneSolo("md");
   }, [document.id, isOfficeSource]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /**
+   * Широкие таблицы расшифровки уезжают за край панели, а полоса прокрутки
+   * оказывается под текстом — до неё не докрутиться. Двигаем текст в сторону
+   * колесом: Shift + колесо и горизонталь трекпада, как на чертеже.
+   */
+  useEffect(() => {
+    const pane = textPaneRef.current;
+    if (!pane) return;
+    const onWheel = (event: WheelEvent) => {
+      const dx = event.shiftKey && event.deltaX === 0 ? event.deltaY : event.deltaX;
+      if (!dx) return;
+      let target: HTMLElement | null = event.target as HTMLElement | null;
+      while (target && target !== pane && !canScrollX(target)) {
+        target = target.parentElement;
+      }
+      const scroller = target && canScrollX(target) ? target : canScrollX(pane) ? pane : null;
+      if (!scroller) return;
+      event.preventDefault();
+      scroller.scrollLeft += dx;
+    };
+    pane.addEventListener("wheel", onWheel, { passive: false });
+    return () => pane.removeEventListener("wheel", onWheel);
+  }, [paneSolo]);
   const processing =
     document.status === "queued" || document.status === "processing";
   const cancelPending = Boolean(document.errorMessage?.startsWith("Отмена"));
@@ -1427,7 +1459,7 @@ export function ReviewPane({
               </div>
             ) : null}
 
-            <div className="min-h-0 flex-1 overflow-auto">
+            <div ref={textPaneRef} className="min-h-0 flex-1 overflow-auto">
               {filterEmpty ? (
                 <div className="p-6 text-sm text-muted">
                   {filter === "flagged"
