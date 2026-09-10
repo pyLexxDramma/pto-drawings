@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { SegmentedTabs, Spinner } from "@/components/ui-chrome";
+import { Spinner } from "@/components/ui-chrome";
 import {
   bboxSize,
   cadTextLines,
@@ -16,6 +16,7 @@ import {
   regionAtPoint,
   type PageTextRegion,
 } from "@/lib/content-sync";
+import { highlightNeedles } from "@/lib/highlight-text";
 import { clampPan } from "@/lib/page-viewport";
 import type { AnnotationRect, PageAnnotation } from "@/types";
 
@@ -29,12 +30,17 @@ type CadPageProps = {
   highlightQuery?: string;
   highlightRegion?: PageTextRegion | null;
   panToHighlight?: boolean;
+  remarkFocus?: boolean;
   hoverRegions?: PageTextRegion[];
   onHoverRegion?: (regionId: string | null) => void;
   onSelectRegion?: (regionId: string | null) => void;
   onMarkRect?: (rect: AnnotationRect) => void;
   onSelectAnnotation?: (id: string) => void;
   onCancelMark?: () => void;
+  onPrevPage?: () => void;
+  onNextPage?: () => void;
+  canPrevPage?: boolean;
+  canNextPage?: boolean;
 };
 
 type DrawState = { x0: number; y0: number; x1: number; y1: number };
@@ -64,12 +70,17 @@ export function CadPage({
   highlightQuery = "",
   highlightRegion = null,
   panToHighlight = false,
+  remarkFocus = false,
   hoverRegions = [],
   onHoverRegion,
   onSelectRegion,
   onMarkRect,
   onSelectAnnotation,
   onCancelMark,
+  onPrevPage,
+  onNextPage,
+  canPrevPage = false,
+  canNextPage = false,
 }: CadPageProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const clickRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
@@ -433,13 +444,18 @@ export function CadPage({
     [geometry],
   );
 
-  const needle = highlightQuery.trim().toLowerCase();
+  const needles = useMemo(
+    () => highlightNeedles(highlightQuery),
+    [highlightQuery],
+  );
   const searchHits = useMemo(() => {
-    if (!geometry || needle.length < 2) return [];
+    if (!geometry || needles.length === 0) return [];
     const hits: { x: number; y: number; w: number; h: number }[] = [];
     const size = bboxSize(geometry.bbox);
     for (const t of texts) {
-      if (!t.text?.toLowerCase().includes(needle)) continue;
+      if (!t.text) continue;
+      const hay = t.text.toLowerCase().replace(/\s+/g, " ");
+      if (!needles.some((needle) => hay.includes(needle))) continue;
       if (t.points.length < 2) continue;
       const origin = sheetToNorm(t.points[0], t.points[1], geometry.bbox);
       const th = Math.max(0.008, (t.size ?? 2.5) / size.h);
@@ -455,7 +471,7 @@ export function CadPage({
       });
     }
     return hits;
-  }, [geometry, needle, texts]);
+  }, [geometry, needles, texts]);
 
   useEffect(() => {
     if (!panToHighlight || highlightRegion || searchHits.length === 0) return;
@@ -661,8 +677,10 @@ export function CadPage({
                   const lines = cadTextLines(t.text);
                   const size = t.size ?? 2.5;
                   const matched =
-                    needle.length >= 2 &&
-                    t.text.toLowerCase().includes(needle);
+                    needles.length > 0 &&
+                    needles.some((n) =>
+                      t.text!.toLowerCase().replace(/\s+/g, " ").includes(n),
+                    );
                   return (
                     <text
                       key={`t-${index}`}
@@ -712,10 +730,34 @@ export function CadPage({
                 }}
               />
             ) : null}
+            {remarkFocus && searchHits.length > 0
+              ? (() => {
+                  const x0 = Math.min(...searchHits.map((h) => h.x));
+                  const y0 = Math.min(...searchHits.map((h) => h.y));
+                  const x1 = Math.max(...searchHits.map((h) => h.x + h.w));
+                  const y1 = Math.max(...searchHits.map((h) => h.y + h.h));
+                  const pad = 0.006;
+                  return (
+                    <div
+                      className="pointer-events-none absolute z-[6] pto-remark-zone"
+                      style={{
+                        left: `${Math.max(0, x0 - pad) * 100}%`,
+                        top: `${Math.max(0, y0 - pad) * 100}%`,
+                        width: `${Math.min(1, x1 - x0 + pad * 2) * 100}%`,
+                        height: `${Math.min(1, y1 - y0 + pad * 2) * 100}%`,
+                      }}
+                    />
+                  );
+                })()
+              : null}
             {searchHits.map((hit, index) => (
               <div
                 key={`q-${index}`}
-                className="pointer-events-none absolute bg-amber-300/45 outline outline-1 outline-amber-500/80"
+                className={
+                  remarkFocus
+                    ? "pointer-events-none absolute z-[7] pto-remark-zone"
+                    : "pointer-events-none absolute bg-amber-300/45 outline outline-1 outline-amber-500/80"
+                }
                 style={{
                   left: `${hit.x * 100}%`,
                   top: `${hit.y * 100}%`,
@@ -798,18 +840,37 @@ export function CadPage({
 
       <div
         onMouseDown={(event) => event.stopPropagation()}
-        className="absolute bottom-2 right-2 z-30 flex items-center gap-1.5 rounded-md border border-border bg-white/90 px-1.5 py-1 opacity-0 shadow-sm backdrop-blur transition-opacity focus-within:opacity-100 hover:opacity-100 group-hover:opacity-100"
+        className="absolute bottom-2 right-2 z-30 flex items-center gap-1.5 rounded-md border border-border bg-white/95 px-1.5 py-1 shadow-sm backdrop-blur"
       >
-        <SegmentedTabs
-          size="xs"
-          value={fitMode}
-          onChange={(mode) => fit(mode)}
-          options={[
-            { id: "page", label: "Страница" },
-            { id: "width", label: "По ширине" },
-          ]}
-        />
-        <div className="flex items-center gap-0.5 border-l border-border pl-1.5">
+        {onPrevPage || onNextPage ? (
+          <div className="flex items-center">
+            <button
+              type="button"
+              title="Предыдущий лист (K / ←)"
+              aria-label="Предыдущий лист"
+              onClick={() => onPrevPage?.()}
+              disabled={!canPrevPage}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-l text-sm text-text hover:bg-bg disabled:cursor-default disabled:opacity-40"
+            >
+              ←
+            </button>
+            <button
+              type="button"
+              title="Следующий лист (J / → / пробел)"
+              aria-label="Следующий лист"
+              onClick={() => onNextPage?.()}
+              disabled={!canNextPage}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-r border-l border-border text-sm text-text hover:bg-bg disabled:cursor-default disabled:opacity-40"
+            >
+              →
+            </button>
+          </div>
+        ) : null}
+        <div
+          className={`flex items-center gap-0.5 ${
+            onPrevPage || onNextPage ? "border-l border-border pl-1.5" : ""
+          }`}
+        >
           <button
             type="button"
             title="Отдалить"

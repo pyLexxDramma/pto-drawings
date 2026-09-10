@@ -388,6 +388,9 @@ export function ReviewPane({
     const cut = raw.slice(0, 56).replace(/\s+\S*$/, "");
     return cut.length >= 2 ? cut : raw.slice(0, 40);
   })();
+  /** В расшифровке — полная цитата (мигание всех вхождений). */
+  const textHighlightQuery =
+    focusQuote.trim().length >= 2 ? focusQuote.trim() : deferredQuery;
   const focusDrawing = focusQuote.trim().length >= 2;
   const activeNoteId = hoverNoteId;
   const viewingProcessedSheet =
@@ -513,6 +516,15 @@ export function ReviewPane({
     const target = visiblePages[index + delta] ?? fallback;
     if (target) void goToPage(target);
   }
+
+  const canPrevPage = visiblePages[0] !== pageNumber;
+  const canNextPage = visiblePages[visiblePages.length - 1] !== pageNumber;
+  const pageNav = {
+    onPrevPage: () => stepVisible(-1),
+    onNextPage: () => stepVisible(1),
+    canPrevPage,
+    canNextPage,
+  };
 
   function openSearch() {
     setSidePanel("text");
@@ -1055,61 +1067,49 @@ export function ReviewPane({
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
-          {!isOfficeSource ? (
-            <SegmentedTabs
-              size="xs"
-              value={paneSolo === null ? "split" : paneSolo}
-              onChange={(value) => {
-                if (value === "split") setPaneSolo(null);
-                else setPaneSolo(value as "pdf" | "md");
-              }}
-              options={[
-                { id: "split", label: "Оба", title: "Чертёж и текст (F)" },
-                { id: "pdf", label: "Чертёж", title: "Только чертёж" },
-                { id: "md", label: "Текст", title: "Только текст" },
-              ]}
-            />
-          ) : null}
-          {paneSolo !== null && !isOfficeSource ? (
-            <button
-              type="button"
-              onClick={() => setPaneSolo(null)}
-              title="Вернуть обычный вид: чертёж и текст (Esc)"
-              className="rounded-md border border-border bg-bg px-2 py-1 text-[11px] font-medium text-text hover:border-accent hover:bg-white"
-            >
-              Обычный вид
-            </button>
-          ) : null}
-          <div className="flex items-center rounded-md border border-slate-300 bg-white shadow-sm">
-            <button
-              type="button"
-              title="Предыдущий лист (K / ←)"
-              onClick={() => stepVisible(-1)}
-              disabled={visiblePages[0] === pageNumber}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-l-md text-text hover:bg-slate-50 disabled:cursor-default disabled:opacity-40"
-            >
-              ←
-            </button>
-            <button
-              type="button"
-              title="Следующий лист (J / → / пробел)"
-              onClick={() => stepVisible(1)}
-              disabled={visiblePages[visiblePages.length - 1] === pageNumber}
-              className="inline-flex h-8 w-8 items-center justify-center border-l border-slate-300 text-text hover:bg-slate-50 disabled:cursor-default disabled:opacity-40"
-            >
-              →
-            </button>
+          {isOfficeSource ? (
+            <div className="flex items-center rounded-md border border-slate-300 bg-white shadow-sm">
+              <button
+                type="button"
+                title="Предыдущий лист (K / ←)"
+                onClick={() => stepVisible(-1)}
+                disabled={visiblePages[0] === pageNumber}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-l-md text-text hover:bg-slate-50 disabled:cursor-default disabled:opacity-40"
+              >
+                ←
+              </button>
+              <button
+                type="button"
+                title="Следующий лист (J / → / пробел)"
+                onClick={() => stepVisible(1)}
+                disabled={visiblePages[visiblePages.length - 1] === pageNumber}
+                className="inline-flex h-8 w-8 items-center justify-center border-l border-slate-300 text-text hover:bg-slate-50 disabled:cursor-default disabled:opacity-40"
+              >
+                →
+              </button>
+              <button
+                type="button"
+                title={searchOpen ? "Закрыть поиск (Esc)" : "Поиск по файлу (/ или Ctrl+F)"}
+                onClick={() => (searchOpen ? closeSearch() : openSearch())}
+                className={`inline-flex h-8 w-8 items-center justify-center rounded-r-md border-l border-slate-300 hover:bg-slate-50 ${
+                  searchOpen ? "bg-sky-50 text-sky-900" : "text-text"
+                }`}
+              >
+                <IconSearch className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ) : (
             <button
               type="button"
               title={searchOpen ? "Закрыть поиск (Esc)" : "Поиск по файлу (/ или Ctrl+F)"}
               onClick={() => (searchOpen ? closeSearch() : openSearch())}
-              className={`inline-flex h-8 w-8 items-center justify-center rounded-r-md border-l border-slate-300 hover:bg-slate-50 ${
+              className={`inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white shadow-sm hover:bg-slate-50 ${
                 searchOpen ? "bg-sky-50 text-sky-900" : "text-text"
               }`}
             >
               <IconSearch className="h-3.5 w-3.5" />
             </button>
-          </div>
+          )}
           <button
             type="button"
             title={
@@ -1241,7 +1241,9 @@ export function ReviewPane({
                   activeAnnotationId={activeNoteId}
                   highlightQuery={drawingHighlightQuery}
                   panToHighlight={focusDrawing}
+                  remarkFocus={focusDrawing}
                   highlightNonce={focusNonce}
+                  {...pageNav}
                   onMarkRect={(rect) => setPendingRect(rect)}
                   onSelectAnnotation={(id) => setHoverNoteId(id)}
                   onCancelMark={() => {
@@ -1259,7 +1261,9 @@ export function ReviewPane({
                   activeAnnotationId={activeNoteId}
                   highlightQuery={drawingHighlightQuery}
                   panToHighlight={focusDrawing}
+                  remarkFocus={focusDrawing}
                   highlightNonce={focusNonce}
+                  {...pageNav}
                   onMarkRect={(rect) => setPendingRect(rect)}
                   onSelectAnnotation={(id) => setHoverNoteId(id)}
                   onCancelMark={() => {
@@ -1276,7 +1280,9 @@ export function ReviewPane({
                   activeAnnotationId={activeNoteId}
                   highlightQuery={drawingHighlightQuery}
                   panToHighlight={focusDrawing}
+                  remarkFocus={focusDrawing}
                   highlightNonce={focusNonce}
+                  {...pageNav}
                   onMarkRect={(rect) => setPendingRect(rect)}
                   onSelectAnnotation={(id) => setHoverNoteId(id)}
                   onCancelMark={() => {
@@ -1302,7 +1308,9 @@ export function ReviewPane({
                   activeAnnotationId={activeNoteId}
                   highlightQuery={drawingHighlightQuery}
                   panToHighlight={focusDrawing}
+                  remarkFocus={focusDrawing}
                   highlightNonce={focusNonce}
+                  {...pageNav}
                   onMarkRect={(rect) => setPendingRect(rect)}
                   onSelectAnnotation={(id) => setHoverNoteId(id)}
                   onCancelMark={() => {
@@ -1521,7 +1529,7 @@ export function ReviewPane({
                   ) : null}
                   <MarkdownView
                     singlePass={page.kind === "table"}
-                    highlightQuery={drawingHighlightQuery}
+                    highlightQuery={textHighlightQuery}
                     focusFirst={focusDrawing}
                     flagQuotes={pageReviewQuotes}
                   >

@@ -33,13 +33,19 @@ function wrapText(
   focusState: FocusHighlightState | null,
   extra?: Record<string, unknown>,
 ) {
-  const flagged = flagQuotes.length ? flagNodes(children, flagQuotes) : children;
-  const body =
+  // Сначала якорь замечания (мигание), потом остальные цитаты листа.
+  const highlighted =
     highlightQuery && focusState
-      ? highlightNodesShared(flagged, highlightQuery, focusState)
+      ? highlightNodesShared(children, highlightQuery, focusState)
       : highlightQuery
-        ? highlightNodesShared(flagged, highlightQuery, { focusLeft: false })
-        : flagged;
+        ? highlightNodesShared(children, highlightQuery, {
+            focusStyle: false,
+            anchorLeft: false,
+          })
+        : children;
+  const body = flagQuotes.length
+    ? flagNodes(highlighted, flagQuotes)
+    : highlighted;
   return <Tag {...extra}>{body}</Tag>;
 }
 
@@ -87,9 +93,9 @@ export function MarkdownView({
     [children, singlePass],
   );
   const q = highlightQuery.trim().length >= 2 ? highlightQuery : "";
-  // Новый state на каждый render: highlightNodes сбрасывает focusLeft при обходе.
+  // Новый state на каждый render: highlightNodes сбрасывает anchor при обходе.
   const focusState: FocusHighlightState | null =
-    focusFirst && q ? { focusLeft: true } : null;
+    focusFirst && q ? { focusStyle: true, anchorLeft: true } : null;
 
   if (!blocks.length) {
     return (

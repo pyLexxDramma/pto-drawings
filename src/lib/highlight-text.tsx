@@ -1,8 +1,33 @@
-import { Fragment, type ReactNode } from "react";
+import {
+  cloneElement,
+  Fragment,
+  isValidElement,
+  type ReactElement,
+  type ReactNode,
+} from "react";
+
+/** Варианты строки для поиска на чертеже (длинная цитата → короче). */
+export function highlightNeedles(query: string): string[] {
+  const raw = query.trim().toLowerCase().replace(/\s+/g, " ");
+  if (raw.length < 2) return [];
+  const needles = [raw];
+  if (raw.length > 48) {
+    const cut = raw.slice(0, 48).replace(/\s+\S*$/, "");
+    if (cut.length >= 2) needles.push(cut);
+  }
+  const words = raw.split(" ").filter((word) => word.length >= 3);
+  for (let n = Math.min(4, words.length); n >= 1; n -= 1) {
+    const part = words.slice(0, n).join(" ");
+    if (part.length >= 3) needles.push(part);
+  }
+  return [...new Set(needles)].sort((a, b) => b.length - a.length);
+}
 
 type HighlightOpts = {
-  /** Первое совпадение — якорь для scrollIntoView (Где в ПД). */
-  focusFirst?: boolean;
+  /** Все совпадения — стиль замечания (мигание). */
+  focusStyle?: boolean;
+  /** Первое совпадение в этом фрагменте — якорь scroll. */
+  placeAnchor?: boolean;
 };
 
 /** Разбивает строку и оборачивает вхождения query в <mark>. */
@@ -19,18 +44,20 @@ export function highlightPlain(
   let start = 0;
   let index = lower.indexOf(q, start);
   let key = 0;
+  let anchorPlaced = false;
   while (index >= 0) {
     if (index > start) parts.push(text.slice(start, index));
-    const focused = Boolean(opts?.focusFirst && key === 0);
+    const isAnchor = Boolean(opts?.placeAnchor && !anchorPlaced && key === 0);
+    if (isAnchor) anchorPlaced = true;
     parts.push(
       <mark
         key={`h-${key++}`}
         className={
-          focused
-            ? "rounded-[2px] bg-sky-200 px-0.5 text-inherit ring-2 ring-sky-400"
+          opts?.focusStyle
+            ? "pto-remark-text"
             : "rounded-[2px] bg-amber-200 px-0.5 text-inherit"
         }
-        {...(focused ? { "data-focus-quote": "" } : {})}
+        {...(isAnchor ? { "data-focus-quote": "" } : {})}
       >
         {text.slice(index, index + needle.length)}
       </mark>,
@@ -62,7 +89,6 @@ function flagPlain(text: string, terms: string[]): ReactNode {
     for (const term of terms) {
       const index = lower.indexOf(term, start);
       if (index < 0) continue;
-      // Самое раннее вхождение, при равенстве — самое длинное.
       if (at < 0 || index < at || (index === at && term.length > length)) {
         at = index;
         length = term.length;
@@ -83,34 +109,63 @@ function flagPlain(text: string, terms: string[]): ReactNode {
   return <Fragment>{parts}</Fragment>;
 }
 
+function mapElementChildren(
+  element: ReactElement<{ children?: ReactNode }>,
+  map: (child: ReactNode) => ReactNode,
+): ReactNode {
+  if (element.props.children === undefined) return element;
+  return cloneElement(element, {
+    ...element.props,
+    children: map(element.props.children),
+  });
+}
+
 /** Те же цитаты, но по дереву узлов react-markdown. */
 export function flagNodes(children: ReactNode, quotes: string[]): ReactNode {
   const terms = quotes
     .map((quote) => quote.trim().toLowerCase())
     .filter((quote) => quote.length >= 3);
   if (terms.length === 0) return children;
+  return flagNodesInner(children, terms);
+}
+
+function flagNodesInner(children: ReactNode, terms: string[]): ReactNode {
   if (typeof children === "string" || typeof children === "number") {
     return flagPlain(String(children), terms);
   }
   if (Array.isArray(children)) {
     return children.map((child, index) => (
-      <Fragment key={index}>{flagNodes(child, terms)}</Fragment>
+      <Fragment key={index}>{flagNodesInner(child, terms)}</Fragment>
     ));
+  }
+  if (isValidElement(children)) {
+    return mapElementChildren(
+      children as ReactElement<{ children?: ReactNode }>,
+      (inner) => flagNodesInner(inner, terms),
+    );
   }
   return children;
 }
 
-export type FocusHighlightState = { focusLeft: boolean };
+export type FocusHighlightState = {
+  /** Режим «Где в ПД» — все совпадения мигают красным. */
+  focusStyle: boolean;
+  /** Ещё не поставили data-focus-quote. */
+  anchorLeft: boolean;
+};
 
 /** Рекурсивно подсвечивает текстовые узлы в children react-markdown. */
 export function highlightNodes(
   children: ReactNode,
   query: string,
-  opts?: HighlightOpts,
+  opts?: { focusFirst?: boolean },
 ): ReactNode {
   const needle = query.trim();
   if (needle.length < 2) return children;
-  const state: FocusHighlightState = { focusLeft: Boolean(opts?.focusFirst) };
+  const state: FocusHighlightState = {
+    focusStyle: Boolean(opts?.focusFirst),
+    anchorLeft: Boolean(opts?.focusFirst),
+  };
   return highlightNodesInner(children, needle, state);
 }
 
@@ -132,16 +187,28 @@ function highlightNodesInner(
 ): ReactNode {
   if (typeof children === "string" || typeof children === "number") {
     const text = String(children);
-    const focusFirst = state.focusLeft;
-    if (focusFirst && text.toLowerCase().includes(needle.toLowerCase())) {
-      state.focusLeft = false;
+    const placeAnchor = state.anchorLeft;
+    if (
+      placeAnchor &&
+      text.toLowerCase().includes(needle.toLowerCase())
+    ) {
+      state.anchorLeft = false;
     }
-    return highlightPlain(text, needle, focusFirst ? { focusFirst: true } : undefined);
+    return highlightPlain(text, needle, {
+      focusStyle: state.focusStyle,
+      placeAnchor,
+    });
   }
   if (Array.isArray(children)) {
     return children.map((child, index) => (
       <Fragment key={index}>{highlightNodesInner(child, needle, state)}</Fragment>
     ));
+  }
+  if (isValidElement(children)) {
+    return mapElementChildren(
+      children as ReactElement<{ children?: ReactNode }>,
+      (inner) => highlightNodesInner(inner, needle, state),
+    );
   }
   return children;
 }
