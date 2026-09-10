@@ -213,9 +213,8 @@ export function ReviewPane({
   }, [document.id, isOfficeSource]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /**
-   * Широкие таблицы расшифровки уезжают за край панели, а полоса прокрутки
-   * оказывается под текстом — до неё не докрутиться. Двигаем текст в сторону
-   * колесом: Shift + колесо и горизонталь трекпада, как на чертеже.
+   * Широкие таблицы: горизонтальный скролл на панели (полоса внизу окна),
+   * не внизу всего текста. Shift/трекпад — влево-вправо.
    */
   useEffect(() => {
     const pane = textPaneRef.current;
@@ -223,18 +222,13 @@ export function ReviewPane({
     const onWheel = (event: WheelEvent) => {
       const dx = event.shiftKey && event.deltaX === 0 ? event.deltaY : event.deltaX;
       if (!dx) return;
-      let target: HTMLElement | null = event.target as HTMLElement | null;
-      while (target && target !== pane && !canScrollX(target)) {
-        target = target.parentElement;
-      }
-      const scroller = target && canScrollX(target) ? target : canScrollX(pane) ? pane : null;
-      if (!scroller) return;
+      if (!canScrollX(pane)) return;
       event.preventDefault();
-      scroller.scrollLeft += dx;
+      pane.scrollLeft += dx;
     };
     pane.addEventListener("wheel", onWheel, { passive: false });
     return () => pane.removeEventListener("wheel", onWheel);
-  }, [paneSolo]);
+  }, [paneSolo, document.id]);
   const processing =
     document.status === "queued" || document.status === "processing";
   const cancelPending = Boolean(document.errorMessage?.startsWith("Отмена"));
@@ -1461,7 +1455,10 @@ export function ReviewPane({
               </div>
             ) : null}
 
-            <div ref={textPaneRef} className="min-h-0 flex-1 overflow-auto">
+            <div
+              ref={textPaneRef}
+              className="min-h-0 flex-1 overflow-x-scroll overflow-y-auto [scrollbar-gutter:stable]"
+            >
               {filterEmpty ? (
                 <div className="p-6 text-sm text-muted">
                   {filter === "flagged"

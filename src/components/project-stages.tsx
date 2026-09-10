@@ -119,7 +119,7 @@ function buildStages(
 }
 
 /**
- * Этапы + мелкие контролы. В шапке (embedded) растягивается на всю ширину.
+ * Только этапы: на всю ширину шапки от логотипа до «Новый проект» / Админ.
  */
 export function ProjectStagesBar({
   projectName,
@@ -128,10 +128,6 @@ export function ProjectStagesBar({
   reviews,
   reviewsOpen,
   onOpenStage,
-  showProjectsChrome,
-  projectsCollapsed,
-  onToggleProjects,
-  onNewProject,
   docOpen,
   docTitle,
   onBackHome,
@@ -144,14 +140,9 @@ export function ProjectStagesBar({
   reviews: ReviewStats | null;
   reviewsOpen: boolean;
   onOpenStage: (stage: StageId) => void;
-  showProjectsChrome?: boolean;
-  projectsCollapsed?: boolean;
-  onToggleProjects?: () => void;
-  onNewProject?: () => void;
   docOpen?: boolean;
   docTitle?: string | null;
   onBackHome?: () => void;
-  /** Подпись кнопки «назад»; если null — кнопки нет. */
   backLabel?: string | null;
   embedded?: boolean;
 }) {
@@ -169,13 +160,13 @@ export function ProjectStagesBar({
       }`}
     >
       <span
-        className="hidden max-w-[9rem] shrink-0 truncate text-[10px] font-medium uppercase tracking-wide text-muted 2xl:inline"
+        className="hidden max-w-[8rem] shrink-0 truncate text-[10px] font-medium uppercase tracking-wide text-muted xl:inline"
         title={projectName}
       >
         {projectName}
       </span>
 
-      <div className="flex min-w-0 flex-[2] items-stretch gap-2">
+      <div className="flex min-w-0 flex-1 items-stretch gap-2">
         {stages.map((stage) => {
           const current =
             (stage.id === "reviews" && reviewsOpen) ||
@@ -216,61 +207,25 @@ export function ProjectStagesBar({
         })}
       </div>
 
-      <div className="hidden h-8 w-px shrink-0 bg-border sm:block" />
+      {backLabel && onBackHome ? (
+        <button
+          type="button"
+          onClick={onBackHome}
+          title={backLabel}
+          className="shrink-0 rounded border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-950 hover:bg-amber-100"
+        >
+          {backLabel}
+        </button>
+      ) : null}
 
-      <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
-        {showProjectsChrome ? (
-          <>
-            <button
-              type="button"
-              onClick={onToggleProjects}
-              title={projectsCollapsed ? "Показать проекты" : "Скрыть проекты"}
-              className="shrink-0 rounded border border-violet-300 bg-violet-50 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-violet-900 hover:bg-violet-100"
-            >
-              Проекты
-            </button>
-            {onNewProject ? (
-              <button
-                type="button"
-                onClick={onNewProject}
-                title="Новый проект"
-                className="shrink-0 rounded border border-fuchsia-300 bg-fuchsia-50 px-2 py-1 text-[11px] font-semibold text-fuchsia-900 hover:bg-fuchsia-100"
-              >
-                +
-              </button>
-            ) : null}
-            {onToggleProjects ? (
-              <button
-                type="button"
-                onClick={onToggleProjects}
-                className="shrink-0 rounded border border-slate-300 bg-slate-50 px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-100"
-              >
-                {projectsCollapsed ? "Показать" : "Скрыть"}
-              </button>
-            ) : null}
-          </>
-        ) : null}
-
-        {backLabel && onBackHome ? (
-          <button
-            type="button"
-            onClick={onBackHome}
-            title={backLabel}
-            className="shrink-0 rounded border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-950 hover:bg-amber-100"
-          >
-            {backLabel}
-          </button>
-        ) : null}
-
-        {docTitle ? (
-          <span
-            className="min-w-0 truncate rounded border border-sky-200 bg-sky-50 px-2 py-1 text-[11px] font-medium text-sky-950"
-            title={docTitle}
-          >
-            {docTitle}
-          </span>
-        ) : null}
-      </div>
+      {docTitle ? (
+        <span
+          className="hidden max-w-[10rem] shrink truncate rounded border border-sky-200 bg-sky-50 px-2 py-1 text-[11px] font-medium text-sky-950 lg:inline"
+          title={docTitle}
+        >
+          {docTitle}
+        </span>
+      ) : null}
 
       {busy ? <Spinner className="h-3.5 w-3.5 shrink-0 text-sky-700" /> : null}
     </div>

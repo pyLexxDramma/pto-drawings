@@ -41,9 +41,10 @@ body {
   color: var(--text);
   font-size: 14px;
   line-height: 1.65;
-  overflow-x: auto;
-  /* Полоса видна сразу: иначе широкую таблицу некуда крутить. */
-  scrollbar-gutter: stable;
+  /* Ширину задаёт контент — крутит родительская панель, полоса всегда внизу окна. */
+  width: max-content;
+  min-width: 100%;
+  overflow-x: visible;
 }
 
 .markdown-body h1,
@@ -98,11 +99,17 @@ body {
 }
 
 .markdown-body--table {
-  overflow-x: auto;
+  overflow-x: visible;
 }
 
 .markdown-body--table table {
   table-layout: auto;
+}
+
+.markdown-body pre {
+  width: max-content;
+  max-width: none;
+  overflow: visible;
 }
 
 .markdown-body th,

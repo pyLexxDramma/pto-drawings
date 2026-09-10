@@ -1555,10 +1555,6 @@ export function Workspace({
               reviews={reviewStats}
               reviewsOpen={showReviews}
               onOpenStage={openStage}
-              showProjectsChrome={!showReviews}
-              projectsCollapsed={projectsCollapsed}
-              onToggleProjects={() => setProjectsCollapsed((value) => !value)}
-              onNewProject={() => setShowNewProject((value) => !value)}
               docOpen={Boolean(selected) && !showReviews}
               docTitle={
                 selected && !showReviews ? selected.originalName : null
@@ -1590,6 +1586,20 @@ export function Workspace({
                 <span className="truncate">{visibleQueueChip.text}</span>
               </div>
             ) : null}
+            <button
+              type="button"
+              onClick={() => {
+                setProjectsCollapsed(false);
+                setShowNewProject(true);
+              }}
+              title="Создать новый проект"
+              className="inline-flex items-center gap-1 rounded-md border border-fuchsia-300 bg-fuchsia-50 px-2 py-1.5 text-[11px] font-semibold text-fuchsia-950 hover:bg-fuchsia-100"
+            >
+              <span aria-hidden className="text-sm leading-none">
+                +
+              </span>
+              <span className="hidden sm:inline">Новый проект</span>
+            </button>
             <UserMenu
               accent
               user={user}
