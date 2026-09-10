@@ -17,6 +17,7 @@ import {
   type PageTextRegion,
 } from "@/lib/content-sync";
 import { highlightNeedles } from "@/lib/highlight-text";
+import { normalizeQuote } from "@/lib/remark-jump";
 import { clampPan } from "@/lib/page-viewport";
 import type { AnnotationRect, PageAnnotation } from "@/types";
 
@@ -454,7 +455,7 @@ export function CadPage({
     const size = bboxSize(geometry.bbox);
     for (const t of texts) {
       if (!t.text) continue;
-      const hay = t.text.toLowerCase().replace(/\s+/g, " ");
+      const hay = normalizeQuote(t.text);
       if (!needles.some((needle) => hay.includes(needle))) continue;
       if (t.points.length < 2) continue;
       const origin = sheetToNorm(t.points[0], t.points[1], geometry.bbox);
@@ -678,9 +679,7 @@ export function CadPage({
                   const size = t.size ?? 2.5;
                   const matched =
                     needles.length > 0 &&
-                    needles.some((n) =>
-                      t.text!.toLowerCase().replace(/\s+/g, " ").includes(n),
-                    );
+                    needles.some((n) => normalizeQuote(t.text!).includes(n));
                   return (
                     <text
                       key={`t-${index}`}

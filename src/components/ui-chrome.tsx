@@ -17,10 +17,15 @@ export function ProgressTrack({
   className = "h-1.5",
 }: {
   value: number;
-  tone?: "accent" | "sky";
+  tone?: "accent" | "sky" | "emerald";
   className?: string;
 }) {
-  const bar = tone === "sky" ? "bg-sky-500" : "bg-accent";
+  const bar =
+    tone === "sky"
+      ? "bg-sky-500"
+      : tone === "emerald"
+        ? "bg-emerald-500"
+        : "bg-accent";
   return (
     <div className={`pto-progress overflow-hidden rounded-full bg-white/80 ${className}`}>
       <div

@@ -6,6 +6,7 @@ import {
   type PageTextRegion,
 } from "@/lib/content-sync";
 import { highlightNeedles } from "@/lib/highlight-text";
+import { normalizeQuote } from "@/lib/remark-jump";
 import { clampPan } from "@/lib/page-viewport";
 import { getPageView, setPageView } from "@/lib/review-view-cache";
 import type { AnnotationRect, PageAnnotation } from "@/types";
@@ -269,7 +270,7 @@ export function PdfPage({
     const vt = viewport.transform;
     for (const item of items) {
       if (!item.str) continue;
-      const hay = item.str.toLowerCase().replace(/\s+/g, " ");
+      const hay = normalizeQuote(item.str);
       if (!needles.some((needle) => hay.includes(needle))) continue;
       const t = item.transform;
       if (!t) continue;

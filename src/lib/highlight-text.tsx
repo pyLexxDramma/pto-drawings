@@ -5,10 +5,11 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
+import { normalizeQuote } from "@/lib/remark-jump";
 
 /** Варианты строки для поиска на чертеже (длинная цитата → короче). */
 export function highlightNeedles(query: string): string[] {
-  const raw = query.trim().toLowerCase().replace(/\s+/g, " ");
+  const raw = normalizeQuote(query);
   if (raw.length < 2) return [];
   const needles = [raw];
   if (raw.length > 48) {
@@ -21,6 +22,38 @@ export function highlightNeedles(query: string): string[] {
     if (part.length >= 3) needles.push(part);
   }
   return [...new Set(needles)].sort((a, b) => b.length - a.length);
+}
+
+/** Находит вхождения needle в text с гибкими пробелами; индексы — в исходном text. */
+export function findQuoteRanges(
+  text: string,
+  query: string,
+): { index: number; length: number }[] {
+  const needle = normalizeQuote(query);
+  if (needle.length < 2 || !text) return [];
+  const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = escaped.replace(/\s+/g, "\\s+");
+  const re = new RegExp(pattern, "gi");
+  const ranges: { index: number; length: number }[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(text)) !== null) {
+    ranges.push({ index: match.index, length: match[0].length });
+    if (match[0].length === 0) re.lastIndex += 1;
+  }
+  if (ranges.length > 0) return ranges;
+  // fallback: прямое вхождение нормализованного куска в lower text
+  const lower = text.toLowerCase();
+  const plain = query.trim().toLowerCase();
+  if (plain.length >= 2) {
+    let start = 0;
+    let index = lower.indexOf(plain, start);
+    while (index >= 0) {
+      ranges.push({ index, length: plain.length });
+      start = index + plain.length;
+      index = lower.indexOf(plain, start);
+    }
+  }
+  return ranges;
 }
 
 type HighlightOpts = {
@@ -36,18 +69,15 @@ export function highlightPlain(
   query: string,
   opts?: HighlightOpts,
 ): ReactNode {
-  const needle = query.trim();
-  if (needle.length < 2 || !text) return text;
-  const lower = text.toLowerCase();
-  const q = needle.toLowerCase();
+  const ranges = findQuoteRanges(text, query);
+  if (ranges.length === 0) return text;
   const parts: ReactNode[] = [];
   let start = 0;
-  let index = lower.indexOf(q, start);
   let key = 0;
   let anchorPlaced = false;
-  while (index >= 0) {
-    if (index > start) parts.push(text.slice(start, index));
-    const isAnchor = Boolean(opts?.placeAnchor && !anchorPlaced && key === 0);
+  for (const range of ranges) {
+    if (range.index > start) parts.push(text.slice(start, range.index));
+    const isAnchor = Boolean(opts?.placeAnchor && !anchorPlaced);
     if (isAnchor) anchorPlaced = true;
     parts.push(
       <mark
@@ -59,11 +89,10 @@ export function highlightPlain(
         }
         {...(isAnchor ? { "data-focus-quote": "" } : {})}
       >
-        {text.slice(index, index + needle.length)}
+        {text.slice(range.index, range.index + range.length)}
       </mark>,
     );
-    start = index + needle.length;
-    index = lower.indexOf(q, start);
+    start = range.index + range.length;
   }
   if (start < text.length) parts.push(text.slice(start));
   return parts.length === 1 ? parts[0] : <Fragment>{parts}</Fragment>;
@@ -188,10 +217,7 @@ function highlightNodesInner(
   if (typeof children === "string" || typeof children === "number") {
     const text = String(children);
     const placeAnchor = state.anchorLeft;
-    if (
-      placeAnchor &&
-      text.toLowerCase().includes(needle.toLowerCase())
-    ) {
+    if (placeAnchor && findQuoteRanges(text, needle).length > 0) {
       state.anchorLeft = false;
     }
     return highlightPlain(text, needle, {

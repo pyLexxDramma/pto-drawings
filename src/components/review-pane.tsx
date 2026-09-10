@@ -41,7 +41,6 @@ import {
 import {
   KIND_LABEL,
   REVIEW_SEVERITY_LABEL,
-  SOURCE_LABEL,
   type AnnotationRect,
   type DocumentRecord,
   type PageAnnotation,
@@ -459,15 +458,36 @@ export function ReviewPane({
     if (quote) setFocusNonce(Date.now());
   }, [document.id, openPage]);
 
-  // После отрисовки markdown — к цитате в расшифровке.
+  // Цитата из reviewId, если workspace ещё не дописал quote в openPage.
+  useEffect(() => {
+    if (focusQuote.trim().length >= 2) return;
+    const reviewId = openPage?.reviewId;
+    if (!reviewId || openPage.documentId !== document.id) return;
+    const review = reviews.find((item) => item.id === reviewId);
+    if (!review) return;
+    const location =
+      review.locations.find(
+        (item) =>
+          item.documentId === document.id &&
+          item.pageNumber === (openPage.page || pageNumber),
+      ) ??
+      review.locations.find((item) => item.documentId === document.id) ??
+      review.locations[0];
+    const quote = location?.quote?.trim() ?? "";
+    if (quote.length < 2) return;
+    setFocusQuote(quote);
+    setFocusNonce(Date.now());
+  }, [focusQuote, openPage, reviews, document.id, pageNumber]);
+
+  // После появления markdown / смены листа — к цитате в расшифровке.
   useEffect(() => {
     if (!focusQuote || focusNonce === 0) return;
     const timer = window.setTimeout(() => {
       const mark = textPaneRef.current?.querySelector("mark[data-focus-quote]");
       mark?.scrollIntoView({ block: "center", behavior: "smooth" });
-    }, 400);
+    }, 450);
     return () => window.clearTimeout(timer);
-  }, [focusQuote, focusNonce, pageNumber, document.id]);
+  }, [focusQuote, focusNonce, pageNumber, document.id, page?.markdown]);
 
   useEffect(() => {
     cacheProgress(document.id, { viewed, lastPage: pageNumber });
@@ -918,19 +938,8 @@ export function ReviewPane({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-border bg-white px-3">
-        <div className="flex shrink-0 items-center gap-1.5">
-          <button
-            type="button"
-            onClick={onBackToProjects}
-            title="На главную (Esc)"
-            className="flex items-center gap-1.5 rounded-md border border-border bg-bg px-2.5 py-1.5 text-xs font-semibold text-text hover:border-accent hover:bg-white"
-          >
-            <span aria-hidden className="text-sm leading-none text-accent">
-              ←
-            </span>
-            <span>На главную</span>
-          </button>
+      <div className="flex h-10 shrink-0 items-center justify-end gap-1.5 border-b border-border bg-white px-2">
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
           {liveProcessing && activeProcessingPage != null ? (
             <button
               type="button"
@@ -939,12 +948,9 @@ export function ReviewPane({
                 !onGoToLiveJob && pageNumber === activeProcessingPage && !progressExpanded
               }
               title="К текущему обрабатываемому листу"
-              className="rounded-md border border-sky-300 bg-sky-50 px-2.5 py-1.5 text-xs font-semibold text-sky-950 hover:bg-sky-100 disabled:cursor-default disabled:opacity-50"
+              className="shrink-0 rounded border border-sky-300 bg-sky-50 px-1.5 py-0.5 text-[10px] font-semibold text-sky-950 hover:bg-sky-100 disabled:cursor-default disabled:opacity-50"
             >
-              К обработке
-              <span className="ml-1 tabular-nums opacity-80">
-                · лист {activeProcessingPage}
-              </span>
+              К обработке · {activeProcessingPage}
             </button>
           ) : null}
           {onGoToLiveJob ? (
@@ -952,7 +958,7 @@ export function ReviewPane({
               type="button"
               onClick={onGoToLiveJob}
               title={liveJobLabel ?? "К текущей обработке"}
-              className="max-w-[14rem] truncate rounded-md border border-sky-300 bg-sky-50 px-2.5 py-1.5 text-xs font-semibold text-sky-950 hover:bg-sky-100"
+              className="max-w-[12rem] shrink-0 truncate rounded border border-sky-300 bg-sky-50 px-1.5 py-0.5 text-[10px] font-semibold text-sky-950 hover:bg-sky-100"
             >
               К обработке
               {liveJobLabel ? (
@@ -960,29 +966,20 @@ export function ReviewPane({
               ) : null}
             </button>
           ) : null}
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-semibold tracking-tight">
-            {document.originalName}
-            <span className="ml-2 font-normal text-muted">
-              · лист {pageNumber} из {total}
-            </span>
-          </div>
-          <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted">
-            <ActionMenu
-              label="Фильтр и список листов"
-              align="left"
-              menuClassName="top-full w-64"
-              trigger={
-                <>
-                  {page ? KIND_LABEL[page.kind] : "Страница"}
-                  {viewedSet.has(pageNumber) ? " · ✓" : ""}
-                  {openNotes ? ` · ${openNotes} зам.` : ""}
-                  <span aria-hidden> ▾</span>
-                </>
-              }
-              triggerClassName="-mx-1 shrink-0 rounded px-1 text-[11px] text-muted hover:bg-bg hover:text-text"
-            >
+          <ActionMenu
+            label="Фильтр и список листов"
+            align="left"
+            menuClassName="top-full w-64"
+            trigger={
+              <>
+                {page ? KIND_LABEL[page.kind] : "Страница"}
+                {viewedSet.has(pageNumber) ? " · ✓" : ""}
+                {openNotes ? ` · ${openNotes} зам.` : ""}
+                <span aria-hidden> ▾</span>
+              </>
+            }
+            triggerClassName="shrink-0 rounded border border-emerald-300 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-950 hover:bg-emerald-100"
+          >
               {/* Смена фильтра не должна закрывать меню: лист выбирают сразу после. */}
               <div className="px-2 pb-1.5 pt-1" onClick={(event) => event.stopPropagation()}>
                 <select
@@ -1064,7 +1061,6 @@ export function ReviewPane({
                 )}
               </div>
             </ActionMenu>
-          </div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
           {isOfficeSource ? (
@@ -1349,31 +1345,34 @@ export function ReviewPane({
               />
             ) : (
               <>
-            <div className="flex items-center gap-2 border-b border-border px-3 py-1">
-              <SegmentedTabs
-                size="xs"
-                value={sidePanel}
-                onChange={setSidePanel}
-                options={[
-                  {
-                    id: "text",
-                    label: page?.kind === "table" ? "Таблица" : "Расшифровка",
-                  },
-                  {
-                    id: "notes",
-                    label: (
-                      <>
-                        Отметить ошибку
-                        {pageNotes.length ? (
-                          <span className="ml-1 tabular-nums opacity-70">
-                            {pageNotes.length}
-                          </span>
-                        ) : null}
-                      </>
-                    ),
-                  },
-                ]}
-              />
+            <div className="flex items-center gap-1.5 border-b border-border px-2 py-1">
+              <button
+                type="button"
+                onClick={() => setSidePanel("text")}
+                className={`rounded border px-2 py-0.5 text-[10px] font-semibold ${
+                  sidePanel === "text"
+                    ? "border-teal-600 bg-teal-600 text-white"
+                    : "border-teal-300 bg-teal-50 text-teal-950 hover:bg-teal-100"
+                }`}
+              >
+                {page?.kind === "table" ? "Таблица" : "Расшифровка"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setSidePanel("notes")}
+                className={`rounded border px-2 py-0.5 text-[10px] font-semibold ${
+                  sidePanel === "notes"
+                    ? "border-rose-600 bg-rose-600 text-white"
+                    : "border-rose-300 bg-rose-50 text-rose-950 hover:bg-rose-100"
+                }`}
+              >
+                Отметить ошибку
+                {pageNotes.length ? (
+                  <span className="ml-1 tabular-nums opacity-80">
+                    {pageNotes.length}
+                  </span>
+                ) : null}
+              </button>
               {hasKitDrawing && sidePanel === "text" ? (
                 <span
                   className="truncate text-[10px] text-muted"
@@ -1388,19 +1387,6 @@ export function ReviewPane({
                   title="Текстового слоя нет — содержимое прочитано по изображению; сверьте числа и марки с оригиналом"
                 >
                   По изображению · сверить
-                </span>
-              ) : null}
-              {sidePanel === "text" && !readOnly && page?.source !== "model" ? (
-                <span
-                  className="ml-auto truncate text-[10px] text-muted"
-                  title="Текст расшифровки не правится вручную: обведите место кнопкой «Ошибка»"
-                >
-                  Правки — через «Ошибка»
-                </span>
-              ) : null}
-              {showTech && sidePanel === "text" && page ? (
-                <span className="shrink-0 text-[10px] text-muted">
-                  {SOURCE_LABEL[page.source]}
                 </span>
               ) : null}
             </div>

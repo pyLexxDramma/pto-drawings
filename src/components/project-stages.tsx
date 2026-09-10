@@ -23,16 +23,31 @@ type Stage = {
   hint: string;
 };
 
-const DOT: Record<StageState, string> = {
-  waiting: "border-slate-300 bg-white text-muted",
-  active: "border-sky-400 bg-sky-100 text-sky-900",
-  done: "border-emerald-400 bg-emerald-100 text-emerald-900",
-};
-
 /** Что произойдёт по клику — подсказка в title, чтобы этап не выглядел мёртвым. */
 const ACTION: Record<StageId, string> = {
   transcribe: "открыть первый нерасшифрованный лист",
   reviews: "открыть таблицу замечаний",
+};
+
+/** Крупные вкладки этапов — разные цвета, чтобы сразу читались. */
+const STAGE_TAB: Record<
+  StageId,
+  { idle: string; current: string; track: "sky" | "accent" | "emerald" }
+> = {
+  transcribe: {
+    idle:
+      "border-teal-300 bg-teal-50 text-teal-950 hover:border-teal-500 hover:bg-teal-100",
+    current:
+      "border-teal-600 bg-teal-600 text-white shadow-sm hover:bg-teal-600",
+    track: "sky",
+  },
+  reviews: {
+    idle:
+      "border-indigo-300 bg-indigo-50 text-indigo-950 hover:border-indigo-500 hover:bg-indigo-100",
+    current:
+      "border-indigo-600 bg-indigo-600 text-white shadow-sm hover:bg-indigo-600",
+    track: "accent",
+  },
 };
 
 function percent(done: number, total: number): number {
@@ -61,7 +76,6 @@ function buildStages(
   }
 
   const filesTotal = documents.length;
-  // Лист появляется только после нарезки, поэтому pageCount и есть признак обработки.
   const filesSliced = documents.filter((doc) => doc.pageCount > 0).length;
   const pagesTotal = documents.reduce((sum, doc) => sum + doc.pageCount, 0);
   const pagesReady = documents.reduce((sum, doc) => sum + doc.readyPages, 0);
@@ -83,9 +97,7 @@ function buildStages(
       hint:
         filesTotal === 0
           ? "Загрузите файлы проекта"
-          : // Пока файл нарезается, листов ещё нет — говорим про нарезку,
-            // иначе прочерк выглядит поломкой.
-            filesSliced < filesTotal
+          : filesSliced < filesTotal
             ? `Файлы режем на листы: ${filesSliced} из ${filesTotal}`
             : `Листов расшифровано: ${pagesReady} из ${pagesTotal}`,
     },
@@ -111,31 +123,36 @@ function buildStages(
 }
 
 /**
- * Полоса этапов проекта: Расшифровка → Замечания. Нужна, чтобы было видно, где
- * проект стоит, без открытия каждого файла. По умолчанию открыта с прогресс-барами;
- * кнопка «Свернуть» отдаёт место чертежу, цифры при этом остаются.
+ * Одна верхняя полоса: крупные этапы + мелкие цветные контролы навигации.
  */
 export function ProjectStagesBar({
   projectName,
   documents,
-  /** false — список файлов ещё от прошлого проекта, цифры показывать нельзя. */
   documentsReady,
-  /** null — ещё не загрузили счётчик замечаний. */
   reviews,
   reviewsOpen,
-  collapsed,
-  onToggleCollapsed,
   onOpenStage,
+  showProjectsChrome,
+  projectsCollapsed,
+  onToggleProjects,
+  onNewProject,
+  docOpen,
+  docTitle,
+  onBackHome,
 }: {
   projectName: string;
   documents: DocumentRecord[];
   documentsReady: boolean;
   reviews: ReviewStats | null;
   reviewsOpen: boolean;
-  collapsed: boolean;
-  onToggleCollapsed: () => void;
-  /** Каждый этап ведёт к своей работе: файлы, нерасшифрованный лист, таблица. */
   onOpenStage: (stage: StageId) => void;
+  showProjectsChrome?: boolean;
+  projectsCollapsed?: boolean;
+  onToggleProjects?: () => void;
+  onNewProject?: () => void;
+  docOpen?: boolean;
+  docTitle?: string | null;
+  onBackHome?: () => void;
 }) {
   const stages = buildStages(documents, documentsReady, reviews);
   const busy =
@@ -144,13 +161,21 @@ export function ProjectStagesBar({
       (doc) => doc.status === "queued" || doc.status === "processing",
     );
 
-  if (collapsed) {
-    return (
-      <div className="flex shrink-0 items-center gap-1.5 border-b border-border bg-surface-2 px-3 py-1">
-        {/* Этапы работают и в свёрнутом виде: полосу сворачивают ради места,
-            а не чтобы отказаться от навигации. */}
+  return (
+    <div className="flex shrink-0 items-center gap-1.5 border-b border-border bg-white px-2 py-1.5 sm:gap-2 sm:px-3">
+      <span
+        className="hidden max-w-[7rem] shrink-0 truncate text-[10px] font-medium uppercase tracking-wide text-muted xl:inline"
+        title={projectName}
+      >
+        {projectName}
+      </span>
+
+      <div className="flex min-w-0 items-stretch gap-1.5 sm:gap-2">
         {stages.map((stage) => {
-          const current = stage.id === "reviews" && reviewsOpen;
+          const current =
+            (stage.id === "reviews" && reviewsOpen) ||
+            (stage.id === "transcribe" && !reviewsOpen && Boolean(docOpen));
+          const tone = STAGE_TAB[stage.id];
           return (
             <button
               key={stage.id}
@@ -159,97 +184,90 @@ export function ProjectStagesBar({
               disabled={stage.count === PENDING.count}
               title={`${stage.hint} · ${ACTION[stage.id]}`}
               aria-current={current ? "page" : undefined}
-              className={`whitespace-nowrap rounded border px-2 py-0.5 text-[11px] tabular-nums disabled:cursor-default ${
-                current
-                  ? "border-accent bg-accent/10 font-medium text-accent"
-                  : "border-transparent text-muted hover:border-border hover:bg-white hover:text-text"
+              className={`flex min-w-0 flex-col justify-center rounded-md border px-2.5 py-1.5 text-left disabled:cursor-default sm:min-w-[9.5rem] sm:px-3 sm:py-2 ${
+                current ? tone.current : tone.idle
               }`}
             >
-              {stage.label} {stage.count}
+              <span className="flex items-baseline gap-1.5">
+                <span className="truncate text-[12px] font-semibold leading-tight sm:text-[13px]">
+                  {stage.label}
+                </span>
+                <span
+                  className={`shrink-0 text-[10px] tabular-nums sm:text-[11px] ${
+                    current ? "text-white/85" : "opacity-70"
+                  }`}
+                >
+                  {stage.count}
+                  {stage.state === "done" ? " ✓" : ""}
+                </span>
+              </span>
+              <ProgressTrack
+                className={`mt-1 h-1 ${current ? "opacity-90" : ""}`}
+                value={stage.percent}
+                tone={stage.state === "done" ? "emerald" : tone.track}
+              />
             </button>
           );
         })}
-        {busy ? <Spinner className="h-2.5 w-2.5 text-sky-700" /> : null}
-        <button
-          type="button"
-          onClick={onToggleCollapsed}
-          className="ml-auto rounded border border-border bg-white px-2 py-0.5 text-[11px] text-muted hover:text-text"
-          aria-expanded={false}
-          title="Показать прогресс этапов"
-        >
-          Прогресс ▾
-        </button>
       </div>
-    );
-  }
 
-  return (
-    <div className="shrink-0 border-b border-border bg-surface-2 px-3 py-2">
-      <div className="mb-1.5 flex items-center gap-2">
-        <span className="text-[10px] font-medium uppercase tracking-wider text-muted">
-          Этапы · {projectName}
-        </span>
-        {busy ? <Spinner className="h-2.5 w-2.5 text-sky-700" /> : null}
-        <button
-          type="button"
-          onClick={onToggleCollapsed}
-          className="ml-auto rounded border border-border bg-white px-2 py-0.5 text-[11px] text-muted hover:text-text"
-          aria-expanded
-          title="Свернуть прогресс этапов"
-        >
-          Свернуть ▴
-        </button>
-      </div>
-      <ol className="flex flex-wrap items-stretch gap-2">
-        {stages.map((stage, index) => {
-          const isReviews = stage.id === "reviews";
-          const body = (
-            <>
-              <div className="flex items-center gap-1.5">
-                <span
-                  className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border text-[9px] font-semibold tabular-nums ${
-                    DOT[stage.state]
-                  }`}
-                  aria-hidden
-                >
-                  {stage.state === "done" ? "✓" : index + 1}
-                </span>
-                <span className="truncate text-[11px] font-medium">
-                  {stage.label}
-                </span>
-                <span className="ml-auto shrink-0 text-[10px] tabular-nums text-muted">
-                  {stage.count}
-                </span>
-              </div>
-              <ProgressTrack
-                className="mt-1 h-1"
-                value={stage.percent}
-                tone={stage.state === "done" ? "accent" : "sky"}
-              />
-            </>
-          );
+      <div className="mx-0.5 hidden h-7 w-px shrink-0 bg-border sm:block" />
 
-          const current = isReviews && reviewsOpen;
-          return (
-            <li key={stage.id} className="min-w-[10rem] flex-1">
+      <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
+        {showProjectsChrome ? (
+          <>
+            <button
+              type="button"
+              onClick={onToggleProjects}
+              title={projectsCollapsed ? "Показать проекты" : "Скрыть проекты"}
+              className="shrink-0 rounded border border-violet-300 bg-violet-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-900 hover:bg-violet-100"
+            >
+              Проекты
+            </button>
+            {onNewProject ? (
               <button
                 type="button"
-                onClick={() => onOpenStage(stage.id)}
-                disabled={stage.count === PENDING.count}
-                title={`${stage.hint} · ${ACTION[stage.id]}`}
-                aria-current={current ? "page" : undefined}
-                className={`h-full w-full rounded-md border px-2 py-1.5 text-left disabled:cursor-default ${
-                  current
-                    ? "border-accent bg-accent/10 text-accent"
-                    : "border-slate-300 bg-white/70 text-text hover:border-accent/60"
-                }`}
+                onClick={onNewProject}
+                title="Новый проект"
+                className="shrink-0 rounded border border-fuchsia-300 bg-fuchsia-50 px-1.5 py-0.5 text-[10px] font-semibold text-fuchsia-900 hover:bg-fuchsia-100"
               >
-                {body}
+                +
               </button>
-            </li>
-          );
-        })}
-      </ol>
+            ) : null}
+            {onToggleProjects ? (
+              <button
+                type="button"
+                onClick={onToggleProjects}
+                className="shrink-0 rounded border border-slate-300 bg-slate-50 px-1.5 py-0.5 text-[10px] font-medium text-slate-700 hover:bg-slate-100"
+              >
+                {projectsCollapsed ? "Показать" : "Скрыть"}
+              </button>
+            ) : null}
+          </>
+        ) : null}
+
+        {docOpen && onBackHome ? (
+          <button
+            type="button"
+            onClick={onBackHome}
+            title="На главную (Esc)"
+            className="shrink-0 rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-950 hover:bg-amber-100"
+          >
+            ← На главную
+          </button>
+        ) : null}
+
+        {docTitle ? (
+          <span
+            className="min-w-0 truncate rounded border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-950"
+            title={docTitle}
+          >
+            {docTitle}
+          </span>
+        ) : null}
+      </div>
+
+      {busy ? <Spinner className="h-3 w-3 shrink-0 text-sky-700" /> : null}
     </div>
   );
 }

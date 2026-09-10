@@ -48,6 +48,7 @@ import {
   type PipelineHealth,
 } from "@/lib/pipeline";
 import { UploadDialog, type UploadDialogResult } from "@/components/upload-dialog";
+import { saveRemarkJump, takeRemarkJump, clearRemarkJump } from "@/lib/remark-jump";
 import {
   DRAWING_ACCEPT,
   DRAWING_ACCEPT_HINT,
@@ -334,7 +335,6 @@ export function Workspace({
   const [reviewStats, setReviewStats] = useState<ReviewStats | null>(null);
   const [projectReviews, setProjectReviews] = useState<Review[]>([]);
   /** Прогресс-бары этапов открыты: сразу видно, где проект встал. */
-  const [stagesCollapsed, setStagesCollapsed] = useState(false);
   const [documentsProjectId, setDocumentsProjectId] = useState<string | null>(
     null,
   );
@@ -483,15 +483,16 @@ export function Workspace({
       }
       setShowReviews(false);
       setProjectsCollapsed(false);
+      // Уже в файле — просто вернуться к расшифровке, не прыгать на другой лист.
+      if (selectedId) return;
 
       const target =
         documents.find((doc) => doc.readyPages < doc.pageCount) ?? documents[0];
       if (!target) return;
-      // Листы приходят по порядку, поэтому первый нерасшифрованный — следующий.
       const page = Math.min(target.readyPages + 1, target.pageCount || 1);
       void openDocument(target.id, page);
     },
-    [documents, openDocument],
+    [documents, openDocument, selectedId],
   );
 
   const loadEdits = useCallback(async (id: string, signal?: AbortSignal) => {
@@ -551,13 +552,24 @@ export function Workspace({
       options?: { reviewId?: string; quote?: string },
     ) => {
       if (!projectId) return;
+      saveRemarkJump({
+        projectId,
+        documentId,
+        page,
+        reviewId: options?.reviewId,
+        quote: options?.quote,
+      });
       const url = new URL(window.location.href);
       url.search = "";
       url.searchParams.set("project", projectId);
       url.searchParams.set("doc", documentId);
       url.searchParams.set("page", String(page));
       if (options?.reviewId) url.searchParams.set("review", options.reviewId);
-      if (options?.quote) url.searchParams.set("quote", options.quote);
+      // Короткая цитата в URL — запасной канал; полная — в sessionStorage.
+      const quote = (options?.quote ?? "").trim();
+      if (quote && quote.length <= 180) {
+        url.searchParams.set("quote", quote);
+      }
       window.open(url.toString(), "_blank", "noopener,noreferrer");
     },
     [projectId],
@@ -625,11 +637,17 @@ export function Workspace({
 
         // Deep-link из таблицы замечаний: ?project=&doc=&page=
         const params = new URLSearchParams(window.location.search);
-        const deepProject = params.get("project");
-        const deepDoc = params.get("doc");
-        const deepPage = Number(params.get("page") || "0");
-        const deepReview = params.get("review") || undefined;
-        const deepQuote = params.get("quote") || undefined;
+        const storedJump = takeRemarkJump();
+        const deepProject =
+          storedJump?.projectId || params.get("project") || null;
+        const deepDoc = storedJump?.documentId || params.get("doc") || null;
+        const deepPage =
+          storedJump?.page || Number(params.get("page") || "0");
+        const deepReview =
+          storedJump?.reviewId || params.get("review") || undefined;
+        const deepQuote =
+          (storedJump?.quote || params.get("quote") || undefined)?.trim() ||
+          undefined;
         const target =
           (deepProject && list.find((item) => item.id === deepProject)) ||
           list[0];
@@ -658,6 +676,7 @@ export function Workspace({
             autoReadyJumpRef.current = deepDoc;
           }
           void refreshDocument(deepDoc, ac.signal);
+          clearRemarkJump();
           window.history.replaceState({}, "", window.location.pathname);
         }
       } catch {
@@ -778,12 +797,40 @@ export function Workspace({
     const firstReady =
       doc.pages.find((page) => page.markdown.length > 0)?.pageNumber ?? 1;
     autoReadyJumpRef.current = selectedId;
-    setOpenPage({
-      nonce: Date.now(),
-      page: firstReady,
-      documentId: selectedId,
+    setOpenPage((prev) => {
+      // Не затирать переход из таблицы замечаний (quote / reviewId).
+      if (prev?.documentId === selectedId && (prev.quote || prev.reviewId)) {
+        return prev;
+      }
+      return {
+        nonce: Date.now(),
+        page: firstReady,
+        documentId: selectedId,
+      };
     });
   }, [documents, selectedId]);
+
+  // Добрать quote из замечания, если в URL/storage его не было.
+  useEffect(() => {
+    if (!openPage?.reviewId || openPage.quote) return;
+    const review = projectReviews.find((item) => item.id === openPage.reviewId);
+    if (!review) return;
+    const location =
+      review.locations.find(
+        (item) =>
+          item.documentId === openPage.documentId &&
+          item.pageNumber === openPage.page,
+      ) ??
+      review.locations.find((item) => item.documentId === openPage.documentId) ??
+      review.locations[0];
+    const quote = location?.quote?.trim();
+    if (!quote) return;
+    setOpenPage((prev) =>
+      prev && prev.reviewId === openPage.reviewId
+        ? { ...prev, quote, nonce: Date.now() }
+        : prev,
+    );
+  }, [openPage, projectReviews]);
 
   // тост при завершении / ошибке обработки
   useEffect(() => {
@@ -1522,9 +1569,16 @@ export function Workspace({
           documentsReady={documentsProjectId === currentProject.id}
           reviews={reviewStats}
           reviewsOpen={showReviews}
-          collapsed={stagesCollapsed}
-          onToggleCollapsed={() => setStagesCollapsed((value) => !value)}
           onOpenStage={openStage}
+          showProjectsChrome={!showReviews}
+          projectsCollapsed={projectsCollapsed}
+          onToggleProjects={() => setProjectsCollapsed((value) => !value)}
+          onNewProject={() => setShowNewProject((value) => !value)}
+          docOpen={Boolean(selected) && !showReviews}
+          docTitle={
+            selected && !showReviews ? selected.originalName : null
+          }
+          onBackHome={backToProjects}
         />
       ) : null}
 
@@ -1552,27 +1606,7 @@ export function Workspace({
             className="flex min-h-0 shrink-0 flex-col border-b border-border bg-surface md:border-b-0"
             style={{ width: projectsWidth, maxWidth: "100%" }}
           >
-            <div className="border-b border-border px-3 py-3">
-              <div className="mb-2 flex items-center justify-between text-[11px] font-medium uppercase tracking-wider text-muted">
-                Проекты
-                <span className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => setShowNewProject((value) => !value)}
-                    className="rounded border border-border px-1.5 text-[11px] font-normal normal-case text-muted hover:text-text"
-                  >
-                    +
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setProjectsCollapsed(true)}
-                    className="rounded border border-border px-1.5 text-[11px] font-normal normal-case text-muted hover:text-text"
-                    title="Свернуть проекты"
-                  >
-                    Скрыть
-                  </button>
-                </span>
-              </div>
+            <div className="border-b border-border px-2 py-1.5">
               {showNewProject || projects.length === 0 ? (
                 <form onSubmit={handleCreateProject} className="space-y-1">
                   <div className="flex gap-1">
@@ -1597,7 +1631,11 @@ export function Workspace({
                     className="w-full rounded-md border border-border bg-white px-2 py-1.5 text-sm outline-none placeholder:text-muted focus:border-accent"
                   />
                 </form>
-              ) : null}
+              ) : (
+                <div className="truncate px-1 text-[10px] text-muted" title={currentProject?.name}>
+                  {currentProject?.name}
+                </div>
+              )}
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto p-1.5" data-projects-tree>
               {projects.map((project) =>
