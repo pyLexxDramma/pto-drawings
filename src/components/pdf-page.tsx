@@ -273,18 +273,20 @@ export function PdfPage({
     }
     const { items, viewport } = stored;
     const vt = viewport.transform;
+    // Ширина фрагмента в пикселях вьюпорта: как в text layer pdf.js —
+    // item.width (единицы PDF) × viewport.scale, а не × масштаб шрифта.
+    const viewportScale =
+      (viewport as { scale?: number }).scale || Math.hypot(vt[0], vt[1]) || 1;
     const layer = items.flatMap((item) => {
       if (!item.str) return [];
       const t = item.transform;
       if (!t) return [];
-      const a = vt[0] * t[0] + vt[2] * t[1];
-      const b = vt[1] * t[0] + vt[3] * t[1];
       const c = vt[0] * t[2] + vt[2] * t[3];
       const d = vt[1] * t[2] + vt[3] * t[3];
       const e = vt[0] * t[4] + vt[2] * t[5] + vt[4];
       const f = vt[1] * t[4] + vt[3] * t[5] + vt[5];
       const fontHeight = Math.max(1, Math.hypot(c, d));
-      const width = Math.max(1, (item.width ?? 0) * Math.hypot(a, b));
+      const width = Math.max(1, (item.width ?? 0) * viewportScale);
       return [
         {
           text: item.str,
@@ -298,7 +300,7 @@ export function PdfPage({
     const hits = findLayerHits(layer, highlightQuery);
     setSearchHits(hits);
     onHighlightHits?.(hits.length);
-  }, [highlightQuery, loading, pageNumber, onHighlightHits]);
+  }, [highlightQuery, highlightNonce, loading, pageNumber, onHighlightHits]);
 
   function boundPan(next: { x: number; y: number }, s = scaleRef.current) {
     const wrap = wrapRef.current;

@@ -476,10 +476,15 @@ export function ReviewPane({
       setFocusNonce(Date.now());
       setPaneSolo(null);
       setSidePanel("text");
-      setDrawingHitCount(0);
-      setTextHitFound(null);
     }
   }, [document.id, openPage]);
+
+  // Счётчики совпадений обнуляем только при смене цитаты/листа, иначе
+  // повторный рендер openPage затирал уже найденные попадания.
+  useEffect(() => {
+    setDrawingHitCount(0);
+    setTextHitFound(null);
+  }, [focusQuote, document.id, pageNumber]);
 
   // Цитата из reviewId, если workspace ещё не дописал quote в openPage.
   useEffect(() => {
@@ -502,8 +507,6 @@ export function ReviewPane({
     setFocusNonce(Date.now());
     setPaneSolo(null);
     setSidePanel("text");
-    setDrawingHitCount(0);
-    setTextHitFound(null);
   }, [focusQuote, openPage, reviews, document.id, pageNumber]);
 
   // После появления markdown / смены листа — к цитате в расшифровке.
