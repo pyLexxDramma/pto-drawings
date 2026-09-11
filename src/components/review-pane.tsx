@@ -1232,7 +1232,7 @@ export function ReviewPane({
               style={{ width: paneSolo === "pdf" ? "100%" : `${split}%` }}
             >
               {paneSolo === "pdf" ? (
-                <div className="absolute right-2 top-2 z-30 flex flex-wrap items-center gap-1.5 rounded-md border border-border bg-white/95 px-1.5 py-1 shadow-sm">
+                <div className="absolute left-2 top-12 z-30 flex flex-wrap items-center gap-1.5 rounded-md border border-border bg-white/95 px-1.5 py-1 shadow-sm">
                   {sheetToolButtons}
                   {!readOnly ? (
                     <button
