@@ -17,13 +17,6 @@ import { PageStrip } from "@/components/page-strip";
 import { PdfPage } from "@/components/pdf-page";
 import { SegmentedTabs, ActionMenu, menuItemClass } from "@/components/ui-chrome";
 import { VoiceNoteButton } from "@/components/voice-note";
-import {
-  IconCheck,
-  IconDoc,
-  IconExpand,
-  IconMark,
-  IconSearch,
-} from "@/components/tool-icons";
 import { formatDate } from "@/lib/format";
 import { getDrawingExt, isCadExt, isOfficeExt } from "@/lib/drawing-files";
 import {
@@ -578,12 +571,6 @@ export function ReviewPane({
 
   const canPrevPage = visiblePages[0] !== pageNumber;
   const canNextPage = visiblePages[visiblePages.length - 1] !== pageNumber;
-  const pageNav = {
-    onPrevPage: () => stepVisible(-1),
-    onNextPage: () => stepVisible(1),
-    canPrevPage,
-    canNextPage,
-  };
 
   function openSearch() {
     setSidePanel("text");
@@ -605,6 +592,60 @@ export function ReviewPane({
       return next;
     });
   }
+
+  function toggleDrawingFullscreen() {
+    if (paneSolo === "pdf") {
+      setPaneSolo(null);
+      if (focusMode) onToggleFocus();
+    } else {
+      setPaneSolo("pdf");
+      if (!focusMode) onToggleFocus();
+    }
+  }
+
+  const textToolBtn =
+    "rounded border px-2 py-0.5 text-[10px] font-semibold border-slate-300 bg-white text-slate-800 hover:bg-slate-50";
+  const textToolBtnActive =
+    "rounded border px-2 py-0.5 text-[10px] font-semibold border-accent/50 bg-accent/10 text-accent";
+
+  const sheetToolButtons = (
+    <>
+      <button
+        type="button"
+        title={searchOpen ? "Закрыть поиск (Esc)" : "Поиск по файлу (/ или Ctrl+F)"}
+        onClick={() => (searchOpen ? closeSearch() : openSearch())}
+        className={searchOpen ? textToolBtnActive : textToolBtn}
+      >
+        {searchOpen ? "Закрыть поиск" : "Поиск"}
+      </button>
+      <button
+        type="button"
+        title={
+          viewedSet.has(pageNumber)
+            ? "Снять отметку «просмотрено» (V)"
+            : "Отметить лист просмотренным (V)"
+        }
+        onClick={toggleViewed}
+        className={viewedSet.has(pageNumber) ? textToolBtnActive : textToolBtn}
+      >
+        {viewedSet.has(pageNumber) ? "Просмотрено" : "Не просмотрено"}
+      </button>
+      {readOnly ? (
+        <span className="rounded border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-900">
+          Просмотр
+        </span>
+      ) : null}
+    </>
+  );
+
+  const pageNav = {
+    onPrevPage: () => stepVisible(-1),
+    onNextPage: () => stepVisible(1),
+    canPrevPage,
+    canNextPage,
+    onToggleFullscreen: isOfficeSource ? undefined : toggleDrawingFullscreen,
+    fullscreenActive: paneSolo === "pdf",
+  };
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -839,13 +880,6 @@ export function ReviewPane({
     if (pendingRect) setSidePanel("notes");
   }, [pendingRect]);
 
-  const toolBtnIcon =
-    "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-slate-300 bg-white text-text shadow-sm hover:border-slate-400 hover:bg-slate-50";
-  const toolBtnDanger =
-    "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-red-500 bg-red-50 px-2.5 text-[11px] font-semibold text-red-700 shadow-sm";
-  const toolBtnPrimary =
-    "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-accent bg-accent px-2.5 text-[11px] font-semibold text-white shadow-sm hover:bg-[#1d4ed8]";
-
   const notesPanel = (
     <div className="flex min-h-0 flex-1 flex-col">
       {pendingRect ? (
@@ -925,7 +959,7 @@ export function ReviewPane({
       <div className="min-h-0 flex-1 space-y-1.5 overflow-auto p-3">
         {pageNotes.length === 0 ? (
           <div className="rounded-md border border-dashed border-slate-300 bg-[#fafbfc] px-3 py-8 text-center text-[12px] leading-relaxed text-muted">
-            Нажмите «Ошибка» и обведите место на чертеже
+            Нажмите «Отметить ошибку» и обведите место на чертеже
           </div>
         ) : (
           pageNotes.map((note, index) => (
@@ -1102,106 +1136,6 @@ export function ReviewPane({
             </ActionMenu>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
-          {isOfficeSource ? (
-            <div className="flex items-center overflow-hidden rounded-md border-2 border-sky-500 bg-sky-600 shadow-sm">
-              <button
-                type="button"
-                title="Предыдущий лист (K / ←)"
-                onClick={() => stepVisible(-1)}
-                disabled={visiblePages[0] === pageNumber}
-                className="inline-flex h-8 w-8 items-center justify-center text-sm font-bold text-white hover:bg-sky-700 disabled:cursor-default disabled:opacity-40"
-              >
-                ←
-              </button>
-              <button
-                type="button"
-                title="Следующий лист (J / → / пробел)"
-                onClick={() => stepVisible(1)}
-                disabled={visiblePages[visiblePages.length - 1] === pageNumber}
-                className="inline-flex h-8 w-8 items-center justify-center border-l border-sky-400 text-sm font-bold text-white hover:bg-sky-700 disabled:cursor-default disabled:opacity-40"
-              >
-                →
-              </button>
-              <button
-                type="button"
-                title={searchOpen ? "Закрыть поиск (Esc)" : "Поиск по файлу (/ или Ctrl+F)"}
-                onClick={() => (searchOpen ? closeSearch() : openSearch())}
-                className={`inline-flex h-8 w-8 items-center justify-center border-l border-sky-400 hover:bg-sky-700 ${
-                  searchOpen ? "bg-sky-800 text-white" : "text-white"
-                }`}
-              >
-                <IconSearch className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              title={searchOpen ? "Закрыть поиск (Esc)" : "Поиск по файлу (/ или Ctrl+F)"}
-              onClick={() => (searchOpen ? closeSearch() : openSearch())}
-              className={`inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white shadow-sm hover:bg-slate-50 ${
-                searchOpen ? "bg-sky-50 text-sky-900" : "text-text"
-              }`}
-            >
-              <IconSearch className="h-3.5 w-3.5" />
-            </button>
-          )}
-          <button
-            type="button"
-            title={
-              viewedSet.has(pageNumber)
-                ? "Снять отметку «просмотрено» (V)"
-                : "Отметить лист просмотренным (V)"
-            }
-            onClick={toggleViewed}
-            className={`${toolBtnIcon} ${
-              viewedSet.has(pageNumber)
-                ? "border-accent/40 bg-accent/5 text-accent"
-                : ""
-            }`}
-          >
-            <IconCheck className="h-3.5 w-3.5" />
-          </button>
-          {!readOnly ? (
-            <button
-              type="button"
-              title={markMode ? "Отмена разметки (Esc)" : "Отметить ошибку (E)"}
-              onClick={toggleMark}
-              className={markMode ? toolBtnDanger : toolBtnPrimary}
-            >
-              <IconMark className="h-3.5 w-3.5" />
-              {markMode ? "Отмена" : "Ошибка"}
-            </button>
-          ) : (
-            <span className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-[10px] font-semibold text-amber-900">
-              Просмотр
-            </span>
-          )}
-          {!isOfficeSource ? (
-            <button
-              type="button"
-              title={
-                paneSolo === "pdf"
-                  ? "Показать расшифровку рядом (F)"
-                  : "Чертёж на весь экран (F)"
-              }
-              onClick={() => {
-                if (paneSolo === "pdf") {
-                  setPaneSolo(null);
-                  if (focusMode) onToggleFocus();
-                } else {
-                  setPaneSolo("pdf");
-                  if (!focusMode) onToggleFocus();
-                }
-              }}
-              className={`${toolBtnIcon} ${
-                paneSolo === "pdf"
-                  ? "border-accent/40 bg-accent/5 text-accent"
-                  : ""
-              }`}
-            >
-              <IconExpand className="h-3.5 w-3.5" />
-            </button>
-          ) : null}
           {headerRight?.(
             <>
             <button
@@ -1211,7 +1145,7 @@ export function ReviewPane({
               onClick={onToggleFocus}
             >
               <span className="inline-flex items-center gap-2">
-                <IconExpand /> {focusMode ? "Свернуть на весь экран" : "На весь экран"}
+                {focusMode ? "Свернуть на весь экран" : "На весь экран"}
               </span>
             </button>
             {specHref ? (
@@ -1224,7 +1158,7 @@ export function ReviewPane({
                 title={specName ?? "ТЗ"}
               >
                 <span className="inline-flex items-center gap-2">
-                  <IconDoc /> Открыть ТЗ
+                  Открыть ТЗ
                 </span>
               </a>
             ) : null}
@@ -1297,6 +1231,29 @@ export function ReviewPane({
               className="relative min-h-0 min-w-0"
               style={{ width: paneSolo === "pdf" ? "100%" : `${split}%` }}
             >
+              {paneSolo === "pdf" ? (
+                <div className="absolute right-2 top-2 z-30 flex flex-wrap items-center gap-1.5 rounded-md border border-border bg-white/95 px-1.5 py-1 shadow-sm">
+                  {sheetToolButtons}
+                  {!readOnly ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPaneSolo(null);
+                        setSidePanel("notes");
+                        setPendingRect(null);
+                        setMarkMode(true);
+                      }}
+                      className={
+                        markMode
+                          ? "rounded border border-rose-600 bg-rose-600 px-2 py-0.5 text-[10px] font-semibold text-white"
+                          : "rounded border border-rose-300 bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-950 hover:bg-rose-100"
+                      }
+                    >
+                      {markMode ? "Рисую ошибку…" : "Отметить ошибку"}
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
               {hasKitDrawing ? (
                 <div className="absolute left-2 top-2 z-20">
                   <SegmentedTabs
@@ -1431,7 +1388,7 @@ export function ReviewPane({
               />
             ) : (
               <>
-            <div className="flex items-center gap-1.5 border-b border-border px-2 py-1">
+            <div className="flex flex-wrap items-center gap-1.5 border-b border-border px-2 py-1">
               <button
                 type="button"
                 onClick={() => setSidePanel("text")}
@@ -1445,20 +1402,27 @@ export function ReviewPane({
               </button>
               <button
                 type="button"
-                onClick={() => setSidePanel("notes")}
+                onClick={() => {
+                  setSidePanel("notes");
+                  if (!readOnly) {
+                    setPendingRect(null);
+                    setMarkMode(true);
+                  }
+                }}
                 className={`rounded border px-2 py-0.5 text-[10px] font-semibold ${
-                  sidePanel === "notes"
+                  sidePanel === "notes" || markMode
                     ? "border-rose-600 bg-rose-600 text-white"
                     : "border-rose-300 bg-rose-50 text-rose-950 hover:bg-rose-100"
                 }`}
               >
-                Отметить ошибку
-                {pageNotes.length ? (
+                {markMode ? "Рисую ошибку…" : "Отметить ошибку"}
+                {!markMode && pageNotes.length ? (
                   <span className="ml-1 tabular-nums opacity-80">
                     {pageNotes.length}
                   </span>
                 ) : null}
               </button>
+              {sheetToolButtons}
               {hasKitDrawing && sidePanel === "text" ? (
                 <span
                   className="truncate text-[10px] text-muted"

@@ -43,6 +43,8 @@ type CadPageProps = {
   onNextPage?: () => void;
   canPrevPage?: boolean;
   canNextPage?: boolean;
+  onToggleFullscreen?: () => void;
+  fullscreenActive?: boolean;
 };
 
 type DrawState = { x0: number; y0: number; x1: number; y1: number };
@@ -84,6 +86,8 @@ export function CadPage({
   onNextPage,
   canPrevPage = false,
   canNextPage = false,
+  onToggleFullscreen,
+  fullscreenActive = false,
 }: CadPageProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const clickRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
@@ -858,60 +862,74 @@ export function CadPage({
 
       <div
         onMouseDown={(event) => event.stopPropagation()}
-        className="absolute bottom-2 right-2 z-30 flex items-center gap-1.5 rounded-md border-2 border-sky-400 bg-sky-50 px-1.5 py-1 shadow-md backdrop-blur"
+        className="absolute bottom-2 left-1/2 z-30 flex max-w-[calc(100%-1rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-1 rounded-md border-2 border-sky-400 bg-sky-50 px-2 py-1.5 shadow-md backdrop-blur"
       >
         {onPrevPage || onNextPage ? (
-          <div className="flex items-center overflow-hidden rounded border border-sky-500 bg-sky-600">
+          <div className="flex items-center gap-1">
             <button
               type="button"
               title="Предыдущий лист (K / ←)"
-              aria-label="Предыдущий лист"
               onClick={() => onPrevPage?.()}
               disabled={!canPrevPage}
-              className="inline-flex h-7 w-8 items-center justify-center text-sm font-bold text-white hover:bg-sky-700 disabled:cursor-default disabled:opacity-40"
+              className="rounded border border-sky-500 bg-sky-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-sky-700 disabled:cursor-default disabled:opacity-40"
             >
-              ←
+              Пред. лист
             </button>
             <button
               type="button"
               title="Следующий лист (J / → / пробел)"
-              aria-label="Следующий лист"
               onClick={() => onNextPage?.()}
               disabled={!canNextPage}
-              className="inline-flex h-7 w-8 items-center justify-center border-l border-sky-400 text-sm font-bold text-white hover:bg-sky-700 disabled:cursor-default disabled:opacity-40"
+              className="rounded border border-sky-500 bg-sky-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-sky-700 disabled:cursor-default disabled:opacity-40"
             >
-              →
+              След. лист
             </button>
           </div>
         ) : null}
         <div
-          className={`flex items-center gap-0.5 ${
+          className={`flex items-center gap-1 ${
             onPrevPage || onNextPage ? "border-l border-sky-300 pl-1.5" : ""
           }`}
         >
           <button
             type="button"
             title="Отдалить"
-            aria-label="Отдалить"
             onClick={() => zoomBy(1 / 1.25)}
-            className="flex h-6 w-6 items-center justify-center rounded text-sm leading-none text-muted hover:bg-bg hover:text-text"
+            className="rounded border border-sky-300 bg-white px-2 py-1 text-[11px] font-semibold text-sky-950 hover:bg-sky-100"
           >
-            −
+            Меньше
           </button>
-          <span className="min-w-[2.75rem] text-center text-[11px] tabular-nums text-muted">
+          <span className="min-w-[2.75rem] text-center text-[11px] tabular-nums text-sky-950">
             {Math.round(scale * 100)}%
             {geometry?.scale ? ` · ${geometry.scale}` : ""}
           </span>
           <button
             type="button"
             title="Приблизить"
-            aria-label="Приблизить"
             onClick={() => zoomBy(1.25)}
-            className="flex h-6 w-6 items-center justify-center rounded text-sm leading-none text-muted hover:bg-bg hover:text-text"
+            className="rounded border border-sky-300 bg-white px-2 py-1 text-[11px] font-semibold text-sky-950 hover:bg-sky-100"
           >
-            +
+            Больше
           </button>
         </div>
+        {onToggleFullscreen ? (
+          <button
+            type="button"
+            title={
+              fullscreenActive
+                ? "Показать расшифровку рядом (F)"
+                : "Чертёж на весь экран (F)"
+            }
+            onClick={() => onToggleFullscreen()}
+            className={`rounded border px-2 py-1 text-[11px] font-semibold ${
+              fullscreenActive
+                ? "border-accent bg-accent text-white"
+                : "border-sky-300 bg-white text-sky-950 hover:bg-sky-100"
+            }`}
+          >
+            {fullscreenActive ? "Свернуть чертёж" : "Весь экран"}
+          </button>
+        ) : null}
       </div>
     </div>
   );
