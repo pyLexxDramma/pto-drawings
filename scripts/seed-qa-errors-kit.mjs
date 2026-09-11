@@ -21,6 +21,24 @@ const fontBoldPath = "C:/Windows/Fonts/arialbd.ttf";
 const ink = rgb(0.08, 0.09, 0.12);
 const muted = rgb(0.35, 0.38, 0.42);
 
+async function fetchRetry(url, init = {}, tries = 5) {
+  let last;
+  for (let i = 0; i < tries; i++) {
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 60000);
+      const res = await fetch(url, { ...init, signal: ctrl.signal });
+      clearTimeout(timer);
+      return res;
+    } catch (err) {
+      last = err;
+      console.log(`fetch retry ${i + 1}/${tries}:`, err?.cause?.code || err.message);
+      await new Promise((r) => setTimeout(r, 2000 * (i + 1)));
+    }
+  }
+  throw last;
+}
+
 mkdirSync(outDir, { recursive: true });
 
 /** Уникальные цитаты — должны совпасть с text layer PDF и с location.quote. */
@@ -253,7 +271,7 @@ function cookieFromSetCookie(headers) {
 }
 
 async function login() {
-  const res = await fetch(`${base}/api/auth/login`, {
+  const res = await fetchRetry(`${base}/api/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ login: LOGIN, password: PASSWORD }),
@@ -268,7 +286,7 @@ async function login() {
 async function api(cookie, path, init = {}) {
   const headers = new Headers(init.headers || {});
   headers.set("cookie", cookie);
-  const res = await fetch(`${base}${path}`, { ...init, headers });
+  const res = await fetchRetry(`${base}${path}`, { ...init, headers });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(body.error || `${path} ${res.status}`);
   return body;
@@ -303,17 +321,19 @@ async function upload(cookie, projectId, bytes) {
 async function waitDone(cookie, projectId, docId) {
   for (let i = 0; i < 180; i++) {
     await new Promise((r) => setTimeout(r, 2000));
-    const { documents } = await api(
-      cookie,
-      `/api/documents?projectId=${encodeURIComponent(projectId)}`,
+    const { document } = await api(cookie, `/api/documents/${docId}`);
+    const pages = document.pages?.length || 0;
+    console.log(
+      `… ${document.status} pages=${pages}/${document.pageCount} ready=${document.readyPages ?? "?"}`,
     );
-    const doc = documents.find((d) => d.id === docId);
-    if (!doc) continue;
-    const pages = doc.pages?.length || 0;
-    console.log(`… ${doc.status} pages=${pages}/${doc.pageCount}`);
-    if (doc.status === "done" && pages >= 3) return doc;
-    if (doc.status === "error")
-      throw new Error(doc.errorMessage || "processing error");
+    if (
+      (document.status === "done" || document.processingStep === "done") &&
+      (pages >= 1 || (document.readyPages ?? 0) >= 1)
+    ) {
+      return document;
+    }
+    if (document.status === "error")
+      throw new Error(document.errorMessage || "processing error");
   }
   throw new Error("timeout waiting for processing");
 }
@@ -443,25 +463,35 @@ async function verifyHighlight(projectId, documentId, reviews) {
 const bytes = await buildPdf();
 const cookie = await login();
 console.log("Logged in as", LOGIN);
-const projectId = await ensureProject(cookie);
+const projectId =
+  process.env.PTO_PROJECT_ID || (await ensureProject(cookie));
 console.log("Project", projectId);
-const { document } = await upload(cookie, projectId, bytes);
-console.log("Uploaded", document.id);
-const done = await waitDone(cookie, projectId, document.id);
+let documentId = process.env.PTO_DOC_ID || "";
+let done;
+if (documentId) {
+  console.log("Reuse uploaded", documentId);
+  done = await waitDone(cookie, projectId, documentId);
+} else {
+  const uploaded = await upload(cookie, projectId, bytes);
+  documentId = uploaded.document.id;
+  console.log("Uploaded", documentId);
+  done = await waitDone(cookie, projectId, documentId);
+}
 console.log(
   "Ready kinds:",
-  (done.pages || []).map((p) => `${p.pageNumber}:${p.kind}`).join(", "),
+  (done.pages || []).map((p) => `${p.pageNumber}:${p.kind}`).join(", ") ||
+    `readyPages=${done.readyPages}`,
 );
 const reviews = await seedReviews(
   cookie,
   projectId,
-  document.id,
-  document.originalName || "qa-errors-kit-3sheets.pdf",
+  documentId,
+  done.originalName || "qa-errors-kit-3sheets.pdf",
 );
-const result = await verifyHighlight(projectId, document.id, reviews);
+const result = await verifyHighlight(projectId, documentId, reviews);
 console.log(
   result.ok ? "VERIFY PASS" : "VERIFY FAIL",
-  `project=${projectId} doc=${document.id}`,
+  `project=${projectId} doc=${documentId}`,
 );
-console.log(`${base}/?project=${projectId}&doc=${document.id}&page=1`);
+console.log(`${base}/?project=${projectId}&doc=${documentId}&page=1`);
 process.exit(result.ok ? 0 : 1);

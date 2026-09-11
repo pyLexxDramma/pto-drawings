@@ -171,10 +171,17 @@ function FilterSelect<T extends string>({
   );
 }
 
+/** Имя файла без расширения и регистра — «ОВ1.pdf» и «ОВ1» это один файл. */
+function fileNameKey(name: string | null | undefined): string {
+  if (!name) return "";
+  return name.trim().toLowerCase().replace(/\.(pdf|dwg|dxf|zip)$/i, "");
+}
+
 export function ReviewsTable({
   projectId,
   projectName,
   currentDocumentId = null,
+  currentDocumentName = null,
   onJumpToPage,
   onStatsChange,
   onClose,
@@ -183,6 +190,8 @@ export function ReviewsTable({
   projectName: string;
   /** Активный файл в проекте — для фильтра «Этот файл». */
   currentDocumentId?: string | null;
+  /** Имя активного файла — запасное сопоставление, если в локации нет documentId. */
+  currentDocumentName?: string | null;
   /** Открыть место в ПД в просмотрщике (новая вкладка + подсветка). */
   onJumpToPage: (
     documentId: string,
@@ -292,6 +301,11 @@ export function ReviewsTable({
     onlyCurrentFile ||
     query.trim().length > 0;
 
+  const currentFileKey = useMemo(
+    () => fileNameKey(currentDocumentName),
+    [currentDocumentName],
+  );
+
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return reviews.filter((item) => {
@@ -304,7 +318,10 @@ export function ReviewsTable({
       if (sectionFilter !== "all" && item.section !== sectionFilter) return false;
       if (onlyCurrentFile && currentDocumentId) {
         const onFile = item.locations.some(
-          (loc) => loc.documentId === currentDocumentId,
+          (loc) =>
+            loc.documentId === currentDocumentId ||
+            // Локация без documentId — сравниваем по имени файла (с расширением и без).
+            (!loc.documentId && fileNameKey(loc.documentName) === currentFileKey),
         );
         if (!onFile) return false;
       }
@@ -322,6 +339,7 @@ export function ReviewsTable({
     });
   }, [
     currentDocumentId,
+    currentFileKey,
     onlyCurrentFile,
     originFilter,
     query,

@@ -1923,6 +1923,7 @@ export function Workspace({
               projectId={currentProject.id}
               projectName={currentProject.name}
               currentDocumentId={selectedId}
+              currentDocumentName={selected?.originalName ?? null}
               onJumpToPage={jumpToPage}
               onStatsChange={setReviewStats}
               onClose={goBack}
