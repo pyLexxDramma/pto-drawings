@@ -17,7 +17,9 @@ export function highlightNeedles(query: string): string[] {
     if (cut.length >= 2) needles.push(cut);
   }
   const words = raw.split(" ").filter((word) => word.length >= 3);
-  for (let n = Math.min(4, words.length); n >= 1; n -= 1) {
+  // Не дробить до одного слова — иначе подсветка целых строк по «площадь».
+  const minWords = words.length >= 2 ? 2 : 1;
+  for (let n = Math.min(4, words.length); n >= minWords; n -= 1) {
     const part = words.slice(0, n).join(" ");
     if (part.length >= 3) needles.push(part);
   }
@@ -27,9 +29,32 @@ export function highlightNeedles(query: string): string[] {
 /** Фрагмент текстового слоя чертежа (нормализованные координаты 0..1). */
 export type LayerTextHit = { x: number; y: number; w: number; h: number };
 
+function clampHit(hit: LayerTextHit): LayerTextHit {
+  const x = Math.min(1, Math.max(0, hit.x));
+  const y = Math.min(1, Math.max(0, hit.y));
+  const w = Math.min(1 - x, Math.max(0.004, hit.w));
+  const h = Math.min(1 - y, Math.max(0.004, hit.h));
+  return { x, y, w, h };
+}
+
+/** Доля совпадения внутри item → узкий прямоугольник только по цитате. */
+function hitForMatch(
+  item: { x: number; y: number; w: number; h: number; text?: string },
+  hay: string,
+  matchStart: number,
+  matchEnd: number,
+): LayerTextHit {
+  const len = Math.max(1, hay.length);
+  const start = Math.max(0, Math.min(len, matchStart));
+  const end = Math.max(start, Math.min(len, matchEnd));
+  const x = item.x + item.w * (start / len);
+  const w = item.w * Math.max(0.02, (end - start) / len);
+  return clampHit({ x, y: item.y, w, h: item.h });
+}
+
 /**
- * Ищет цитату в текстовом слое: сначала в одном item, иначе в склеенной
- * последовательности соседних (VLM/PDF часто режут строку на куски).
+ * Ищет цитату в текстовом слое: одно лучшее вхождение (самый длинный needle),
+ * прямоугольники обрезаны по доле совпавшего текста — не вся строка листа.
  */
 export function findLayerHits(
   items: Array<{ text: string; x: number; y: number; w: number; h: number }>,
@@ -38,13 +63,20 @@ export function findLayerHits(
   const needles = highlightNeedles(query);
   if (needles.length === 0 || items.length === 0) return [];
 
-  const single: LayerTextHit[] = [];
-  for (const item of items) {
-    const hay = normalizeQuote(item.text);
-    if (!hay || !needles.some((needle) => hay.includes(needle))) continue;
-    single.push({ x: item.x, y: item.y, w: item.w, h: item.h });
+  for (const needle of needles) {
+    const singles: LayerTextHit[] = [];
+    for (const item of items) {
+      const hay = normalizeQuote(item.text);
+      if (!hay) continue;
+      const at = hay.indexOf(needle);
+      if (at < 0) continue;
+      singles.push(hitForMatch(item, hay, at, at + needle.length));
+    }
+    if (singles.length > 0) {
+      // Одно вхождение: ближайшее к «полному» совпадению (уже longest needle).
+      return [singles[0]];
+    }
   }
-  if (single.length > 0) return single;
 
   const parts: { start: number; end: number; index: number }[] = [];
   let concat = "";
@@ -66,7 +98,10 @@ export function findLayerHits(
     if (matched.length === 0) continue;
     return matched.map((part) => {
       const item = items[part.index];
-      return { x: item.x, y: item.y, w: item.w, h: item.h };
+      const hay = normalizeQuote(item.text);
+      const localStart = Math.max(0, at - part.start);
+      const localEnd = Math.min(hay.length, end - part.start);
+      return hitForMatch(item, hay, localStart, localEnd);
     });
   }
   return [];

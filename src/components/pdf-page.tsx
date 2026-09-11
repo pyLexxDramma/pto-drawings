@@ -640,7 +640,7 @@ export function PdfPage({
         ) : (
           // Метки лежат в том же трансформированном слое, что и canvas, поэтому едут вместе с чертежом.
           <div
-            className="absolute left-0 top-0 origin-top-left"
+            className="absolute left-0 top-0 origin-top-left overflow-hidden"
             style={{
               width: natural.w,
               height: natural.h,
@@ -662,26 +662,6 @@ export function PdfPage({
                 }}
               />
             ) : null}
-            {remarkFocus && searchHits.length > 0
-              ? (() => {
-                  const x0 = Math.min(...searchHits.map((h) => h.x));
-                  const y0 = Math.min(...searchHits.map((h) => h.y));
-                  const x1 = Math.max(...searchHits.map((h) => h.x + h.w));
-                  const y1 = Math.max(...searchHits.map((h) => h.y + h.h));
-                  const pad = 0.006;
-                  return (
-                    <div
-                      className="pointer-events-none absolute z-[6] pto-remark-zone"
-                      style={{
-                        left: `${Math.max(0, x0 - pad) * 100}%`,
-                        top: `${Math.max(0, y0 - pad) * 100}%`,
-                        width: `${Math.min(1, x1 - x0 + pad * 2) * 100}%`,
-                        height: `${Math.min(1, y1 - y0 + pad * 2) * 100}%`,
-                      }}
-                    />
-                  );
-                })()
-              : null}
             {searchHits.map((hit, index) => (
               <div
                 key={`q-${index}`}
