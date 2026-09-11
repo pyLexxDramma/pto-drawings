@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Deep search leftover files on VPS
+      - name: Inspect bak and hunt stored files
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -21,20 +21,31 @@ jobs:
           command_timeout: 4m
           script: |
             set +e
-            echo "=== find pdf/dwg anywhere under pto ==="
-            find /var/lib/pto /var/www/pto /opt/pto /tmp -type f \( -iname '*.pdf' -o -iname '*.dwg' -o -iname '*.docx' -o -iname '*.doc' \) 2>/dev/null | head -50
-            echo "=== docker volumes ==="
-            docker volume ls 2>/dev/null
-            docker ps -a --format '{{.Names}}' 2>/dev/null
-            for c in $(docker ps -aq 2>/dev/null); do echo "-- $c"; docker inspect "$c" --format '{{range .Mounts}}{{.Source}} -> {{.Destination}}{{"\n"}}{{end}}' 2>/dev/null; done
-            echo "=== search IOS2 / Жуковский names ==="
-            find / -iname '*IOS*' 2>/dev/null | head -20
-            find / -iname '*ИОС*' 2>/dev/null | head -20
-            find / -iname '*Zhukov*' 2>/dev/null | head -20
-            find / -iname '*Жуков*' 2>/dev/null | head -20
-            echo "=== db.json size / mtime ==="
+            echo "=== data dir ==="
             ls -la /var/lib/pto/data/
-            echo "=== journal / snapshots ==="
-            ls /var/lib/pto/data/*.bak /var/lib/pto/data/*~ /var/lib/pto/data/*.old 2>/dev/null
-            ls /var/lib/systemd/coredump 2>/dev/null | head
+            echo "=== bak projects/docs ==="
+            python3 - <<'PY'
+            import json
+            p='/var/lib/pto/data/db.json.bak-names-20260908'
+            db=json.load(open(p,encoding='utf-8'))
+            print('projects',[(x.get('name'),x.get('id')) for x in db.get('projects',[])])
+            docs=sorted(db.get('documents',[]), key=lambda d:d.get('createdAt',''), reverse=True)
+            print('docs',len(docs))
+            for d in docs[:30]:
+              print(d.get('createdAt'),'|',d.get('originalName'),'|',d.get('storedName'),'|',d.get('id'),'|',d.get('projectId'))
+            open('/tmp/pto_stored_names.txt','w',encoding='utf-8').write('\n'.join(d.get('storedName') or '' for d in docs))
+            open('/tmp/pto_doc_ids.txt','w',encoding='utf-8').write('\n'.join(d.get('id') or '' for d in docs))
+            PY
+            echo "=== hunt storedName files ==="
+            while IFS= read -r name; do
+              [ -z "$name" ] && continue
+              find /var/lib/pto /var/www/pto /opt/pto /tmp /root -name "$name" 2>/dev/null
+            done < /tmp/pto_stored_names.txt | head -40
+            echo "=== hunt doc json bodies ==="
+            while IFS= read -r id; do
+              [ -z "$id" ] && continue
+              find /var/lib/pto /var/www/pto -name "$id.json" 2>/dev/null
+            done < /tmp/pto_doc_ids.txt | head -40
+            echo "=== samples ==="
+            ls -la /var/www/pto/samples/
             echo "=== done ==="
