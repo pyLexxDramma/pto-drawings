@@ -174,12 +174,15 @@ function FilterSelect<T extends string>({
 export function ReviewsTable({
   projectId,
   projectName,
+  currentDocumentId = null,
   onJumpToPage,
   onStatsChange,
   onClose,
 }: {
   projectId: string;
   projectName: string;
+  /** Активный файл в проекте — для фильтра «Этот файл». */
+  currentDocumentId?: string | null;
   /** Открыть место в ПД в просмотрщике (новая вкладка + подсветка). */
   onJumpToPage: (
     documentId: string,
@@ -203,6 +206,7 @@ export function ReviewsTable({
   const [sectionFilter, setSectionFilter] = useState<string>("all");
   const [groupBy, setGroupBy] = useState<GroupBy>("section");
   const [originFilter, setOriginFilter] = useState<OriginFilter>("all");
+  const [onlyCurrentFile, setOnlyCurrentFile] = useState(false);
   const [query, setQuery] = useState("");
   const [adding, setAdding] = useState(false);
   const [draftSection, setDraftSection] = useState("ПЗ");
@@ -281,6 +285,7 @@ export function ReviewsTable({
     verdictFilter !== "all" ||
     originFilter !== "all" ||
     sectionFilter !== "all" ||
+    onlyCurrentFile ||
     query.trim().length > 0;
 
   const visible = useMemo(() => {
@@ -293,6 +298,12 @@ export function ReviewsTable({
       if (verdictFilter === "done" && item.verdict === "pending") return false;
       if (originFilter !== "all" && item.origin !== originFilter) return false;
       if (sectionFilter !== "all" && item.section !== sectionFilter) return false;
+      if (onlyCurrentFile && currentDocumentId) {
+        const onFile = item.locations.some(
+          (loc) => loc.documentId === currentDocumentId,
+        );
+        if (!onFile) return false;
+      }
       if (!needle) return true;
       const haystack = [
         item.text,
@@ -306,6 +317,8 @@ export function ReviewsTable({
       return haystack.includes(needle);
     });
   }, [
+    currentDocumentId,
+    onlyCurrentFile,
     originFilter,
     query,
     reviews,
@@ -555,6 +568,20 @@ export function ReviewsTable({
             ]}
           />
         ) : null}
+        {currentDocumentId ? (
+          <button
+            type="button"
+            onClick={() => setOnlyCurrentFile((prev) => !prev)}
+            className={`rounded-md border px-2 py-1 text-[11px] ${
+              onlyCurrentFile
+                ? "border-accent/50 bg-accent/10 font-semibold text-accent"
+                : "border-border bg-white text-muted hover:text-text"
+            }`}
+            title="Показать только замечания по текущему файлу"
+          >
+            Этот файл
+          </button>
+        ) : null}
         {filtersOn ? (
           <button
             type="button"
@@ -563,6 +590,7 @@ export function ReviewsTable({
               setVerdictFilter("all");
               setOriginFilter("all");
               setSectionFilter("all");
+              setOnlyCurrentFile(false);
               setQuery("");
             }}
             className="rounded-md border border-border bg-white px-2 py-1 text-[11px] text-muted hover:text-text"

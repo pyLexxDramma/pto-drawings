@@ -5,8 +5,7 @@ import {
   regionAtPoint,
   type PageTextRegion,
 } from "@/lib/content-sync";
-import { highlightNeedles } from "@/lib/highlight-text";
-import { normalizeQuote } from "@/lib/remark-jump";
+import { findLayerHits } from "@/lib/highlight-text";
 import { clampPan } from "@/lib/page-viewport";
 import { getPageView, setPageView } from "@/lib/review-view-cache";
 import type { AnnotationRect, PageAnnotation } from "@/types";
@@ -34,6 +33,8 @@ type PdfPageProps = {
   onHoverRegion?: (regionId: string | null) => void;
   /** Клик по фрагменту (режим подсветки). */
   onSelectRegion?: (regionId: string | null) => void;
+  /** Сколько совпадений цитаты на чертеже (для баннера в review-pane). */
+  onHighlightHits?: (count: number) => void;
   onMarkRect?: (rect: AnnotationRect) => void;
   onSelectAnnotation?: (id: string) => void;
   onCancelMark?: () => void;
@@ -64,6 +65,7 @@ export function PdfPage({
   hoverRegions = [],
   onHoverRegion,
   onSelectRegion,
+  onHighlightHits,
   onMarkRect,
   onSelectAnnotation,
   onCancelMark,
@@ -260,20 +262,17 @@ export function PdfPage({
 
   useEffect(() => {
     const stored = textContentRef.current;
-    const needles = highlightNeedles(highlightQuery);
-    if (!stored || needles.length === 0) {
+    if (!stored || highlightQuery.trim().length < 2) {
       setSearchHits([]);
+      onHighlightHits?.(0);
       return;
     }
     const { items, viewport } = stored;
-    const hits: TextHit[] = [];
     const vt = viewport.transform;
-    for (const item of items) {
-      if (!item.str) continue;
-      const hay = normalizeQuote(item.str);
-      if (!needles.some((needle) => hay.includes(needle))) continue;
+    const layer = items.flatMap((item) => {
+      if (!item.str) return [];
       const t = item.transform;
-      if (!t) continue;
+      if (!t) return [];
       const a = vt[0] * t[0] + vt[2] * t[1];
       const b = vt[1] * t[0] + vt[3] * t[1];
       const c = vt[0] * t[2] + vt[2] * t[3];
@@ -282,15 +281,20 @@ export function PdfPage({
       const f = vt[1] * t[4] + vt[3] * t[5] + vt[5];
       const fontHeight = Math.max(1, Math.hypot(c, d));
       const width = Math.max(1, (item.width ?? 0) * Math.hypot(a, b));
-      hits.push({
-        x: e / viewport.width,
-        y: (f - fontHeight) / viewport.height,
-        w: Math.max(0.01, width / viewport.width),
-        h: Math.max(0.01, fontHeight / viewport.height),
-      });
-    }
+      return [
+        {
+          text: item.str,
+          x: e / viewport.width,
+          y: (f - fontHeight) / viewport.height,
+          w: Math.max(0.01, width / viewport.width),
+          h: Math.max(0.01, fontHeight / viewport.height),
+        },
+      ];
+    });
+    const hits = findLayerHits(layer, highlightQuery);
     setSearchHits(hits);
-  }, [highlightQuery, loading, pageNumber]);
+    onHighlightHits?.(hits.length);
+  }, [highlightQuery, loading, pageNumber, onHighlightHits]);
 
   function boundPan(next: { x: number; y: number }, s = scaleRef.current) {
     const wrap = wrapRef.current;
@@ -807,7 +811,13 @@ export function PdfPage({
             </span>
           ) : null}
         </div>
-      ) : null}
+      ) : (
+        <div className="pointer-events-none absolute left-1/2 top-2 z-20 -translate-x-1/2 opacity-0 transition-opacity group-hover:opacity-100">
+          <span className="rounded-md border border-slate-200 bg-white/90 px-2 py-1 text-[10px] text-muted shadow-sm">
+            тяни мышью · колесо — сдвиг · Ctrl — зум
+          </span>
+        </div>
+      )}
 
       {/* Листы + масштаб — цветные стрелки, чтобы сразу заметить. */}
       <div

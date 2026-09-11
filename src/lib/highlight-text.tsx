@@ -24,6 +24,54 @@ export function highlightNeedles(query: string): string[] {
   return [...new Set(needles)].sort((a, b) => b.length - a.length);
 }
 
+/** Фрагмент текстового слоя чертежа (нормализованные координаты 0..1). */
+export type LayerTextHit = { x: number; y: number; w: number; h: number };
+
+/**
+ * Ищет цитату в текстовом слое: сначала в одном item, иначе в склеенной
+ * последовательности соседних (VLM/PDF часто режут строку на куски).
+ */
+export function findLayerHits(
+  items: Array<{ text: string; x: number; y: number; w: number; h: number }>,
+  query: string,
+): LayerTextHit[] {
+  const needles = highlightNeedles(query);
+  if (needles.length === 0 || items.length === 0) return [];
+
+  const single: LayerTextHit[] = [];
+  for (const item of items) {
+    const hay = normalizeQuote(item.text);
+    if (!hay || !needles.some((needle) => hay.includes(needle))) continue;
+    single.push({ x: item.x, y: item.y, w: item.w, h: item.h });
+  }
+  if (single.length > 0) return single;
+
+  const parts: { start: number; end: number; index: number }[] = [];
+  let concat = "";
+  for (let i = 0; i < items.length; i += 1) {
+    const norm = normalizeQuote(items[i].text);
+    if (!norm) continue;
+    if (concat.length > 0) concat += " ";
+    const start = concat.length;
+    concat += norm;
+    parts.push({ start, end: concat.length, index: i });
+  }
+  if (!concat) return [];
+
+  for (const needle of needles) {
+    const at = concat.indexOf(needle);
+    if (at < 0) continue;
+    const end = at + needle.length;
+    const matched = parts.filter((part) => part.end > at && part.start < end);
+    if (matched.length === 0) continue;
+    return matched.map((part) => {
+      const item = items[part.index];
+      return { x: item.x, y: item.y, w: item.w, h: item.h };
+    });
+  }
+  return [];
+}
+
 /** Находит вхождения needle в text с гибкими пробелами; индексы — в исходном text. */
 export function findQuoteRanges(
   text: string,

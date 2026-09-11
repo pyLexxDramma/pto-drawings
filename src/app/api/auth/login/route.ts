@@ -13,7 +13,7 @@ const WINDOW_MS = 15 * 60 * 1000;
 export async function POST(request: Request) {
   const body = (await request.json()) as { login?: string; password?: string };
   const login = body.login?.trim() ?? "";
-  const password = body.password ?? "";
+  const password = body.password?.trim() ?? "";
   if (!login || !password) {
     return NextResponse.json({ error: "Укажите логин и пароль" }, { status: 400 });
   }

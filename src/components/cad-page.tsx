@@ -16,7 +16,7 @@ import {
   regionAtPoint,
   type PageTextRegion,
 } from "@/lib/content-sync";
-import { highlightNeedles } from "@/lib/highlight-text";
+import { findLayerHits, highlightNeedles } from "@/lib/highlight-text";
 import { normalizeQuote } from "@/lib/remark-jump";
 import { clampPan } from "@/lib/page-viewport";
 import type { AnnotationRect, PageAnnotation } from "@/types";
@@ -35,6 +35,7 @@ type CadPageProps = {
   hoverRegions?: PageTextRegion[];
   onHoverRegion?: (regionId: string | null) => void;
   onSelectRegion?: (regionId: string | null) => void;
+  onHighlightHits?: (count: number) => void;
   onMarkRect?: (rect: AnnotationRect) => void;
   onSelectAnnotation?: (id: string) => void;
   onCancelMark?: () => void;
@@ -75,6 +76,7 @@ export function CadPage({
   hoverRegions = [],
   onHoverRegion,
   onSelectRegion,
+  onHighlightHits,
   onMarkRect,
   onSelectAnnotation,
   onCancelMark,
@@ -445,34 +447,38 @@ export function CadPage({
     [geometry],
   );
 
-  const needles = useMemo(
-    () => highlightNeedles(highlightQuery),
-    [highlightQuery],
-  );
   const searchHits = useMemo(() => {
-    if (!geometry || needles.length === 0) return [];
-    const hits: { x: number; y: number; w: number; h: number }[] = [];
+    if (!geometry || highlightQuery.trim().length < 2) return [];
     const size = bboxSize(geometry.bbox);
-    for (const t of texts) {
-      if (!t.text) continue;
-      const hay = normalizeQuote(t.text);
-      if (!needles.some((needle) => hay.includes(needle))) continue;
-      if (t.points.length < 2) continue;
+    const layer = texts.flatMap((t) => {
+      if (!t.text || t.points.length < 2) return [];
       const origin = sheetToNorm(t.points[0], t.points[1], geometry.bbox);
       const th = Math.max(0.008, (t.size ?? 2.5) / size.h);
       const tw = Math.max(
         0.02,
         (t.width ?? (t.text.length * (t.size ?? 2.5) * 0.6)) / size.w,
       );
-      hits.push({
-        x: Math.max(0, origin.x - (t.anchor === "center" ? tw / 2 : t.anchor === "right" ? tw : 0)),
-        y: Math.max(0, origin.y - th * 0.85),
-        w: Math.min(1 - origin.x + tw, tw),
-        h: th * cadTextLines(t.text).length,
-      });
-    }
-    return hits;
-  }, [geometry, needles, texts]);
+      return [
+        {
+          text: t.text,
+          x: Math.max(0, origin.x - (t.anchor === "center" ? tw / 2 : t.anchor === "right" ? tw : 0)),
+          y: Math.max(0, origin.y - th * 0.85),
+          w: Math.min(1 - origin.x + tw, tw),
+          h: th * cadTextLines(t.text).length,
+        },
+      ];
+    });
+    return findLayerHits(layer, highlightQuery);
+  }, [geometry, highlightQuery, texts]);
+
+  const needles = useMemo(
+    () => highlightNeedles(highlightQuery),
+    [highlightQuery],
+  );
+
+  useEffect(() => {
+    onHighlightHits?.(searchHits.length);
+  }, [searchHits.length, onHighlightHits]);
 
   useEffect(() => {
     if (!panToHighlight || highlightRegion || searchHits.length === 0) return;
@@ -829,13 +835,26 @@ export function CadPage({
         ) : null}
       </div>
 
-      {markMode ? (
+      {markMode || searchHits.length > 0 ? (
         <div className="pointer-events-none absolute left-1/2 top-2 z-30 flex -translate-x-1/2 items-center gap-1.5">
-          <span className="rounded-md bg-red-600 px-2.5 py-1 text-[11px] font-medium text-white shadow-md">
-            Обведите место на чертеже · Esc — отмена
+          {markMode ? (
+            <span className="rounded-md bg-red-600 px-2.5 py-1 text-[11px] font-medium text-white shadow-md">
+              Обведите место на чертеже · Esc — отмена
+            </span>
+          ) : null}
+          {searchHits.length > 0 ? (
+            <span className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] text-amber-900 shadow-sm">
+              найдено: {searchHits.length}
+            </span>
+          ) : null}
+        </div>
+      ) : (
+        <div className="pointer-events-none absolute left-1/2 top-2 z-20 -translate-x-1/2 opacity-0 transition-opacity group-hover:opacity-100">
+          <span className="rounded-md border border-slate-200 bg-white/90 px-2 py-1 text-[10px] text-muted shadow-sm">
+            тяни мышью · колесо — сдвиг · Ctrl — зум
           </span>
         </div>
-      ) : null}
+      )}
 
       <div
         onMouseDown={(event) => event.stopPropagation()}

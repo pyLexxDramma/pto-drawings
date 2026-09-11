@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   useDeferredValue,
   useEffect,
   useMemo,
@@ -181,6 +182,11 @@ export function ReviewPane({
   /** Цитата из «Где в ПД»: подсветка в тексте и на чертеже. */
   const [focusQuote, setFocusQuote] = useState("");
   const [focusNonce, setFocusNonce] = useState(0);
+  const [drawingHitCount, setDrawingHitCount] = useState(0);
+  const [textHitFound, setTextHitFound] = useState<boolean | null>(null);
+  const handleHighlightHits = useCallback((count: number) => {
+    setDrawingHitCount(count);
+  }, []);
 
   const total = Math.max(document.pageCount, document.pages.length, 1);
   const isCadSource = isCadExt(getDrawingExt(document.originalName));
@@ -449,7 +455,13 @@ export function ReviewPane({
     setRawPage(openPage.page);
     const quote = (openPage.quote ?? "").trim();
     setFocusQuote(quote);
-    if (quote) setFocusNonce(Date.now());
+    if (quote || openPage.reviewId) {
+      setFocusNonce(Date.now());
+      setPaneSolo(null);
+      setSidePanel("text");
+      setDrawingHitCount(0);
+      setTextHitFound(null);
+    }
   }, [document.id, openPage]);
 
   // Цитата из reviewId, если workspace ещё не дописал quote в openPage.
@@ -471,17 +483,50 @@ export function ReviewPane({
     if (quote.length < 2) return;
     setFocusQuote(quote);
     setFocusNonce(Date.now());
+    setPaneSolo(null);
+    setSidePanel("text");
+    setDrawingHitCount(0);
+    setTextHitFound(null);
   }, [focusQuote, openPage, reviews, document.id, pageNumber]);
 
   // После появления markdown / смены листа — к цитате в расшифровке.
   useEffect(() => {
     if (!focusQuote || focusNonce === 0) return;
-    const timer = window.setTimeout(() => {
+    if (paneSolo === "pdf" || sidePanel !== "text") {
+      setTextHitFound(null);
+      return;
+    }
+    let cancelled = false;
+    let tries = 0;
+    const tick = () => {
+      if (cancelled) return;
       const mark = textPaneRef.current?.querySelector("mark[data-focus-quote]");
-      mark?.scrollIntoView({ block: "center", behavior: "smooth" });
-    }, 450);
-    return () => window.clearTimeout(timer);
-  }, [focusQuote, focusNonce, pageNumber, document.id, page?.markdown]);
+      if (mark) {
+        mark.scrollIntoView({ block: "center", behavior: "smooth" });
+        setTextHitFound(true);
+        return;
+      }
+      tries += 1;
+      if (tries < 10) {
+        window.setTimeout(tick, 200);
+      } else {
+        setTextHitFound(false);
+      }
+    };
+    const timer = window.setTimeout(tick, 300);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [
+    focusQuote,
+    focusNonce,
+    pageNumber,
+    document.id,
+    page?.markdown,
+    paneSolo,
+    sidePanel,
+  ]);
 
   useEffect(() => {
     cacheProgress(document.id, { viewed, lastPage: pageNumber });
@@ -1131,6 +1176,32 @@ export function ReviewPane({
               Просмотр
             </span>
           )}
+          {!isOfficeSource ? (
+            <button
+              type="button"
+              title={
+                paneSolo === "pdf"
+                  ? "Показать расшифровку рядом (F)"
+                  : "Чертёж на весь экран (F)"
+              }
+              onClick={() => {
+                if (paneSolo === "pdf") {
+                  setPaneSolo(null);
+                  if (focusMode) onToggleFocus();
+                } else {
+                  setPaneSolo("pdf");
+                  if (!focusMode) onToggleFocus();
+                }
+              }}
+              className={`${toolBtnIcon} ${
+                paneSolo === "pdf"
+                  ? "border-accent/40 bg-accent/5 text-accent"
+                  : ""
+              }`}
+            >
+              <IconExpand className="h-3.5 w-3.5" />
+            </button>
+          ) : null}
           {headerRight?.(
             <>
             <button
@@ -1176,6 +1247,23 @@ export function ReviewPane({
       </div>
 
       <div className="relative flex min-h-0 flex-1">
+        {focusDrawing && textHitFound !== null ? (
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-40 flex justify-center px-2 pt-1">
+            {drawingHitCount === 0 && textHitFound === false ? (
+              <span className="rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1 text-[11px] text-amber-950 shadow-sm">
+                Цитата не найдена на чертеже и в тексте
+              </span>
+            ) : drawingHitCount === 0 ? (
+              <span className="rounded-md border border-rose-300 bg-rose-50 px-2.5 py-1 text-[11px] text-rose-950 shadow-sm">
+                Цитата не найдена на чертеже — смотри текст
+              </span>
+            ) : textHitFound === false ? (
+              <span className="rounded-md border border-sky-300 bg-sky-50 px-2.5 py-1 text-[11px] text-sky-950 shadow-sm">
+                Цитата на чертеже · в расшифровке не найдена
+              </span>
+            ) : null}
+          </div>
+        ) : null}
         {stripOpen && !isOfficeSource ? (
           <>
             <PageStrip
@@ -1233,6 +1321,7 @@ export function ReviewPane({
                   panToHighlight={focusDrawing}
                   remarkFocus={focusDrawing}
                   highlightNonce={focusNonce}
+                  onHighlightHits={handleHighlightHits}
                   {...pageNav}
                   onMarkRect={(rect) => setPendingRect(rect)}
                   onSelectAnnotation={(id) => setHoverNoteId(id)}
@@ -1253,6 +1342,7 @@ export function ReviewPane({
                   panToHighlight={focusDrawing}
                   remarkFocus={focusDrawing}
                   highlightNonce={focusNonce}
+                  onHighlightHits={handleHighlightHits}
                   {...pageNav}
                   onMarkRect={(rect) => setPendingRect(rect)}
                   onSelectAnnotation={(id) => setHoverNoteId(id)}
@@ -1272,6 +1362,7 @@ export function ReviewPane({
                   panToHighlight={focusDrawing}
                   remarkFocus={focusDrawing}
                   highlightNonce={focusNonce}
+                  onHighlightHits={handleHighlightHits}
                   {...pageNav}
                   onMarkRect={(rect) => setPendingRect(rect)}
                   onSelectAnnotation={(id) => setHoverNoteId(id)}
@@ -1300,6 +1391,7 @@ export function ReviewPane({
                   panToHighlight={focusDrawing}
                   remarkFocus={focusDrawing}
                   highlightNonce={focusNonce}
+                  onHighlightHits={handleHighlightHits}
                   {...pageNav}
                   onMarkRect={(rect) => setPendingRect(rect)}
                   onSelectAnnotation={(id) => setHoverNoteId(id)}
