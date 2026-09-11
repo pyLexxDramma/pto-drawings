@@ -219,30 +219,30 @@ body {
   }
 }
 
-/** Зона замечания с «Где в ПД»: красная подсветка, мигает постоянно. */
+/** Зона замечания с «Где в ПД»: мягкая подсветка, без яркого мигания. */
 @keyframes pto-remark-flash {
   0%,
   100% {
-    background-color: rgb(248 113 113 / 0.55);
-    outline-color: rgb(220 38 38);
-    box-shadow: 0 0 0 2px rgb(220 38 38 / 0.45);
+    background-color: rgb(251 146 60 / 0.18);
+    outline-color: rgb(234 88 12 / 0.55);
+    box-shadow: 0 0 0 1px rgb(234 88 12 / 0.2);
   }
   50% {
-    background-color: rgb(254 226 226 / 0.2);
-    outline-color: rgb(248 113 113);
-    box-shadow: 0 0 0 6px rgb(220 38 38 / 0.15);
+    background-color: rgb(254 215 170 / 0.1);
+    outline-color: rgb(251 146 60 / 0.4);
+    box-shadow: 0 0 0 2px rgb(251 146 60 / 0.12);
   }
 }
 
 @keyframes pto-remark-text-flash {
   0%,
   100% {
-    background-color: rgb(254 202 202);
-    box-shadow: 0 0 0 2px rgb(220 38 38 / 0.55);
+    background-color: rgb(254 215 170 / 0.55);
+    box-shadow: none;
   }
   50% {
-    background-color: rgb(254 242 242);
-    box-shadow: 0 0 0 1px rgb(252 165 165 / 0.5);
+    background-color: rgb(255 247 237 / 0.35);
+    box-shadow: none;
   }
 }
 
@@ -252,15 +252,20 @@ body {
 
 .pto-remark-zone {
   outline-style: solid;
-  outline-width: 2px;
-  animation: pto-remark-flash 0.9s ease-in-out infinite;
+  outline-width: 1.5px;
+  animation: pto-remark-flash 1.6s ease-in-out 4;
+  animation-fill-mode: forwards;
+  background-color: rgb(251 146 60 / 0.14);
+  outline-color: rgb(234 88 12 / 0.45);
 }
 
 .pto-remark-text {
   border-radius: 2px;
   padding-inline: 0.125rem;
   color: inherit;
-  animation: pto-remark-text-flash 0.9s ease-in-out infinite;
+  background-color: rgb(254 215 170 / 0.45);
+  animation: pto-remark-text-flash 1.6s ease-in-out 4;
+  animation-fill-mode: forwards;
 }
 
 .pto-spinner {
@@ -293,12 +298,12 @@ body {
   }
 
   .pto-remark-zone {
-    background-color: rgb(248 113 113 / 0.45);
-    outline: 2px solid rgb(220 38 38);
+    background-color: rgb(251 146 60 / 0.16);
+    outline: 1.5px solid rgb(234 88 12 / 0.45);
   }
 
   .pto-remark-text {
-    background-color: rgb(254 202 202);
-    box-shadow: 0 0 0 2px rgb(220 38 38 / 0.4);
+    background-color: rgb(254 215 170 / 0.45);
+    box-shadow: none;
   }
 }
