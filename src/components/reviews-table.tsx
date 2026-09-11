@@ -206,7 +206,11 @@ export function ReviewsTable({
   const [sectionFilter, setSectionFilter] = useState<string>("all");
   const [groupBy, setGroupBy] = useState<GroupBy>("section");
   const [originFilter, setOriginFilter] = useState<OriginFilter>("all");
-  const [onlyCurrentFile, setOnlyCurrentFile] = useState(false);
+  // Зашли из конкретного файла — сразу показываем замечания по нему; чип
+  // подсвечен, чтобы фильтр было видно и можно было снять.
+  const [onlyCurrentFile, setOnlyCurrentFile] = useState(
+    Boolean(currentDocumentId),
+  );
   const [query, setQuery] = useState("");
   const [adding, setAdding] = useState(false);
   const [draftSection, setDraftSection] = useState("ПЗ");
@@ -574,12 +578,16 @@ export function ReviewsTable({
             onClick={() => setOnlyCurrentFile((prev) => !prev)}
             className={`rounded-md border px-2 py-1 text-[11px] ${
               onlyCurrentFile
-                ? "border-accent/50 bg-accent/10 font-semibold text-accent"
+                ? "border-emerald-600 bg-emerald-600 font-semibold text-white shadow-sm hover:bg-emerald-700"
                 : "border-border bg-white text-muted hover:text-text"
             }`}
-            title="Показать только замечания по текущему файлу"
+            title={
+              onlyCurrentFile
+                ? "Показаны только замечания по этому файлу — нажмите, чтобы увидеть весь проект"
+                : "Показать только замечания по текущему файлу"
+            }
           >
-            Этот файл
+            {onlyCurrentFile ? "Только этот файл ✓" : "Этот файл"}
           </button>
         ) : null}
         {filtersOn ? (
@@ -617,9 +625,22 @@ export function ReviewsTable({
           </div>
         ) : visible.length === 0 ? (
           <div className="p-10 text-center text-xs text-muted">
-            {reviews.length === 0
-              ? "Замечаний пока нет — конвейер их ещё не присылал. Можно добавить своё ниже."
-              : "Под фильтры ничего не попало."}
+            {reviews.length === 0 ? (
+              "Замечаний пока нет — конвейер их ещё не присылал. Можно добавить своё ниже."
+            ) : onlyCurrentFile ? (
+              <>
+                По этому файлу замечаний нет.{" "}
+                <button
+                  type="button"
+                  onClick={() => setOnlyCurrentFile(false)}
+                  className="font-medium text-accent underline decoration-dotted"
+                >
+                  Показать весь проект ({reviews.length})
+                </button>
+              </>
+            ) : (
+              "Под фильтры ничего не попало."
+            )}
           </div>
         ) : (
           <table className="w-full border-collapse text-xs">
