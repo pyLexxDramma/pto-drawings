@@ -26,6 +26,7 @@ import {
   getDocumentView,
   patchDocumentView,
 } from "@/lib/review-view-cache";
+import { normalizeQuote } from "@/lib/remark-jump";
 import {
   cacheProgress,
   fetchProgress,
@@ -360,6 +361,29 @@ export function ReviewPane({
   const page = document.pages.find((item) => item.pageNumber === pageNumber);
   const pageNotes = notes.filter((item) => item.pageNumber === pageNumber);
   const pageReviews = reviewsByPage.get(pageNumber) ?? [];
+  function focusReviewOnSheet(review: (typeof pageReviews)[number]) {
+    const location =
+      review.locations.find(
+        (item) =>
+          item.documentId === document.id && item.pageNumber === pageNumber,
+      ) ??
+      review.locations.find((item) => item.documentId === document.id) ??
+      review.locations[0];
+    const quote = (
+      location?.quote ||
+      review.text ||
+      review.aiFinding ||
+      ""
+    ).trim();
+    if (quote.length < 2) return;
+    setFocusQuote(quote);
+    setFocusNonce(Date.now());
+    setPaneSolo(null);
+    setSidePanel("text");
+    setDrawingHitCount(0);
+    setTextHitFound(null);
+  }
+
   const pageReviewQuotes = pageReviews
     .flatMap((review) =>
       review.locations
@@ -1549,20 +1573,50 @@ export function ReviewPane({
                     <div className="mb-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-900">
                       <div className="font-medium">
                         Замечаний по листу: {pageReviews.length}
+                        <span className="ml-1 font-normal text-rose-700/80">
+                          · кликните, чтобы подсветить на чертеже
+                        </span>
                       </div>
                       <ul className="mt-1 space-y-0.5">
-                        {pageReviews.map((review) => (
-                          <li key={review.id} className="leading-snug">
-                            <span className="font-medium tabular-nums">
-                              № {review.number}
-                            </span>
-                            {` · ${REVIEW_SEVERITY_LABEL[
-                              review.severity
-                            ].toLowerCase()} · ${
-                              review.text || review.aiFinding
-                            }`}
-                          </li>
-                        ))}
+                        {pageReviews.map((review) => {
+                          const active =
+                            focusQuote.length >= 2 &&
+                            (
+                              review.locations.some(
+                                (loc) =>
+                                  loc.quote &&
+                                  normalizeQuote(loc.quote) ===
+                                    normalizeQuote(focusQuote),
+                              ) ||
+                              normalizeQuote(review.text || "") ===
+                                normalizeQuote(focusQuote) ||
+                              normalizeQuote(review.aiFinding || "") ===
+                                normalizeQuote(focusQuote)
+                            );
+                          return (
+                            <li key={review.id}>
+                              <button
+                                type="button"
+                                onClick={() => focusReviewOnSheet(review)}
+                                className={`w-full rounded px-1.5 py-1 text-left leading-snug hover:bg-rose-100/80 ${
+                                  active
+                                    ? "bg-rose-200/90 outline outline-2 outline-rose-500"
+                                    : ""
+                                }`}
+                                title="Подсветить место на чертеже и в расшифровке"
+                              >
+                                <span className="font-medium tabular-nums">
+                                  № {review.number}
+                                </span>
+                                {` · ${REVIEW_SEVERITY_LABEL[
+                                  review.severity
+                                ].toLowerCase()} · ${
+                                  review.text || review.aiFinding
+                                }`}
+                              </button>
+                            </li>
+                          );
+                        })}
                       </ul>
                     </div>
                   ) : null}

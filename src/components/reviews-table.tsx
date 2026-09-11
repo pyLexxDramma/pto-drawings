@@ -1082,25 +1082,38 @@ function ReviewRow({
                           location.pageNumber!,
                           {
                             reviewId: review.id,
-                            quote: location.quote || undefined,
+                            quote: location.quote || wording || undefined,
                           },
                         );
                       }}
-                      title="Открыть лист в новой вкладке"
-                      className="text-left text-[11px] font-medium text-accent underline decoration-dotted hover:no-underline"
+                      title="Открыть на чертеже с подсветкой"
+                      className="group w-full rounded-md border border-rose-200 bg-rose-50/80 px-1.5 py-1 text-left hover:border-rose-400 hover:bg-rose-100"
                     >
-                      {highlight(label, needle)}
+                      <span className="text-[11px] font-medium text-accent underline decoration-dotted group-hover:no-underline">
+                        {highlight(label, needle)}
+                      </span>
+                      {location.quote ? (
+                        <div className="mt-0.5 text-[10px] leading-snug text-rose-900">
+                          «{highlight(location.quote, needle)}»
+                        </div>
+                      ) : (
+                        <div className="mt-0.5 text-[10px] text-muted">
+                          Открыть лист · подсветить место
+                        </div>
+                      )}
                     </button>
                   ) : (
-                    <span className="text-[11px] font-medium text-text">
-                      {highlight(label, needle)}
-                    </span>
+                    <>
+                      <span className="text-[11px] font-medium text-text">
+                        {highlight(label, needle)}
+                      </span>
+                      {location.quote ? (
+                        <div className="text-[10px] leading-snug text-muted">
+                          «{highlight(location.quote, needle)}»
+                        </div>
+                      ) : null}
+                    </>
                   )}
-                  {location.quote ? (
-                    <div className="text-[10px] leading-snug text-muted">
-                      «{highlight(location.quote, needle)}»
-                    </div>
-                  ) : null}
                 </li>
               );
             })}
