@@ -103,7 +103,6 @@ export function PdfPage({
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [grabbing, setGrabbing] = useState(false);
   const [draw, setDraw] = useState<DrawState | null>(null);
-  const [anchorFlash, setAnchorFlash] = useState(false);
   const [searchHits, setSearchHits] = useState<TextHit[]>([]);
   const [fitMode, setFitMode] = useState<"page" | "width">("page");
   const clickRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
@@ -352,7 +351,8 @@ export function PdfPage({
     const nextPan = clampPan(
       {
         x: (wrap.clientWidth - contentW) / 2,
-        y: (wrap.clientHeight - contentH) / 2,
+        // Лист выше кадра — показываем его с начала, а не серединой.
+        y: contentH <= wrap.clientHeight ? (wrap.clientHeight - contentH) / 2 : 0,
       },
       {
         viewW: wrap.clientWidth,
@@ -418,11 +418,8 @@ export function PdfPage({
 
   useEffect(() => {
     if (!highlightNonce) return;
-    // Клик по замечанию: общий вид листа + вспышка зоны, без автозума.
+    // Клик по замечанию: общий вид листа, зона мигает сама (pto-remark-zone).
     fit("page");
-    setAnchorFlash(true);
-    const timer = window.setTimeout(() => setAnchorFlash(false), 900);
-    return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [highlightNonce]);
 
@@ -619,9 +616,6 @@ export function PdfPage({
           <div className="absolute inset-0 z-10 flex items-center justify-center text-sm text-[#8b93a3]">
             Страница загружается…
           </div>
-        ) : null}
-        {anchorFlash ? (
-          <div className="pointer-events-none absolute inset-0 z-20 animate-pulse border-4 border-sky-400/80 bg-sky-300/10" />
         ) : null}
         {error ? (
           <div className="absolute inset-0 z-20 flex flex-col bg-white">

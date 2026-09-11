@@ -120,7 +120,6 @@ export function CadPage({
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [grabbing, setGrabbing] = useState(false);
   const [draw, setDraw] = useState<DrawState | null>(null);
-  const [anchorFlash, setAnchorFlash] = useState(false);
   const [fitMode, setFitMode] = useState<"page" | "width">("page");
 
   useEffect(() => {
@@ -268,7 +267,8 @@ export function CadPage({
     const nextPan = clampPan(
       {
         x: (wrap.clientWidth - contentW) / 2,
-        y: (wrap.clientHeight - contentH) / 2,
+        // Лист выше кадра — показываем его с начала, а не серединой.
+        y: contentH <= wrap.clientHeight ? (wrap.clientHeight - contentH) / 2 : 0,
       },
       {
         viewW: wrap.clientWidth,
@@ -332,11 +332,8 @@ export function CadPage({
 
   useEffect(() => {
     if (!highlightNonce) return;
-    // Клик по замечанию: общий вид листа + вспышка зоны, без автозума.
+    // Клик по замечанию: общий вид листа, зона мигает сама (pto-remark-zone).
     fit("page");
-    setAnchorFlash(true);
-    const timer = window.setTimeout(() => setAnchorFlash(false), 900);
-    return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [highlightNonce]);
 
@@ -593,10 +590,6 @@ export function CadPage({
             </span>
           </div>
         ) : null}
-        {anchorFlash ? (
-          <div className="pointer-events-none absolute inset-0 z-20 animate-pulse border-4 border-sky-400/80 bg-sky-300/10" />
-        ) : null}
-
         {!loading && error && !previewUrl ? (
           <div className="flex h-full min-h-[16rem] flex-col items-center justify-center gap-3 px-6 text-center">
             <div className="max-w-sm rounded-xl border border-dashed border-slate-300 bg-white px-6 py-8 shadow-sm">

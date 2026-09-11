@@ -52,8 +52,34 @@ function hitForMatch(
   return clampHit({ x, y: item.y, w, h: item.h });
 }
 
+/** Куски одного совпадения в одной строке склеиваем в один прямоугольник. */
+function mergeHits(hits: LayerTextHit[]): LayerTextHit[] {
+  const sorted = [...hits].sort((a, b) => a.y - b.y || a.x - b.x);
+  const merged: LayerTextHit[] = [];
+  for (const hit of sorted) {
+    const last = merged[merged.length - 1];
+    const sameLine =
+      last &&
+      Math.abs(last.y + last.h / 2 - (hit.y + hit.h / 2)) <
+        Math.max(last.h, hit.h) * 0.6;
+    const adjacent = last && hit.x - (last.x + last.w) < 0.02;
+    if (last && sameLine && adjacent) {
+      const x1 = Math.max(last.x + last.w, hit.x + hit.w);
+      const y0 = Math.min(last.y, hit.y);
+      const y1 = Math.max(last.y + last.h, hit.y + hit.h);
+      last.x = Math.min(last.x, hit.x);
+      last.y = y0;
+      last.w = x1 - last.x;
+      last.h = y1 - y0;
+      continue;
+    }
+    merged.push({ ...hit });
+  }
+  return merged.map(clampHit);
+}
+
 /**
- * Ищет цитату в текстовом слое: одно лучшее вхождение (самый длинный needle),
+ * Ищет цитату в текстовом слое: берём самый длинный подошедший needle,
  * прямоугольники обрезаны по доле совпавшего текста — не вся строка листа.
  */
 export function findLayerHits(
@@ -63,29 +89,29 @@ export function findLayerHits(
   const needles = highlightNeedles(query);
   if (needles.length === 0 || items.length === 0) return [];
 
+  const norm = items.map((item) => normalizeQuote(item.text));
+
+  // 1) Совпадение целиком внутри одного фрагмента текстового слоя.
   for (const needle of needles) {
-    const singles: LayerTextHit[] = [];
-    for (const item of items) {
-      const hay = normalizeQuote(item.text);
+    const hits: LayerTextHit[] = [];
+    for (let i = 0; i < items.length; i += 1) {
+      const hay = norm[i];
       if (!hay) continue;
       const at = hay.indexOf(needle);
       if (at < 0) continue;
-      singles.push(hitForMatch(item, hay, at, at + needle.length));
+      hits.push(hitForMatch(items[i], hay, at, at + needle.length));
     }
-    if (singles.length > 0) {
-      // Одно вхождение: ближайшее к «полному» совпадению (уже longest needle).
-      return [singles[0]];
-    }
+    if (hits.length > 0) return mergeHits(hits);
   }
 
+  // 2) Цитата разрезана на соседние фрагменты — ищем в склеенной строке.
   const parts: { start: number; end: number; index: number }[] = [];
   let concat = "";
   for (let i = 0; i < items.length; i += 1) {
-    const norm = normalizeQuote(items[i].text);
-    if (!norm) continue;
+    if (!norm[i]) continue;
     if (concat.length > 0) concat += " ";
     const start = concat.length;
-    concat += norm;
+    concat += norm[i];
     parts.push({ start, end: concat.length, index: i });
   }
   if (!concat) return [];
@@ -96,13 +122,15 @@ export function findLayerHits(
     const end = at + needle.length;
     const matched = parts.filter((part) => part.end > at && part.start < end);
     if (matched.length === 0) continue;
-    return matched.map((part) => {
-      const item = items[part.index];
-      const hay = normalizeQuote(item.text);
-      const localStart = Math.max(0, at - part.start);
-      const localEnd = Math.min(hay.length, end - part.start);
-      return hitForMatch(item, hay, localStart, localEnd);
-    });
+    return mergeHits(
+      matched.map((part) => {
+        const item = items[part.index];
+        const hay = norm[part.index];
+        const localStart = Math.max(0, at - part.start);
+        const localEnd = Math.min(hay.length, end - part.start);
+        return hitForMatch(item, hay, localStart, localEnd);
+      }),
+    );
   }
   return [];
 }
