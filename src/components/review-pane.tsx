@@ -519,7 +519,16 @@ export function ReviewPane({
       if (cancelled) return;
       const mark = textPaneRef.current?.querySelector("mark[data-focus-quote]");
       if (mark) {
-        mark.scrollIntoView({ block: "center", behavior: "smooth" });
+        // Только скролл к цитате — без зума; весь фрагмент в кадре расшифровки.
+        mark.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+        const pane = textPaneRef.current;
+        if (pane) {
+          const m = mark.getBoundingClientRect();
+          const p = pane.getBoundingClientRect();
+          if (m.top < p.top + 8 || m.bottom > p.bottom - 8) {
+            mark.scrollIntoView({ block: "center", inline: "nearest", behavior: "smooth" });
+          }
+        }
         setTextHitFound(true);
         return;
       }
@@ -1299,7 +1308,7 @@ export function ReviewPane({
                   markMode={markMode && !readOnly}
                   activeAnnotationId={activeNoteId}
                   highlightQuery={drawingHighlightQuery}
-                  panToHighlight={focusDrawing}
+                  panToHighlight={false}
                   remarkFocus={focusDrawing}
                   highlightNonce={focusNonce}
                   onHighlightHits={handleHighlightHits}
@@ -1320,7 +1329,7 @@ export function ReviewPane({
                   markMode={markMode && !readOnly}
                   activeAnnotationId={activeNoteId}
                   highlightQuery={drawingHighlightQuery}
-                  panToHighlight={focusDrawing}
+                  panToHighlight={false}
                   remarkFocus={focusDrawing}
                   highlightNonce={focusNonce}
                   onHighlightHits={handleHighlightHits}
@@ -1340,7 +1349,7 @@ export function ReviewPane({
                   markMode={markMode && !readOnly}
                   activeAnnotationId={activeNoteId}
                   highlightQuery={drawingHighlightQuery}
-                  panToHighlight={focusDrawing}
+                  panToHighlight={false}
                   remarkFocus={focusDrawing}
                   highlightNonce={focusNonce}
                   onHighlightHits={handleHighlightHits}
@@ -1369,7 +1378,7 @@ export function ReviewPane({
                   markMode={markMode && !readOnly}
                   activeAnnotationId={activeNoteId}
                   highlightQuery={drawingHighlightQuery}
-                  panToHighlight={focusDrawing}
+                  panToHighlight={false}
                   remarkFocus={focusDrawing}
                   highlightNonce={focusNonce}
                   onHighlightHits={handleHighlightHits}

@@ -418,8 +418,8 @@ export function PdfPage({
 
   useEffect(() => {
     if (!highlightNonce) return;
-    // При прыжке к цитате зум «по странице» мешает pan к hit — только вспышка.
-    if (!panToHighlight) fit("page");
+    // Клик по замечанию: общий вид листа + вспышка зоны, без автозума.
+    fit("page");
     setAnchorFlash(true);
     const timer = window.setTimeout(() => setAnchorFlash(false), 900);
     return () => window.clearTimeout(timer);
@@ -452,50 +452,8 @@ export function PdfPage({
     });
   }, [highlightRegion, panToHighlight, scale, natural.w, natural.h]);
 
-  // «Где в ПД»: подтянуть первый hit поиска цитаты в кадр.
-  useEffect(() => {
-    if (!panToHighlight || highlightRegion || searchHits.length === 0) return;
-    const hit = searchHits[0];
-    const wrap = wrapRef.current;
-    if (!wrap) return;
-    const s = scaleRef.current;
-    const p = panRef.current;
-    const n = naturalRef.current;
-    const cx = (hit.x + hit.w / 2) * n.w * s + p.x;
-    const cy = (hit.y + hit.h / 2) * n.h * s + p.y;
-    const margin = 64;
-    let nx = p.x;
-    let ny = p.y;
-    if (cx < margin) nx += margin - cx;
-    else if (cx > wrap.clientWidth - margin) nx -= cx - (wrap.clientWidth - margin);
-    if (cy < margin) ny += margin - cy;
-    else if (cy > wrap.clientHeight - margin) ny -= cy - (wrap.clientHeight - margin);
-    const targetScale = Math.min(4, Math.max(s, 1.4));
-    if (targetScale !== s) {
-      const contentX = (cx - p.x) / s;
-      const contentY = (cy - p.y) / s;
-      const zoomed = boundPan(
-        {
-          x: wrap.clientWidth / 2 - contentX * targetScale,
-          y: wrap.clientHeight / 2 - contentY * targetScale,
-        },
-        targetScale,
-      );
-      scaleRef.current = targetScale;
-      panRef.current = zoomed;
-      setScale(targetScale);
-      setPan(zoomed);
-      return;
-    }
-    if (nx === p.x && ny === p.y) return;
-    applyingSync.current = true;
-    const next = boundPan({ x: nx, y: ny });
-    panRef.current = next;
-    setPan(next);
-    requestAnimationFrame(() => {
-      applyingSync.current = false;
-    });
-  }, [panToHighlight, highlightRegion, searchHits, scale, natural.w, natural.h]);
+  // Автозум/пан к hit отключён: при замечании остаётся общий вид (fit page).
+  // Пользователь сам приближает через −/+ или Ctrl+колёсико.
 
   useEffect(() => {
     const wrap = wrapRef.current;

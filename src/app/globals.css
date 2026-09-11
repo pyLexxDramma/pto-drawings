@@ -266,6 +266,11 @@ body {
   background-color: rgb(254 215 170 / 0.45);
   animation: pto-remark-text-flash 1.6s ease-in-out 4;
   animation-fill-mode: forwards;
+  scroll-margin-block: 2.5rem;
+}
+
+mark[data-focus-quote] {
+  scroll-margin-block: 2.5rem;
 }
 
 .pto-spinner {
