@@ -2,6 +2,9 @@ name: List backups (one-shot)
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/list-backups.yml"
 
 jobs:
   list:
@@ -16,6 +19,7 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script_stop: false
           command_timeout: 3m
+          envs: PTO_APP_DIR
           script: |
             set +e
             APP_DIR="${PTO_APP_DIR:-/var/www/pto}"
@@ -23,27 +27,34 @@ jobs:
             ls -la "$APP_DIR/data" 2>&1 | head -40
             echo "=== /var/lib/pto ==="
             ls -la /var/lib/pto 2>&1 | head -40
-            echo "=== uploads real dir ==="
-            ls -lt /var/lib/pto/uploads 2>&1 | head -30
             echo "=== uploads count ==="
             find /var/lib/pto/uploads -type f 2>/dev/null | wc -l
             echo "=== recent upload files ==="
-            find /var/lib/pto/uploads -type f -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -20
+            find /var/lib/pto/uploads -type f -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -25
             echo "=== data json files ==="
-            find "$APP_DIR/data" /var/lib/pto -maxdepth 3 -name '*.json' 2>/dev/null | head -40
-            echo "=== db head ==="
-            for f in "$APP_DIR/data/db.json" "$APP_DIR/data/index.json" /var/lib/pto/data/db.json; do
-              if [ -f "$f" ]; then
-                echo "FOUND $f"
-                python3 -c "import json; db=json.load(open('$f')); print('projects',len(db.get('projects',[]))); print([(p.get('name'),p.get('id')) for p in db.get('projects',[])]); docs=sorted(db.get('documents',[]), key=lambda d:d.get('createdAt',''), reverse=True); print('docs',len(docs));
-[print(d.get('createdAt'), d.get('originalName'), d.get('storedName'), d.get('id')) for d in docs[:20]]"
-              fi
-            done
+            find "$APP_DIR/data" /var/lib/pto -maxdepth 4 -name '*.json' 2>/dev/null | head -40
+            echo "=== db dump ==="
+            cat > /tmp/pto_list_db.py << 'PY'
+            import json, os
+            paths = [
+              "/var/www/pto/data/db.json",
+              "/var/www/pto/data/index.json",
+              "/var/lib/pto/data/db.json",
+            ]
+            for p in paths:
+              if not os.path.isfile(p):
+                continue
+              print("FOUND", p)
+              db = json.load(open(p, encoding="utf-8"))
+              print("projects", [(x.get("name"), x.get("id")) for x in db.get("projects", [])])
+              docs = sorted(db.get("documents", []), key=lambda d: d.get("createdAt", ""), reverse=True)
+              print("docs", len(docs))
+              for d in docs[:25]:
+                print(d.get("createdAt"), "|", d.get("originalName"), "|", d.get("storedName"), "|", d.get("id"), "|", d.get("status"))
+            PY
+            python3 /tmp/pto_list_db.py
             echo "=== zip backups ==="
-            find /var/www /opt /var/lib/pto /root /home -maxdepth 4 -name 'pto-*.zip' 2>/dev/null | head -20
-            find /var/www /opt /var/lib/pto -maxdepth 4 -name '*.zip' 2>/dev/null | head -20
-            echo "=== trash / lost+found ==="
-            ls /var/lib/pto/uploads/.Trash* 2>&1 | head -5
-            ls /tmp | head -20
+            find /var/www /opt /var/lib/pto /root /home -maxdepth 4 \( -name 'pto-*.zip' -o -name 'backup*.zip' -o -name 'data*.tar*' \) 2>/dev/null | head -30
+            echo "=== done ==="
         env:
           PTO_APP_DIR: ${{ secrets.VPS_APP_DIR }}
