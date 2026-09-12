@@ -19,7 +19,7 @@ export const KEYMAP: KeymapItem[] = [
   { group: "sheets", keys: "K / PageUp", action: "Предыдущий лист" },
   { group: "sheets", keys: "V", action: "Отметить лист просмотренным" },
   { group: "search", keys: "/ или Ctrl+F", action: "Поиск по файлу" },
-  { group: "remarks", keys: "E", action: "Отметить ошибку на чертеже" },
+  { group: "remarks", keys: "E", action: "Отметить ошибку / отменить разметку" },
   { group: "remarks", keys: "↑ ↓", action: "Предыдущее / следующее замечание" },
   { group: "remarks", keys: "1 / 2 / 3", action: "Важность низкая / средняя / высокая" },
   { group: "remarks", keys: "Enter", action: "Разобрано" },

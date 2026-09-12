@@ -600,24 +600,6 @@ export function PdfPage({
         canNextPage={canNextPage}
         onToggleFullscreen={onToggleFullscreen}
         fullscreenActive={fullscreenActive}
-        extra={
-          <button
-            type="button"
-            title={minimapOn ? "Скрыть обзор листа" : "Показать обзор листа"}
-            onClick={() => {
-              const next = !minimapOn;
-              setMinimapOn(next);
-              saveViewerPrefs({ ...loadViewerPrefs(), minimap: next });
-            }}
-            className={`pto-tool hidden rounded border px-1.5 text-[10px] sm:inline ${
-              minimapOn
-                ? "border-accent/40 bg-accent/10 text-accent"
-                : "border-border bg-white text-muted"
-            }`}
-          >
-            Обзор
-          </button>
-        }
       />
     </div>
   );

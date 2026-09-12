@@ -26,7 +26,6 @@ import {
   loadViewerPrefs,
   saveViewerPrefs,
   shouldShowViewerHint,
-  type CadTextFilter,
 } from "@/lib/viewer-prefs";
 import type { AnnotationRect, PageAnnotation } from "@/types";
 
@@ -719,62 +718,6 @@ export function CadPage({
         canNextPage={canNextPage}
         onToggleFullscreen={onToggleFullscreen}
         fullscreenActive={fullscreenActive}
-        extra={
-          <>
-            <button
-              type="button"
-              title="Крупные подписи на экране"
-              onClick={() => patchPrefs({ largeLabels: !prefs.largeLabels })}
-              className={`pto-tool hidden rounded border px-1.5 text-[10px] lg:inline ${
-                prefs.largeLabels
-                  ? "border-accent/40 bg-accent/10 text-accent"
-                  : "border-border bg-white text-muted"
-              }`}
-            >
-              Подписи
-            </button>
-            <button
-              type="button"
-              title="Тонкие линии — плотные зоны читаются"
-              onClick={() => patchPrefs({ thinStrokes: !prefs.thinStrokes })}
-              className={`pto-tool hidden rounded border px-1.5 text-[10px] lg:inline ${
-                prefs.thinStrokes
-                  ? "border-accent/40 bg-accent/10 text-accent"
-                  : "border-border bg-white text-muted"
-              }`}
-            >
-              Тонкие
-            </button>
-            <button
-              type="button"
-              title="Показать или скрыть текст чертежа"
-              onClick={() => {
-                const order: CadTextFilter[] = ["all", "hide", "text"];
-                const index = order.indexOf(prefs.textFilter);
-                patchPrefs({ textFilter: order[(index + 1) % order.length] });
-              }}
-              className="pto-tool hidden rounded border border-border bg-white px-1.5 text-[10px] text-muted lg:inline"
-            >
-              {prefs.textFilter === "hide"
-                ? "Без текста"
-                : prefs.textFilter === "text"
-                  ? "Только текст"
-                  : "Весь лист"}
-            </button>
-            <button
-              type="button"
-              title={prefs.minimap ? "Скрыть обзор" : "Показать обзор"}
-              onClick={() => patchPrefs({ minimap: !prefs.minimap })}
-              className={`pto-tool hidden rounded border px-1.5 text-[10px] sm:inline ${
-                prefs.minimap
-                  ? "border-accent/40 bg-accent/10 text-accent"
-                  : "border-border bg-white text-muted"
-              }`}
-            >
-              Обзор
-            </button>
-          </>
-        }
       />
     </div>
   );

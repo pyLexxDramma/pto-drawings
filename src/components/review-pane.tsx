@@ -627,12 +627,18 @@ export function ReviewPane({
 
   function toggleMark() {
     if (readOnly) return;
+    if (markMode) {
+      setMarkMode(false);
+      setPendingRect(null);
+      setNoteComment("");
+      setNoteExpected("");
+      setNoteError(null);
+      setSidePanel("text");
+      return;
+    }
     setPendingRect(null);
-    setMarkMode((value) => {
-      const next = !value;
-      if (next) setSidePanel("notes");
-      return next;
-    });
+    setMarkMode(true);
+    setSidePanel("notes");
   }
 
   function toggleDrawingFullscreen() {
@@ -733,6 +739,10 @@ export function ReviewPane({
         if (markMode || pendingRect) {
           setMarkMode(false);
           setPendingRect(null);
+          setNoteComment("");
+          setNoteExpected("");
+          setNoteError(null);
+          setSidePanel("text");
           return;
         }
         if (paneSolo) {
@@ -1036,12 +1046,7 @@ export function ReviewPane({
             </button>
             <button
               type="button"
-              onClick={() => {
-                setPendingRect(null);
-                setNoteComment("");
-                setNoteExpected("");
-                setNoteError(null);
-              }}
+              onClick={toggleMark}
               className="rounded-md border border-slate-300 px-2.5 py-1 text-xs"
             >
               Отмена
@@ -1220,11 +1225,14 @@ export function ReviewPane({
                   {!readOnly ? (
                     <button
                       type="button"
+                      title={markMode ? "Отменить разметку (Esc)" : "Обвести ошибку на чертеже"}
                       onClick={() => {
+                        if (markMode) {
+                          toggleMark();
+                          return;
+                        }
                         setPaneSolo(null);
-                        setSidePanel("notes");
-                        setPendingRect(null);
-                        setMarkMode(true);
+                        toggleMark();
                       }}
                       className={
                         markMode
@@ -1232,7 +1240,7 @@ export function ReviewPane({
                           : "rounded border border-slate-300 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-800 hover:bg-slate-50"
                       }
                     >
-                      {markMode ? "Рисую ошибку…" : "Отметить ошибку"}
+                      {markMode ? "Отменить" : "Отметить ошибку"}
                     </button>
                   ) : null}
                 </div>
@@ -1405,31 +1413,15 @@ export function ReviewPane({
               />
               <button
                 type="button"
-                onClick={() => setSidePanel("text")}
-                className={`rounded border px-2 py-0.5 text-[10px] font-semibold ${
-                  sidePanel === "text"
-                    ? "border-slate-700 bg-slate-700 text-white"
-                    : "border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
-                }`}
-              >
-                {page?.kind === "table" ? "Таблица" : "Текст листа"}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setSidePanel("notes");
-                  if (!readOnly) {
-                    setPendingRect(null);
-                    setMarkMode(true);
-                  }
-                }}
+                title={markMode ? "Отменить разметку (Esc)" : "Обвести ошибку на чертеже"}
+                onClick={toggleMark}
                 className={`rounded border px-2 py-0.5 text-[10px] font-semibold ${
                   sidePanel === "notes" || markMode
                     ? "border-slate-700 bg-slate-700 text-white"
                     : "border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
                 }`}
               >
-                {markMode ? "Рисую ошибку…" : "Отметить ошибку"}
+                {markMode ? "Отменить" : "Отметить ошибку"}
                 {!markMode && pageNotes.length ? (
                   <span className="ml-1 tabular-nums opacity-80">
                     {pageNotes.length}
