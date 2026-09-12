@@ -117,6 +117,7 @@ function normalizeReview(raw: Partial<Review> & { id: string }): Review {
     updatedAt: text(raw.updatedAt, now) || now,
     authorId: text(raw.authorId) || null,
     authorName: text(raw.authorName) || null,
+    needsRecheck: Boolean(raw.needsRecheck),
   };
 }
 
@@ -346,6 +347,70 @@ export async function createReview(
   });
 }
 
+export async function createReviews(
+  projectId: string,
+  incoming: Array<{
+    section: string;
+    text: string;
+    severity?: ReviewSeverity;
+  }>,
+  actor: ReviewActor,
+): Promise<{ added: number; skipped: number; reviews: Review[] }> {
+  return withDataLock(async () => {
+    const { reviews: items, events } = await readStore(projectId);
+    const now = new Date().toISOString();
+    const seen = new Set(
+      items
+        .filter((item) => item.origin !== "ai")
+        .map((item) => item.text.toLowerCase().replace(/\s+/g, " ").trim()),
+    );
+    const next = [...items];
+    let log = events;
+    let added = 0;
+    let skipped = 0;
+    const created: Review[] = [];
+    for (const input of incoming) {
+      const textValue = input.text.trim();
+      if (!textValue) {
+        skipped += 1;
+        continue;
+      }
+      const key = textValue.toLowerCase().replace(/\s+/g, " ");
+      if (seen.has(key)) {
+        skipped += 1;
+        continue;
+      }
+      seen.add(key);
+      const review = normalizeReview({
+        id: crypto.randomUUID(),
+        projectId,
+        section: input.section,
+        origin: "engineer",
+        text: textValue,
+        severity: input.severity ?? "medium",
+        verdict: "pending",
+        createdAt: now,
+        updatedAt: now,
+        authorId: actor.userId,
+        authorName: actor.userName,
+      });
+      next.push(review);
+      created.push(review);
+      log = logEvents(log, review.id, actor, [
+        { field: "created", from: "", to: review.text },
+      ]);
+      added += 1;
+    }
+    const saved = await writeStore(projectId, next, log);
+    const ids = new Set(created.map((item) => item.id));
+    return {
+      added,
+      skipped,
+      reviews: saved.filter((item) => ids.has(item.id)),
+    };
+  });
+}
+
 export type ReviewPatch = {
   severity?: ReviewSeverity;
   verdict?: ReviewVerdict;
@@ -483,16 +548,17 @@ export async function ingestReviews(
     for (const raw of incoming) {
       const candidate = {
         section: text(raw.section, "прочее") || "прочее",
-        aiFinding: text(raw.aiFinding),
+        aiFinding: text(raw.aiFinding) || text(raw.text),
         locations: Array.isArray(raw.locations)
           ? raw.locations.map((item) => normalizeLocation(item ?? {}))
           : [],
       };
-      if (!candidate.aiFinding) continue;
+      if (!candidate.aiFinding && !raw.reviewId) continue;
 
       const exactId = idByKey.get(ingestKey(candidate));
-      let existing = exactId ? byId.get(exactId) : undefined;
-      let isEnrichment = false;
+      let existing = raw.reviewId ? byId.get(raw.reviewId) : undefined;
+      if (!existing && exactId) existing = byId.get(exactId);
+      let isEnrichment = Boolean(raw.reviewId && existing);
 
       if (!existing) {
         // Ищем формулировку инженера про то же самое в том же разделе.
@@ -526,6 +592,7 @@ export async function ingestReviews(
           aiFinding: candidate.aiFinding,
           severity: raw.severity ?? "medium",
           locations: candidate.locations,
+          needsRecheck: Boolean(raw.needsRecheck),
           verdict: "pending",
           createdAt: now,
           updatedAt: now,
@@ -539,6 +606,11 @@ export async function ingestReviews(
       // Текст инженера и цитаты можно уточнять, вердикт и комментарий — нет.
       const merged: Review = normalizeReview({
         ...existing,
+        // Обогащение: агент проставляет раздел. Пустой section не затирает уже стоящий.
+        section:
+          isEnrichment && text(raw.section)
+            ? candidate.section
+            : existing.section,
         // Формулировку инженера агент не перебивает, свою — уточняет.
         text:
           existing.origin === "ai"
@@ -548,6 +620,9 @@ export async function ingestReviews(
         locations: candidate.locations.length
           ? candidate.locations
           : existing.locations,
+        needsRecheck:
+          raw.needsRecheck ??
+          (candidate.locations.length ? false : existing.needsRecheck),
         origin:
           existing.origin === "engineer" && (raw.origin ?? "ai") === "ai"
             ? "both"

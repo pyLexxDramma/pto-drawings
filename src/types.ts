@@ -158,6 +158,8 @@ export type Review = {
   updatedAt: string;
   authorId: string | null;
   authorName: string | null;
+  /** Агент не нашёл цитату в ПД — инженеру надо глянуть самому. */
+  needsRecheck?: boolean;
 };
 
 /** Что именно правили в замечании — для журнала разбора. */
@@ -190,9 +192,14 @@ export type ReviewIngestItem = {
   section: string;
   origin?: ReviewOrigin;
   text?: string;
-  aiFinding: string;
+  /** Для обогащения по reviewId можно не присылать — PTO не затирает text инженера. */
+  aiFinding?: string;
   severity?: ReviewSeverity;
   locations?: ReviewLocation[];
+  /** Цитату в ПД не нашли или агент не уверен. */
+  needsRecheck?: boolean;
+  /** Обновить эту строку, а не искать по тексту. */
+  reviewId?: string;
 };
 
 export const REVIEW_SEVERITY_LABEL: Record<ReviewSeverity, string> = {

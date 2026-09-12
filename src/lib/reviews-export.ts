@@ -26,7 +26,11 @@ function place(location: ReviewLocation): string {
 }
 
 function whereInPd(review: Review): string {
-  return review.locations.map(place).filter(Boolean).join("\n↔ ");
+  const places = review.locations.map(place).filter(Boolean).join("\n↔ ");
+  if (review.needsRecheck) {
+    return places ? `${places}\nнужно перепроверить` : "нужно перепроверить";
+  }
+  return places;
 }
 
 /** Формулировка инженера первична; для находок ИИ берём её обоснование. */

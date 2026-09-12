@@ -235,6 +235,86 @@ describe("ingestReviews", () => {
     assert.equal(enrichedCount, 1, "второе замечание должно остаться как было");
   });
 
+  it("createReviews кладёт Excel в поток «инженер» и не дублирует", async () => {
+    const first = await store.createReviews(
+      PROJECT,
+      [
+        { section: "ОВ", text: "Диаметр ВСХ-20 не сходится", severity: "high" },
+        { section: "ОВ", text: "Диаметр ВСХ-20 не сходится", severity: "low" },
+        { section: "ВК", text: "  " },
+      ],
+      { userId: "u-imp", userName: "Импорт" },
+    );
+    assert.equal(first.added, 1);
+    assert.equal(first.skipped, 2);
+    assert.equal(first.reviews[0].origin, "engineer");
+    assert.equal(first.reviews[0].needsRecheck, false);
+
+    const again = await store.createReviews(
+      PROJECT,
+      [{ section: "ОВ", text: "Диаметр ВСХ-20 не сходится" }],
+      { userId: "u-imp", userName: "Импорт" },
+    );
+    assert.equal(again.added, 0);
+    assert.equal(again.skipped, 1);
+  });
+
+  it("обогащает строку по reviewId и не затирает текст инженера", async () => {
+    const created = await store.createReviews(
+      PROJECT,
+      [{ section: "прочее", text: "Сырое замечание без раздела" }],
+      { userId: "u-imp", userName: "Импорт" },
+    );
+    const own = created.reviews[0];
+    const result = await store.ingestReviews(PROJECT, [
+      {
+        reviewId: own.id,
+        section: "ОВ",
+        aiFinding: "Диаметр ВСХ-20 на плане не сходится со спецификацией",
+        needsRecheck: false,
+        origin: "ai",
+        locations: [
+          {
+            documentId: "doc-ov",
+            documentName: "250910-ВА-Р-ОВ1",
+            pageNumber: 12,
+            quote: "ВСХ-20",
+          },
+        ],
+      },
+    ]);
+    assert.equal(result.enriched, 1);
+    assert.equal(result.added, 0);
+
+    const same = (await store.listReviews(PROJECT)).find((item) => item.id === own.id);
+    assert.equal(same?.origin, "both");
+    assert.equal(same?.text, "Сырое замечание без раздела");
+    assert.equal(same?.section, "ОВ");
+    assert.equal(same?.needsRecheck, false);
+    assert.equal(same?.locations[0]?.pageNumber, 12);
+  });
+
+  it("needsRecheck остаётся, если цитату не нашли", async () => {
+    const created = await store.createReviews(
+      PROJECT,
+      [{ section: "АР", text: "Площадь КПП не сходится" }],
+      { userId: "u-imp", userName: "Импорт" },
+    );
+    const own = created.reviews[0];
+    await store.ingestReviews(PROJECT, [
+      {
+        reviewId: own.id,
+        section: "АР",
+        needsRecheck: true,
+        locations: [],
+      },
+    ]);
+    const same = (await store.listReviews(PROJECT)).find((item) => item.id === own.id);
+    assert.equal(same?.needsRecheck, true);
+    assert.equal(same?.text, "Площадь КПП не сходится");
+    assert.deepEqual(same?.locations, []);
+  });
+
   it("склеивает по шифрам и числам, которые короче слова", async () => {
     const own = await store.createReview(PROJECT, {
       section: "ОВ",

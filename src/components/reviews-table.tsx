@@ -226,6 +226,9 @@ export function ReviewsTable({
   );
   const [sortDir, setSortDir] = useState<1 | -1>(1);
   const [picked, setPicked] = useState<string[]>([]);
+  const [importing, setImporting] = useState(false);
+  const [enriching, setEnriching] = useState(false);
+  const importRef = useRef<HTMLInputElement>(null);
   const [adding, setAdding] = useState(false);
   const [draftSection, setDraftSection] = useState("ПЗ");
   const [draftText, setDraftText] = useState("");
@@ -515,6 +518,72 @@ export function ReviewsTable({
     }
   }
 
+  async function handleImport(file: File) {
+    setImporting(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const response = await fetch(
+        `/api/projects/${projectId}/reviews/import`,
+        { method: "POST", body: form },
+      );
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        added?: number;
+        skipped?: number;
+      };
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Не удалось импортировать");
+      }
+      await load();
+      setOriginFilter("engineer");
+      setError(null);
+      const added = payload.added ?? 0;
+      const skipped = payload.skipped ?? 0;
+      if (added === 0 && skipped > 0) {
+        setError(`Все ${skipped} строк уже были в таблице`);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Ошибка импорта");
+    } finally {
+      setImporting(false);
+      if (importRef.current) importRef.current.value = "";
+    }
+  }
+
+  async function handleEnrich() {
+    setEnriching(true);
+    try {
+      const response = await fetch(
+        `/api/projects/${projectId}/reviews/enrich`,
+        { method: "POST" },
+      );
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        message?: string;
+        enriched?: number;
+        updated?: number;
+      };
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Не удалось обогатить");
+      }
+      await load();
+      setError(null);
+      if (payload.message) setError(payload.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Ошибка обогащения");
+    } finally {
+      setEnriching(false);
+    }
+  }
+
+  const pendingEnrich = reviews.filter(
+    (item) =>
+      item.origin !== "ai" &&
+      item.text &&
+      (item.locations.length === 0 || item.needsRecheck),
+  ).length;
+
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-[#f4f6f9]">
       <header className="flex flex-wrap items-center gap-2 border-b border-border bg-surface px-3 py-2">
@@ -554,10 +623,38 @@ export function ReviewsTable({
             placeholder="Поиск по замечаниям"
             className="w-44 rounded-md border border-border bg-white px-2 py-1 text-xs outline-none placeholder:text-muted focus:border-accent"
           />
+          <input
+            ref={importRef}
+            type="file"
+            accept=".xlsx,.xlsm,.csv,.txt"
+            className="hidden"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) void handleImport(file);
+            }}
+          />
+          <button
+            type="button"
+            disabled={importing}
+            onClick={() => importRef.current?.click()}
+            className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+            title="Загрузить Excel инженера в отдельный поток"
+          >
+            {importing ? "Загрузка…" : "Excel инженера"}
+          </button>
+          <button
+            type="button"
+            disabled={enriching || pendingEnrich === 0}
+            onClick={() => void handleEnrich()}
+            className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+            title="Проставить раздел и «где в ПД» по расшифровке. Пока агент не готов — кнопка скажет об этом."
+          >
+            {enriching ? "Обогащение…" : `Обогатить${pendingEnrich ? ` · ${pendingEnrich}` : ""}`}
+          </button>
           <a
             href={`/api/projects/${projectId}/reviews/export`}
             className="inline-flex items-center gap-1.5 rounded-md bg-accent px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-[#1d4ed8]"
-            title="Выгрузить XLSX для проектировщиков"
+            title="Выгрузить наши и инженера одним файлом для проектировщиков"
           >
             <IconDownload className="h-3.5 w-3.5" />
             XLSX
@@ -1244,8 +1341,17 @@ function ReviewRow({
         ) : null}
       </td>
       <td className="px-2 py-1.5">
+        {review.needsRecheck ? (
+          <div className="mb-1 text-[10px] font-medium text-amber-800">
+            нужно перепроверить
+          </div>
+        ) : null}
         {review.locations.length === 0 ? (
-          <span className="text-[11px] text-muted">—</span>
+          <span className="text-[11px] text-muted">
+            {review.origin !== "ai" && !review.needsRecheck
+              ? "ждёт обогащения"
+              : "—"}
+          </span>
         ) : (
           <ul className="space-y-1">
             {review.locations.map((location, index) => {

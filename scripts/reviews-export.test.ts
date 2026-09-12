@@ -180,6 +180,24 @@ describe("buildReviewsXlsx", () => {
     assert.match(sheet, /стр. 4089/);
   });
 
+  it("пишет «нужно перепроверить», если агент не нашёл место", () => {
+    const sheet = parts(
+      buildReviewsXlsx({
+        projectName: "P",
+        reviews: [
+          review({
+            id: "e",
+            origin: "engineer",
+            text: "Сырое",
+            needsRecheck: true,
+            locations: [],
+          }),
+        ],
+      }),
+    )["xl/worksheets/sheet1.xml"];
+    assert.match(sheet, /нужно перепроверить/);
+  });
+
   it("красит строки по важности", () => {
     const fills: Record<ReviewSeverity, string> = {
       high: "4",
