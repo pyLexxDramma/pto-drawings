@@ -315,35 +315,32 @@ export function usePageViewport({
   }, [fit, pageNumber, ready, wrapRef]);
 
   useEffect(() => {
-    if (!highlightNonce) return;
-    fit("page");
-  }, [fit, highlightNonce]);
-
-  useEffect(() => {
-    if (!panToHighlight || !highlightRegion) return;
+    if (!panToHighlight || !highlightRegion || !highlightNonce) return;
     const wrap = wrapRef.current;
-    if (!wrap) return;
+    if (!wrap || wrap.clientWidth < 8 || wrap.clientHeight < 8) return;
     const s = scaleRef.current;
-    const p = panRef.current;
     const n = naturalRef.current;
-    const cx = (highlightRegion.x + highlightRegion.w / 2) * n.w * s + p.x;
-    const cy = (highlightRegion.y + highlightRegion.h / 2) * n.h * s + p.y;
-    const margin = 48;
-    let nx = p.x;
-    let ny = p.y;
-    if (cx < margin) nx += margin - cx;
-    else if (cx > wrap.clientWidth - margin) nx -= cx - (wrap.clientWidth - margin);
-    if (cy < margin) ny += margin - cy;
-    else if (cy > wrap.clientHeight - margin) ny -= cy - (wrap.clientHeight - margin);
-    if (nx === p.x && ny === p.y) return;
+    const cx = (highlightRegion.x + highlightRegion.w / 2) * n.w * s;
+    const cy = (highlightRegion.y + highlightRegion.h / 2) * n.h * s;
+    const next = boundPan({
+      x: wrap.clientWidth / 2 - cx,
+      y: wrap.clientHeight / 2 - cy,
+    });
     applyingSync.current = true;
-    const next = boundPan({ x: nx, y: ny });
     panRef.current = next;
     setPan(next);
     requestAnimationFrame(() => {
       applyingSync.current = false;
     });
-  }, [boundPan, highlightRegion, panToHighlight, scale, natural.w, natural.h, wrapRef]);
+  }, [
+    boundPan,
+    highlightNonce,
+    highlightRegion,
+    panToHighlight,
+    natural.w,
+    natural.h,
+    wrapRef,
+  ]);
 
   useEffect(() => {
     const wrap = wrapRef.current;

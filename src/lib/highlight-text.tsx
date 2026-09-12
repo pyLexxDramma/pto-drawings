@@ -7,6 +7,18 @@ import {
 } from "react";
 import { normalizeQuote } from "@/lib/remark-jump";
 
+/** Шифры и числа из формулировки: К1, ВСХ-20, 42.5, Ду100. */
+export function extractCiphers(query: string): string[] {
+  const raw = query.trim();
+  if (!raw) return [];
+  const found = [
+    ...(raw.match(/[A-Za-zА-Яа-яЁё]{1,8}[-–/.]?\d[\d.,A-Za-zА-Яа-яЁё]*/g) ?? []),
+    ...(raw.match(/\d+(?:[.,]\d+)+/g) ?? []),
+    ...(raw.match(/\d{2,}/g) ?? []),
+  ];
+  return [...new Set(found.map((item) => item.trim()).filter((item) => item.length >= 2))];
+}
+
 /** Варианты строки для поиска на чертеже (длинная цитата → короче). */
 export function highlightNeedles(query: string): string[] {
   const raw = normalizeQuote(query);
@@ -23,7 +35,93 @@ export function highlightNeedles(query: string): string[] {
     const part = words.slice(0, n).join(" ");
     if (part.length >= 3) needles.push(part);
   }
+  for (const cipher of extractCiphers(query)) {
+    needles.push(normalizeQuote(cipher));
+  }
   return [...new Set(needles)].sort((a, b) => b.length - a.length);
+}
+
+/** Сначала шифр/число, которое есть в тексте, иначе обычная цитата. */
+export function preferHighlightQuery(query: string, haystack = ""): string {
+  const raw = query.trim();
+  if (raw.length < 2) return raw;
+  const hay = normalizeQuote(haystack);
+  for (const cipher of extractCiphers(raw).sort((a, b) => b.length - a.length)) {
+    if (!hay || hay.includes(normalizeQuote(cipher))) return cipher;
+  }
+  if (hay) {
+    if (hay.includes(normalizeQuote(raw))) return raw;
+    for (const needle of highlightNeedles(raw)) {
+      if (hay.includes(needle)) return needle;
+    }
+  }
+  if (raw.length <= 56) return raw;
+  const cut = raw.slice(0, 56).replace(/\s+\S*$/, "");
+  return cut.length >= 2 ? cut : raw.slice(0, 40);
+}
+
+const STOP_TERMS = new Set([
+  "нет",
+  "лист",
+  "или",
+  "для",
+  "при",
+  "как",
+  "что",
+  "это",
+  "том",
+  "все",
+  "они",
+  "его",
+  "ее",
+  "её",
+  "без",
+  "над",
+  "под",
+  "между",
+  "после",
+  "только",
+  "также",
+  "раздел",
+  "чертеж",
+  "схема",
+]);
+
+function keepTerm(term: string): boolean {
+  const n = normalizeQuote(term);
+  if (n.length >= 2 && /\d/.test(n)) return true;
+  if (n.length < 3) return false;
+  return !STOP_TERMS.has(n);
+}
+
+/** Что подсветить в расшифровке: цитата, шифры/числа из замечания, куски формулировки. */
+export function remarkTermsInMarkdown(
+  markdown: string,
+  remarks: Array<{ text?: string; aiFinding?: string; quotes?: string[] }>,
+  extra: string[] = [],
+): string[] {
+  const hay = normalizeQuote(markdown);
+  const out = new Set<string>();
+  for (const item of extra) {
+    const t = item.trim();
+    if (t && (!hay || hay.includes(normalizeQuote(t)))) out.add(t);
+  }
+  if (!hay) return [...out];
+  for (const remark of remarks) {
+    for (const quote of remark.quotes ?? []) {
+      const t = quote.trim();
+      if (t.length >= 2 && hay.includes(normalizeQuote(t))) out.add(t);
+    }
+    const blob = `${remark.text ?? ""} ${remark.aiFinding ?? ""}`.trim();
+    if (!blob) continue;
+    for (const needle of highlightNeedles(blob)) {
+      if (keepTerm(needle) && hay.includes(needle)) out.add(needle);
+    }
+    for (const token of blob.match(/[A-Za-zА-Яа-яЁё0-9]+(?:[-–./]\d[\d.,]*)?/g) ?? []) {
+      if (keepTerm(token) && hay.includes(normalizeQuote(token))) out.add(token);
+    }
+  }
+  return [...out];
 }
 
 /** Фрагмент текстового слоя чертежа (нормализованные координаты 0..1). */
@@ -264,7 +362,7 @@ function mapElementChildren(
 export function flagNodes(children: ReactNode, quotes: string[]): ReactNode {
   const terms = quotes
     .map((quote) => quote.trim().toLowerCase())
-    .filter((quote) => quote.length >= 3);
+    .filter((quote) => quote.length >= 3 || (quote.length >= 2 && /\d/.test(quote)));
   if (terms.length === 0) return children;
   return flagNodesInner(children, terms);
 }

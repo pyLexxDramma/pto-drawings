@@ -32,6 +32,10 @@ import {
   getDocumentView,
   patchDocumentView,
 } from "@/lib/review-view-cache";
+import {
+  preferHighlightQuery,
+  remarkTermsInMarkdown,
+} from "@/lib/highlight-text";
 import { normalizeQuote } from "@/lib/remark-jump";
 import {
   cacheProgress,
@@ -400,29 +404,28 @@ export function ReviewPane({
     focusReviewOnSheet(review);
   }
 
-  const pageReviewQuotes = pageReviews
-    .flatMap((review) =>
-      review.locations
+  const pageReviewQuotes = remarkTermsInMarkdown(
+    page?.markdown ?? "",
+    pageReviews.map((review) => ({
+      text: review.text,
+      aiFinding: review.aiFinding,
+      quotes: review.locations
         .filter(
           (location) =>
             location.documentId === document.id &&
             location.pageNumber === pageNumber,
         )
         .map((location) => location.quote),
-    )
-    .filter((quote) => quote.trim().length > 0);
-  /** Ищем на чертеже: сначала цитата из ссылки, иначе строка поиска.
-   * PDF/CAD text items короткие — для длинной цитаты берём начало. */
+    })),
+    page?.numbers?.suspect ?? [],
+  );
+  /** На чертеже и в расшифровке сначала шифр/число, иначе цитата. */
   const drawingHighlightQuery = (() => {
     const raw =
       focusQuote.trim().length >= 2 ? focusQuote.trim() : deferredQuery.trim();
-    if (raw.length <= 56) return raw;
-    const cut = raw.slice(0, 56).replace(/\s+\S*$/, "");
-    return cut.length >= 2 ? cut : raw.slice(0, 40);
+    return preferHighlightQuery(raw, page?.markdown ?? "");
   })();
-  /** В расшифровке — полная цитата (мигание всех вхождений). */
-  const textHighlightQuery =
-    focusQuote.trim().length >= 2 ? focusQuote.trim() : deferredQuery;
+  const textHighlightQuery = drawingHighlightQuery;
   const focusDrawing = focusQuote.trim().length >= 2;
   const activeNoteId = hoverNoteId;
   const viewingProcessedSheet =
@@ -1193,7 +1196,29 @@ export function ReviewPane({
             >
               {focusDrawing && textHitFound !== null ? (
                 <div className="pointer-events-none absolute inset-x-0 top-0 z-40 flex justify-center px-2 pt-1">
-                  {drawingHitCount === 0 && textHitFound === false ? (
+                  {drawingHitCount === 0 && page?.source === "model" ? (
+                    <span className="pointer-events-auto rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1 text-[11px] text-amber-950 shadow-sm">
+                      На листе нет текстового слоя — на чертеже подсветить нечего.
+                      {textHitFound ? (
+                        <>
+                          {" "}
+                          <button
+                            type="button"
+                            className="font-semibold underline decoration-dotted"
+                            onClick={() => {
+                              setPaneSolo(null);
+                              setSidePanel("text");
+                              setFocusNonce(Date.now());
+                            }}
+                          >
+                            Показать в тексте
+                          </button>
+                        </>
+                      ) : (
+                        " В расшифровке точного совпадения тоже нет."
+                      )}
+                    </span>
+                  ) : drawingHitCount === 0 && textHitFound === false ? (
                     <span className="rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1 text-[11px] text-amber-950 shadow-sm">
                       Цитата не найдена на чертеже и в тексте
                     </span>
@@ -1266,7 +1291,7 @@ export function ReviewPane({
                   markMode={markMode && !readOnly}
                   activeAnnotationId={activeNoteId}
                   highlightQuery={drawingHighlightQuery}
-                  panToHighlight={false}
+                  panToHighlight={focusDrawing}
                   remarkFocus={focusDrawing}
                   highlightNonce={focusNonce}
                   onHighlightHits={handleHighlightHits}
@@ -1287,7 +1312,7 @@ export function ReviewPane({
                   markMode={markMode && !readOnly}
                   activeAnnotationId={activeNoteId}
                   highlightQuery={drawingHighlightQuery}
-                  panToHighlight={false}
+                  panToHighlight={focusDrawing}
                   remarkFocus={focusDrawing}
                   highlightNonce={focusNonce}
                   onHighlightHits={handleHighlightHits}
@@ -1307,7 +1332,7 @@ export function ReviewPane({
                   markMode={markMode && !readOnly}
                   activeAnnotationId={activeNoteId}
                   highlightQuery={drawingHighlightQuery}
-                  panToHighlight={false}
+                  panToHighlight={focusDrawing}
                   remarkFocus={focusDrawing}
                   highlightNonce={focusNonce}
                   onHighlightHits={handleHighlightHits}
@@ -1336,7 +1361,7 @@ export function ReviewPane({
                   markMode={markMode && !readOnly}
                   activeAnnotationId={activeNoteId}
                   highlightQuery={drawingHighlightQuery}
-                  panToHighlight={false}
+                  panToHighlight={focusDrawing}
                   remarkFocus={focusDrawing}
                   highlightNonce={focusNonce}
                   onHighlightHits={handleHighlightHits}
@@ -1556,7 +1581,9 @@ export function ReviewPane({
                       <div className="font-medium">
                         Замечаний по листу: {pageReviews.length}
                         <span className="ml-1 font-normal text-rose-700/80">
-                          · кликните, чтобы подсветить на чертеже
+                          {page?.source === "model"
+                            ? " · на чертеже нет текстового слоя, клик ищет в расшифровке"
+                            : " · кликните, чтобы подсветить на чертеже"}
                         </span>
                       </div>
                       <ul className="mt-1 space-y-0.5">

@@ -95,6 +95,9 @@ export function PdfPage({
   } | null>(null);
 
   const ready = !loading && !error;
+  const focusRegion =
+    highlightRegion ??
+    (remarkFocus && searchHits[0] ? searchHits[0] : null);
   const viewport = usePageViewport({
     wrapRef,
     natural,
@@ -102,8 +105,8 @@ export function PdfPage({
     ready,
     viewCacheKey,
     highlightNonce,
-    highlightRegion,
-    panToHighlight,
+    highlightRegion: focusRegion,
+    panToHighlight: panToHighlight || remarkFocus,
     wheelMode: "pan",
     onUserZoom: () => {
       const prefs = loadViewerPrefs();

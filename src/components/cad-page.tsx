@@ -119,14 +119,49 @@ export function CadPage({
   const [wrapSize, setWrapSize] = useState({ w: 0, h: 0 });
 
   const ready = !loading && Boolean(geometry || previewUrl);
+  const texts = useMemo(
+    () =>
+      geometry
+        ? geometry.primitives.filter(
+            (p): p is CadPrimitive & { type: "text" } => p.type === "text",
+          )
+        : [],
+    [geometry],
+  );
+  const searchHits = useMemo(() => {
+    if (!geometry || highlightQuery.trim().length < 2) return [];
+    const size = bboxSize(geometry.bbox);
+    const layer = texts.flatMap((t) => {
+      if (!t.text || t.points.length < 2) return [];
+      const origin = sheetToNorm(t.points[0], t.points[1], geometry.bbox);
+      const th = Math.max(0.008, (t.size ?? 2.5) / size.h);
+      const tw = Math.max(
+        0.02,
+        (t.width ?? (t.text.length * (t.size ?? 2.5) * 0.6)) / size.w,
+      );
+      return [
+        {
+          text: t.text,
+          x: Math.max(0, origin.x - (t.anchor === "center" ? tw / 2 : t.anchor === "right" ? tw : 0)),
+          y: Math.max(0, origin.y - th * 0.85),
+          w: Math.min(1 - origin.x + tw, tw),
+          h: th * cadTextLines(t.text).length,
+        },
+      ];
+    });
+    return findLayerHits(layer, highlightQuery);
+  }, [geometry, highlightQuery, texts]);
+  const focusRegion =
+    highlightRegion ??
+    (remarkFocus && searchHits[0] ? searchHits[0] : null);
   const viewport = usePageViewport({
     wrapRef,
     natural,
     pageNumber,
     ready,
     highlightNonce,
-    highlightRegion,
-    panToHighlight,
+    highlightRegion: focusRegion,
+    panToHighlight: panToHighlight || remarkFocus,
     wheelMode: "pan",
     onUserZoom: () => {
       const next = loadViewerPrefs();
@@ -245,40 +280,6 @@ export function CadPage({
     () => (geometry ? groupStrokePaths(geometry.primitives) : null),
     [geometry],
   );
-
-  const texts = useMemo(
-    () =>
-      geometry
-        ? geometry.primitives.filter(
-            (p): p is CadPrimitive & { type: "text" } => p.type === "text",
-          )
-        : [],
-    [geometry],
-  );
-
-  const searchHits = useMemo(() => {
-    if (!geometry || highlightQuery.trim().length < 2) return [];
-    const size = bboxSize(geometry.bbox);
-    const layer = texts.flatMap((t) => {
-      if (!t.text || t.points.length < 2) return [];
-      const origin = sheetToNorm(t.points[0], t.points[1], geometry.bbox);
-      const th = Math.max(0.008, (t.size ?? 2.5) / size.h);
-      const tw = Math.max(
-        0.02,
-        (t.width ?? (t.text.length * (t.size ?? 2.5) * 0.6)) / size.w,
-      );
-      return [
-        {
-          text: t.text,
-          x: Math.max(0, origin.x - (t.anchor === "center" ? tw / 2 : t.anchor === "right" ? tw : 0)),
-          y: Math.max(0, origin.y - th * 0.85),
-          w: Math.min(1 - origin.x + tw, tw),
-          h: th * cadTextLines(t.text).length,
-        },
-      ];
-    });
-    return findLayerHits(layer, highlightQuery);
-  }, [geometry, highlightQuery, texts]);
 
   const needles = useMemo(
     () => highlightNeedles(highlightQuery),
