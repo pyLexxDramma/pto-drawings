@@ -282,8 +282,10 @@ export function LiveProgressDock({
     document.status === "processing" ||
     cancelPending;
   const isFinished = document.status === "done" || document.status === "error";
-  const [visible, setVisible] = useState(isActive || isFinished);
+  const [visible, setVisible] = useState(isActive);
   const wasActiveRef = useRef(isActive);
+  const onDismissRef = useRef(onDismiss);
+  onDismissRef.current = onDismiss;
 
   useEffect(() => {
     if (isActive) {
@@ -295,12 +297,17 @@ export function LiveProgressDock({
       setVisible(true);
       const timer = window.setTimeout(() => {
         setVisible(false);
-        onDismiss?.();
-      }, 2200);
+        onDismissRef.current?.();
+      }, 8000);
       return () => window.clearTimeout(timer);
     }
     if (!isFinished) wasActiveRef.current = false;
-  }, [isActive, isFinished, document.status, onDismiss]);
+  }, [isActive, isFinished, document.status]);
+
+  function closeFinished() {
+    setVisible(false);
+    onDismissRef.current?.();
+  }
 
   const target = processingPercent(document);
   const smooth = useSmoothProgress(target, {
@@ -370,13 +377,17 @@ export function LiveProgressDock({
             </div>
           </div>
         </button>
-        {onHide && isActive ? (
+        {isFinished || onHide ? (
           <button
             type="button"
-            onClick={onHide}
+            onClick={isFinished ? closeFinished : onHide}
             className="shrink-0 rounded px-1 py-0.5 text-[11px] leading-none text-sky-800/70 hover:bg-sky-50 hover:text-sky-950"
-            title="Скрыть (обработка не остановится)"
-            aria-label="Скрыть прогресс"
+            title={
+              isFinished
+                ? "Закрыть"
+                : "Скрыть (обработка не остановится)"
+            }
+            aria-label={isFinished ? "Закрыть" : "Скрыть прогресс"}
           >
             ×
           </button>
