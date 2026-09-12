@@ -8,14 +8,20 @@ import {
   useRef,
   useState,
   type MouseEvent,
-  type ReactNode,
 } from "react";
 import { ColumnResizer, clamp } from "@/components/column-resizer";
 import { CadPage } from "@/components/cad-page";
 import { MarkdownView } from "@/components/markdown-view";
 import { PageStrip } from "@/components/page-strip";
 import { PdfPage } from "@/components/pdf-page";
-import { SegmentedTabs, ActionMenu, menuItemClass } from "@/components/ui-chrome";
+import { RemarkRail } from "@/components/remark-rail";
+import { PaneToggle, SegmentedTabs } from "@/components/ui-chrome";
+import { IconChevronLeft, IconChevronRight } from "@/components/tool-icons";
+import { KEYMAP, KEYMAP_GROUPS } from "@/lib/keymap";
+import {
+  loadViewerPrefs,
+  saveViewerPrefs,
+} from "@/lib/viewer-prefs";
 import { VoiceNoteButton } from "@/components/voice-note";
 import { formatDate } from "@/lib/format";
 import { getDrawingExt, isCadExt, isOfficeExt } from "@/lib/drawing-files";
@@ -34,13 +40,13 @@ import {
   pushProgress,
 } from "@/lib/review-state";
 import {
-  KIND_LABEL,
   REVIEW_SEVERITY_LABEL,
   type AnnotationRect,
   type DocumentRecord,
   type PageAnnotation,
   type PageKind,
   type Review,
+  type ReviewSeverity,
 } from "@/types";
 
 type KindFilter = "all" | "drawing" | "table" | "text" | "flagged";
@@ -48,8 +54,10 @@ type PaneSolo = null | "pdf" | "md";
 
 type ReviewPaneProps = {
   document: DocumentRecord;
+  projectId?: string;
   /** Замечания проекта из таблицы — счётчик по листам и подсветка мест. */
   reviews?: Review[];
+  onReviewPatched?: (review: Review) => void;
   focusMode: boolean;
   openPage?: {
     nonce: number;
@@ -62,17 +70,8 @@ type ReviewPaneProps = {
   readOnly?: boolean;
   /** Технические метрики прогона (токены, режим) — только для админа. */
   showTech?: boolean;
-  specHref?: string | null;
-  specName?: string | null;
-  /**
-   * Правый край шапки: меню пользователя и статус конвейера из workspace.
-   * Действия по листу отдаём аргументом — они живут в меню пользователя,
-   * чтобы над чертежом осталась только кнопка «Ошибка» (решение Дархана 09.09).
-   */
-  headerRight?: ((sheetMenu: ReactNode) => ReactNode) | null;
-  /** Переход к активной обработке в другом файле проекта (если есть). */
-  onGoToLiveJob?: (() => void) | null;
-  liveJobLabel?: string | null;
+  /** Открыть историю правок текущего листа — пункт в верхнем меню пользователя. */
+  onPageLogReady?: (api: { open: () => void; count: number } | null) => void;
   /** Файл с активной обработкой в проекте (может отличаться от открытого). */
   activeJobDocument?: DocumentRecord | null;
   /** Связанный PDF или DWG из комплекта kitId. */
@@ -118,17 +117,15 @@ function activePageForJob(doc: DocumentRecord) {
 
 export function ReviewPane({
   document,
+  projectId,
   reviews = [],
+  onReviewPatched,
   focusMode,
   openPage,
   canceling = false,
   readOnly = false,
   showTech = false,
-  specHref = null,
-  specName = null,
-  headerRight = null,
-  onGoToLiveJob = null,
-  liveJobLabel = null,
+  onPageLogReady,
   activeJobDocument = null,
   kitSibling = null,
   onFullProgressVisible,
@@ -143,10 +140,9 @@ export function ReviewPane({
     return loadCachedProgress(document.id).lastPage;
   });
   const [split, setSplit] = useState(50);
-  const [stripWidth, setStripWidth] = useState(108);
-  // Миниатюры по умолчанию свёрнуты: место отдано чертежу и расшифровке.
-  /** Миниатюры убрали из меню: путали инженеров. Полосу оставляем выключенной. */
-  const [stripOpen] = useState(false);
+  const [stripWidth, setStripWidth] = useState(160);
+  const [stripOpen, setStripOpen] = useState(() => loadViewerPrefs().thumbs);
+  const [railOpen, setRailOpen] = useState(() => loadViewerPrefs().remarks);
   const [query, setQuery] = useState("");
   const [showLog, setShowLog] = useState(false);
   const [filter, setFilter] = useState<KindFilter>("all");
@@ -176,6 +172,8 @@ export function ReviewPane({
   /** Цитата из «Где в ПД»: подсветка в тексте и на чертеже. */
   const [focusQuote, setFocusQuote] = useState("");
   const [focusNonce, setFocusNonce] = useState(0);
+  const [activeReviewId, setActiveReviewId] = useState<string | null>(null);
+  const [keymapOpen, setKeymapOpen] = useState(false);
   const [drawingHitCount, setDrawingHitCount] = useState(0);
   const [textHitFound, setTextHitFound] = useState<boolean | null>(null);
   const handleHighlightHits = useCallback((count: number) => {
@@ -305,23 +303,6 @@ export function ReviewPane({
     };
   }, [filter, flaggedPages, kinds]);
 
-  const filterCounts = useMemo(() => {
-    const counts: Record<KindFilter, number> = {
-      all: total,
-      drawing: 0,
-      table: 0,
-      text: 0,
-      flagged: flaggedPages.size,
-    };
-    for (let number = 1; number <= total; number += 1) {
-      const kind = kinds.get(number);
-      if (kind === "drawing" || kind === "mixed") counts.drawing += 1;
-      if (kind === "table") counts.table += 1;
-      if (kind === "text") counts.text += 1;
-    }
-    return counts;
-  }, [flaggedPages.size, kinds, total]);
-
   const visiblePages = useMemo(
     () =>
       Array.from({ length: total }, (_, index) => index + 1).filter((number) =>
@@ -361,6 +342,33 @@ export function ReviewPane({
   const page = document.pages.find((item) => item.pageNumber === pageNumber);
   const pageNotes = notes.filter((item) => item.pageNumber === pageNumber);
   const pageReviews = reviewsByPage.get(pageNumber) ?? [];
+  const fileReviews = useMemo(
+    () =>
+      reviews.filter(
+        (review) =>
+          review.severity !== "skip" &&
+          review.locations.some((loc) => loc.documentId === document.id),
+      ),
+    [document.id, reviews],
+  );
+  async function patchReview(reviewId: string, body: Partial<Review>) {
+    if (!projectId) return;
+    try {
+      const response = await fetch(
+        `/api/projects/${projectId}/reviews/${reviewId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
+      );
+      if (!response.ok) return;
+      const payload = (await response.json()) as { review: Review };
+      onReviewPatched?.(payload.review);
+    } catch {
+      // разбор не блокирует просмотр
+    }
+  }
   function focusReviewOnSheet(review: (typeof pageReviews)[number]) {
     const location =
       review.locations.find(
@@ -376,12 +384,20 @@ export function ReviewPane({
       ""
     ).trim();
     if (quote.length < 2) return;
+    setActiveReviewId(review.id);
     setFocusQuote(quote);
     setFocusNonce(Date.now());
     setPaneSolo(null);
     setSidePanel("text");
     setDrawingHitCount(0);
     setTextHitFound(null);
+  }
+  function selectFileReview(review: Review) {
+    const location =
+      review.locations.find((item) => item.documentId === document.id) ??
+      review.locations[0];
+    if (location?.pageNumber) goToPage(location.pageNumber);
+    focusReviewOnSheet(review);
   }
 
   const pageReviewQuotes = pageReviews
@@ -472,6 +488,7 @@ export function ReviewPane({
     setRawPage(openPage.page);
     const quote = (openPage.quote ?? "").trim();
     setFocusQuote(quote);
+    if (openPage.reviewId) setActiveReviewId(openPage.reviewId);
     if (quote || openPage.reviewId) {
       setFocusNonce(Date.now());
       setPaneSolo(null);
@@ -587,17 +604,6 @@ export function ReviewPane({
     setRawPage(next);
   }
 
-  function goToCurrentProcessing() {
-    if (onGoToLiveJob) {
-      onGoToLiveJob();
-      return;
-    }
-    if (activeProcessingPage != null) {
-      setProgressExpanded(false);
-      void goToPage(activeProcessingPage);
-    }
-  }
-
   function stepVisible(delta: number) {
     const index = visiblePages.indexOf(pageRef.current);
     const fallback = delta > 0 ? visiblePages[0] : visiblePages[visiblePages.length - 1];
@@ -658,13 +664,30 @@ export function ReviewPane({
         type="button"
         title={
           viewedSet.has(pageNumber)
-            ? "Снять отметку «просмотрено» (V)"
+            ? "Снять отметку «просмотрен» (V)"
             : "Отметить лист просмотренным (V)"
         }
         onClick={toggleViewed}
         className={viewedSet.has(pageNumber) ? textToolBtnActive : textToolBtn}
       >
-        {viewedSet.has(pageNumber) ? "Просмотрено" : "Не просмотрено"}
+        <span className="mr-1" aria-hidden>
+          {viewedSet.has(pageNumber) ? "☑" : "☐"}
+        </span>
+        Просмотрен
+      </button>
+      <button
+        type="button"
+        title="Миниатюры листов"
+        onClick={() => {
+          setStripOpen((prev) => {
+            const next = !prev;
+            saveViewerPrefs({ ...loadViewerPrefs(), thumbs: next });
+            return next;
+          });
+        }}
+        className={stripOpen ? textToolBtnActive : textToolBtn}
+      >
+        Миниатюры
       </button>
       {readOnly ? (
         <span className="rounded border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-900">
@@ -695,6 +718,10 @@ export function ReviewPane({
       }
 
       if (event.key === "Escape") {
+        if (keymapOpen) {
+          setKeymapOpen(false);
+          return;
+        }
         if (showLog) {
           setShowLog(false);
           return;
@@ -723,6 +750,11 @@ export function ReviewPane({
       if (event.ctrlKey || event.metaKey || event.altKey) return;
 
       // Сравниваем по event.code: работает и на русской раскладке.
+      if (event.key === "?" || (event.code === "Slash" && event.shiftKey)) {
+        event.preventDefault();
+        setKeymapOpen((prev) => !prev);
+        return;
+      }
       if (event.code === "Slash") {
         event.preventDefault();
         openSearch();
@@ -747,16 +779,37 @@ export function ReviewPane({
         return;
       }
 
-      if (event.code === "KeyJ" || event.code === "Space") {
+      if (fileReviews.length > 0 && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
+        event.preventDefault();
+        const index = Math.max(0, fileReviews.findIndex((item) => item.id === activeReviewId));
+        const next =
+          event.key === "ArrowDown"
+            ? fileReviews[Math.min(fileReviews.length - 1, index + 1)]
+            : fileReviews[Math.max(0, index - 1)];
+        if (next) selectFileReview(next);
+        return;
+      }
+      if (activeReviewId && projectId) {
+        if (event.key === "1" || event.key === "2" || event.key === "3") {
+          const severity: ReviewSeverity =
+            event.key === "1" ? "low" : event.key === "2" ? "medium" : "high";
+          void patchReview(activeReviewId, { severity });
+          return;
+        }
+        if (event.key === "Enter") {
+          void patchReview(activeReviewId, { verdict: "confirmed" });
+          return;
+        }
+      }
+
+      if (event.code === "KeyJ" || event.key === "PageDown") {
         event.preventDefault();
         stepVisible(1);
       }
-      if (event.code === "KeyK") {
+      if (event.code === "KeyK" || event.key === "PageUp") {
         event.preventDefault();
         stepVisible(-1);
       }
-      if (event.key === "ArrowLeft") stepVisible(-1);
-      if (event.key === "ArrowRight") stepVisible(1);
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -779,6 +832,11 @@ export function ReviewPane({
 
   const pageLogs = document.editLog.filter((item) => item.pageNumber === pageNumber);
   const readyCount = document.pages.length;
+
+  useEffect(() => {
+    onPageLogReady?.({ open: () => setShowLog(true), count: pageLogs.length });
+    return () => onPageLogReady?.(null);
+  }, [onPageLogReady, pageLogs.length]);
 
   function startSplit(event: MouseEvent<HTMLDivElement>) {
     event.preventDefault();
@@ -893,7 +951,6 @@ export function ReviewPane({
   ];
   const filterLabel =
     filters.find((item) => item.id === filter)?.label.toLowerCase() ?? "этот тип";
-  const openNotes = notes.filter((item) => item.status === "open").length;
   const pageError = document.pageErrors?.[String(pageNumber)] ?? null;
   const pageWarning = document.pageWarnings?.[String(pageNumber)] ?? null;
   const isMockPage = Boolean(page?.markdown.includes("[MOCK]"));
@@ -1047,193 +1104,7 @@ export function ReviewPane({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex h-10 shrink-0 items-center justify-end gap-1.5 border-b border-border bg-white px-2">
-        <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
-          {liveProcessing && activeProcessingPage != null ? (
-            <button
-              type="button"
-              onClick={goToCurrentProcessing}
-              disabled={
-                !onGoToLiveJob && pageNumber === activeProcessingPage && !progressExpanded
-              }
-              title="К текущему обрабатываемому листу"
-              className="shrink-0 rounded border border-sky-300 bg-sky-50 px-1.5 py-0.5 text-[10px] font-semibold text-sky-950 hover:bg-sky-100 disabled:cursor-default disabled:opacity-50"
-            >
-              К обработке · {activeProcessingPage}
-            </button>
-          ) : null}
-          {onGoToLiveJob ? (
-            <button
-              type="button"
-              onClick={onGoToLiveJob}
-              title={liveJobLabel ?? "К текущей обработке"}
-              className="max-w-[12rem] shrink-0 truncate rounded border border-sky-300 bg-sky-50 px-1.5 py-0.5 text-[10px] font-semibold text-sky-950 hover:bg-sky-100"
-            >
-              К обработке
-              {liveJobLabel ? (
-                <span className="ml-1 font-normal opacity-80">· {liveJobLabel}</span>
-              ) : null}
-            </button>
-          ) : null}
-          <ActionMenu
-            label="Фильтр и список листов"
-            align="left"
-            menuClassName="top-full w-64"
-            trigger={
-              <>
-                {page ? KIND_LABEL[page.kind] : "Страница"}
-                {viewedSet.has(pageNumber) ? " · ✓" : ""}
-                {openNotes ? ` · ${openNotes} зам.` : ""}
-                <span aria-hidden> ▾</span>
-              </>
-            }
-            triggerClassName="shrink-0 rounded border border-emerald-300 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-950 hover:bg-emerald-100"
-          >
-              {/* Смена фильтра не должна закрывать меню: лист выбирают сразу после. */}
-              <div className="px-2 pb-1.5 pt-1" onClick={(event) => event.stopPropagation()}>
-                <select
-                  value={filter}
-                  onChange={(event) => setFilter(event.target.value as KindFilter)}
-                  aria-label="Фильтр листов по типу"
-                  className="w-full cursor-pointer rounded border border-slate-300 bg-white px-1.5 py-1 text-[11px] font-semibold text-text outline-none focus:border-accent"
-                >
-                  {filters.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.label} · {filterCounts[item.id]}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="max-h-64 overflow-y-auto border-t border-border pt-1">
-                {visiblePages.length === 0 ? (
-                  <div className="px-3 py-2 text-[11px] leading-snug text-muted">
-                    {filter === "flagged"
-                      ? "Замечаний по этому файлу пока нет."
-                      : `Листов типа «${filterLabel}» в комплекте нет.`}
-                  </div>
-                ) : (
-                  visiblePages.map((number) => {
-                    const kind = kinds.get(number);
-                    return (
-                      <button
-                        key={number}
-                        type="button"
-                        role="menuitem"
-                        onClick={() => void goToPage(number)}
-                        className={`${menuItemClass()} ${
-                          number === pageNumber ? "bg-bg font-semibold" : ""
-                        }`}
-                      >
-                        <span className="truncate">
-                          Лист {number}
-                          {kind ? ` · ${KIND_LABEL[kind].toLowerCase()}` : ""}
-                        </span>
-                        <span className="shrink-0 pl-2">
-                          {reviewsByPage.get(number)?.length ? (
-                            <span
-                              className="mr-1 rounded bg-violet-100 px-1 text-[10px] font-semibold tabular-nums text-violet-900"
-                              title={`Замечаний из таблицы: ${
-                                reviewsByPage.get(number)!.length
-                              }`}
-                            >
-                              {reviewsByPage.get(number)!.length}
-                            </span>
-                          ) : null}
-                          {annotatedPages.has(number) ? (
-                            <span className="text-red-600" title="Есть замечание">
-                              ●
-                            </span>
-                          ) : null}
-                          {document.pageErrors?.[String(number)] ? (
-                            <span className="text-amber-600" title="Ошибка обработки">
-                              !
-                            </span>
-                          ) : null}
-                          {!document.pageErrors?.[String(number)] &&
-                          document.pageWarnings?.[String(number)] ? (
-                            <span
-                              className="text-orange-500"
-                              title={document.pageWarnings[String(number)]}
-                            >
-                              △
-                            </span>
-                          ) : null}
-                          {viewedSet.has(number) ? (
-                            <span className="text-accent" title="Просмотрено">
-                              ✓
-                            </span>
-                          ) : null}
-                        </span>
-                      </button>
-                    );
-                  })
-                )}
-              </div>
-            </ActionMenu>
-        </div>
-        <div className="flex shrink-0 items-center gap-1.5">
-          {headerRight?.(
-            <>
-            <button
-              type="button"
-              role="menuitem"
-              className={menuItemClass()}
-              onClick={onToggleFocus}
-            >
-              <span className="inline-flex items-center gap-2">
-                {focusMode ? "Свернуть на весь экран" : "На весь экран"}
-              </span>
-            </button>
-            {specHref ? (
-              <a
-                href={specHref}
-                target="_blank"
-                rel="noreferrer"
-                role="menuitem"
-                className={menuItemClass()}
-                title={specName ?? "ТЗ"}
-              >
-                <span className="inline-flex items-center gap-2">
-                  Открыть ТЗ
-                </span>
-              </a>
-            ) : null}
-            {pageLogs.length ? (
-              <button
-                type="button"
-                role="menuitem"
-                className={menuItemClass()}
-                onClick={() => setShowLog(true)}
-              >
-                <span>История правок листа</span>
-                <span className="text-[10px] tabular-nums text-muted">
-                  {pageLogs.length}
-                </span>
-              </button>
-            ) : null}
-            </>,
-          )}
-        </div>
-      </div>
-
       <div className="relative flex min-h-0 flex-1">
-        {focusDrawing && textHitFound !== null ? (
-          <div className="pointer-events-none absolute inset-x-0 top-0 z-40 flex justify-center px-2 pt-1">
-            {drawingHitCount === 0 && textHitFound === false ? (
-              <span className="rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1 text-[11px] text-amber-950 shadow-sm">
-                Цитата не найдена на чертеже и в тексте
-              </span>
-            ) : drawingHitCount === 0 ? (
-              <span className="rounded-md border border-rose-300 bg-rose-50 px-2.5 py-1 text-[11px] text-rose-950 shadow-sm">
-                Цитата не найдена на чертеже — смотри текст
-              </span>
-            ) : textHitFound === false ? (
-              <span className="rounded-md border border-sky-300 bg-sky-50 px-2.5 py-1 text-[11px] text-sky-950 shadow-sm">
-                Цитата на чертеже · в расшифровке не найдена
-              </span>
-            ) : null}
-          </div>
-        ) : null}
         {stripOpen && !isOfficeSource ? (
           <>
             <PageStrip
@@ -1254,6 +1125,10 @@ export function ReviewPane({
                   : `Листов типа «${filterLabel}» в комплекте нет.`
               }
               onSelect={(next) => void goToPage(next)}
+              onCollapse={() => {
+                setStripOpen(false);
+                saveViewerPrefs({ ...loadViewerPrefs(), thumbs: false });
+              }}
             />
             <ColumnResizer
               onDelta={(dx) => setStripWidth((w) => clamp(w + dx, 72, 220))}
@@ -1262,11 +1137,83 @@ export function ReviewPane({
         ) : null}
 
         <div className="flex min-h-0 min-w-0 flex-1">
+          {!stripOpen && !isOfficeSource ? (
+            <button
+              type="button"
+              title="Показать миниатюры"
+              aria-label="Показать миниатюры"
+              onClick={() => {
+                setStripOpen(true);
+                saveViewerPrefs({ ...loadViewerPrefs(), thumbs: true });
+              }}
+              className="flex w-8 shrink-0 flex-col items-center border-r border-border bg-surface-2 py-2 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+            >
+              <IconChevronRight />
+            </button>
+          ) : null}
+          {fileReviews.length > 0 && paneSolo !== "md" ? (
+            railOpen ? (
+            <RemarkRail
+              items={fileReviews}
+              activeId={activeReviewId}
+              pageNumber={pageNumber}
+              onSelect={selectFileReview}
+              onCollapse={() => {
+                setRailOpen(false);
+                saveViewerPrefs({ ...loadViewerPrefs(), remarks: false });
+              }}
+            />
+            ) : (
+              <button
+                type="button"
+                title="Показать замечания"
+                aria-label="Показать замечания"
+                onClick={() => {
+                  setRailOpen(true);
+                  saveViewerPrefs({ ...loadViewerPrefs(), remarks: true });
+                }}
+                className="flex w-8 shrink-0 flex-col items-center gap-1 border-r border-border bg-white py-2 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+              >
+                <IconChevronRight />
+                <span className="text-[10px] font-semibold tabular-nums">
+                  {fileReviews.length}
+                </span>
+              </button>
+            )
+          ) : null}
           {paneSolo !== "md" ? (
             <div
               className="relative min-h-0 min-w-0"
               style={{ width: paneSolo === "pdf" ? "100%" : `${split}%` }}
             >
+              {focusDrawing && textHitFound !== null ? (
+                <div className="pointer-events-none absolute inset-x-0 top-0 z-40 flex justify-center px-2 pt-1">
+                  {drawingHitCount === 0 && textHitFound === false ? (
+                    <span className="rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1 text-[11px] text-amber-950 shadow-sm">
+                      Цитата не найдена на чертеже и в тексте
+                    </span>
+                  ) : drawingHitCount === 0 ? (
+                    <span className="pointer-events-auto rounded-md border border-rose-300 bg-rose-50 px-2.5 py-1 text-[11px] text-rose-950 shadow-sm">
+                      Цитата не найдена на чертеже.{" "}
+                      <button
+                        type="button"
+                        className="font-semibold underline decoration-dotted"
+                        onClick={() => {
+                          setPaneSolo(null);
+                          setSidePanel("text");
+                          setFocusNonce(Date.now());
+                        }}
+                      >
+                        Показать в тексте
+                      </button>
+                    </span>
+                  ) : textHitFound === false ? (
+                    <span className="rounded-md border border-sky-300 bg-sky-50 px-2.5 py-1 text-[11px] text-sky-950 shadow-sm">
+                      Цитата на чертеже · в тексте не найдена
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
               {paneSolo === "pdf" ? (
                 <div className="absolute left-2 top-12 z-30 flex flex-wrap items-center gap-1.5 rounded-md border border-border bg-white/95 px-1.5 py-1 shadow-sm">
                   {sheetToolButtons}
@@ -1281,8 +1228,8 @@ export function ReviewPane({
                       }}
                       className={
                         markMode
-                          ? "rounded border border-rose-600 bg-rose-600 px-2 py-0.5 text-[10px] font-semibold text-white"
-                          : "rounded border border-rose-300 bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-950 hover:bg-rose-100"
+                          ? "rounded border border-slate-700 bg-slate-700 px-2 py-0.5 text-[10px] font-semibold text-white"
+                          : "rounded border border-slate-300 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-800 hover:bg-slate-50"
                       }
                     >
                       {markMode ? "Рисую ошибку…" : "Отметить ошибку"}
@@ -1397,6 +1344,18 @@ export function ReviewPane({
             </div>
           ) : null}
 
+          {paneSolo === "pdf" ? (
+            <button
+              type="button"
+              title="Показать текст"
+              aria-label="Показать текст"
+              onClick={() => setPaneSolo(null)}
+              className="flex w-8 shrink-0 flex-col items-center border-l border-border bg-white py-2 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+            >
+              <IconChevronLeft />
+            </button>
+          ) : null}
+
           {paneSolo === null ? (
             <div
               role="separator"
@@ -1406,6 +1365,18 @@ export function ReviewPane({
             >
               <div className="absolute inset-y-0 -left-1.5 -right-1.5" />
             </div>
+          ) : null}
+
+          {paneSolo === "md" ? (
+            <button
+              type="button"
+              title="Показать чертёж"
+              aria-label="Показать чертёж"
+              onClick={() => setPaneSolo(null)}
+              className="flex w-8 shrink-0 flex-col items-center border-r border-border bg-white py-2 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+            >
+              <IconChevronRight />
+            </button>
           ) : null}
 
           {paneSolo !== "pdf" ? (
@@ -1425,16 +1396,23 @@ export function ReviewPane({
             ) : (
               <>
             <div className="flex flex-wrap items-center gap-1.5 border-b border-border px-2 py-1">
+              <PaneToggle
+                expanded
+                align="right"
+                expandLabel="Показать текст"
+                collapseLabel="Скрыть текст"
+                onToggle={() => setPaneSolo("pdf")}
+              />
               <button
                 type="button"
                 onClick={() => setSidePanel("text")}
                 className={`rounded border px-2 py-0.5 text-[10px] font-semibold ${
                   sidePanel === "text"
-                    ? "border-teal-600 bg-teal-600 text-white"
-                    : "border-teal-300 bg-teal-50 text-teal-950 hover:bg-teal-100"
+                    ? "border-slate-700 bg-slate-700 text-white"
+                    : "border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
                 }`}
               >
-                {page?.kind === "table" ? "Таблица" : "Расшифровка"}
+                {page?.kind === "table" ? "Таблица" : "Текст листа"}
               </button>
               <button
                 type="button"
@@ -1447,8 +1425,8 @@ export function ReviewPane({
                 }}
                 className={`rounded border px-2 py-0.5 text-[10px] font-semibold ${
                   sidePanel === "notes" || markMode
-                    ? "border-rose-600 bg-rose-600 text-white"
-                    : "border-rose-300 bg-rose-50 text-rose-950 hover:bg-rose-100"
+                    ? "border-slate-700 bg-slate-700 text-white"
+                    : "border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
                 }`}
               >
                 {markMode ? "Рисую ошибку…" : "Отметить ошибку"}
@@ -1652,6 +1630,47 @@ export function ReviewPane({
           ) : null}
         </div>
       </div>
+
+      {keymapOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Клавиши"
+          onClick={() => setKeymapOpen(false)}
+        >
+          <div
+            className="max-h-[80vh] w-full max-w-md overflow-y-auto rounded-lg border border-border bg-white p-4 shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <div className="text-sm font-semibold">Клавиши</div>
+              <button
+                type="button"
+                className="rounded-md border border-border px-2 py-1 text-xs text-muted hover:text-text"
+                onClick={() => setKeymapOpen(false)}
+              >
+                Закрыть
+              </button>
+            </div>
+            {KEYMAP_GROUPS.map((group) => (
+              <section key={group.id} className="mb-3">
+                <div className="mb-1 text-xs font-medium text-text">{group.label}</div>
+                <ul className="space-y-1 text-[11px] text-muted">
+                  {KEYMAP.filter((item) => item.group === group.id).map((item) => (
+                    <li key={item.keys} className="flex justify-between gap-3">
+                      <kbd className="shrink-0 rounded border border-border bg-bg px-1 font-mono text-[10px] text-text">
+                        {item.keys}
+                      </kbd>
+                      <span className="text-right">{item.action}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {showLog ? (
         <div

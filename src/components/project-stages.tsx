@@ -33,16 +33,16 @@ const STAGE_TAB: Record<
 > = {
   transcribe: {
     idle:
-      "border-teal-300 bg-teal-50 text-teal-950 hover:border-teal-500 hover:bg-teal-100",
+      "border-slate-300 bg-white text-slate-800 hover:border-slate-400 hover:bg-slate-50",
     current:
-      "border-teal-600 bg-teal-600 text-white shadow-sm hover:bg-teal-600",
-    track: "sky",
+      "border-slate-700 bg-slate-700 text-white shadow-sm hover:bg-slate-700",
+    track: "accent",
   },
   reviews: {
     idle:
-      "border-indigo-300 bg-indigo-50 text-indigo-950 hover:border-indigo-500 hover:bg-indigo-100",
+      "border-slate-300 bg-white text-slate-800 hover:border-slate-400 hover:bg-slate-50",
     current:
-      "border-indigo-600 bg-indigo-600 text-white shadow-sm hover:bg-indigo-600",
+      "border-slate-700 bg-slate-700 text-white shadow-sm hover:bg-slate-700",
     track: "accent",
   },
 };
@@ -155,7 +155,7 @@ export function ProjectStagesBar({
 
   return (
     <div
-      className={`flex min-w-0 flex-1 items-center gap-2 ${
+      className={`flex min-w-0 flex-1 items-center gap-2 overflow-hidden ${
         embedded ? "" : "shrink-0 border-b border-border bg-white px-2 py-1.5 sm:px-3"
       }`}
     >
@@ -212,7 +212,7 @@ export function ProjectStagesBar({
           type="button"
           onClick={onBackHome}
           title={backLabel}
-          className="shrink-0 rounded-md border-2 border-amber-500 bg-amber-500 px-2.5 py-1 text-[11px] font-bold text-white shadow-sm hover:bg-amber-600"
+          className="shrink-0 rounded-md border border-border bg-white px-2.5 py-1 text-xs font-medium text-text hover:bg-bg"
         >
           {backLabel}
         </button>
@@ -220,7 +220,7 @@ export function ProjectStagesBar({
 
       {docTitle ? (
         <span
-          className="hidden max-w-[10rem] shrink truncate rounded border border-sky-200 bg-sky-50 px-2 py-1 text-[11px] font-medium text-sky-950 lg:inline"
+          className="hidden max-w-[10rem] shrink truncate rounded border border-slate-300 bg-white px-2 py-1 text-[11px] font-medium text-slate-800 lg:inline"
           title={docTitle}
         >
           {docTitle}

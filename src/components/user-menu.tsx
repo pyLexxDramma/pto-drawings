@@ -27,7 +27,7 @@ export function UserMenu({
   defaultPasswordWarning = false,
   statusNote = null,
   compact = false,
-  accent = false,
+  accent: _accent = false,
   sheetMenu = null,
   onUsers,
   onAudit,
@@ -38,6 +38,8 @@ export function UserMenu({
   /** Инструкция по управлению переехала сюда из меню «⋯» над листом. */
   const [helpOpen, setHelpOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const role = ROLE_LABEL[user.role];
+  const letter = user.displayName.slice(0, 1).toUpperCase() || "A";
 
   useEffect(() => {
     if (!open) return;
@@ -56,56 +58,42 @@ export function UserMenu({
   }, [open]);
 
   return (
-    <div ref={rootRef} className="relative">
+    <div ref={rootRef} className="relative shrink-0">
       <button
         type="button"
         aria-expanded={open}
         aria-haspopup="menu"
+        aria-label={`${role}: ${user.displayName}`}
         onClick={() => setOpen((value) => !value)}
-        title={compact ? `${user.displayName} · роль: ${ROLE_LABEL[user.role]}` : undefined}
-        className={`flex items-center gap-2 rounded-md border text-left ${
-          compact ? "px-1.5 py-1" : "px-2.5 py-1.5"
+        title={`${user.displayName} · ${role}`}
+        className={`flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md border text-left ${
+          compact ? "px-1.5 py-1" : "px-2 py-1"
         } ${
           defaultPasswordWarning
-            ? "border-amber-400 bg-amber-50 hover:bg-amber-100"
-            : accent
-              ? user.role === "admin"
-                ? "border-violet-700 bg-violet-600 text-white shadow-sm hover:bg-violet-700"
-                : "border-sky-700 bg-sky-600 text-white shadow-sm hover:bg-sky-700"
-              : "border-border bg-white hover:bg-bg"
+            ? "border-amber-400 bg-amber-50 text-amber-950 hover:bg-amber-100"
+            : "border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
         }`}
       >
-        {compact ? null : (
-          <span className="hidden text-right text-[11px] leading-tight sm:block">
-            <span
-              className={`block font-semibold ${
-                accent ? "text-white" : "text-text"
-              }`}
-            >
-              {ROLE_LABEL[user.role]}
-            </span>
-            <span
-              className={`block ${accent ? "text-white/80" : "text-muted"}`}
-            >
-              {user.displayName}
-            </span>
-          </span>
-        )}
         <span
-          className={`flex items-center justify-center rounded-full text-[11px] font-semibold ${
-            compact ? "h-6 w-6" : "h-7 w-7 sm:hidden"
+          className={`flex shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${
+            compact ? "h-6 w-6" : "h-7 w-7"
           } ${
-            accent
-              ? "bg-white/20 text-white"
-              : "bg-surface-2 text-text"
+            defaultPasswordWarning
+              ? "bg-amber-200 text-amber-950"
+              : user.role === "admin"
+                ? "bg-slate-700 text-white"
+                : "bg-slate-200 text-slate-800"
           }`}
         >
-          {user.displayName.slice(0, 1).toUpperCase()}
+          {letter}
         </span>
-        <span
-          className={`text-[10px] ${accent ? "text-white/80" : "text-muted"}`}
-          aria-hidden
-        >
+        {compact ? null : (
+          <span className="text-[11px] leading-tight">
+            <span className="block font-semibold text-slate-900">{role}</span>
+            <span className="block text-slate-500">{user.displayName}</span>
+          </span>
+        )}
+        <span className="text-[10px] text-slate-500" aria-hidden>
           ▾
         </span>
       </button>
@@ -120,7 +108,7 @@ export function UserMenu({
           {compact ? (
             <div className="border-b border-border px-3 pb-1.5 pt-1 text-[11px] leading-tight">
               <div className="font-medium text-text">{user.displayName}</div>
-              <div className="text-muted">роль: {ROLE_LABEL[user.role]}</div>
+              <div className="text-muted">роль: {role}</div>
             </div>
           ) : null}
           {sheetMenu ? (

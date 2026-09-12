@@ -8,6 +8,11 @@
   --text: #1c2330;
   --muted: #6b7380;
   --accent: #2563eb;
+  --state-error: #dc2626;
+  --state-warn: #d97706;
+  --state-ok: #059669;
+  --control-h: 1.75rem;
+  --ui-text: 12px;
 }
 
 @theme inline {
@@ -30,6 +35,16 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-inter), Arial, Helvetica, sans-serif;
+}
+
+html[data-density="compact"] {
+  --control-h: 1.5rem;
+  --ui-text: 11px;
+}
+
+.pto-tool {
+  height: var(--control-h);
+  font-size: var(--ui-text);
 }
 
 * {
@@ -165,6 +180,32 @@ body {
   font-weight: 650;
   border-top: 1px solid var(--border);
   box-shadow: 0 1px 0 var(--border);
+}
+
+.markdown-body th:first-child,
+.markdown-body td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: inherit;
+  box-shadow: 1px 0 0 var(--border);
+}
+
+.markdown-body thead th:first-child {
+  z-index: 3;
+  background: #e8eef6;
+}
+
+.markdown-body tbody td:first-child {
+  background: #fff;
+}
+
+.markdown-body tbody tr:nth-child(even) td:first-child {
+  background: #f7f9fc;
+}
+
+.markdown-body .pto-col-hover {
+  background: #e8f1ff !important;
 }
 
 .markdown-body tbody tr:nth-child(even) td {

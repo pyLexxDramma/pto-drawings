@@ -2,7 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Spinner } from "@/components/ui-chrome";
-import { IconExpand } from "@/components/tool-icons";
+import { ViewerHint } from "@/components/viewer-hint";
+import { ViewerMinimap } from "@/components/viewer-minimap";
+import { ViewerToolbar } from "@/components/viewer-toolbar";
+import { usePageViewport } from "@/hooks/use-page-viewport";
 import {
   bboxSize,
   cadTextLines,
@@ -19,7 +22,12 @@ import {
 } from "@/lib/content-sync";
 import { findLayerHits, highlightNeedles } from "@/lib/highlight-text";
 import { normalizeQuote } from "@/lib/remark-jump";
-import { clampPan } from "@/lib/page-viewport";
+import {
+  loadViewerPrefs,
+  saveViewerPrefs,
+  shouldShowViewerHint,
+  type CadTextFilter,
+} from "@/lib/viewer-prefs";
 import type { AnnotationRect, PageAnnotation } from "@/types";
 
 type CadPageProps = {
@@ -51,6 +59,7 @@ type CadPageProps = {
 type DrawState = { x0: number; y0: number; x1: number; y1: number };
 
 const MIN_SIDE = 0.012;
+const PX_PER_MM = 3.5;
 
 function textAnchor(anchor: string | undefined) {
   if (anchor === "center") return "middle";
@@ -63,6 +72,14 @@ function dominantBaseline(valign: string | undefined) {
   if (valign === "middle") return "middle";
   if (valign === "bottom") return "text-after-edge";
   return "alphabetic";
+}
+
+function niceLength(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return 1;
+  const exp = 10 ** Math.floor(Math.log10(value));
+  const n = value / exp;
+  const nice = n < 1.5 ? 1 : n < 3.5 ? 2 : n < 7.5 ? 5 : 10;
+  return nice * exp;
 }
 
 export function CadPage({
@@ -91,61 +108,46 @@ export function CadPage({
   fullscreenActive = false,
 }: CadPageProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
-  const clickRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
-  const dragRef = useRef<{
-    x: number;
-    y: number;
-    panX: number;
-    panY: number;
-  } | null>(null);
-  const applyingSync = useRef(false);
-  const panRef = useRef({ x: 0, y: 0 });
-  const scaleRef = useRef(1);
-  const naturalRef = useRef({ w: 800, h: 1100 });
-  const fitModeRef = useRef<"page" | "width">("page");
-  const pageRef = useRef(pageNumber);
-  const viewCacheRef = useRef(
-    new Map<
-      number,
-      { scale: number; pan: { x: number; y: number }; fitMode: "page" | "width" }
-    >(),
-  );
-
   const [geometry, setGeometry] = useState<CadGeometry | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [natural, setNatural] = useState({ w: 800, h: 1100 });
-  const [scale, setScale] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [grabbing, setGrabbing] = useState(false);
   const [draw, setDraw] = useState<DrawState | null>(null);
-  const [fitMode, setFitMode] = useState<"page" | "width">("page");
+  const [zoomBox, setZoomBox] = useState<DrawState | null>(null);
+  const [prefs, setPrefs] = useState(() => loadViewerPrefs());
+  const [hintOn, setHintOn] = useState(() => shouldShowViewerHint(loadViewerPrefs()));
+  const [wrapSize, setWrapSize] = useState({ w: 0, h: 0 });
+
+  const ready = !loading && Boolean(geometry || previewUrl);
+  const viewport = usePageViewport({
+    wrapRef,
+    natural,
+    pageNumber,
+    ready,
+    highlightNonce,
+    highlightRegion,
+    panToHighlight,
+    wheelMode: prefs.cadWheel,
+    onUserZoom: () => {
+      const next = loadViewerPrefs();
+      if (!next.hintDismissed) {
+        saveViewerPrefs({ ...next, hintDismissed: true });
+        setHintOn(false);
+      }
+    },
+  });
 
   useEffect(() => {
-    panRef.current = pan;
-  }, [pan]);
-  useEffect(() => {
-    scaleRef.current = scale;
-  }, [scale]);
-  useEffect(() => {
-    naturalRef.current = natural;
-  }, [natural]);
-  useEffect(() => {
-    fitModeRef.current = fitMode;
-  }, [fitMode]);
-
-  useEffect(() => {
-    const prev = pageRef.current;
-    if (prev !== pageNumber) {
-      viewCacheRef.current.set(prev, {
-        scale: scaleRef.current,
-        pan: { ...panRef.current },
-        fitMode: fitModeRef.current,
-      });
-      pageRef.current = pageNumber;
-    }
-  }, [pageNumber]);
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    const ro = new ResizeObserver(() => {
+      setWrapSize({ w: wrap.clientWidth, h: wrap.clientHeight });
+    });
+    ro.observe(wrap);
+    setWrapSize({ w: wrap.clientWidth, h: wrap.clientHeight });
+    return () => ro.disconnect();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -169,11 +171,9 @@ export function CadPage({
           if (cancelled) return;
           const parsed = parseGeometry(csv);
           const size = bboxSize(parsed.bbox);
-          // ~3.5 px/mm — читаемый масштаб на типичном мониторе.
-          const px = 3.5;
           setNatural({
-            w: Math.max(320, size.w * px),
-            h: Math.max(240, size.h * px),
+            w: Math.max(320, size.w * PX_PER_MM),
+            h: Math.max(240, size.h * PX_PER_MM),
           });
           setGeometry(parsed);
           setLoading(false);
@@ -183,7 +183,6 @@ export function CadPage({
         const payload = (await response.json().catch(() => ({}))) as {
           error?: string;
         };
-        // Запасной путь: PNG/SVG превью с конвейера.
         const preview = await fetch(
           `/api/documents/${documentId}/pages/${pageNumber}/preview?format=png`,
         );
@@ -217,183 +216,6 @@ export function CadPage({
     };
   }, [documentId, pageNumber]);
 
-  function boundPan(next: { x: number; y: number }, s = scaleRef.current) {
-    const wrap = wrapRef.current;
-    const n = naturalRef.current;
-    if (!wrap) return next;
-    return clampPan(next, {
-      viewW: wrap.clientWidth,
-      viewH: wrap.clientHeight,
-      contentW: n.w * s,
-      contentH: n.h * s,
-    });
-  }
-
-  /** Зум к точке в координатах wrap; без якоря — к центру панели (кнопки +/−). */
-  function zoomBy(factor: number, anchor?: { x: number; y: number }) {
-    const wrap = wrapRef.current;
-    if (!wrap) return;
-    const oldScale = scaleRef.current;
-    const nextScale = Math.min(12, Math.max(0.05, oldScale * factor));
-    if (nextScale === oldScale) return;
-    const cx = anchor?.x ?? wrap.clientWidth / 2;
-    const cy = anchor?.y ?? wrap.clientHeight / 2;
-    const oldPan = panRef.current;
-    const contentX = (cx - oldPan.x) / oldScale;
-    const contentY = (cy - oldPan.y) / oldScale;
-    const nextPan = boundPan(
-      {
-        x: cx - contentX * nextScale,
-        y: cy - contentY * nextScale,
-      },
-      nextScale,
-    );
-    scaleRef.current = nextScale;
-    panRef.current = nextPan;
-    setScale(nextScale);
-    setPan(nextPan);
-  }
-
-  function fit(mode: "page" | "width") {
-    const wrap = wrapRef.current;
-    if (!wrap) return;
-    const pad = 16;
-    const scaleW = (wrap.clientWidth - pad) / natural.w;
-    const scaleH = (wrap.clientHeight - pad) / natural.h;
-    const next = mode === "width" ? scaleW : Math.min(scaleW, scaleH);
-    const s = Math.max(0.05, next);
-    const contentW = natural.w * s;
-    const contentH = natural.h * s;
-    const nextPan = clampPan(
-      {
-        x: (wrap.clientWidth - contentW) / 2,
-        // Лист выше кадра — показываем его с начала, а не серединой.
-        y: contentH <= wrap.clientHeight ? (wrap.clientHeight - contentH) / 2 : 0,
-      },
-      {
-        viewW: wrap.clientWidth,
-        viewH: wrap.clientHeight,
-        contentW,
-        contentH,
-      },
-    );
-    fitModeRef.current = mode;
-    scaleRef.current = s;
-    panRef.current = nextPan;
-    setFitMode(mode);
-    setScale(s);
-    setPan(nextPan);
-  }
-
-  useEffect(() => {
-    if (loading || error) return;
-    if (!geometry && !previewUrl) return;
-    const cached = viewCacheRef.current.get(pageNumber);
-    if (cached) {
-      setFitMode(cached.fitMode);
-      setScale(cached.scale);
-      scaleRef.current = cached.scale;
-      const wrap = wrapRef.current;
-      const clamped = wrap
-        ? clampPan(cached.pan, {
-            viewW: wrap.clientWidth,
-            viewH: wrap.clientHeight,
-            contentW: natural.w * cached.scale,
-            contentH: natural.h * cached.scale,
-          })
-        : cached.pan;
-      panRef.current = clamped;
-      setPan(clamped);
-      return;
-    }
-    fit("width");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, error, natural.w, natural.h, pageNumber, geometry, previewUrl]);
-
-  // Панель проектов / сплит меняют ширину без remount — пересчитываем fit.
-  useEffect(() => {
-    const wrap = wrapRef.current;
-    if (!wrap || loading || error) return;
-    let prevW = wrap.clientWidth;
-    let prevH = wrap.clientHeight;
-    const ro = new ResizeObserver(() => {
-      const w = wrap.clientWidth;
-      const h = wrap.clientHeight;
-      if (w < 8 || h < 8) return;
-      if (Math.abs(w - prevW) < 2 && Math.abs(h - prevH) < 2) return;
-      prevW = w;
-      prevH = h;
-      fit(fitModeRef.current);
-    });
-    ro.observe(wrap);
-    return () => ro.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, error, natural.w, natural.h, pageNumber]);
-
-  useEffect(() => {
-    if (!highlightNonce) return;
-    // Клик по замечанию: общий вид листа, зона мигает сама (pto-remark-zone).
-    fit("page");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [highlightNonce]);
-
-  useEffect(() => {
-    if (!panToHighlight || !highlightRegion) return;
-    const wrap = wrapRef.current;
-    if (!wrap) return;
-    const s = scaleRef.current;
-    const p = panRef.current;
-    const n = naturalRef.current;
-    const cx = (highlightRegion.x + highlightRegion.w / 2) * n.w * s + p.x;
-    const cy = (highlightRegion.y + highlightRegion.h / 2) * n.h * s + p.y;
-    const margin = 48;
-    let nx = p.x;
-    let ny = p.y;
-    if (cx < margin) nx += margin - cx;
-    else if (cx > wrap.clientWidth - margin) nx -= cx - (wrap.clientWidth - margin);
-    if (cy < margin) ny += margin - cy;
-    else if (cy > wrap.clientHeight - margin) ny -= cy - (wrap.clientHeight - margin);
-    if (nx === p.x && ny === p.y) return;
-    applyingSync.current = true;
-    const next = boundPan({ x: nx, y: ny });
-    panRef.current = next;
-    setPan(next);
-    requestAnimationFrame(() => {
-      applyingSync.current = false;
-    });
-  }, [highlightRegion, panToHighlight, scale, natural.w, natural.h]);
-
-  useEffect(() => {
-    const wrap = wrapRef.current;
-    if (!wrap) return;
-    const onWheelNative = (event: WheelEvent) => {
-      event.preventDefault();
-      // Ctrl (Win) / Cmd (Mac) + колесо; pinch на трекпаде Mac тоже шлёт ctrlKey.
-      const zoomGesture = event.ctrlKey || event.metaKey;
-      if (!zoomGesture) {
-        // Горизонтальный скролл трекпада и колеса-качалки шлёт deltaX; Shift
-        // на обычном колесе тоже даёт горизонталь — иначе чертёж не сдвинуть.
-        const dx = event.shiftKey && event.deltaX === 0 ? event.deltaY : event.deltaX;
-        const dy = event.shiftKey && event.deltaX === 0 ? 0 : event.deltaY;
-        const next = boundPan({
-          x: panRef.current.x - dx,
-          y: panRef.current.y - dy,
-        });
-        panRef.current = next;
-        setPan(next);
-        return;
-      }
-      const rect = wrap.getBoundingClientRect();
-      const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
-      zoomBy(factor, {
-        x: event.clientX - rect.left,
-        y: event.clientY - rect.top,
-      });
-    };
-    wrap.addEventListener("wheel", onWheelNative, { passive: false });
-    return () => wrap.removeEventListener("wheel", onWheelNative);
-  }, [natural.h]);
-
   useEffect(() => {
     if (!markMode) return;
     const onKey = (event: KeyboardEvent) => {
@@ -402,21 +224,6 @@ export function CadPage({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [markMode, onCancelMark]);
-
-  function toPagePoint(clientX: number, clientY: number) {
-    const wrap = wrapRef.current;
-    if (!wrap) return { x: 0, y: 0 };
-    const rect = wrap.getBoundingClientRect();
-    const s = scaleRef.current;
-    const p = panRef.current;
-    const n = naturalRef.current;
-    const x = (clientX - rect.left - p.x) / s / n.w;
-    const y = (clientY - rect.top - p.y) / s / n.h;
-    return {
-      x: Math.min(1, Math.max(0, x)),
-      y: Math.min(1, Math.max(0, y)),
-    };
-  }
 
   function finishDraw(state: DrawState) {
     const x = Math.min(state.x0, state.x1);
@@ -483,8 +290,6 @@ export function CadPage({
     onHighlightHits?.(searchHits.length);
   }, [searchHits.length, onHighlightHits]);
 
-  // Автозум/пан к hit отключён: при замечании остаётся общий вид (fit page).
-
   const preview = markMode && draw
     ? {
         x: Math.min(draw.x0, draw.x1),
@@ -492,67 +297,112 @@ export function CadPage({
         w: Math.abs(draw.x1 - draw.x0),
         h: Math.abs(draw.y1 - draw.y0),
       }
-    : null;
+    : zoomBox
+      ? {
+          x: Math.min(zoomBox.x0, zoomBox.x1),
+          y: Math.min(zoomBox.y0, zoomBox.y1),
+          w: Math.abs(zoomBox.x1 - zoomBox.x0),
+          h: Math.abs(zoomBox.y1 - zoomBox.y0),
+        }
+      : null;
 
   const cursor = markMode
     ? "cursor-crosshair"
-    : grabbing
-      ? "cursor-grabbing"
-      : "cursor-grab";
+    : zoomBox
+      ? "cursor-crosshair"
+      : viewport.grabbing
+        ? "cursor-grabbing"
+        : viewport.canPan
+          ? "cursor-grab"
+          : "cursor-default";
 
   const viewBox = geometry
     ? `${geometry.bbox.x0} ${-geometry.bbox.y1} ${bboxSize(geometry.bbox).w} ${bboxSize(geometry.bbox).h}`
     : "0 0 1 1";
 
+  const showStrokes = prefs.textFilter !== "text";
+  const showTexts = prefs.textFilter !== "hide";
+  const minLabel = 10 / (PX_PER_MM * Math.max(0.05, viewport.scale));
+  const scaleBarMm = niceLength(80 / (PX_PER_MM * Math.max(0.05, viewport.scale)));
+  const scaleBarPx = scaleBarMm * PX_PER_MM * viewport.scale;
+  const scaleBarLabel =
+    geometry?.units === "mm" && scaleBarMm >= 1000
+      ? `${scaleBarMm / 1000} м`
+      : `${scaleBarMm} ${geometry?.units || "мм"}`;
+
+  function patchPrefs(patch: Partial<typeof prefs>) {
+    const next = { ...loadViewerPrefs(), ...patch };
+    saveViewerPrefs(next);
+    setPrefs(next);
+  }
+
   return (
     <div className="group relative flex h-full min-h-0 flex-col">
       <div
         ref={wrapRef}
-        className={`relative min-h-0 flex-1 overflow-hidden bg-[#f7f8fa] ${cursor}`}
+        tabIndex={0}
+        data-viewer-wrap=""
+        className={`relative min-h-0 flex-1 overflow-hidden bg-[#f7f8fa] outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${cursor}`}
         style={{ colorScheme: "only light" }}
         onWheel={(event) => event.preventDefault()}
+        onDoubleClick={(event) => {
+          if (markMode) return;
+          if (event.shiftKey) viewport.setScalePercent(100);
+          else viewport.fit("page");
+        }}
+        onKeyDown={(event) => {
+          const step = 64;
+          if (event.key === "ArrowLeft") {
+            event.preventDefault();
+            viewport.panBy(step, 0);
+          }
+          if (event.key === "ArrowRight") {
+            event.preventDefault();
+            viewport.panBy(-step, 0);
+          }
+          if (event.key === "ArrowUp") {
+            event.preventDefault();
+            viewport.panBy(0, step);
+          }
+          if (event.key === "ArrowDown") {
+            event.preventDefault();
+            viewport.panBy(0, -step);
+          }
+        }}
         onMouseDown={(event) => {
+          if (event.button === 1 || viewport.spaceHeld) {
+            event.preventDefault();
+            viewport.startPan(event.clientX, event.clientY);
+            return;
+          }
           if (event.button !== 0) return;
           if (markMode) {
-            const point = toPagePoint(event.clientX, event.clientY);
+            const point = viewport.toPagePoint(event.clientX, event.clientY);
             setDraw({ x0: point.x, y0: point.y, x1: point.x, y1: point.y });
             return;
           }
-          clickRef.current = { x: event.clientX, y: event.clientY, moved: false };
-          setGrabbing(true);
-          dragRef.current = {
-            x: event.clientX,
-            y: event.clientY,
-            panX: pan.x,
-            panY: pan.y,
-          };
+          if (event.shiftKey) {
+            const point = viewport.toPagePoint(event.clientX, event.clientY);
+            setZoomBox({ x0: point.x, y0: point.y, x1: point.x, y1: point.y });
+            return;
+          }
+          viewport.startPan(event.clientX, event.clientY);
         }}
         onMouseMove={(event) => {
           if (markMode) {
             if (!draw) return;
-            const point = toPagePoint(event.clientX, event.clientY);
+            const point = viewport.toPagePoint(event.clientX, event.clientY);
             setDraw({ ...draw, x1: point.x, y1: point.y });
             return;
           }
-          const drag = dragRef.current;
-          if (drag) {
-            if (
-              clickRef.current &&
-              (Math.abs(event.clientX - clickRef.current.x) > 4 ||
-                Math.abs(event.clientY - clickRef.current.y) > 4)
-            ) {
-              clickRef.current.moved = true;
-            }
-            const next = boundPan({
-              x: drag.panX + (event.clientX - drag.x),
-              y: drag.panY + (event.clientY - drag.y),
-            });
-            panRef.current = next;
-            setPan(next);
+          if (zoomBox) {
+            const point = viewport.toPagePoint(event.clientX, event.clientY);
+            setZoomBox({ ...zoomBox, x1: point.x, y1: point.y });
             return;
           }
+          if (viewport.movePan(event.clientX, event.clientY)) return;
           if (onHoverRegion && hoverRegions.length) {
-            const point = toPagePoint(event.clientX, event.clientY);
+            const point = viewport.toPagePoint(event.clientX, event.clientY);
             const hit = regionAtPoint(hoverRegions, point.x, point.y);
             onHoverRegion(hit?.id ?? null);
           }
@@ -563,21 +413,28 @@ export function CadPage({
             setDraw(null);
             return;
           }
-          const wasClick = clickRef.current && !clickRef.current.moved;
-          dragRef.current = null;
-          setGrabbing(false);
-          clickRef.current = null;
+          if (zoomBox) {
+            const rect = {
+              x: Math.min(zoomBox.x0, zoomBox.x1),
+              y: Math.min(zoomBox.y0, zoomBox.y1),
+              w: Math.abs(zoomBox.x1 - zoomBox.x0),
+              h: Math.abs(zoomBox.y1 - zoomBox.y0),
+            };
+            setZoomBox(null);
+            if (rect.w > 0.01 && rect.h > 0.01) viewport.zoomToRect(rect);
+            return;
+          }
+          const wasClick = viewport.endPan();
           if (wasClick && onSelectRegion && hoverRegions.length) {
-            const point = toPagePoint(event.clientX, event.clientY);
+            const point = viewport.toPagePoint(event.clientX, event.clientY);
             const hit = regionAtPoint(hoverRegions, point.x, point.y);
             onSelectRegion(hit?.id ?? null);
           }
         }}
         onMouseLeave={() => {
-          dragRef.current = null;
-          setGrabbing(false);
+          viewport.endPan();
           setDraw(null);
-          clickRef.current = null;
+          setZoomBox(null);
           onHoverRegion?.(null);
         }}
       >
@@ -596,7 +453,7 @@ export function CadPage({
               <div className="text-sm font-semibold text-text">Лист без геометрии</div>
               <div className="mt-2 text-xs leading-relaxed text-muted">{error}</div>
               <div className="mt-3 text-[11px] text-muted">
-                Текст расшифровки справа, если конвейер его вернул.
+                Текст листа справа, если конвейер его вернул.
               </div>
             </div>
           </div>
@@ -608,7 +465,7 @@ export function CadPage({
             style={{
               width: natural.w,
               height: natural.h,
-              transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`,
+              transform: `translate(${viewport.pan.x}px, ${viewport.pan.y}px) scale(${viewport.scale})`,
             }}
           >
             {geometry && strokeGroups ? (
@@ -619,57 +476,67 @@ export function CadPage({
                 className="block bg-white shadow-[0_12px_40px_rgba(0,0,0,0.12)]"
                 style={{ colorScheme: "only light" }}
               >
-                <g transform="scale(1,-1)">
-                  {[...strokeGroups].map(([key, parts]) => {
-                    const [color, lw] = key.split("|");
-                    return (
-                      <path
-                        key={key}
-                        d={parts.join("")}
-                        fill="none"
-                        stroke={color}
-                        strokeWidth={Number(lw) || 0.25}
-                        vectorEffect="non-scaling-stroke"
-                      />
-                    );
-                  })}
-                </g>
-                {texts.map((t, index) => {
-                  if (t.points.length < 2 || !t.text) return null;
-                  const x = t.points[0];
-                  const y = t.points[1];
-                  const lines = cadTextLines(t.text);
-                  const size = t.size ?? 2.5;
-                  const matched =
-                    needles.length > 0 &&
-                    needles.some((n) => normalizeQuote(t.text!).includes(n));
-                  return (
-                    <text
-                      key={`t-${index}`}
-                      x={0}
-                      y={0}
-                      transform={`translate(${x} ${-y}) rotate(${-(t.rot ?? 0)})`}
-                      fontSize={size}
-                      textAnchor={textAnchor(t.anchor)}
-                      dominantBaseline={dominantBaseline(t.valign)}
-                      fill={matched ? "#b45309" : t.color || "#000000"}
-                      style={{
-                        fontFamily: "Arial, sans-serif",
-                        whiteSpace: "pre",
-                      }}
-                    >
-                      {lines.map((line, lineIndex) => (
-                        <tspan
-                          key={lineIndex}
+                {showStrokes ? (
+                  <g transform="scale(1,-1)">
+                    {[...strokeGroups].map(([key, parts]) => {
+                      const [color, lw] = key.split("|");
+                      return (
+                        <path
+                          key={key}
+                          d={parts.join("")}
+                          fill="none"
+                          stroke={color}
+                          strokeWidth={
+                            prefs.thinStrokes
+                              ? 0.5 / Math.max(0.05, viewport.scale)
+                              : Number(lw) || 0.25
+                          }
+                          vectorEffect={
+                            prefs.thinStrokes ? "non-scaling-stroke" : undefined
+                          }
+                        />
+                      );
+                    })}
+                  </g>
+                ) : null}
+                {showTexts
+                  ? texts.map((t, index) => {
+                      if (t.points.length < 2 || !t.text) return null;
+                      const x = t.points[0];
+                      const y = t.points[1];
+                      const lines = cadTextLines(t.text);
+                      const size = t.size ?? 2.5;
+                      const matched =
+                        needles.length > 0 &&
+                        needles.some((n) => normalizeQuote(t.text!).includes(n));
+                      return (
+                        <text
+                          key={`t-${index}`}
                           x={0}
-                          dy={lineIndex === 0 ? 0 : size * 1.2}
+                          y={0}
+                          transform={`translate(${x} ${-y}) rotate(${-(t.rot ?? 0)})`}
+                          fontSize={prefs.largeLabels ? Math.max(size, minLabel) : size}
+                          textAnchor={textAnchor(t.anchor)}
+                          dominantBaseline={dominantBaseline(t.valign)}
+                          fill={matched ? "#b45309" : t.color || "#000000"}
+                          style={{
+                            fontFamily: "Arial, sans-serif",
+                            whiteSpace: "pre",
+                          }}
                         >
-                          {line}
-                        </tspan>
-                      ))}
-                    </text>
-                  );
-                })}
+                          {lines.map((line, lineIndex) => (
+                            <tspan
+                              key={lineIndex}
+                              x={0}
+                              dy={lineIndex === 0 ? 0 : size * 1.2}
+                            >
+                              {line}
+                            </tspan>
+                          ))}
+                        </text>
+                      );
+                    })
+                  : null}
               </svg>
             ) : previewUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -729,7 +596,7 @@ export function CadPage({
                     width: `${annotation.rect.w * 100}%`,
                     height: `${annotation.rect.h * 100}%`,
                     borderStyle: "solid",
-                    borderWidth: Math.max(1, 2 / scale),
+                    borderWidth: Math.max(1, 2 / viewport.scale),
                     borderColor: isOpen ? "#dc2626" : "#059669",
                     background: isActive
                       ? "rgba(220,38,38,0.16)"
@@ -743,9 +610,9 @@ export function CadPage({
                       top: 0,
                       transform: "translate(-2%, -105%)",
                       background: isOpen ? "#dc2626" : "#059669",
-                      padding: `${1 / scale}px ${4 / scale}px`,
-                      borderRadius: 3 / scale,
-                      fontSize: Math.max(6, 13 / scale),
+                      padding: `${1 / viewport.scale}px ${4 / viewport.scale}px`,
+                      borderRadius: 3 / viewport.scale,
+                      fontSize: Math.max(6, 13 / viewport.scale),
                       lineHeight: 1.4,
                     }}
                   >
@@ -763,8 +630,10 @@ export function CadPage({
                   top: `${preview.y * 100}%`,
                   width: `${preview.w * 100}%`,
                   height: `${preview.h * 100}%`,
-                  border: `${Math.max(1, 2 / scale)}px dashed #dc2626`,
-                  background: "rgba(220,38,38,0.1)",
+                  border: `${Math.max(1, 2 / viewport.scale)}px ${
+                    zoomBox ? "solid #2563eb" : "dashed #dc2626"
+                  }`,
+                  background: zoomBox ? "rgba(37,99,235,0.1)" : "rgba(220,38,38,0.1)",
                 }}
               />
             ) : null}
@@ -786,92 +655,129 @@ export function CadPage({
           ) : null}
         </div>
       ) : (
-        <div className="pointer-events-none absolute left-1/2 top-2 z-20 -translate-x-1/2 opacity-0 transition-opacity group-hover:opacity-100">
-          <span className="rounded-md border border-slate-200 bg-white/90 px-2 py-1 text-[10px] text-muted shadow-sm">
-            тяни мышью · колесо — сдвиг · Ctrl — зум
-          </span>
-        </div>
+        <ViewerHint show={hintOn} wheelMode={prefs.cadWheel} />
       )}
 
-      <div
-        onMouseDown={(event) => event.stopPropagation()}
-        className="absolute right-2 top-2 z-30 flex items-center gap-1 rounded-md border-2 border-sky-400 bg-sky-50 px-1.5 py-1 shadow-md backdrop-blur"
-      >
-        {onPrevPage || onNextPage ? (
-          <div className="flex items-center overflow-hidden rounded border border-sky-500 bg-sky-600">
-            <button
-              type="button"
-              title="Предыдущий лист (K / ←)"
-              aria-label="Предыдущий лист"
-              onClick={() => onPrevPage?.()}
-              disabled={!canPrevPage}
-              className="inline-flex h-7 w-8 items-center justify-center text-sm font-bold text-white hover:bg-sky-700 disabled:cursor-default disabled:opacity-40"
-            >
-              ←
-            </button>
-            <button
-              type="button"
-              title="Следующий лист (J / → / пробел)"
-              aria-label="Следующий лист"
-              onClick={() => onNextPage?.()}
-              disabled={!canNextPage}
-              className="inline-flex h-7 w-8 items-center justify-center border-l border-sky-400 text-sm font-bold text-white hover:bg-sky-700 disabled:cursor-default disabled:opacity-40"
-            >
-              →
-            </button>
-          </div>
-        ) : null}
+      {geometry && ready ? (
         <div
-          className={`flex items-center gap-0.5 ${
-            onPrevPage || onNextPage ? "border-l border-sky-300 pl-1.5" : ""
-          }`}
+          className="pointer-events-none absolute bottom-2 left-2 z-20 flex items-end gap-2 rounded border border-border bg-white/90 px-2 py-1 text-[10px] text-muted shadow-sm"
+          data-viewer-scalebar=""
         >
-          <button
-            type="button"
-            title="Отдалить"
-            aria-label="Отдалить"
-            onClick={() => zoomBy(1 / 1.25)}
-            className="flex h-7 w-7 items-center justify-center rounded text-base leading-none text-sky-950 hover:bg-white"
-          >
-            −
-          </button>
-          <span className="min-w-[2.5rem] text-center text-[11px] tabular-nums text-sky-950">
-            {Math.round(scale * 100)}%
-            {geometry?.scale ? ` · ${geometry.scale}` : ""}
+          <span
+            className="block border-b-2 border-text"
+            style={{ width: Math.max(24, Math.min(120, scaleBarPx)) }}
+          />
+          <span className="tabular-nums">
+            {scaleBarLabel}
+            {geometry.scale ? ` · ${geometry.scale}` : ""}
           </span>
-          <button
-            type="button"
-            title="Приблизить"
-            aria-label="Приблизить"
-            onClick={() => zoomBy(1.25)}
-            className="flex h-7 w-7 items-center justify-center rounded text-base leading-none text-sky-950 hover:bg-white"
-          >
-            +
-          </button>
         </div>
-        {onToggleFullscreen ? (
-          <button
-            type="button"
-            title={
-              fullscreenActive
-                ? "Показать расшифровку рядом (F)"
-                : "Чертёж на весь экран (F)"
-            }
-            aria-label={fullscreenActive ? "Свернуть чертёж" : "Весь экран"}
-            onClick={() => onToggleFullscreen()}
-            className={`inline-flex h-7 w-7 items-center justify-center rounded border ${
-              fullscreenActive
-                ? "border-accent bg-accent text-white"
-                : "border-sky-300 bg-white text-sky-950 hover:bg-sky-100"
-            }`}
-          >
-            <IconExpand className="h-3.5 w-3.5" />
-          </button>
+      ) : null}
+
+      <ViewerMinimap
+        natural={natural}
+        scale={viewport.scale}
+        pan={viewport.pan}
+        viewW={wrapSize.w}
+        viewH={wrapSize.h}
+        visible={prefs.minimap && ready && viewport.scale > viewport.fitScale * 1.2}
+        onJump={viewport.jumpToPagePoint}
+      >
+        {geometry && strokeGroups ? (
+          <svg viewBox={viewBox} className="h-full w-full bg-white">
+            <g transform="scale(1,-1)">
+              {[...strokeGroups].map(([key, parts]) => {
+                const [color] = key.split("|");
+                return (
+                  <path
+                    key={key}
+                    d={parts.join("")}
+                    fill="none"
+                    stroke={color}
+                    strokeWidth={0.4}
+                    vectorEffect="non-scaling-stroke"
+                  />
+                );
+              })}
+            </g>
+          </svg>
+        ) : previewUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={previewUrl} alt="" className="h-full w-full object-contain" />
         ) : null}
-      </div>
+      </ViewerMinimap>
+
+      <ViewerToolbar
+        scale={viewport.scale}
+        fitMode={viewport.fitMode}
+        onFit={viewport.fit}
+        onZoomBy={viewport.zoomBy}
+        onSetPercent={viewport.setScalePercent}
+        onPrevPage={onPrevPage}
+        onNextPage={onNextPage}
+        canPrevPage={canPrevPage}
+        canNextPage={canNextPage}
+        onToggleFullscreen={onToggleFullscreen}
+        fullscreenActive={fullscreenActive}
+        extra={
+          <>
+            <button
+              type="button"
+              title="Крупные подписи на экране"
+              onClick={() => patchPrefs({ largeLabels: !prefs.largeLabels })}
+              className={`pto-tool hidden rounded border px-1.5 text-[10px] lg:inline ${
+                prefs.largeLabels
+                  ? "border-accent/40 bg-accent/10 text-accent"
+                  : "border-border bg-white text-muted"
+              }`}
+            >
+              Подписи
+            </button>
+            <button
+              type="button"
+              title="Тонкие линии — плотные зоны читаются"
+              onClick={() => patchPrefs({ thinStrokes: !prefs.thinStrokes })}
+              className={`pto-tool hidden rounded border px-1.5 text-[10px] lg:inline ${
+                prefs.thinStrokes
+                  ? "border-accent/40 bg-accent/10 text-accent"
+                  : "border-border bg-white text-muted"
+              }`}
+            >
+              Тонкие
+            </button>
+            <button
+              type="button"
+              title="Показать или скрыть текст чертежа"
+              onClick={() => {
+                const order: CadTextFilter[] = ["all", "hide", "text"];
+                const index = order.indexOf(prefs.textFilter);
+                patchPrefs({ textFilter: order[(index + 1) % order.length] });
+              }}
+              className="pto-tool hidden rounded border border-border bg-white px-1.5 text-[10px] text-muted lg:inline"
+            >
+              {prefs.textFilter === "hide"
+                ? "Без текста"
+                : prefs.textFilter === "text"
+                  ? "Только текст"
+                  : "Весь лист"}
+            </button>
+            <button
+              type="button"
+              title={prefs.minimap ? "Скрыть обзор" : "Показать обзор"}
+              onClick={() => patchPrefs({ minimap: !prefs.minimap })}
+              className={`pto-tool hidden rounded border px-1.5 text-[10px] sm:inline ${
+                prefs.minimap
+                  ? "border-accent/40 bg-accent/10 text-accent"
+                  : "border-border bg-white text-muted"
+              }`}
+            >
+              Обзор
+            </button>
+          </>
+        }
+      />
     </div>
   );
 }
 
-// keep type export for callers that may need bbox helpers later
 export type { CadBBox };

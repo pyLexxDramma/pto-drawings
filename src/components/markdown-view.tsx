@@ -71,6 +71,29 @@ function BlockMarkdown({
         h3: ({ children: c }) => wrapText("h3", c, q, flagQuotes, focusState),
         p: ({ children: c }) => wrapText("p", c, q, flagQuotes, focusState),
         li: ({ children: c }) => wrapText("li", c, q, flagQuotes, focusState),
+        table: ({ children: c }) => (
+          <table
+            onMouseOver={(event) => {
+              const cell = (event.target as HTMLElement).closest("td,th");
+              const table = event.currentTarget;
+              table
+                .querySelectorAll(".pto-col-hover")
+                .forEach((node) => node.classList.remove("pto-col-hover"));
+              if (!cell) return;
+              const index = (cell as HTMLTableCellElement).cellIndex;
+              for (const row of Array.from(table.rows)) {
+                row.cells[index]?.classList.add("pto-col-hover");
+              }
+            }}
+            onMouseLeave={(event) => {
+              event.currentTarget
+                .querySelectorAll(".pto-col-hover")
+                .forEach((node) => node.classList.remove("pto-col-hover"));
+            }}
+          >
+            {c}
+          </table>
+        ),
         td: ({ children: c }) => wrapText("td", c, q, flagQuotes, focusState),
         th: ({ children: c }) => wrapText("th", c, q, flagQuotes, focusState),
       }}

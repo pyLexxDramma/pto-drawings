@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { IconChevronLeft, IconChevronRight } from "@/components/tool-icons";
 
 export function Spinner({ className = "h-3 w-3" }: { className?: string }) {
   return (
@@ -192,4 +193,41 @@ export function menuItemClass(danger = false) {
   return `flex w-full items-center justify-between gap-4 px-3 py-1.5 text-left text-xs hover:bg-bg ${
     danger ? "text-red-600" : "text-text"
   }`;
+}
+
+/** Свернуть / развернуть боковую панель — шеврон «внутрь» или «наружу». */
+export function PaneToggle({
+  expanded,
+  expandLabel,
+  collapseLabel,
+  align = "left",
+  onToggle,
+  className = "",
+}: {
+  expanded: boolean;
+  expandLabel: string;
+  collapseLabel: string;
+  align?: "left" | "right";
+  onToggle: () => void;
+  className?: string;
+}) {
+  const label = expanded ? collapseLabel : expandLabel;
+  const inward = align === "left";
+  const Icon =
+    expanded === inward ? IconChevronLeft : IconChevronRight;
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      aria-expanded={expanded}
+      onClick={(event) => {
+        event.stopPropagation();
+        onToggle();
+      }}
+      className={`relative z-20 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 ${className}`}
+    >
+      <Icon />
+    </button>
+  );
 }

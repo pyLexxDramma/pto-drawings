@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { PtoLogo } from "@/components/pto-logo";
+import { IconEye, IconEyeOff } from "@/components/tool-icons";
 import type { PublicUser } from "@/types";
 
 type LoginFormProps = {
@@ -100,15 +101,15 @@ export function LoginForm({
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               autoComplete="current-password"
-              className="w-full rounded-md border border-border bg-white px-3 py-2 pr-16 text-sm outline-none focus:border-accent"
+              className="w-full rounded-md border border-border bg-white px-3 py-2 pr-9 text-sm outline-none focus:border-accent"
             />
             <button
               type="button"
               onClick={() => setShowPassword((prev) => !prev)}
-              className="absolute inset-y-0 right-1 my-auto h-7 rounded px-2 text-[11px] text-muted hover:bg-slate-100 hover:text-text"
+              className="absolute inset-y-0 right-1 my-auto flex h-7 w-7 items-center justify-center rounded text-muted hover:bg-slate-100 hover:text-text"
               aria-label={showPassword ? "Скрыть пароль" : "Показать пароль"}
             >
-              {showPassword ? "Скрыть" : "Показать"}
+              {showPassword ? <IconEyeOff /> : <IconEye />}
             </button>
           </span>
         </label>

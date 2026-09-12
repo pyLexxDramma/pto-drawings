@@ -1,45 +1,41 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { IconExpand } from "@/components/tool-icons";
+import { ViewerHint } from "@/components/viewer-hint";
+import { ViewerMinimap } from "@/components/viewer-minimap";
+import { ViewerToolbar } from "@/components/viewer-toolbar";
+import { usePageViewport } from "@/hooks/use-page-viewport";
 import {
   regionAtPoint,
   type PageTextRegion,
 } from "@/lib/content-sync";
 import { findLayerHits } from "@/lib/highlight-text";
-import { clampPan } from "@/lib/page-viewport";
-import { getPageView, setPageView } from "@/lib/review-view-cache";
+import {
+  loadViewerPrefs,
+  saveViewerPrefs,
+  shouldShowViewerHint,
+} from "@/lib/viewer-prefs";
 import type { AnnotationRect, PageAnnotation } from "@/types";
 
 type PdfPageProps = {
   url: string;
   pageNumber: number;
-  /** Ключ кэша вида между монтированиями (обычно document.id). */
   viewCacheKey?: string;
   annotations?: PageAnnotation[];
   markMode?: boolean;
   activeAnnotationId?: string | null;
-  /** Смена значения — сброс вида и короткая вспышка «якорь». */
   highlightNonce?: number;
-  /** Подсветка совпадений поиска на чертеже (текст PDF). */
   highlightQuery?: string;
-  /** Зона под курсором / hover с расшифровки. */
   highlightRegion?: PageTextRegion | null;
-  /** При наведении с текста — подтянуть участок в кадр. */
   panToHighlight?: boolean;
-  /** Подсветка с «Где в ПД»: красная мигающая зона вместо жёлтого поиска. */
   remarkFocus?: boolean;
-  /** Зоны для hit-test при наведении / клике. */
   hoverRegions?: PageTextRegion[];
   onHoverRegion?: (regionId: string | null) => void;
-  /** Клик по фрагменту (режим подсветки). */
   onSelectRegion?: (regionId: string | null) => void;
-  /** Сколько совпадений цитаты на чертеже (для баннера в review-pane). */
   onHighlightHits?: (count: number) => void;
   onMarkRect?: (rect: AnnotationRect) => void;
   onSelectAnnotation?: (id: string) => void;
   onCancelMark?: () => void;
-  /** Листы: стрелки вместо «Страница» / «По ширине». */
   onPrevPage?: () => void;
   onNextPage?: () => void;
   canPrevPage?: boolean;
@@ -81,31 +77,16 @@ export function PdfPage({
 }: PdfPageProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const dragRef = useRef<{
-    x: number;
-    y: number;
-    panX: number;
-    panY: number;
-  } | null>(null);
-  const applyingSync = useRef(false);
-  const panRef = useRef({ x: 0, y: 0 });
-  const scaleRef = useRef(1);
-  const naturalRef = useRef({ w: 800, h: 1100 });
-  const fitModeRef = useRef<"page" | "width">("page");
-  const pageRef = useRef(pageNumber);
-  const viewCacheRef = useRef(
-    new Map<number, { scale: number; pan: { x: number; y: number }; fitMode: "page" | "width" }>(),
-  );
+  const miniRef = useRef<HTMLCanvasElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [natural, setNatural] = useState({ w: 800, h: 1100 });
-  const [scale, setScale] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [grabbing, setGrabbing] = useState(false);
   const [draw, setDraw] = useState<DrawState | null>(null);
+  const [zoomBox, setZoomBox] = useState<DrawState | null>(null);
   const [searchHits, setSearchHits] = useState<TextHit[]>([]);
-  const [fitMode, setFitMode] = useState<"page" | "width">("page");
-  const clickRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
+  const [hintOn, setHintOn] = useState(() => shouldShowViewerHint(loadViewerPrefs()));
+  const [minimapOn, setMinimapOn] = useState(() => loadViewerPrefs().minimap);
+  const [wrapSize, setWrapSize] = useState({ w: 0, h: 0 });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const pdfDocRef = useRef<{ url: string; pdf: any } | null>(null);
   const textContentRef = useRef<{
@@ -113,43 +94,36 @@ export function PdfPage({
     viewport: { width: number; height: number; transform: number[] };
   } | null>(null);
 
-  useEffect(() => {
-    panRef.current = pan;
-  }, [pan]);
-  useEffect(() => {
-    scaleRef.current = scale;
-  }, [scale]);
-  useEffect(() => {
-    naturalRef.current = natural;
-  }, [natural]);
-  useEffect(() => {
-    fitModeRef.current = fitMode;
-  }, [fitMode]);
+  const ready = !loading && !error;
+  const viewport = usePageViewport({
+    wrapRef,
+    natural,
+    pageNumber,
+    ready,
+    viewCacheKey,
+    highlightNonce,
+    highlightRegion,
+    panToHighlight,
+    wheelMode: "pan",
+    onUserZoom: () => {
+      const prefs = loadViewerPrefs();
+      if (!prefs.hintDismissed) {
+        saveViewerPrefs({ ...prefs, hintDismissed: true });
+        setHintOn(false);
+      }
+    },
+  });
 
   useEffect(() => {
-    const prev = pageRef.current;
-    if (prev !== pageNumber) {
-      const snap = {
-        scale: scaleRef.current,
-        pan: { ...panRef.current },
-        fitMode: fitModeRef.current,
-      };
-      viewCacheRef.current.set(prev, snap);
-      if (viewCacheKey) setPageView(viewCacheKey, prev, snap);
-      pageRef.current = pageNumber;
-    }
-  }, [pageNumber, viewCacheKey]);
-
-  useEffect(() => {
-    return () => {
-      if (!viewCacheKey) return;
-      setPageView(viewCacheKey, pageRef.current, {
-        scale: scaleRef.current,
-        pan: { ...panRef.current },
-        fitMode: fitModeRef.current,
-      });
-    };
-  }, [viewCacheKey]);
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    const ro = new ResizeObserver(() => {
+      setWrapSize({ w: wrap.clientWidth, h: wrap.clientHeight });
+    });
+    ro.observe(wrap);
+    setWrapSize({ w: wrap.clientWidth, h: wrap.clientHeight });
+    return () => ro.disconnect();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -208,7 +182,7 @@ export function PdfPage({
         if (!pdf) throw new Error("pdf missing");
 
         const page = await pdf.getPage(pageNumber);
-        const viewport = page.getViewport({ scale: 2 });
+        const pageViewport = page.getViewport({ scale: 2 });
 
         let canvas = canvasRef.current;
         for (let i = 0; i < 20 && !canvas; i += 1) {
@@ -217,23 +191,28 @@ export function PdfPage({
           canvas = canvasRef.current;
         }
         if (!canvas) throw new Error("no canvas");
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        setNatural({ w: viewport.width, h: viewport.height });
+        canvas.width = pageViewport.width;
+        canvas.height = pageViewport.height;
+        setNatural({ w: pageViewport.width, h: pageViewport.height });
 
-        const task = page.render({
-          canvas,
-          viewport,
-        });
+        const task = page.render({ canvas, viewport: pageViewport });
         renderTask = task;
         await task.promise;
         if (cancelled) return;
+
+        const mini = miniRef.current;
+        if (mini) {
+          const thumb = page.getViewport({ scale: 0.18 });
+          mini.width = thumb.width;
+          mini.height = thumb.height;
+          await page.render({ canvas: mini, viewport: thumb }).promise;
+        }
 
         const content = await page.getTextContent();
         if (cancelled) return;
         textContentRef.current = {
           items: content.items as Array<{ str?: string; transform?: number[]; width?: number }>,
-          viewport,
+          viewport: pageViewport,
         };
 
         if (!cancelled) setLoading(false);
@@ -271,12 +250,10 @@ export function PdfPage({
       onHighlightHits?.(0);
       return;
     }
-    const { items, viewport } = stored;
-    const vt = viewport.transform;
-    // Ширина фрагмента в пикселях вьюпорта: как в text layer pdf.js —
-    // item.width (единицы PDF) × viewport.scale, а не × масштаб шрифта.
+    const { items, viewport: pageViewport } = stored;
+    const vt = pageViewport.transform;
     const viewportScale =
-      (viewport as { scale?: number }).scale || Math.hypot(vt[0], vt[1]) || 1;
+      (pageViewport as { scale?: number }).scale || Math.hypot(vt[0], vt[1]) || 1;
     const layer = items.flatMap((item) => {
       if (!item.str) return [];
       const t = item.transform;
@@ -290,10 +267,10 @@ export function PdfPage({
       return [
         {
           text: item.str,
-          x: e / viewport.width,
-          y: (f - fontHeight) / viewport.height,
-          w: Math.max(0.01, width / viewport.width),
-          h: Math.max(0.01, fontHeight / viewport.height),
+          x: e / pageViewport.width,
+          y: (f - fontHeight) / pageViewport.height,
+          w: Math.max(0.01, width / pageViewport.width),
+          h: Math.max(0.01, fontHeight / pageViewport.height),
         },
       ];
     });
@@ -301,189 +278,6 @@ export function PdfPage({
     setSearchHits(hits);
     onHighlightHits?.(hits.length);
   }, [highlightQuery, highlightNonce, loading, pageNumber, onHighlightHits]);
-
-  function boundPan(next: { x: number; y: number }, s = scaleRef.current) {
-    const wrap = wrapRef.current;
-    const n = naturalRef.current;
-    if (!wrap) return next;
-    return clampPan(next, {
-      viewW: wrap.clientWidth,
-      viewH: wrap.clientHeight,
-      contentW: n.w * s,
-      contentH: n.h * s,
-    });
-  }
-
-  /** Зум к точке в координатах wrap; без якоря — к центру панели (кнопки +/−). */
-  function zoomBy(factor: number, anchor?: { x: number; y: number }) {
-    const wrap = wrapRef.current;
-    if (!wrap) return;
-    const oldScale = scaleRef.current;
-    const nextScale = Math.min(8, Math.max(0.05, oldScale * factor));
-    if (nextScale === oldScale) return;
-    const cx = anchor?.x ?? wrap.clientWidth / 2;
-    const cy = anchor?.y ?? wrap.clientHeight / 2;
-    const oldPan = panRef.current;
-    const contentX = (cx - oldPan.x) / oldScale;
-    const contentY = (cy - oldPan.y) / oldScale;
-    const nextPan = boundPan(
-      {
-        x: cx - contentX * nextScale,
-        y: cy - contentY * nextScale,
-      },
-      nextScale,
-    );
-    scaleRef.current = nextScale;
-    panRef.current = nextPan;
-    setScale(nextScale);
-    setPan(nextPan);
-  }
-
-  function fit(mode: "page" | "width") {
-    const wrap = wrapRef.current;
-    if (!wrap) return;
-    const pad = 16;
-    const scaleW = (wrap.clientWidth - pad) / natural.w;
-    const scaleH = (wrap.clientHeight - pad) / natural.h;
-    const next = mode === "width" ? scaleW : Math.min(scaleW, scaleH);
-    // Ниже 0.05 — только если «по ширине/странице» так требует; ручной зум ограничен отдельно.
-    const s = Math.max(0.05, next);
-    const contentW = natural.w * s;
-    const contentH = natural.h * s;
-    const nextPan = clampPan(
-      {
-        x: (wrap.clientWidth - contentW) / 2,
-        // Лист выше кадра — показываем его с начала, а не серединой.
-        y: contentH <= wrap.clientHeight ? (wrap.clientHeight - contentH) / 2 : 0,
-      },
-      {
-        viewW: wrap.clientWidth,
-        viewH: wrap.clientHeight,
-        contentW,
-        contentH,
-      },
-    );
-    fitModeRef.current = mode;
-    scaleRef.current = s;
-    panRef.current = nextPan;
-    setFitMode(mode);
-    setScale(s);
-    setPan(nextPan);
-  }
-
-  useEffect(() => {
-    if (loading || error) return;
-    const cached =
-      viewCacheRef.current.get(pageNumber) ??
-      (viewCacheKey ? getPageView(viewCacheKey, pageNumber) : undefined);
-    if (cached) {
-      viewCacheRef.current.set(pageNumber, cached);
-      setFitMode(cached.fitMode);
-      setScale(cached.scale);
-      scaleRef.current = cached.scale;
-      const wrap = wrapRef.current;
-      const clamped = wrap
-        ? clampPan(cached.pan, {
-            viewW: wrap.clientWidth,
-            viewH: wrap.clientHeight,
-            contentW: natural.w * cached.scale,
-            contentH: natural.h * cached.scale,
-          })
-        : cached.pan;
-      panRef.current = clamped;
-      setPan(clamped);
-      return;
-    }
-    fit("width");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, error, natural.w, natural.h, pageNumber, viewCacheKey]);
-
-  // Панель проектов / сплит меняют ширину без remount — пересчитываем fit.
-  useEffect(() => {
-    const wrap = wrapRef.current;
-    if (!wrap || loading || error) return;
-    let prevW = wrap.clientWidth;
-    let prevH = wrap.clientHeight;
-    const ro = new ResizeObserver(() => {
-      const w = wrap.clientWidth;
-      const h = wrap.clientHeight;
-      if (w < 8 || h < 8) return;
-      if (Math.abs(w - prevW) < 2 && Math.abs(h - prevH) < 2) return;
-      prevW = w;
-      prevH = h;
-      fit(fitModeRef.current);
-    });
-    ro.observe(wrap);
-    return () => ro.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, error, natural.w, natural.h, pageNumber]);
-
-  useEffect(() => {
-    if (!highlightNonce) return;
-    // Клик по замечанию: общий вид листа, зона мигает сама (pto-remark-zone).
-    fit("page");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [highlightNonce]);
-
-  useEffect(() => {
-    if (!panToHighlight || !highlightRegion) return;
-    const wrap = wrapRef.current;
-    if (!wrap) return;
-    const s = scaleRef.current;
-    const p = panRef.current;
-    const n = naturalRef.current;
-    const cx = (highlightRegion.x + highlightRegion.w / 2) * n.w * s + p.x;
-    const cy = (highlightRegion.y + highlightRegion.h / 2) * n.h * s + p.y;
-    const margin = 48;
-    let nx = p.x;
-    let ny = p.y;
-    if (cx < margin) nx += margin - cx;
-    else if (cx > wrap.clientWidth - margin) nx -= cx - (wrap.clientWidth - margin);
-    if (cy < margin) ny += margin - cy;
-    else if (cy > wrap.clientHeight - margin) ny -= cy - (wrap.clientHeight - margin);
-    if (nx === p.x && ny === p.y) return;
-    applyingSync.current = true;
-    const next = boundPan({ x: nx, y: ny });
-    panRef.current = next;
-    setPan(next);
-    requestAnimationFrame(() => {
-      applyingSync.current = false;
-    });
-  }, [highlightRegion, panToHighlight, scale, natural.w, natural.h]);
-
-  // Автозум/пан к hit отключён: при замечании остаётся общий вид (fit page).
-  // Пользователь сам приближает через −/+ или Ctrl+колёсико.
-
-  useEffect(() => {
-    const wrap = wrapRef.current;
-    if (!wrap) return;
-    const onWheelNative = (event: WheelEvent) => {
-      event.preventDefault();
-      // Ctrl (Win) / Cmd (Mac) + колесо; pinch на трекпаде Mac тоже шлёт ctrlKey.
-      const zoomGesture = event.ctrlKey || event.metaKey;
-      if (!zoomGesture) {
-        // Горизонтальный скролл трекпада и колеса-качалки шлёт deltaX; Shift
-        // на обычном колесе тоже даёт горизонталь — иначе чертёж не сдвинуть.
-        const dx = event.shiftKey && event.deltaX === 0 ? event.deltaY : event.deltaX;
-        const dy = event.shiftKey && event.deltaX === 0 ? 0 : event.deltaY;
-        const next = boundPan({
-          x: panRef.current.x - dx,
-          y: panRef.current.y - dy,
-        });
-        panRef.current = next;
-        setPan(next);
-        return;
-      }
-      const rect = wrap.getBoundingClientRect();
-      const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
-      zoomBy(factor, {
-        x: event.clientX - rect.left,
-        y: event.clientY - rect.top,
-      });
-    };
-    wrap.addEventListener("wheel", onWheelNative, { passive: false });
-    return () => wrap.removeEventListener("wheel", onWheelNative);
-  }, [natural.h]);
 
   useEffect(() => {
     if (!markMode) return;
@@ -493,22 +287,6 @@ export function PdfPage({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [markMode, onCancelMark]);
-
-  /** Экранная точка -> доля от размера листа, чтобы метка не зависела от зума. */
-  function toPagePoint(clientX: number, clientY: number) {
-    const wrap = wrapRef.current;
-    if (!wrap) return { x: 0, y: 0 };
-    const rect = wrap.getBoundingClientRect();
-    const s = scaleRef.current;
-    const p = panRef.current;
-    const n = naturalRef.current;
-    const x = (clientX - rect.left - p.x) / s / n.w;
-    const y = (clientY - rect.top - p.y) / s / n.h;
-    return {
-      x: Math.min(1, Math.max(0, x)),
-      y: Math.min(1, Math.max(0, y)),
-    };
-  }
 
   function finishDraw(state: DrawState) {
     const x = Math.min(state.x0, state.x1);
@@ -534,58 +312,91 @@ export function PdfPage({
         w: Math.abs(draw.x1 - draw.x0),
         h: Math.abs(draw.y1 - draw.y0),
       }
-    : null;
+    : zoomBox
+      ? {
+          x: Math.min(zoomBox.x0, zoomBox.x1),
+          y: Math.min(zoomBox.y0, zoomBox.y1),
+          w: Math.abs(zoomBox.x1 - zoomBox.x0),
+          h: Math.abs(zoomBox.y1 - zoomBox.y0),
+        }
+      : null;
 
-  const cursor = markMode ? "cursor-crosshair" : grabbing ? "cursor-grabbing" : "cursor-grab";
+  const cursor = markMode
+    ? "cursor-crosshair"
+    : zoomBox || viewport.spaceHeld
+      ? "cursor-crosshair"
+      : viewport.grabbing
+        ? "cursor-grabbing"
+        : viewport.canPan
+          ? "cursor-grab"
+          : "cursor-default";
 
   return (
     <div className="group relative flex h-full min-h-0 flex-col">
       <div
         ref={wrapRef}
-        className={`relative min-h-0 flex-1 overflow-hidden bg-[#f7f8fa] ${cursor}`}
+        tabIndex={0}
+        data-viewer-wrap=""
+        className={`relative min-h-0 flex-1 overflow-hidden bg-[#f7f8fa] outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${cursor}`}
         onWheel={(event) => event.preventDefault()}
+        onDoubleClick={(event) => {
+          if (markMode) return;
+          if (event.shiftKey) viewport.setScalePercent(100);
+          else viewport.fit("page");
+        }}
+        onKeyDown={(event) => {
+          const step = 64;
+          if (event.key === "ArrowLeft") {
+            event.preventDefault();
+            viewport.panBy(step, 0);
+          }
+          if (event.key === "ArrowRight") {
+            event.preventDefault();
+            viewport.panBy(-step, 0);
+          }
+          if (event.key === "ArrowUp") {
+            event.preventDefault();
+            viewport.panBy(0, step);
+          }
+          if (event.key === "ArrowDown") {
+            event.preventDefault();
+            viewport.panBy(0, -step);
+          }
+        }}
         onMouseDown={(event) => {
+          if (event.button === 1 || viewport.spaceHeld) {
+            event.preventDefault();
+            viewport.startPan(event.clientX, event.clientY);
+            return;
+          }
           if (event.button !== 0) return;
           if (markMode) {
-            const point = toPagePoint(event.clientX, event.clientY);
+            const point = viewport.toPagePoint(event.clientX, event.clientY);
             setDraw({ x0: point.x, y0: point.y, x1: point.x, y1: point.y });
             return;
           }
-          clickRef.current = { x: event.clientX, y: event.clientY, moved: false };
-          setGrabbing(true);
-          dragRef.current = {
-            x: event.clientX,
-            y: event.clientY,
-            panX: pan.x,
-            panY: pan.y,
-          };
+          if (event.shiftKey) {
+            const point = viewport.toPagePoint(event.clientX, event.clientY);
+            setZoomBox({ x0: point.x, y0: point.y, x1: point.x, y1: point.y });
+            return;
+          }
+          viewport.startPan(event.clientX, event.clientY);
         }}
         onMouseMove={(event) => {
           if (markMode) {
             if (!draw) return;
-            const point = toPagePoint(event.clientX, event.clientY);
+            const point = viewport.toPagePoint(event.clientX, event.clientY);
             setDraw({ ...draw, x1: point.x, y1: point.y });
             return;
           }
-          const drag = dragRef.current;
-          if (drag) {
-            if (
-              clickRef.current &&
-              (Math.abs(event.clientX - clickRef.current.x) > 4 ||
-                Math.abs(event.clientY - clickRef.current.y) > 4)
-            ) {
-              clickRef.current.moved = true;
-            }
-            const next = boundPan({
-              x: drag.panX + (event.clientX - drag.x),
-              y: drag.panY + (event.clientY - drag.y),
-            });
-            panRef.current = next;
-            setPan(next);
+          if (zoomBox) {
+            const point = viewport.toPagePoint(event.clientX, event.clientY);
+            setZoomBox({ ...zoomBox, x1: point.x, y1: point.y });
             return;
           }
+          if (viewport.movePan(event.clientX, event.clientY)) return;
           if (onHoverRegion && hoverRegions.length) {
-            const point = toPagePoint(event.clientX, event.clientY);
+            const point = viewport.toPagePoint(event.clientX, event.clientY);
             const hit = regionAtPoint(hoverRegions, point.x, point.y);
             onHoverRegion(hit?.id ?? null);
           }
@@ -596,21 +407,28 @@ export function PdfPage({
             setDraw(null);
             return;
           }
-          const wasClick = clickRef.current && !clickRef.current.moved;
-          dragRef.current = null;
-          setGrabbing(false);
-          clickRef.current = null;
+          if (zoomBox) {
+            const rect = {
+              x: Math.min(zoomBox.x0, zoomBox.x1),
+              y: Math.min(zoomBox.y0, zoomBox.y1),
+              w: Math.abs(zoomBox.x1 - zoomBox.x0),
+              h: Math.abs(zoomBox.y1 - zoomBox.y0),
+            };
+            setZoomBox(null);
+            if (rect.w > 0.01 && rect.h > 0.01) viewport.zoomToRect(rect);
+            return;
+          }
+          const wasClick = viewport.endPan();
           if (wasClick && onSelectRegion && hoverRegions.length) {
-            const point = toPagePoint(event.clientX, event.clientY);
+            const point = viewport.toPagePoint(event.clientX, event.clientY);
             const hit = regionAtPoint(hoverRegions, point.x, point.y);
             onSelectRegion(hit?.id ?? null);
           }
         }}
         onMouseLeave={() => {
-          dragRef.current = null;
-          setGrabbing(false);
+          viewport.endPan();
           setDraw(null);
-          clickRef.current = null;
+          setZoomBox(null);
           onHoverRegion?.(null);
         }}
       >
@@ -634,13 +452,12 @@ export function PdfPage({
             />
           </div>
         ) : (
-          // Метки лежат в том же трансформированном слое, что и canvas, поэтому едут вместе с чертежом.
           <div
             className="absolute left-0 top-0 origin-top-left overflow-hidden"
             style={{
               width: natural.w,
               height: natural.h,
-              transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`,
+              transform: `translate(${viewport.pan.x}px, ${viewport.pan.y}px) scale(${viewport.scale})`,
             }}
           >
             <canvas
@@ -694,7 +511,7 @@ export function PdfPage({
                     width: `${annotation.rect.w * 100}%`,
                     height: `${annotation.rect.h * 100}%`,
                     borderStyle: "solid",
-                    borderWidth: Math.max(1, 2 / scale),
+                    borderWidth: Math.max(1, 2 / viewport.scale),
                     borderColor: isOpen ? "#dc2626" : "#059669",
                     background: isActive
                       ? "rgba(220,38,38,0.16)"
@@ -708,9 +525,9 @@ export function PdfPage({
                       top: 0,
                       transform: "translate(-2%, -105%)",
                       background: isOpen ? "#dc2626" : "#059669",
-                      padding: `${1 / scale}px ${4 / scale}px`,
-                      borderRadius: 3 / scale,
-                      fontSize: Math.max(6, 13 / scale),
+                      padding: `${1 / viewport.scale}px ${4 / viewport.scale}px`,
+                      borderRadius: 3 / viewport.scale,
+                      fontSize: Math.max(6, 13 / viewport.scale),
                       lineHeight: 1.4,
                     }}
                   >
@@ -727,8 +544,10 @@ export function PdfPage({
                   top: `${preview.y * 100}%`,
                   width: `${preview.w * 100}%`,
                   height: `${preview.h * 100}%`,
-                  border: `${Math.max(1, 2 / scale)}px dashed #dc2626`,
-                  background: "rgba(220,38,38,0.1)",
+                  border: `${Math.max(1, 2 / viewport.scale)}px ${
+                    zoomBox ? "solid #2563eb" : "dashed #dc2626"
+                  }`,
+                  background: zoomBox ? "rgba(37,99,235,0.1)" : "rgba(220,38,38,0.1)",
                 }}
               />
             ) : null}
@@ -736,7 +555,6 @@ export function PdfPage({
         )}
       </div>
 
-      {/* Активные состояния — видны всегда, их прятать нельзя. */}
       {markMode || searchHits.length > 0 ? (
         <div className="pointer-events-none absolute left-1/2 top-2 z-30 flex -translate-x-1/2 items-center gap-1.5">
           {markMode ? (
@@ -751,89 +569,56 @@ export function PdfPage({
           ) : null}
         </div>
       ) : (
-        <div className="pointer-events-none absolute left-1/2 top-2 z-20 -translate-x-1/2 opacity-0 transition-opacity group-hover:opacity-100">
-          <span className="rounded-md border border-slate-200 bg-white/90 px-2 py-1 text-[10px] text-muted shadow-sm">
-            тяни мышью · колесо — сдвиг · Ctrl — зум
-          </span>
-        </div>
+        <ViewerHint show={hintOn} wheelMode="pan" />
       )}
 
-      {/* Листы + масштаб + весь экран — иконки, справа сверху. */}
-      <div
-        onMouseDown={(event) => event.stopPropagation()}
-        className="absolute right-2 top-2 z-30 flex items-center gap-1 rounded-md border-2 border-sky-400 bg-sky-50 px-1.5 py-1 shadow-md backdrop-blur"
+      <ViewerMinimap
+        natural={natural}
+        scale={viewport.scale}
+        pan={viewport.pan}
+        viewW={wrapSize.w}
+        viewH={wrapSize.h}
+        visible={
+          minimapOn &&
+          ready &&
+          viewport.scale > viewport.fitScale * 1.2
+        }
+        onJump={viewport.jumpToPagePoint}
       >
-        {onPrevPage || onNextPage ? (
-          <div className="flex items-center overflow-hidden rounded border border-sky-500 bg-sky-600">
-            <button
-              type="button"
-              title="Предыдущий лист (K / ←)"
-              aria-label="Предыдущий лист"
-              onClick={() => onPrevPage?.()}
-              disabled={!canPrevPage}
-              className="inline-flex h-7 w-8 items-center justify-center text-sm font-bold text-white hover:bg-sky-700 disabled:cursor-default disabled:opacity-40"
-            >
-              ←
-            </button>
-            <button
-              type="button"
-              title="Следующий лист (J / → / пробел)"
-              aria-label="Следующий лист"
-              onClick={() => onNextPage?.()}
-              disabled={!canNextPage}
-              className="inline-flex h-7 w-8 items-center justify-center border-l border-sky-400 text-sm font-bold text-white hover:bg-sky-700 disabled:cursor-default disabled:opacity-40"
-            >
-              →
-            </button>
-          </div>
-        ) : null}
-        <div
-          className={`flex items-center gap-0.5 ${
-            onPrevPage || onNextPage ? "border-l border-sky-300 pl-1.5" : ""
-          }`}
-        >
+        <canvas ref={miniRef} className="h-full w-full object-contain" />
+      </ViewerMinimap>
+
+      <ViewerToolbar
+        scale={viewport.scale}
+        fitMode={viewport.fitMode}
+        onFit={viewport.fit}
+        onZoomBy={viewport.zoomBy}
+        onSetPercent={viewport.setScalePercent}
+        onPrevPage={onPrevPage}
+        onNextPage={onNextPage}
+        canPrevPage={canPrevPage}
+        canNextPage={canNextPage}
+        onToggleFullscreen={onToggleFullscreen}
+        fullscreenActive={fullscreenActive}
+        extra={
           <button
             type="button"
-            title="Отдалить"
-            aria-label="Отдалить"
-            onClick={() => zoomBy(1 / 1.25)}
-            className="flex h-7 w-7 items-center justify-center rounded text-base leading-none text-sky-950 hover:bg-white"
-          >
-            −
-          </button>
-          <span className="min-w-[2.5rem] text-center text-[11px] tabular-nums text-sky-950">
-            {Math.round(scale * 100)}%
-          </span>
-          <button
-            type="button"
-            title="Приблизить"
-            aria-label="Приблизить"
-            onClick={() => zoomBy(1.25)}
-            className="flex h-7 w-7 items-center justify-center rounded text-base leading-none text-sky-950 hover:bg-white"
-          >
-            +
-          </button>
-        </div>
-        {onToggleFullscreen ? (
-          <button
-            type="button"
-            title={
-              fullscreenActive
-                ? "Показать расшифровку рядом (F)"
-                : "Чертёж на весь экран (F)"
-            }
-            aria-label={fullscreenActive ? "Свернуть чертёж" : "Весь экран"}
-            onClick={() => onToggleFullscreen()}
-            className={`inline-flex h-7 w-7 items-center justify-center rounded border ${
-              fullscreenActive
-                ? "border-accent bg-accent text-white"
-                : "border-sky-300 bg-white text-sky-950 hover:bg-sky-100"
+            title={minimapOn ? "Скрыть обзор листа" : "Показать обзор листа"}
+            onClick={() => {
+              const next = !minimapOn;
+              setMinimapOn(next);
+              saveViewerPrefs({ ...loadViewerPrefs(), minimap: next });
+            }}
+            className={`pto-tool hidden rounded border px-1.5 text-[10px] sm:inline ${
+              minimapOn
+                ? "border-accent/40 bg-accent/10 text-accent"
+                : "border-border bg-white text-muted"
             }`}
           >
-            <IconExpand className="h-3.5 w-3.5" />
+            Обзор
           </button>
-        ) : null}
-      </div>
+        }
+      />
     </div>
   );
 }

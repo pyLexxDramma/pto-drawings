@@ -196,7 +196,7 @@ export function ReviewsTable({
   onJumpToPage: (
     documentId: string,
     pageNumber: number,
-    options?: { reviewId?: string; quote?: string },
+    options?: { reviewId?: string; quote?: string; newTab?: boolean },
   ) => void;
   /** Держит счётчик этапа «Замечания» в панели проекта в согласии с таблицей. */
   onStatsChange?: (stats: { total: number; pending: number }) => void;
@@ -221,6 +221,11 @@ export function ReviewsTable({
     Boolean(currentDocumentId),
   );
   const [query, setQuery] = useState("");
+  const [sortKey, setSortKey] = useState<"number" | "section" | "severity" | "verdict">(
+    "number",
+  );
+  const [sortDir, setSortDir] = useState<1 | -1>(1);
+  const [picked, setPicked] = useState<string[]>([]);
   const [adding, setAdding] = useState(false);
   const [draftSection, setDraftSection] = useState("ПЗ");
   const [draftText, setDraftText] = useState("");
@@ -380,10 +385,43 @@ export function ReviewsTable({
     onStatsChange?.({ total: stats.total, pending: stats.pending });
   }, [onStatsChange, stats.pending, stats.total]);
 
-  const groups = useMemo(() => groupReviews(visible, groupBy), [
+  const sorted = useMemo(() => {
+    const rankSev: Record<ReviewSeverity, number> = {
+      high: 0,
+      medium: 1,
+      low: 2,
+      skip: 3,
+    };
+    const rankVer: Record<ReviewVerdict, number> = {
+      pending: 0,
+      discuss: 1,
+      partial: 2,
+      confirmed: 3,
+      outdated: 4,
+      wrong: 5,
+    };
+    return [...visible].sort((a, b) => {
+      let cmp = 0;
+      if (sortKey === "number") cmp = a.number - b.number;
+      if (sortKey === "section") cmp = a.section.localeCompare(b.section, "ru");
+      if (sortKey === "severity") cmp = rankSev[a.severity] - rankSev[b.severity];
+      if (sortKey === "verdict") cmp = rankVer[a.verdict] - rankVer[b.verdict];
+      return cmp * sortDir;
+    });
+  }, [sortDir, sortKey, visible]);
+
+  const groups = useMemo(() => groupReviews(sorted, groupBy), [
     groupBy,
-    visible,
+    sorted,
   ]);
+
+  function toggleSort(key: typeof sortKey) {
+    if (sortKey === key) setSortDir((dir) => (dir === 1 ? -1 : 1));
+    else {
+      setSortKey(key);
+      setSortDir(1);
+    }
+  }
 
   const patch = useCallback(
     async (reviewId: string, body: Partial<Review>) => {
@@ -550,7 +588,7 @@ export function ReviewsTable({
           ]}
         />
         <FilterSelect
-          label="Разбор"
+          label="Статус разбора"
           value={verdictFilter}
           onChange={setVerdictFilter}
           options={[
@@ -560,7 +598,7 @@ export function ReviewsTable({
           ]}
         />
         <FilterSelect
-          label="Поток"
+          label="Источник"
           value={originFilter}
           onChange={setOriginFilter}
           options={[
@@ -636,7 +674,70 @@ export function ReviewsTable({
         </div>
       ) : null}
 
-      <div className="min-h-0 flex-1 overflow-auto">
+      {picked.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-2 border-b border-border bg-accent/5 px-3 py-1.5 text-xs">
+          <span className="tabular-nums text-muted">выбрано {picked.length}</span>
+          <select
+            className="rounded border border-border bg-white px-2 py-1"
+            defaultValue=""
+            onChange={(event) => {
+              const value = event.target.value as ReviewSeverity | "";
+              if (!value) return;
+              for (const id of picked) void patch(id, { severity: value });
+              event.target.value = "";
+            }}
+          >
+            <option value="">Важность…</option>
+            {REVIEW_SEVERITY_ORDER.map((item) => (
+              <option key={item} value={item}>
+                {REVIEW_SEVERITY_LABEL[item]}
+              </option>
+            ))}
+          </select>
+          <select
+            className="rounded border border-border bg-white px-2 py-1"
+            defaultValue=""
+            onChange={(event) => {
+              const value = event.target.value as ReviewVerdict | "";
+              if (!value || value === "wrong") return;
+              for (const id of picked) void patch(id, { verdict: value });
+              event.target.value = "";
+            }}
+          >
+            <option value="">Статус…</option>
+            {VERDICTS.filter((item) => item !== "wrong").map((item) => (
+              <option key={item} value={item}>
+                {REVIEW_VERDICT_LABEL[item]}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className="text-muted hover:text-text"
+            onClick={() => setPicked([])}
+          >
+            Снять выбор
+          </button>
+        </div>
+      ) : null}
+
+      <div
+        className="min-h-0 flex-1 overflow-auto outline-none"
+        tabIndex={0}
+        onKeyDown={(event) => {
+          const flat = groups.flatMap((group) => group.items);
+          if (flat.length === 0) return;
+          const index = Math.max(0, flat.findIndex((item) => item.id === activeId));
+          if (event.key === "ArrowDown") {
+            event.preventDefault();
+            setActiveId(flat[Math.min(flat.length - 1, index + 1)].id);
+          }
+          if (event.key === "ArrowUp") {
+            event.preventDefault();
+            setActiveId(flat[Math.max(0, index - 1)].id);
+          }
+        }}
+      >
         {loading ? (
           <div className="flex items-center justify-center gap-2 p-10 text-xs text-muted">
             <Spinner /> Загружаем замечания
@@ -664,9 +765,30 @@ export function ReviewsTable({
           <table className="w-full border-collapse text-xs">
             <thead className="sticky top-0 z-10 bg-slate-100 text-left text-[10px] uppercase tracking-wider text-muted">
               <tr>
-                <th className="w-10 border-b border-border px-2 py-1.5 font-medium">№</th>
+                <th className="w-8 border-b border-border px-1 py-1.5">
+                  <input
+                    type="checkbox"
+                    aria-label="Выбрать все видимые"
+                    checked={
+                      visible.length > 0 &&
+                      visible.every((item) => picked.includes(item.id))
+                    }
+                    onChange={(event) => {
+                      setPicked(
+                        event.target.checked ? visible.map((item) => item.id) : [],
+                      );
+                    }}
+                  />
+                </th>
+                <th className="w-10 border-b border-border px-2 py-1.5 font-medium">
+                  <button type="button" onClick={() => toggleSort("number")}>
+                    №{sortKey === "number" ? (sortDir === 1 ? " ↑" : " ↓") : ""}
+                  </button>
+                </th>
                 <th className="w-16 border-b border-border px-2 py-1.5 font-medium">
-                  Раздел
+                  <button type="button" onClick={() => toggleSort("section")}>
+                    Раздел{sortKey === "section" ? (sortDir === 1 ? " ↑" : " ↓") : ""}
+                  </button>
                 </th>
                 <th className="border-b border-border px-2 py-1.5 font-medium">
                   Замечание
@@ -675,10 +797,14 @@ export function ReviewsTable({
                   Где в ПД
                 </th>
                 <th className="w-28 border-b border-border px-2 py-1.5 font-medium">
-                  Важность
+                  <button type="button" onClick={() => toggleSort("severity")}>
+                    Важность{sortKey === "severity" ? (sortDir === 1 ? " ↑" : " ↓") : ""}
+                  </button>
                 </th>
                 <th className="w-32 border-b border-border px-2 py-1.5 font-medium">
-                  Разбор
+                  <button type="button" onClick={() => toggleSort("verdict")}>
+                    Статус{sortKey === "verdict" ? (sortDir === 1 ? " ↑" : " ↓") : ""}
+                  </button>
                 </th>
                 <th className="w-48 border-b border-border px-2 py-1.5 font-medium">
                   Комментарий
@@ -691,8 +817,8 @@ export function ReviewsTable({
                 <Fragment key={group.key}>
                   <tr>
                     <th
-                      colSpan={8}
-                      className="border-y border-slate-300 bg-slate-200/80 px-2 py-1 text-left text-[11px] font-semibold text-text"
+                      colSpan={9}
+                      className="sticky top-8 z-[9] border-y border-slate-300 bg-slate-200/80 px-2 py-1 text-left text-[11px] font-semibold text-text"
                     >
                       {group.key}
                       <span className="ml-2 font-normal tabular-nums text-muted">
@@ -706,9 +832,17 @@ export function ReviewsTable({
                       review={review}
                       needle={query.trim().toLowerCase()}
                       active={activeId === review.id}
+                      selected={picked.includes(review.id)}
                       saving={savingId === review.id}
                       lastEvent={lastEventByReview.get(review.id) ?? null}
                       onActivate={() => setActiveId(review.id)}
+                      onToggleSelect={() =>
+                        setPicked((prev) =>
+                          prev.includes(review.id)
+                            ? prev.filter((id) => id !== review.id)
+                            : [...prev, review.id],
+                        )
+                      }
                       onPatch={(body) => void patch(review.id, body)}
                       onMarkWrong={() => setWrongFor(review)}
                       onShowLog={() => setLogFor(review)}
@@ -994,9 +1128,11 @@ function ReviewRow({
   review,
   needle,
   active,
+  selected,
   saving,
   lastEvent,
   onActivate,
+  onToggleSelect,
   onPatch,
   onMarkWrong,
   onShowLog,
@@ -1007,10 +1143,12 @@ function ReviewRow({
   /** Уже приведённая к нижнему регистру строка поиска — что подсветить. */
   needle: string;
   active: boolean;
+  selected: boolean;
   saving: boolean;
   /** Последняя правка строки — подпись «кто и когда». */
   lastEvent: ReviewEvent | null;
   onActivate: () => void;
+  onToggleSelect: () => void;
   onPatch: (body: Partial<Review>) => void;
   onMarkWrong: () => void;
   onShowLog: () => void;
@@ -1018,7 +1156,7 @@ function ReviewRow({
   onJumpToPage: (
     documentId: string,
     pageNumber: number,
-    options?: { reviewId?: string; quote?: string },
+    options?: { reviewId?: string; quote?: string; newTab?: boolean },
   ) => void;
 }) {
   const [comment, setComment] = useState(review.comment);
@@ -1065,6 +1203,15 @@ function ReviewRow({
           : ""
       }`}
     >
+      <td className="px-1 py-1.5">
+        <input
+          type="checkbox"
+          checked={selected}
+          onClick={(event) => event.stopPropagation()}
+          onChange={onToggleSelect}
+          aria-label={`Выбрать замечание ${review.number}`}
+        />
+      </td>
       <td className="px-2 py-1.5 tabular-nums text-muted">{review.number}</td>
       <td className="px-2 py-1.5">
         <span className="rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[10px] font-medium text-text">
@@ -1122,6 +1269,21 @@ function ReviewRow({
                           {
                             reviewId: review.id,
                             quote: location.quote || wording || undefined,
+                            newTab: event.ctrlKey || event.metaKey,
+                          },
+                        );
+                      }}
+                      onAuxClick={(event) => {
+                        if (event.button !== 1) return;
+                        event.preventDefault();
+                        event.stopPropagation();
+                        onJumpToPage(
+                          location.documentId!,
+                          location.pageNumber!,
+                          {
+                            reviewId: review.id,
+                            quote: location.quote || wording || undefined,
+                            newTab: true,
                           },
                         );
                       }}

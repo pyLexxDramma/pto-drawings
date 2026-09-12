@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
+import { renderPdfThumb } from "@/lib/pdf-thumb";
+import { PaneToggle } from "@/components/ui-chrome";
 import { KIND_LABEL, type PageKind } from "@/types";
 
 type PageStripProps = {
@@ -18,9 +20,9 @@ type PageStripProps = {
   width?: number;
   emptyLabel?: string;
   onSelect: (page: number) => void;
+  onCollapse?: () => void;
 };
 
-const THUMB_SCALE = 0.22;
 const MAX_PARALLEL_RENDERS = 2;
 
 export function PageStrip({
@@ -37,6 +39,7 @@ export function PageStrip({
   width = 108,
   emptyLabel,
   onSelect,
+  onCollapse,
 }: PageStripProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const canvases = useRef<Map<number, HTMLCanvasElement>>(new Map());
@@ -64,7 +67,7 @@ export function PageStrip({
 
         inFlight.current += 1;
         renderedPages.current.add(pageNumber);
-        void renderThumb(pdf, pageNumber, canvas)
+        void renderPdfThumb(pdf, pageNumber, canvas)
           .catch(() => {
             // даём шанс перерисовать лист, когда он снова попадёт в кадр
             renderedPages.current.delete(pageNumber);
@@ -156,6 +159,17 @@ export function PageStrip({
       className="flex h-full min-h-0 shrink-0 flex-col border-r border-border bg-surface-2"
       style={{ width }}
     >
+      {onCollapse ? (
+        <div className="flex shrink-0 items-center justify-end border-b border-border px-1 py-1">
+          <PaneToggle
+            expanded
+            align="left"
+            expandLabel="Показать миниатюры"
+            collapseLabel="Скрыть миниатюры"
+            onToggle={onCollapse}
+          />
+        </div>
+      ) : null}
       <div ref={rootRef} className="min-h-0 flex-1 overflow-y-auto p-1.5">
       {pages.length === 0 && emptyLabel ? (
         <div className="px-1 py-2 text-[10px] leading-snug text-muted">{emptyLabel}</div>
@@ -239,18 +253,3 @@ export function PageStrip({
   );
 }
 
-async function renderThumb(
-  pdf: PDFDocumentProxy,
-  pageNumber: number,
-  canvas: HTMLCanvasElement,
-) {
-  if (pageNumber > pdf.numPages) return;
-  const page = await pdf.getPage(pageNumber);
-  const viewport = page.getViewport({ scale: THUMB_SCALE });
-  const context = canvas.getContext("2d");
-  if (!context) return;
-  canvas.width = viewport.width;
-  canvas.height = viewport.height;
-  await page.render({ canvas, viewport }).promise;
-  page.cleanup();
-}

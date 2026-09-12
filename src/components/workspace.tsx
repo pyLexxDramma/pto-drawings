@@ -27,10 +27,12 @@ import {
 } from "@/components/toast";
 import {
   ActionMenu,
+  PaneToggle,
   SegmentedTabs,
   Spinner,
   menuItemClass,
 } from "@/components/ui-chrome";
+import { IconChevronRight } from "@/components/tool-icons";
 import { UserMenu } from "@/components/user-menu";
 import { UsersPanel } from "@/components/users-panel";
 import {
@@ -61,6 +63,7 @@ import {
   isZipFile,
 } from "@/lib/drawing-kit";
 import { loadCachedProgress } from "@/lib/review-state";
+import { bumpViewerSession, loadViewerPrefs } from "@/lib/viewer-prefs";
 import {
   KIND_LABEL,
   type DocumentRecord,
@@ -350,6 +353,18 @@ export function Workspace({
   const autoReadyJumpRef = useRef<string | null>(null);
   const statusPrevRef = useRef<Map<string, DocumentStatus>>(new Map());
   const specInputRef = useRef<HTMLInputElement>(null);
+  const pageLogApiRef = useRef<{ open: () => void; count: number } | null>(null);
+  const [pageLogCount, setPageLogCount] = useState(0);
+  const handlePageLogReady = useCallback(
+    (api: { open: () => void; count: number } | null) => {
+      pageLogApiRef.current = api;
+      setPageLogCount((prev) => {
+        const next = api?.count ?? 0;
+        return prev === next ? prev : next;
+      });
+    },
+    [],
+  );
   const { items: toasts, push: pushToast, dismiss: dismissToast } = useToasts();
 
   const selected = documents.find((doc) => doc.id === selectedId) ?? null;
@@ -545,14 +560,13 @@ export function Workspace({
   }, [projectId]);
 
   /**
-   * Переход из таблицы замечаний: лист в новой вкладке + подсветка цитаты
-   * в расшифровке и на чертеже (по quote).
+   * Переход из таблицы: обычный клик — эта вкладка; Ctrl/средняя — новая.
    */
   const jumpToPage = useCallback(
     (
       documentId: string,
       page: number,
-      options?: { reviewId?: string; quote?: string },
+      options?: { reviewId?: string; quote?: string; newTab?: boolean },
     ) => {
       if (!projectId) return;
       saveRemarkJump({
@@ -570,14 +584,28 @@ export function Workspace({
       url.searchParams.set("page", String(page));
       url.searchParams.set("from", "reviews");
       if (options?.reviewId) url.searchParams.set("review", options.reviewId);
-      // Короткая цитата в URL — запасной канал; полная — в sessionStorage.
       const quote = (options?.quote ?? "").trim();
       if (quote && quote.length <= 180) {
         url.searchParams.set("quote", quote);
       }
-      window.open(url.toString(), "_blank", "noopener,noreferrer");
+      if (options?.newTab) {
+        window.open(url.toString(), "_blank", "noopener,noreferrer");
+        return;
+      }
+      setSelectedId(documentId);
+      setShowReviews(true);
+      setPeekOpen(true);
+      setNavFromReviews(true);
+      setOpenPage({
+        nonce: Date.now(),
+        page,
+        documentId,
+        reviewId: options?.reviewId,
+        quote: quote || undefined,
+      });
+      void refreshDocument(documentId);
     },
-    [projectId],
+    [projectId, refreshDocument],
   );
 
   useEffect(() => {
@@ -591,6 +619,11 @@ export function Workspace({
     } catch {
       // ignore
     }
+  }, []);
+
+  useEffect(() => {
+    bumpViewerSession();
+    document.documentElement.dataset.density = loadViewerPrefs().density;
   }, []);
 
   useEffect(() => {
@@ -1530,7 +1563,7 @@ export function Workspace({
       />
 
       {focusMode ? null : (
-        <header className="flex shrink-0 items-center gap-3 border-b border-border bg-surface px-3 py-1.5 sm:px-4">
+        <header className="flex shrink-0 items-center gap-2 border-b border-border bg-surface px-3 py-1.5 sm:px-4">
           <button
             type="button"
             onClick={goHome}
@@ -1593,7 +1626,7 @@ export function Workspace({
                 setShowNewProject(true);
               }}
               title="Создать новый проект"
-              className="inline-flex items-center gap-1 rounded-md border border-fuchsia-300 bg-fuchsia-50 px-2 py-1.5 text-[11px] font-semibold text-fuchsia-950 hover:bg-fuchsia-100"
+              className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-[11px] font-semibold text-slate-800 hover:bg-slate-50"
             >
               <span aria-hidden className="text-sm leading-none">
                 +
@@ -1601,8 +1634,46 @@ export function Workspace({
               <span className="hidden sm:inline">Новый проект</span>
             </button>
             <UserMenu
-              accent
               user={user}
+              sheetMenu={
+                selected ? (
+                  <>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className={menuItemClass()}
+                      onClick={() => setFocusMode((value) => !value)}
+                    >
+                      {focusMode ? "Свернуть на весь экран" : "На весь экран"}
+                    </button>
+                    {currentProject?.specStoredName ? (
+                      <a
+                        href={`/api/projects/${currentProject.id}/spec/file`}
+                        target="_blank"
+                        rel="noreferrer"
+                        role="menuitem"
+                        className={menuItemClass()}
+                        title={currentProject.specOriginalName ?? "ТЗ"}
+                      >
+                        Открыть ТЗ
+                      </a>
+                    ) : null}
+                    {pageLogCount ? (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className={menuItemClass()}
+                        onClick={() => pageLogApiRef.current?.open()}
+                      >
+                        <span>История правок листа</span>
+                        <span className="text-[10px] tabular-nums text-muted">
+                          {pageLogCount}
+                        </span>
+                      </button>
+                    ) : null}
+                  </>
+                ) : null
+              }
               statusNote={visiblePipelineChip?.text ?? null}
               defaultPasswordWarning={defaultPasswordWarning}
               onUsers={user.role === "admin" ? () => setShowUsers(true) : undefined}
@@ -1650,29 +1721,25 @@ export function Workspace({
 
       <div className={gridClass}>
         {focusMode || showReviews ? null : projectsCollapsed ? (
-          selected ? (
-            <div className="flex w-11 shrink-0 flex-col border-b border-border bg-surface md:border-b-0">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={false}
-                onClick={() => setProjectsCollapsed(false)}
-                className="flex-1 text-xs text-muted hover:bg-bg"
-                title="Показать проекты"
-                aria-expanded={false}
-              >
-                <span className="inline-block px-1 py-3 [writing-mode:vertical-rl]">
-                  Проекты
-                </span>
-              </button>
-            </div>
-          ) : null
+          <div className="flex w-8 shrink-0 flex-col border-b border-border bg-surface md:border-b-0 md:border-r">
+            <button
+              type="button"
+              onClick={() => setProjectsCollapsed(false)}
+              className="flex flex-1 flex-col items-center gap-1 py-2 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+              title="Показать список файлов"
+              aria-label="Показать список файлов"
+              aria-expanded={false}
+            >
+              <IconChevronRight />
+            </button>
+          </div>
         ) : (
           <aside
             className="flex min-h-0 shrink-0 flex-col border-b border-border bg-surface md:border-b-0"
             style={{ width: projectsWidth, maxWidth: "100%" }}
           >
-            <div className="border-b border-border px-2 py-1.5">
+            <div className="flex items-start gap-1 border-b border-border px-2 py-1.5">
+              <div className="min-w-0 flex-1">
               {showNewProject || projects.length === 0 ? (
                 <form onSubmit={handleCreateProject} className="space-y-1">
                   <div className="flex gap-1">
@@ -1702,6 +1769,14 @@ export function Workspace({
                   {currentProject?.name}
                 </div>
               )}
+              </div>
+              <PaneToggle
+                expanded
+                align="left"
+                expandLabel="Показать список файлов"
+                collapseLabel="Скрыть список файлов"
+                onToggle={() => setProjectsCollapsed(true)}
+              />
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto p-1.5" data-projects-tree>
               {projects.map((project) =>
@@ -1960,31 +2035,20 @@ export function Workspace({
           <ReviewPane
             key={selected.id}
             document={selected}
+            projectId={currentProject?.id}
             reviews={projectReviews}
+            onReviewPatched={(review) =>
+              setProjectReviews((prev) =>
+                prev.map((item) => (item.id === review.id ? review : item)),
+              )
+            }
             kitSibling={kitSibling}
             focusMode={focusMode}
             openPage={openPage}
             canceling={cancelingId === selected.id}
             readOnly={false}
             showTech={user.role === "admin"}
-            specHref={
-              currentProject?.specStoredName
-                ? `/api/projects/${currentProject.id}/spec/file`
-                : null
-            }
-            specName={currentProject?.specOriginalName ?? null}
-            onGoToLiveJob={
-              liveJob && liveJob.documentId !== selected.id
-                ? () => {
-                    void openLiveJob();
-                  }
-                : null
-            }
-            liveJobLabel={
-              liveJob && liveJob.documentId !== selected.id
-                ? liveJob.label
-                : null
-            }
+            onPageLogReady={handlePageLogReady}
             activeJobDocument={
               liveJobDoc &&
               (liveJobDoc.status === "queued" ||
@@ -1994,34 +2058,6 @@ export function Workspace({
                 : null
             }
             onFullProgressVisible={setFullProgressVisible}
-            headerRight={(sheetMenu) => (
-              <>
-                {visibleQueueChip ? (
-                  <span
-                    className={`hidden max-w-[220px] truncate whitespace-nowrap rounded-md border px-2.5 py-1 text-[11px] sm:inline-block ${visibleQueueChip.className}`}
-                    title={visibleQueueChip.text}
-                  >
-                    {visibleQueueChip.text}
-                  </span>
-                ) : null}
-                <UserMenu
-                  compact
-                  user={user}
-                  sheetMenu={sheetMenu}
-                  statusNote={visiblePipelineChip?.text ?? null}
-                  defaultPasswordWarning={defaultPasswordWarning}
-                  onUsers={user.role === "admin" ? () => setShowUsers(true) : undefined}
-                  onAudit={user.role === "admin" ? () => setShowAudit(true) : undefined}
-                  onPassword={() => setShowPassword(true)}
-                  onLogout={() => {
-                    void (async () => {
-                      await fetch("/api/auth/logout", { method: "POST" });
-                      onLogout();
-                    })();
-                  }}
-                />
-              </>
-            )}
             onCancel={() => void handleCancel(selected.id)}
             onToggleFocus={() => setFocusMode((value) => !value)}
             onBackToProjects={goBack}
