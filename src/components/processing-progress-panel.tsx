@@ -5,9 +5,7 @@ import { ProgressTrack, Spinner } from "@/components/ui-chrome";
 import { useSmoothProgress } from "@/hooks/use-smooth-progress";
 import {
   formatProcessingPercent,
-  formatProgressDuration,
   pageProgressRows,
-  processingEtaSec,
   processingPercent,
   type ProgressInput,
 } from "@/lib/processing-progress";
@@ -60,7 +58,6 @@ export function ProcessingProgressPanel({
     max: 99.5,
   });
   const overallPercent = cancelPending ? target : smooth;
-  const overallEta = cancelPending ? null : processingEtaSec(document);
   const rows = useMemo(
     () => pageProgressRows(document, document.pageErrors),
     [document],
@@ -121,15 +118,8 @@ export function ProcessingProgressPanel({
         </div>
 
         <div className="mt-3 space-y-1.5">
-          <div className="flex flex-wrap items-baseline justify-between gap-2 text-[11px]">
-            <span className="font-semibold tabular-nums text-sky-950">
-              {formatProcessingPercent(overallPercent)}
-            </span>
-            <span className="tabular-nums text-sky-900/80">
-              прошло {formatProgressDuration(document.pipelineElapsedSec)}
-              {" · "}
-              осталось {formatProgressDuration(overallEta)}
-            </span>
+          <div className="text-[11px] font-semibold tabular-nums text-sky-950">
+            {formatProcessingPercent(overallPercent)}
           </div>
           <ProgressTrack value={overallPercent} tone="sky" className="h-2" />
         </div>
@@ -176,16 +166,6 @@ export function ProcessingProgressPanel({
               tone={row.status === "active" ? "sky" : "accent"}
               className="h-1.5"
             />
-            <div className="mt-1 flex justify-between gap-2 text-[10px] tabular-nums text-muted">
-              <span>прошло {formatProgressDuration(row.elapsedSec)}</span>
-              <span>
-                {row.status === "done"
-                  ? "осталось 0 с"
-                  : row.status === "pending"
-                    ? `оценка ${formatProgressDuration(row.etaSec)}`
-                    : `осталось ${formatProgressDuration(row.etaSec)}`}
-              </span>
-            </div>
           </div>
         ))}
       </div>
@@ -219,11 +199,6 @@ export function ProcessingSummaryStrip({
       <span className="ml-2">
         {document.readyPages}/{Math.max(document.pageCount, 1)} листов
       </span>
-      {document.pipelineElapsedSec != null ? (
-        <span className="ml-2">
-          время {formatProgressDuration(document.pipelineElapsedSec)}
-        </span>
-      ) : null}
       {errorCount > 0 ? (
         <span className="ml-2 text-red-700">ошибок листов: {errorCount}</span>
       ) : null}
@@ -257,38 +232,24 @@ function processingBottomLine(
 ): string {
   const stopped = isCancelMessage(document.errorMessage);
   const pages = `${document.readyPages}/${Math.max(document.pageCount, 1)}`;
-  const eta = !stopped ? processingEtaSec(document) : null;
-  const etaLabel =
-    eta != null && eta > 0 ? `~${formatProgressDuration(eta)}` : null;
-  const elapsed =
-    document.pipelineElapsedSec != null
-      ? formatProgressDuration(document.pipelineElapsedSec)
-      : null;
 
   if (stopped) {
-    return ["Остановлено", pages, elapsed].filter(Boolean).join(" · ");
+    return ["Остановлено", pages].join(" · ");
   }
   if (document.status === "error") {
-    return ["Ошибка", pages, elapsed].filter(Boolean).join(" · ");
+    return ["Ошибка", pages].join(" · ");
   }
   if (document.status === "done") {
     return [
       `Готово · ${formatProcessingPercent(100)}`,
       pages,
-      elapsed,
       errorCount > 0 ? `ошибок: ${errorCount}` : null,
     ]
       .filter(Boolean)
       .join(" · ");
   }
 
-  return [
-    formatProcessingPercent(percent),
-    pages,
-    etaLabel,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  return [formatProcessingPercent(percent), pages].join(" · ");
 }
 
 /** Полоска прогресса внизу справа — одна на весь экран. */
