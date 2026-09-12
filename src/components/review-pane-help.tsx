@@ -31,9 +31,25 @@ export function ControlsHelpContent() {
             верхней строке.
           </li>
           <li>
-            Справа всегда расшифровка текущего листа. «Отметить ошибку» —
-            обвести место на чертеже; повторный клик или <Kbd>Esc</Kbd> —
-            отмена, если передумали.
+            Справа всегда расшифровка текущего листа. Отдельной вкладки «Текст
+            листа» нет.
+          </li>
+          <li>
+            «Отметить ошибку» — обвести место на чертеже. Если передумали:
+            ещё раз нажать кнопку (станет «Отменить») или <Kbd>Esc</Kbd>.
+          </li>
+        </ul>
+      </section>
+      <section>
+        <div className="mb-1 font-medium text-text">Масштаб PDF и DWG</div>
+        <ul className="list-disc space-y-1 pl-4">
+          <li>
+            Колёсико на PDF и на DWG только сдвигает лист, не приближает.
+          </li>
+          <li>
+            Зум — <Kbd>Ctrl</Kbd> + колёсико (на Mac <Kbd>⌘</Kbd> + колёсико),
+            кнопки <Kbd>+</Kbd> / <Kbd>−</Kbd> или меню процентов над чертежом.
+            Рамка: <Kbd>Shift</Kbd> + протяжка.
           </li>
         </ul>
       </section>
@@ -52,11 +68,33 @@ export function ControlsHelpContent() {
         </section>
       ))}
       <section>
+        <div className="mb-1 font-medium text-text">macOS</div>
+        <ul className="list-disc space-y-1 pl-4">
+          <li>
+            Где на Windows <Kbd>Ctrl</Kbd>, на Mac — <Kbd>⌘</Kbd>: зум колёсиком,
+            поиск <Kbd>⌘F</Kbd>, «где в ПД» в новой вкладке — <Kbd>⌘</Kbd>+клик.
+          </li>
+          <li>
+            <Kbd>Control</Kbd>+клик на Mac — это контекстное меню, не новая
+            вкладка.
+          </li>
+          <li>
+            Средней кнопки на трекпаде нет: сдвиг листа — колёсико / два пальца
+            или <Kbd>Пробел</Kbd> + тянуть.
+          </li>
+          <li>
+            <Kbd>PageDown</Kbd> / <Kbd>PageUp</Kbd> на клавиатуре ноутбука —
+            <Kbd>Fn</Kbd>+<Kbd>↓</Kbd> / <Kbd>Fn</Kbd>+<Kbd>↑</Kbd>. Листы также
+            листаются <Kbd>J</Kbd> / <Kbd>K</Kbd>.
+          </li>
+        </ul>
+      </section>
+      <section>
         <div className="mb-1 font-medium text-text">Таблица замечаний</div>
         <ul className="list-disc space-y-1 pl-4">
           <li>
-            Обычный клик по «где в ПД» открывает лист здесь. Ctrl+клик или средняя
-            кнопка — новая вкладка.
+            Обычный клик по «где в ПД» открывает лист здесь. Ctrl+клик (на Mac
+            ⌘+клик) или средняя кнопка — новая вкладка.
           </li>
           <li>
             «Неверно» — только для придуманных ИИ замечаний, причину указать

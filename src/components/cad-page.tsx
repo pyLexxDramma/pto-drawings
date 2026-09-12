@@ -127,7 +127,7 @@ export function CadPage({
     highlightNonce,
     highlightRegion,
     panToHighlight,
-    wheelMode: prefs.cadWheel,
+    wheelMode: "pan",
     onUserZoom: () => {
       const next = loadViewerPrefs();
       if (!next.hintDismissed) {
@@ -654,7 +654,7 @@ export function CadPage({
           ) : null}
         </div>
       ) : (
-        <ViewerHint show={hintOn} wheelMode={prefs.cadWheel} />
+        <ViewerHint show={hintOn} wheelMode="pan" />
       )}
 
       {geometry && ready ? (

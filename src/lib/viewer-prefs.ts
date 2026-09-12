@@ -21,7 +21,7 @@ const KEY = "pto-viewer-prefs";
 
 const DEFAULTS: ViewerPrefs = {
   density: "normal",
-  cadWheel: "zoom",
+  cadWheel: "pan",
   largeLabels: true,
   thinStrokes: false,
   textFilter: "all",
