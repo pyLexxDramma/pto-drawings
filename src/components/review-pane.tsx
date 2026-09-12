@@ -180,6 +180,7 @@ export function ReviewPane({
   const [keymapOpen, setKeymapOpen] = useState(false);
   const [drawingHitCount, setDrawingHitCount] = useState(0);
   const [textHitFound, setTextHitFound] = useState<boolean | null>(null);
+  const [quoteBannerOn, setQuoteBannerOn] = useState(true);
   const handleHighlightHits = useCallback((count: number) => {
     setDrawingHitCount(count);
   }, []);
@@ -504,7 +505,8 @@ export function ReviewPane({
   useEffect(() => {
     setDrawingHitCount(0);
     setTextHitFound(null);
-  }, [focusQuote, document.id, pageNumber]);
+    setQuoteBannerOn(true);
+  }, [focusQuote, focusNonce, document.id, pageNumber]);
 
   // Цитата из reviewId, если workspace ещё не дописал quote в openPage.
   useEffect(() => {
@@ -1191,17 +1193,53 @@ export function ReviewPane({
           ) : null}
           {paneSolo !== "md" ? (
             <div
-              className="relative min-h-0 min-w-0"
+              className="relative h-full min-h-0 min-w-0 overflow-hidden"
               style={{ width: paneSolo === "pdf" ? "100%" : `${split}%` }}
             >
-              {focusDrawing && textHitFound !== null ? (
+              {quoteBannerOn &&
+              focusDrawing &&
+              (page?.source === "model" || textHitFound !== null) &&
+              (drawingHitCount === 0 || textHitFound === false) ? (
                 <div className="pointer-events-none absolute inset-x-0 bottom-2 z-20 flex justify-center px-2">
-                  {drawingHitCount === 0 && page?.source === "model" ? (
-                    <span className="pointer-events-auto rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1 text-[11px] text-amber-950 shadow-sm">
-                      На листе нет текстового слоя — на чертеже подсветить нечего.
-                      {textHitFound ? (
+                  <div
+                    className={`pointer-events-auto inline-flex max-w-full items-start gap-2 rounded-md border px-2.5 py-1 text-[11px] shadow-sm ${
+                      page?.source === "model" ||
+                      (drawingHitCount === 0 && textHitFound === false)
+                        ? "border-amber-300 bg-amber-50 text-amber-950"
+                        : drawingHitCount === 0
+                          ? "border-rose-300 bg-rose-50 text-rose-950"
+                          : "border-sky-300 bg-sky-50 text-sky-950"
+                    }`}
+                  >
+                    <span className="min-w-0">
+                      {drawingHitCount === 0 && page?.source === "model" ? (
                         <>
-                          {" "}
+                          На листе нет текстового слоя — на чертеже подсветить
+                          нечего.
+                          {textHitFound === true ? (
+                            <>
+                              {" "}
+                              <button
+                                type="button"
+                                className="font-semibold underline decoration-dotted"
+                                onClick={() => {
+                                  setPaneSolo(null);
+                                  setSidePanel("text");
+                                  setFocusNonce(Date.now());
+                                }}
+                              >
+                                Показать в тексте
+                              </button>
+                            </>
+                          ) : textHitFound === false ? (
+                            " В расшифровке точного совпадения тоже нет."
+                          ) : null}
+                        </>
+                      ) : drawingHitCount === 0 && textHitFound === false ? (
+                        "Цитата не найдена на чертеже и в тексте"
+                      ) : drawingHitCount === 0 ? (
+                        <>
+                          Цитата не найдена на чертеже.{" "}
                           <button
                             type="button"
                             className="font-semibold underline decoration-dotted"
@@ -1215,33 +1253,19 @@ export function ReviewPane({
                           </button>
                         </>
                       ) : (
-                        " В расшифровке точного совпадения тоже нет."
+                        "Цитата на чертеже · в тексте не найдена"
                       )}
                     </span>
-                  ) : drawingHitCount === 0 && textHitFound === false ? (
-                    <span className="rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1 text-[11px] text-amber-950 shadow-sm">
-                      Цитата не найдена на чертеже и в тексте
-                    </span>
-                  ) : drawingHitCount === 0 ? (
-                    <span className="pointer-events-auto rounded-md border border-rose-300 bg-rose-50 px-2.5 py-1 text-[11px] text-rose-950 shadow-sm">
-                      Цитата не найдена на чертеже.{" "}
-                      <button
-                        type="button"
-                        className="font-semibold underline decoration-dotted"
-                        onClick={() => {
-                          setPaneSolo(null);
-                          setSidePanel("text");
-                          setFocusNonce(Date.now());
-                        }}
-                      >
-                        Показать в тексте
-                      </button>
-                    </span>
-                  ) : textHitFound === false ? (
-                    <span className="rounded-md border border-sky-300 bg-sky-50 px-2.5 py-1 text-[11px] text-sky-950 shadow-sm">
-                      Цитата на чертеже · в тексте не найдена
-                    </span>
-                  ) : null}
+                    <button
+                      type="button"
+                      onClick={() => setQuoteBannerOn(false)}
+                      className="shrink-0 rounded px-1 leading-none opacity-70 hover:bg-black/5 hover:opacity-100"
+                      title="Закрыть"
+                      aria-label="Закрыть"
+                    >
+                      ×
+                    </button>
+                  </div>
                 </div>
               ) : null}
               {paneSolo === "pdf" ? (
