@@ -1195,7 +1195,7 @@ export function ReviewPane({
               style={{ width: paneSolo === "pdf" ? "100%" : `${split}%` }}
             >
               {focusDrawing && textHitFound !== null ? (
-                <div className="pointer-events-none absolute inset-x-0 top-0 z-40 flex justify-center px-2 pt-1">
+                <div className="pointer-events-none absolute inset-x-0 bottom-2 z-20 flex justify-center px-2">
                   {drawingHitCount === 0 && page?.source === "model" ? (
                     <span className="pointer-events-auto rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1 text-[11px] text-amber-950 shadow-sm">
                       На листе нет текстового слоя — на чертеже подсветить нечего.
