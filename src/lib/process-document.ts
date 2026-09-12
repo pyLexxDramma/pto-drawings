@@ -5,6 +5,7 @@
  * (PTO_ALLOWED_PDF_ROOTS на бэке).
  */
 import { runInBackground } from "@/lib/background";
+import { logEvent, logFailure } from "@/lib/event-log";
 import {
   fetchPipelineHealth,
   findPipelineJob,
@@ -584,6 +585,28 @@ export async function processDocument(
       }
 
       if (canceled || finished) {
+        // Итог прогона в журнал: листы с ошибками видно по одной строке на лист.
+        for (const [page, reason] of Object.entries(current.pageErrors ?? {})) {
+          await logEvent({
+            layer: "pipeline",
+            action: "лист",
+            ok: false,
+            message: reason,
+            document: latest.originalName,
+            page: Number(page) || null,
+          });
+        }
+        await logEvent({
+          layer: "pipeline",
+          action: canceled ? "обработка отменена" : "обработка",
+          ok: current.status === "done" && failedPages === 0,
+          message: canceled
+            ? "остановлена пользователем"
+            : (current.errorMessage ??
+              (failedPages ? `не вышло листов: ${failedPages}` : null)),
+          document: latest.originalName,
+          ms: current.elapsedSec != null ? current.elapsedSec * 1000 : null,
+        });
         canceling.delete(id);
         return;
       }
@@ -593,6 +616,7 @@ export async function processDocument(
     if (!(await getDocument(id))) return;
     const message =
       error instanceof Error ? error.message : "Не удалось обработать файл";
+    await logFailure("pipeline", "обработка", message, { document: id });
     await updateDocument(id, {
       status: "error",
       processingStep: null,

@@ -11,6 +11,8 @@
     "test:content-sync": "npx --yes tsx --test scripts/content-sync.test.ts",
     "test:reviews": "npx --yes tsx --test scripts/reviews-export.test.ts scripts/reviews-store.test.ts scripts/reviews-import.test.ts",
     "test:uploads": "npx --yes tsx --test scripts/drawing-kit.test.ts",
+    "test:log": "npx --yes tsx --test scripts/event-log.test.ts",
+    "check:audit": "npx --yes tsx scripts/check-audit-log.mts",
     "demo:seed": "npx --yes tsx scripts/demo-seed.mts",
     "demo:agent": "npx --yes tsx scripts/demo-agent.mts",
     "demo:guide": "npx --yes tsx scripts/demo-guide.mts",

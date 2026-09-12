@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { isPublicUser, requireUser } from "@/lib/auth";
+import { logEvent } from "@/lib/event-log";
 import { parseEngineerRemarks } from "@/lib/reviews-import";
 import { createReviews } from "@/lib/reviews";
 import { getProject } from "@/lib/storage";
@@ -36,13 +37,18 @@ export async function POST(request: Request, context: RouteContext) {
       rows = readXlsxRows(bytes);
     }
   } catch (error) {
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error ? error.message : "Не удалось прочитать файл",
-      },
-      { status: 400 },
-    );
+    const message =
+      error instanceof Error ? error.message : "Не удалось прочитать файл";
+    await logEvent({
+      layer: "back",
+      action: "импорт Excel инженера",
+      ok: false,
+      message,
+      status: 400,
+      document: file.name,
+      userName: user.displayName,
+    });
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 
   const parsed = parseEngineerRemarks(rows);
@@ -58,6 +64,14 @@ export async function POST(request: Request, context: RouteContext) {
 
   const result = await createReviews(id, parsed, {
     userId: user.id,
+    userName: user.displayName,
+  });
+  await logEvent({
+    layer: "back",
+    action: "импорт Excel инженера",
+    ok: true,
+    message: `добавлено: ${result.added}, пропущено: ${result.skipped}`,
+    document: file.name,
     userName: user.displayName,
   });
   return NextResponse.json(result, { status: 201 });

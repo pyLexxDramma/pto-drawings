@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { isPublicUser, requireUser } from "@/lib/auth";
 import { runInBackground } from "@/lib/background";
 import { getDrawingExt } from "@/lib/drawing-files";
+import { logEvent } from "@/lib/event-log";
 import { processDocument } from "@/lib/process-document";
 import { getDocument, updateDocument } from "@/lib/storage";
 
@@ -45,6 +46,13 @@ export async function POST(request: Request, context: RouteContext) {
     pipelineElapsedSec: null,
   });
   runInBackground(processDocument(id, { reset }));
+  await logEvent({
+    layer: "back",
+    action: reset ? "запуск обработки заново" : "добор листов",
+    ok: true,
+    document: document.originalName,
+    userName: user.displayName,
+  });
   const queued = await getDocument(id);
   return NextResponse.json({ document: queued, reset });
 }

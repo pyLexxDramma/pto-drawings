@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { isPublicUser, requireUser } from "@/lib/auth";
+import { readEventLog, type LogLayer } from "@/lib/event-log";
 import {
   listBranchTips,
   listReleaseCommits,
@@ -22,9 +23,24 @@ import type { ReviewEvent } from "@/types";
  * ради одной вкладки.
  */
 
-export type AuditKind = "reviews" | "edits" | "marks" | "files" | "releases";
+export type AuditKind =
+  | "reviews"
+  | "edits"
+  | "marks"
+  | "files"
+  | "releases"
+  | "processing"
+  | "log";
 
-const KINDS: AuditKind[] = ["reviews", "edits", "marks", "files", "releases"];
+const KINDS: AuditKind[] = [
+  "reviews",
+  "edits",
+  "marks",
+  "files",
+  "releases",
+  "processing",
+  "log",
+];
 const LIMIT = 300;
 
 export async function GET(request: Request) {
@@ -40,6 +56,17 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Неизвестный раздел журнала" }, { status: 400 });
   }
 
+  if (kind === "log") {
+    const layer = (searchParams.get("layer") ?? "all") as LogLayer | "all";
+    const onlyErrors = searchParams.get("errors") === "1";
+    const { rows, days } = await readEventLog({
+      limit: LIMIT,
+      onlyErrors,
+      layer,
+    });
+    return NextResponse.json({ kind, rows, days });
+  }
+
   if (kind === "releases") {
     await recordAppStart();
     const [commits, starts, branches, sources] = await Promise.all([
@@ -53,6 +80,44 @@ export async function GET(request: Request) {
 
   const projects = await listProjects();
   const projectName = new Map(projects.map((item) => [item.id, item.name]));
+
+  if (kind === "processing") {
+    // Ошибки расшифровки уже лежат в записи документа — отдельный журнал не нужен.
+    const documents = await listDocuments(undefined, { lite: true });
+    const rows: {
+      at: string;
+      project: string;
+      name: string;
+      page: number | null;
+      level: "error" | "warning";
+      message: string;
+      pipelineMode: string | null;
+      pipelineModel: string | null;
+      elapsedSec: number | null;
+    }[] = [];
+    for (const doc of documents) {
+      const at = doc.pipelineFinishedAt ?? doc.createdAt;
+      const common = {
+        at,
+        project: projectName.get(doc.projectId) ?? "—",
+        name: doc.originalName,
+        pipelineMode: doc.pipelineMode,
+        pipelineModel: doc.pipelineModel,
+        elapsedSec: doc.pipelineElapsedSec,
+      };
+      if (doc.status === "error" && doc.errorMessage) {
+        rows.push({ ...common, page: null, level: "error", message: doc.errorMessage });
+      }
+      for (const [page, message] of Object.entries(doc.pageErrors ?? {})) {
+        rows.push({ ...common, page: Number(page) || null, level: "error", message });
+      }
+      for (const [page, message] of Object.entries(doc.pageWarnings ?? {})) {
+        rows.push({ ...common, page: Number(page) || null, level: "warning", message });
+      }
+    }
+    rows.sort((a, b) => b.at.localeCompare(a.at));
+    return NextResponse.json({ kind, rows: rows.slice(0, LIMIT) });
+  }
 
   if (kind === "files") {
     const documents = await listDocuments(undefined, { lite: true });

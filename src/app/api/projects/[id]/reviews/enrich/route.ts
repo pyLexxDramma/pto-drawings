@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { isPublicUser, requireUser } from "@/lib/auth";
+import { logEvent } from "@/lib/event-log";
 import { ingestReviews, listReviews } from "@/lib/reviews";
 import { PIPELINE_URL } from "@/lib/pipeline";
 import { getProject } from "@/lib/storage";
@@ -70,44 +71,71 @@ export async function POST(request: Request, context: RouteContext) {
       }),
     });
   } catch (error) {
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? `Конвейер недоступен: ${error.message}`
-            : "Конвейер недоступен",
-      },
-      { status: 503 },
-    );
+    const message =
+      error instanceof Error
+        ? `Конвейер недоступен: ${error.message}`
+        : "Конвейер недоступен";
+    await logEvent({
+      layer: "agent",
+      action: "обогащение",
+      ok: false,
+      message,
+      status: 503,
+      userName: user.displayName,
+    });
+    return NextResponse.json({ error: message }, { status: 503 });
   }
 
   if (response.status === 404) {
-    return NextResponse.json(
-      {
-        error:
-          "Агент обогащения ещё не подключён (нет POST /reviews/enrich). Импорт и выгрузка уже работают.",
-      },
-      { status: 501 },
-    );
+    const message =
+      "Агент обогащения ещё не подключён (нет POST /reviews/enrich). Импорт и выгрузка уже работают.";
+    await logEvent({
+      layer: "agent",
+      action: "обогащение",
+      ok: false,
+      message,
+      status: 501,
+      userName: user.displayName,
+    });
+    return NextResponse.json({ error: message }, { status: 501 });
   }
   if (!response.ok) {
     const payload = (await response.json().catch(() => ({}))) as {
       error?: string;
     };
-    return NextResponse.json(
-      { error: payload.error ?? `Агент ответил ${response.status}` },
-      { status: 502 },
-    );
+    const message = payload.error ?? `Агент ответил ${response.status}`;
+    await logEvent({
+      layer: "agent",
+      action: "обогащение",
+      ok: false,
+      message,
+      status: response.status,
+      userName: user.displayName,
+    });
+    return NextResponse.json({ error: message }, { status: 502 });
   }
 
   const payload = (await response.json()) as { reviews?: ReviewIngestItem[] };
   if (!Array.isArray(payload.reviews)) {
-    return NextResponse.json(
-      { error: "Агент должен вернуть { reviews: [...] }" },
-      { status: 502 },
-    );
+    const message = "Агент должен вернуть { reviews: [...] }";
+    await logEvent({
+      layer: "agent",
+      action: "обогащение",
+      ok: false,
+      message,
+      status: 502,
+      userName: user.displayName,
+    });
+    return NextResponse.json({ error: message }, { status: 502 });
   }
 
   const result = await ingestReviews(id, payload.reviews);
+  await logEvent({
+    layer: "agent",
+    action: "обогащение",
+    ok: true,
+    message: `строк: ${pending.length}, обогащено: ${result.enriched}`,
+    userName: user.displayName,
+  });
   return NextResponse.json({ ok: true, ...result });
 }
