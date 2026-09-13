@@ -3,69 +3,35 @@
 import { useCallback, useEffect, useState } from "react";
 import { SegmentedTabs } from "@/components/ui-chrome";
 import { formatBytes, formatDate } from "@/lib/format";
-import {
-  REVIEW_EVENT_LABEL,
-  REVIEW_SEVERITY_LABEL,
-  REVIEW_VERDICT_LABEL,
-  type ReviewEvent,
-  type ReviewSeverity,
-  type ReviewVerdict,
-} from "@/types";
 
 /**
- * Журналы правок для админа: кто и что менял. Отдельная вкладка «Обновления
- * прода» — для разработчика: что выкатили, включая слитые ветки коллег.
+ * Живые журналы админа. Пустые вкладки (правки текста, замечания, отметки)
+ * убраны: правки расшифровки закрыты, журнал замечания живёт в строке таблицы,
+ * отметки — на самом чертеже.
  */
 
-type Tab =
-  | "log"
-  | "processing"
-  | "reviews"
-  | "edits"
-  | "marks"
-  | "files"
-  | "releases";
+type Tab = "log" | "processing" | "files" | "releases";
 
-const TABS: { id: Tab; label: string }[] = [
-  { id: "log", label: "Журнал действий" },
-  { id: "processing", label: "Ошибки обработки" },
-  { id: "reviews", label: "Замечания" },
-  { id: "edits", label: "Правки текста" },
-  { id: "marks", label: "Ошибки на чертежах" },
-  { id: "files", label: "Файлы" },
-  { id: "releases", label: "Обновления прода" },
+const TABS: {
+  id: Tab;
+  label: string;
+  accent: "critical" | "warn" | "info" | "neutral";
+}[] = [
+  { id: "log", label: "Журнал действий", accent: "critical" },
+  { id: "processing", label: "Ошибки обработки", accent: "warn" },
+  { id: "files", label: "Файлы", accent: "neutral" },
+  { id: "releases", label: "Обновления прода", accent: "info" },
 ];
 
 const HINT: Record<Tab, string> = {
   log: "Что сработало и что нет: фронт, бэк интерфейса, конвейер, агент ИИ. Хранится 14 дней.",
   processing:
     "Расшифровка по листам: где конвейер не справился и что именно вернул.",
-  reviews: "Правки в таблице замечаний: важность, разбор, комментарий, текст.",
-  edits: "Правки расшифровки листов (сейчас закрыты — остаётся история).",
-  marks: "Отметки «Ошибка» на чертежах: что обвели и что должно быть.",
   files: "Загрузки файлов: кто, когда, каким конвейером расшифровали.",
   releases:
     "Что выкатили на прод: main — то, что работает сейчас; ветки коллег — что ещё ждёт слияния.",
 };
 
-type ReviewRow = ReviewEvent & {
-  project: string;
-  reviewNumber: number | null;
-  section: string | null;
-};
-type EditRow = {
-  at: string;
-  project: string;
-  name: string;
-  pageNumber: number;
-  userName: string | null;
-};
-type MarkRow = EditRow & {
-  status: string;
-  comment: string;
-  expected: string;
-  resolvedAt: string | null;
-};
 type FileRow = {
   at: string;
   project: string;
@@ -185,34 +151,6 @@ function LayerChip({ layer }: { layer: LogLayer }) {
       {LOG_LAYER_LABEL[layer]}
     </span>
   );
-}
-
-const MARK_STATUS: Record<string, string> = {
-  open: "открыта",
-  resolved: "исправлена",
-  rejected: "отклонена",
-};
-
-function severityLabel(value: string | null): string {
-  if (!value) return "—";
-  return REVIEW_SEVERITY_LABEL[value as ReviewSeverity] ?? value;
-}
-
-function verdictLabel(value: string | null): string {
-  if (!value) return "—";
-  // Причина брака дописана к вердикту через двоеточие: «wrong: такого нет».
-  const [code, ...rest] = value.split(": ");
-  const label = REVIEW_VERDICT_LABEL[code as ReviewVerdict];
-  if (!label) return value;
-  return rest.length ? `${label} · ${rest.join(": ")}` : label;
-}
-
-/** Для severity и verdict показываем человеческие названия, для текста — как есть. */
-function eventValue(field: ReviewEvent["field"], value: string | null): string {
-  if (field === "severity") return severityLabel(value);
-  if (field === "verdict") return verdictLabel(value);
-  if (!value) return "—";
-  return value.length > 90 ? `${value.slice(0, 90)}…` : value;
 }
 
 const cell = "px-2 py-1.5 align-top";
@@ -422,96 +360,6 @@ export function AuditPanel({ open, onClose }: { open: boolean; onClose: () => vo
                     <td className={`${cell} text-muted`}>
                       {[row.pipelineMode, row.pipelineModel].filter(Boolean).join(" · ") ||
                         "—"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : null}
-
-          {tab === "reviews" && rows.length ? (
-            <table className="w-full border-collapse text-[11px]">
-              <thead className="bg-slate-100 text-[10px] uppercase tracking-wide text-muted">
-                <tr>
-                  <th className={head}>Когда</th>
-                  <th className={head}>Кто</th>
-                  <th className={head}>Проект</th>
-                  <th className={head}>Замечание</th>
-                  <th className={head}>Что</th>
-                  <th className={head}>Было</th>
-                  <th className={head}>Стало</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(rows as ReviewRow[]).map((row) => (
-                  <tr key={row.id} className="border-b border-slate-200">
-                    <td className={`${cell} whitespace-nowrap text-muted`}>{formatDate(row.at)}</td>
-                    <td className={cell}>{row.userName ?? "—"}</td>
-                    <td className={`${cell} text-muted`}>{row.project}</td>
-                    <td className={`${cell} whitespace-nowrap text-muted`}>
-                      {row.reviewNumber ? `№${row.reviewNumber}` : "удалено"}
-                      {row.section ? ` · ${row.section}` : ""}
-                    </td>
-                    <td className={cell}>{REVIEW_EVENT_LABEL[row.field]}</td>
-                    <td className={`${cell} text-muted`}>{eventValue(row.field, row.from)}</td>
-                    <td className={cell}>{eventValue(row.field, row.to)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : null}
-
-          {tab === "edits" && rows.length ? (
-            <table className="w-full border-collapse text-[11px]">
-              <thead className="bg-slate-100 text-[10px] uppercase tracking-wide text-muted">
-                <tr>
-                  <th className={head}>Когда</th>
-                  <th className={head}>Кто</th>
-                  <th className={head}>Проект</th>
-                  <th className={head}>Файл</th>
-                  <th className={head}>Лист</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(rows as EditRow[]).map((row, index) => (
-                  <tr key={`${row.at}-${index}`} className="border-b border-slate-200">
-                    <td className={`${cell} whitespace-nowrap text-muted`}>{formatDate(row.at)}</td>
-                    <td className={cell}>{row.userName ?? "—"}</td>
-                    <td className={`${cell} text-muted`}>{row.project}</td>
-                    <td className={cell}>{row.name}</td>
-                    <td className={`${cell} tabular-nums`}>{row.pageNumber}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : null}
-
-          {tab === "marks" && rows.length ? (
-            <table className="w-full border-collapse text-[11px]">
-              <thead className="bg-slate-100 text-[10px] uppercase tracking-wide text-muted">
-                <tr>
-                  <th className={head}>Когда</th>
-                  <th className={head}>Кто</th>
-                  <th className={head}>Проект</th>
-                  <th className={head}>Файл</th>
-                  <th className={head}>Лист</th>
-                  <th className={head}>Что не так</th>
-                  <th className={head}>Должно быть</th>
-                  <th className={head}>Статус</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(rows as MarkRow[]).map((row, index) => (
-                  <tr key={`${row.at}-${index}`} className="border-b border-slate-200">
-                    <td className={`${cell} whitespace-nowrap text-muted`}>{formatDate(row.at)}</td>
-                    <td className={cell}>{row.userName ?? "—"}</td>
-                    <td className={`${cell} text-muted`}>{row.project}</td>
-                    <td className={cell}>{row.name}</td>
-                    <td className={`${cell} tabular-nums`}>{row.pageNumber}</td>
-                    <td className={cell}>{row.comment || "—"}</td>
-                    <td className={cell}>{row.expected || "—"}</td>
-                    <td className={`${cell} whitespace-nowrap text-muted`}>
-                      {MARK_STATUS[row.status] ?? row.status}
                     </td>
                   </tr>
                 ))}

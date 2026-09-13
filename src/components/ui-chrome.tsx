@@ -40,10 +40,28 @@ export function ProgressTrack({
   );
 }
 
+type SegmentAccent = "critical" | "warn" | "info" | "neutral";
+
 type SegmentOption<T extends string> = {
   id: T;
   label: ReactNode;
   title?: string;
+  /** Цвет важности: не вместо подписи, а вместе с ней. */
+  accent?: SegmentAccent;
+};
+
+const ACCENT_IDLE: Record<SegmentAccent, string> = {
+  critical: "text-red-700 hover:bg-red-50 hover:text-red-800",
+  warn: "text-amber-800 hover:bg-amber-50 hover:text-amber-900",
+  info: "text-sky-700 hover:bg-sky-50 hover:text-sky-800",
+  neutral: "",
+};
+
+const ACCENT_ACTIVE: Record<SegmentAccent, string> = {
+  critical: "bg-red-600 text-white font-semibold shadow-sm",
+  warn: "bg-amber-500 text-white font-semibold shadow-sm",
+  info: "bg-sky-600 text-white font-semibold shadow-sm",
+  neutral: "",
 };
 
 /** Единый вид табов: сегмент с явным активным состоянием. */
@@ -91,8 +109,14 @@ export function SegmentedTabs<T extends string>({
             aria-selected={selected}
             title={option.title}
             onClick={() => onChange(option.id)}
-            className={`rounded-[5px] font-medium transition-colors ${pad} ${
-              selected ? active : idle
+            className={`rounded-[5px] font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-sky-500 ${pad} ${
+              selected
+                ? option.accent && ACCENT_ACTIVE[option.accent]
+                  ? ACCENT_ACTIVE[option.accent]
+                  : active
+                : option.accent && ACCENT_IDLE[option.accent]
+                  ? ACCENT_IDLE[option.accent]
+                  : idle
             }`}
           >
             {option.label}
