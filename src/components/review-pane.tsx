@@ -176,6 +176,7 @@ export function ReviewPane({
   const deferredQuery = useDeferredValue(query);
   /** Цитата из «Где в ПД»: подсветка в тексте и на чертеже. */
   const [focusQuote, setFocusQuote] = useState("");
+  const [focusRect, setFocusRect] = useState<AnnotationRect | null>(null);
   const [focusNonce, setFocusNonce] = useState(0);
   const [activeReviewId, setActiveReviewId] = useState<string | null>(null);
   const [keymapOpen, setKeymapOpen] = useState(false);
@@ -411,9 +412,10 @@ export function ReviewPane({
       review.aiFinding ||
       ""
     ).trim();
-    if (quote.length < 2) return;
+    if (quote.length < 2 && !location?.rect) return;
     setActiveReviewId(review.id);
     setFocusQuote(quote);
+    setFocusRect(location?.rect ?? null);
     setFocusNonce(Date.now());
     setPaneSolo(null);
     setSidePanel("text");
@@ -450,7 +452,10 @@ export function ReviewPane({
     return preferHighlightQuery(raw, page?.markdown ?? "");
   })();
   const textHighlightQuery = drawingHighlightQuery;
-  const focusDrawing = focusQuote.trim().length >= 2;
+  const focusDrawing = focusQuote.trim().length >= 2 || Boolean(focusRect);
+  const focusHighlightRegion = focusRect
+    ? { id: "review-focus", text: focusQuote, ...focusRect }
+    : null;
   const activeNoteId = hoverNoteId;
   const viewingProcessedSheet =
     progressIsCurrentDoc &&
@@ -515,6 +520,7 @@ export function ReviewPane({
     setRawPage(openPage.page);
     const quote = (openPage.quote ?? "").trim();
     setFocusQuote(quote);
+    if (!openPage.reviewId) setFocusRect(null);
     if (openPage.reviewId) setActiveReviewId(openPage.reviewId);
     if (quote || openPage.reviewId) {
       setFocusNonce(Date.now());
@@ -547,8 +553,9 @@ export function ReviewPane({
       review.locations.find((item) => item.documentId === document.id) ??
       review.locations[0];
     const quote = location?.quote?.trim() ?? "";
-    if (quote.length < 2) return;
+    if (quote.length < 2 && !location?.rect) return;
     setFocusQuote(quote);
+    setFocusRect(location?.rect ?? null);
     setFocusNonce(Date.now());
     setPaneSolo(null);
     setSidePanel("text");
@@ -1311,6 +1318,7 @@ export function ReviewPane({
                   markMode={markMode && !readOnly}
                   activeAnnotationId={activeNoteId}
                   highlightQuery={drawingHighlightQuery}
+                  highlightRegion={focusHighlightRegion}
                   panToHighlight={focusDrawing}
                   remarkFocus={focusDrawing}
                   highlightNonce={focusNonce}
@@ -1332,6 +1340,7 @@ export function ReviewPane({
                   markMode={markMode && !readOnly}
                   activeAnnotationId={activeNoteId}
                   highlightQuery={drawingHighlightQuery}
+                  highlightRegion={focusHighlightRegion}
                   panToHighlight={focusDrawing}
                   remarkFocus={focusDrawing}
                   highlightNonce={focusNonce}
@@ -1352,6 +1361,7 @@ export function ReviewPane({
                   markMode={markMode && !readOnly}
                   activeAnnotationId={activeNoteId}
                   highlightQuery={drawingHighlightQuery}
+                  highlightRegion={focusHighlightRegion}
                   panToHighlight={focusDrawing}
                   remarkFocus={focusDrawing}
                   highlightNonce={focusNonce}
@@ -1381,6 +1391,7 @@ export function ReviewPane({
                   markMode={markMode && !readOnly}
                   activeAnnotationId={activeNoteId}
                   highlightQuery={drawingHighlightQuery}
+                  highlightRegion={focusHighlightRegion}
                   panToHighlight={focusDrawing}
                   remarkFocus={focusDrawing}
                   highlightNonce={focusNonce}

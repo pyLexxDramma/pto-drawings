@@ -135,6 +135,8 @@ export type ReviewLocation = {
   documentName: string;
   pageNumber: number | null;
   quote: string;
+  /** Рамка на листе 0..1 от конвейера (текстовый слой / координаты модели). */
+  rect?: AnnotationRect;
 };
 
 export type Review = {

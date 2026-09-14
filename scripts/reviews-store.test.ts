@@ -60,11 +60,34 @@ describe("ingestReviews", () => {
     assert.equal(result.total, 2);
   });
 
+  it("сохраняет рамку текстового слоя 0..1", async () => {
+    const result = await store.ingestReviews(PROJECT, [
+      {
+        section: "ПБ",
+        aiFinding: "Координаты от конвейера",
+        locations: [
+          {
+            documentId: null,
+            documentName: "Раздел ПД №9 (ПБ)",
+            pageNumber: 3,
+            quote: "резервуар",
+            bbox: { x0: 0.1, y0: 0.2, x1: 0.35, y1: 0.28 },
+          },
+        ],
+      },
+    ]);
+    assert.equal(result.added, 1);
+    const list = await store.listReviews(PROJECT);
+    const row = list.find((item) => item.aiFinding === "Координаты от конвейера");
+    assert.ok(row);
+    assert.deepEqual(row.locations[0].rect, { x: 0.1, y: 0.2, w: 0.25, h: 0.08 });
+  });
+
   it("отбрасывает замечания без обоснования", async () => {
     const result = await store.ingestReviews(PROJECT, [
       { section: "ПБ", aiFinding: "   " },
     ]);
-    assert.deepEqual(result, { added: 0, updated: 0, enriched: 0, total: 2 });
+    assert.deepEqual(result, { added: 0, updated: 0, enriched: 0, total: 3 });
   });
 
   it("не сбрасывает разбор с заказчиком при повторном прогоне", async () => {

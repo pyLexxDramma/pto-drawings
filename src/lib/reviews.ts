@@ -11,6 +11,7 @@ import {
 } from "@/lib/sections";
 import {
   REVIEW_SEVERITY_ORDER,
+  type AnnotationRect,
   type Review,
   type ReviewEvent,
   type ReviewEventField,
@@ -77,16 +78,81 @@ function text(value: unknown, fallback = ""): string {
   return typeof value === "string" ? value.trim() : fallback;
 }
 
-function normalizeLocation(raw: Partial<ReviewLocation>): ReviewLocation {
+function clamp01(value: number) {
+  if (!Number.isFinite(value)) return 0;
+  return Math.min(1, Math.max(0, value));
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+/** Берёт рамку 0..1 из rect / bbox / x,y,w,h. Пиксели и значения >1 отбрасывает. */
+export function parseLocationRect(raw: unknown): AnnotationRect | undefined {
+  const bag = asRecord(raw) ?? {};
+  const nested = asRecord(bag.rect) ?? asRecord(bag.bbox) ?? bag;
+  const bboxList = Array.isArray(bag.bbox) ? bag.bbox : null;
+  let x: number | null = null;
+  let y: number | null = null;
+  let w: number | null = null;
+  let h: number | null = null;
+  if (bboxList && bboxList.length >= 4) {
+    const x0 = Number(bboxList[0]);
+    const y0 = Number(bboxList[1]);
+    const x1 = Number(bboxList[2]);
+    const y1 = Number(bboxList[3]);
+    if ([x0, y0, x1, y1].every(Number.isFinite)) {
+      x = Math.min(x0, x1);
+      y = Math.min(y0, y1);
+      w = Math.abs(x1 - x0);
+      h = Math.abs(y1 - y0);
+    }
+  } else {
+    const x0 = Number(nested.x0);
+    const y0 = Number(nested.y0);
+    const x1 = Number(nested.x1);
+    const y1 = Number(nested.y1);
+    if ([x0, y0, x1, y1].every(Number.isFinite) && (x1 !== 0 || y1 !== 0)) {
+      x = Math.min(x0, x1);
+      y = Math.min(y0, y1);
+      w = Math.abs(x1 - x0);
+      h = Math.abs(y1 - y0);
+    } else {
+      const nx = Number(nested.x);
+      const ny = Number(nested.y);
+      const nw = Number(nested.w ?? nested.width);
+      const nh = Number(nested.h ?? nested.height);
+      if ([nx, ny, nw, nh].every(Number.isFinite)) {
+        x = nx;
+        y = ny;
+        w = nw;
+        h = nh;
+      }
+    }
+  }
+  if (x == null || y == null || w == null || h == null) return undefined;
+  if (Math.max(x, y, w, h) > 1.05) return undefined;
+  if (w < 0.002 || h < 0.002) return undefined;
+  const round = (value: number) => Math.round(clamp01(value) * 10000) / 10000;
+  return { x: round(x), y: round(y), w: round(w), h: round(h) };
+}
+
+function normalizeLocation(
+  raw: Partial<ReviewLocation> & Record<string, unknown>,
+): ReviewLocation {
   const page =
     typeof raw.pageNumber === "number" && Number.isFinite(raw.pageNumber)
       ? Math.max(1, Math.trunc(raw.pageNumber))
       : null;
+  const rect = parseLocationRect(raw);
   return {
     documentId: text(raw.documentId) || null,
     documentName: text(raw.documentName),
     pageNumber: page,
     quote: text(raw.quote),
+    ...(rect ? { rect } : {}),
   };
 }
 
