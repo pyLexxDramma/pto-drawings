@@ -45,6 +45,7 @@ import {
 } from "@/lib/review-state";
 import {
   REVIEW_SEVERITY_LABEL,
+  REVIEW_SEVERITY_ORDER,
   type AnnotationRect,
   type DocumentRecord,
   type PageAnnotation,
@@ -356,6 +357,28 @@ export function ReviewPane({
       ),
     [document.id, reviews],
   );
+  const pageDots = useMemo(() => {
+    const map = new Map<
+      number,
+      { severity: Review["severity"]; verdict: Review["verdict"] }
+    >();
+    for (const review of fileReviews) {
+      for (const loc of review.locations) {
+        if (loc.documentId !== document.id || !loc.pageNumber) continue;
+        const prev = map.get(loc.pageNumber);
+        const worse =
+          !prev ||
+          REVIEW_SEVERITY_ORDER.indexOf(review.severity) <
+            REVIEW_SEVERITY_ORDER.indexOf(prev.severity);
+        const pending = review.verdict === "pending" || prev?.verdict === "pending";
+        map.set(loc.pageNumber, {
+          severity: worse ? review.severity : prev.severity,
+          verdict: pending ? "pending" : (worse ? review.verdict : prev.verdict),
+        });
+      }
+    }
+    return map;
+  }, [document.id, fileReviews]);
   async function patchReview(reviewId: string, body: Partial<Review>) {
     if (!projectId) return;
     try {
@@ -673,22 +696,7 @@ export function ReviewPane({
       </button>
       <button
         type="button"
-        title={
-          viewedSet.has(pageNumber)
-            ? "Снять отметку «просмотрен» (V)"
-            : "Отметить лист просмотренным (V)"
-        }
-        onClick={toggleViewed}
-        className={viewedSet.has(pageNumber) ? textToolBtnActive : textToolBtn}
-      >
-        <span className="mr-1" aria-hidden>
-          {viewedSet.has(pageNumber) ? "☑" : "☐"}
-        </span>
-        Просмотрен
-      </button>
-      <button
-        type="button"
-        title="Миниатюры листов"
+        title="Список листов"
         onClick={() => {
           setStripOpen((prev) => {
             const next = !prev;
@@ -698,7 +706,7 @@ export function ReviewPane({
         }}
         className={stripOpen ? textToolBtnActive : textToolBtn}
       >
-        Миниатюры
+        Список листов
       </button>
       {readOnly ? (
         <span className="rounded border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-900">
@@ -750,12 +758,13 @@ export function ReviewPane({
           setSidePanel("text");
           return;
         }
-        if (paneSolo) {
+        if (paneSolo || focusMode) {
+          event.preventDefault();
           setPaneSolo(null);
+          if (focusMode) onToggleFocus();
           return;
         }
-        if (focusMode) onToggleFocus();
-        else onBackToProjects();
+        onBackToProjects();
         return;
       }
 
@@ -779,12 +788,6 @@ export function ReviewPane({
       if (event.code === "KeyF") {
         event.preventDefault();
         setPaneSolo((prev) => (prev === null ? "pdf" : prev === "pdf" ? "md" : null));
-        return;
-      }
-
-      if (event.code === "KeyV") {
-        event.preventDefault();
-        toggleViewed();
         return;
       }
 
@@ -826,8 +829,8 @@ export function ReviewPane({
         stepVisible(-1);
       }
     }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusMode, markMode, pendingRect, onBackToProjects, onToggleFocus, visiblePages, document.pages, showLog, paneSolo, searchOpen, readOnly]);
 
@@ -874,14 +877,6 @@ export function ReviewPane({
     };
     window.addEventListener("mousemove", move);
     window.addEventListener("mouseup", up);
-  }
-
-  function toggleViewed() {
-    setViewed((prev) =>
-      prev.includes(pageNumber)
-        ? prev.filter((item) => item !== pageNumber)
-        : [...prev, pageNumber],
-    );
   }
 
   async function submitNote() {
@@ -1124,6 +1119,7 @@ export function ReviewPane({
               kinds={kinds}
               edited={editedPages}
               viewed={viewedSet}
+              pageDots={pageDots}
               ready={ready}
               annotated={annotatedPages}
               hidden={hidden}
@@ -1150,8 +1146,8 @@ export function ReviewPane({
           {!stripOpen && !isOfficeSource ? (
             <button
               type="button"
-              title="Показать миниатюры"
-              aria-label="Показать миниатюры"
+              title="Список листов"
+              aria-label="Показать список листов"
               onClick={() => {
                 setStripOpen(true);
                 saveViewerPrefs({ ...loadViewerPrefs(), thumbs: true });
@@ -1568,7 +1564,7 @@ export function ReviewPane({
 
             <div
               ref={textPaneRef}
-              className="pto-pane-scroll min-h-0 flex-1 overflow-x-scroll overflow-y-auto [scrollbar-gutter:stable]"
+              className="pto-pane-scroll min-h-0 flex-1 overflow-x-scroll overflow-y-auto overscroll-x-contain [scrollbar-gutter:stable]"
             >
               {filterEmpty ? (
                 <div className="p-6 text-sm text-muted">

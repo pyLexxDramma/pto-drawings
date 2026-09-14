@@ -237,7 +237,7 @@ export const REVIEW_EVENT_LABEL: Record<ReviewEventField, string> = {
 export const REVIEW_ORIGIN_LABEL: Record<ReviewOrigin, string> = {
   ai: "Нашла ИИ",
   engineer: "Инженер",
-  both: "Клиент + ИИ",
+  both: "ИИ и инженер",
 };
 
 /** Порядок в таблице и в выгрузке: важное сверху. */

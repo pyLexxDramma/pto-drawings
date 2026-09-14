@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ViewerHint } from "@/components/viewer-hint";
-import { ViewerMinimap } from "@/components/viewer-minimap";
 import { ViewerToolbar } from "@/components/viewer-toolbar";
 import { usePageViewport } from "@/hooks/use-page-viewport";
 import {
@@ -77,7 +76,6 @@ export function PdfPage({
 }: PdfPageProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const miniRef = useRef<HTMLCanvasElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [natural, setNatural] = useState({ w: 800, h: 1100 });
@@ -85,8 +83,6 @@ export function PdfPage({
   const [zoomBox, setZoomBox] = useState<DrawState | null>(null);
   const [searchHits, setSearchHits] = useState<TextHit[]>([]);
   const [hintOn, setHintOn] = useState(() => shouldShowViewerHint(loadViewerPrefs()));
-  const [minimapOn, setMinimapOn] = useState(() => loadViewerPrefs().minimap);
-  const [wrapSize, setWrapSize] = useState({ w: 0, h: 0 });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const pdfDocRef = useRef<{ url: string; pdf: any } | null>(null);
   const textContentRef = useRef<{
@@ -116,17 +112,6 @@ export function PdfPage({
       }
     },
   });
-
-  useEffect(() => {
-    const wrap = wrapRef.current;
-    if (!wrap) return;
-    const ro = new ResizeObserver(() => {
-      setWrapSize({ w: wrap.clientWidth, h: wrap.clientHeight });
-    });
-    ro.observe(wrap);
-    setWrapSize({ w: wrap.clientWidth, h: wrap.clientHeight });
-    return () => ro.disconnect();
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -202,14 +187,6 @@ export function PdfPage({
         renderTask = task;
         await task.promise;
         if (cancelled) return;
-
-        const mini = miniRef.current;
-        if (mini) {
-          const thumb = page.getViewport({ scale: 0.18 });
-          mini.width = thumb.width;
-          mini.height = thumb.height;
-          await page.render({ canvas: mini, viewport: thumb }).promise;
-        }
 
         const content = await page.getTextContent();
         if (cancelled) return;
@@ -574,22 +551,6 @@ export function PdfPage({
       ) : (
         <ViewerHint show={hintOn} wheelMode="pan" />
       )}
-
-      <ViewerMinimap
-        natural={natural}
-        scale={viewport.scale}
-        pan={viewport.pan}
-        viewW={wrapSize.w}
-        viewH={wrapSize.h}
-        visible={
-          minimapOn &&
-          ready &&
-          viewport.scale > viewport.fitScale * 1.2
-        }
-        onJump={viewport.jumpToPagePoint}
-      >
-        <canvas ref={miniRef} className="h-full w-full object-contain" />
-      </ViewerMinimap>
 
       <ViewerToolbar
         scale={viewport.scale}

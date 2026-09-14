@@ -310,6 +310,14 @@ export async function purgeDocumentPipeline(id: string) {
 
 export async function cancelDocument(id: string) {
   canceling.add(id);
+  const started = Date.now();
+  await logEvent({
+    layer: "back",
+    action: "стоп обработки",
+    ok: true,
+    document: id,
+    message: "запрос отмены",
+  });
 
   const pending = await updateDocument(id, {
     processingStep: null,
@@ -321,6 +329,14 @@ export async function cancelDocument(id: string) {
     if (!active) {
       canceling.delete(id);
       const any = await findExistingJob(id);
+      await logEvent({
+        layer: "pipeline",
+        action: "стоп обработки",
+        ok: true,
+        document: id,
+        message: "активной задачи нет",
+        ms: Date.now() - started,
+      });
       return (
         (await updateDocument(id, {
           status: "error",
@@ -338,6 +354,16 @@ export async function cancelDocument(id: string) {
     const current = await api<BackendJob>(`/jobs/${active.id}`);
     const stopped = current.status === "canceled";
     if (stopped) canceling.delete(id);
+    await logEvent({
+      layer: "pipeline",
+      action: "стоп обработки",
+      ok: stopped,
+      document: id,
+      message: stopped
+        ? "конвейер остановил сразу"
+        : `конвейер ещё ${current.status}, ждём лист`,
+      ms: Date.now() - started,
+    });
 
     return (
       (await updateDocument(id, {
@@ -351,6 +377,10 @@ export async function cancelDocument(id: string) {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Не удалось связаться с конвейером";
+    await logFailure("pipeline", "стоп обработки", message, {
+      document: id,
+      ms: Date.now() - started,
+    });
     return (
       (await updateDocument(id, {
         processingStep: null,

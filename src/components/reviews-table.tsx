@@ -10,8 +10,13 @@ import {
 } from "react";
 import { SegmentedTabs, Spinner } from "@/components/ui-chrome";
 import { IconDownload } from "@/components/tool-icons";
+import {
+  SEVERITY_CHIP,
+  SEVERITY_ROW,
+  VERDICT_CHIP,
+  VERDICT_ROW,
+} from "@/lib/review-colors";
 import { groupReviews, type GroupBy } from "@/lib/reviews-group";
-import { CROSS_SECTION, KNOWN_SECTIONS } from "@/lib/sections";
 import { formatDate } from "@/lib/format";
 import {
   REVIEW_EVENT_LABEL,
@@ -26,42 +31,6 @@ import {
   type ReviewSeverity,
   type ReviewVerdict,
 } from "@/types";
-
-const SEVERITY_ROW: Record<ReviewSeverity, string> = {
-  high: "border-l-red-500 bg-red-50/60",
-  medium: "border-l-amber-400 bg-amber-50/50",
-  low: "border-l-emerald-400 bg-emerald-50/40",
-  skip: "border-l-slate-300 bg-slate-50 opacity-60",
-};
-
-/**
- * Итог разбора перекрывает заливку по важности: на разборе с заказчиком важно
- * видеть, что со строкой уже решили, а важность остаётся в левой полосе и в
- * порядке сортировки. `pending` цвета не меняет — там правит важность.
- */
-const VERDICT_ROW: Partial<Record<ReviewVerdict, string>> = {
-  confirmed: "bg-emerald-100/70",
-  partial: "bg-amber-100/60",
-  discuss: "bg-sky-100/60",
-  outdated: "bg-slate-100 opacity-60",
-  wrong: "bg-rose-100/70",
-};
-
-const SEVERITY_CHIP: Record<ReviewSeverity, string> = {
-  high: "border-red-300 bg-red-100 text-red-900",
-  medium: "border-amber-300 bg-amber-100 text-amber-900",
-  low: "border-emerald-300 bg-emerald-100 text-emerald-900",
-  skip: "border-slate-300 bg-slate-100 text-slate-600",
-};
-
-const VERDICT_CHIP: Record<ReviewVerdict, string> = {
-  pending: "border-slate-300 bg-white text-muted",
-  confirmed: "border-emerald-300 bg-emerald-50 text-emerald-900",
-  partial: "border-amber-300 bg-amber-50 text-amber-900",
-  discuss: "border-sky-300 bg-sky-50 text-sky-900",
-  outdated: "border-slate-300 bg-slate-100 text-slate-500 line-through",
-  wrong: "border-rose-400 bg-rose-100 font-semibold text-rose-900",
-};
 
 const VERDICTS: ReviewVerdict[] = [
   "pending",
@@ -229,10 +198,6 @@ export function ReviewsTable({
   const [importing, setImporting] = useState(false);
   const [enriching, setEnriching] = useState(false);
   const importRef = useRef<HTMLInputElement>(null);
-  const [adding, setAdding] = useState(false);
-  const [draftSection, setDraftSection] = useState("ПЗ");
-  const [draftText, setDraftText] = useState("");
-  const [draftSeverity, setDraftSeverity] = useState<ReviewSeverity>("medium");
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const load = useCallback(
@@ -470,36 +435,6 @@ export function ReviewsTable({
     [load, projectId, refreshEvents],
   );
 
-  async function handleAdd() {
-    const text = draftText.trim();
-    if (!text) return;
-    setAdding(true);
-    try {
-      const response = await fetch(`/api/projects/${projectId}/reviews`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          section: draftSection,
-          text,
-          severity: draftSeverity,
-        }),
-      });
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => ({}))) as {
-          error?: string;
-        };
-        throw new Error(payload.error ?? "Не удалось добавить");
-      }
-      setDraftText("");
-      await load();
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Ошибка добавления");
-    } finally {
-      setAdding(false);
-    }
-  }
-
   async function handleDelete(reviewId: string) {
     if (!confirm("Удалить замечание?")) return;
     setSavingId(reviewId);
@@ -606,7 +541,7 @@ export function ReviewsTable({
           </div>
           {loading ? null : (
             <div className="text-[11px] tabular-nums text-muted">
-              {`нашла ИИ ${stats.ai} · инженеры ${stats.engineer} · совпало ${stats.both}`}
+              {`нашла ИИ ${stats.ai} · инженеры ${stats.engineer} · ИИ и инженер ${stats.both}`}
               {stats.wrong ? (
                 <span className="text-rose-700">
                   {` · брак ИИ ${stats.wrong}`}
@@ -638,19 +573,28 @@ export function ReviewsTable({
             disabled={importing}
             onClick={() => importRef.current?.click()}
             className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
-            title="Загрузить Excel инженера в отдельный поток"
+            title="Загрузить замечания инженера из Excel"
           >
-            {importing ? "Загрузка…" : "Excel инженера"}
+            {importing ? "Загрузка…" : "Загрузить Excel"}
           </button>
           <button
             type="button"
             disabled={enriching || pendingEnrich === 0}
             onClick={() => void handleEnrich()}
             className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
-            title="Проставить раздел и «где в ПД» по расшифровке. Пока агент не готов — кнопка скажет об этом."
+            title="Привязать строки инженера к расшифровке: раздел и место в ПД"
           >
-            {enriching ? "Обогащение…" : `Обогатить${pendingEnrich ? ` · ${pendingEnrich}` : ""}`}
+            {enriching ? "Обогащение…" : `К расшифровке${pendingEnrich ? ` · ${pendingEnrich}` : ""}`}
           </button>
+          {reviews.some((item) => item.verdict === "pending") ? (
+            <span
+              className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-slate-100 px-2.5 py-1.5 text-xs font-semibold text-slate-500"
+              title="Сначала проставьте важность и статус разбора у всех замечаний"
+            >
+              <IconDownload className="h-3.5 w-3.5" />
+              XLSX
+            </span>
+          ) : (
           <a
             href={`/api/projects/${projectId}/reviews/export`}
             className="inline-flex items-center gap-1.5 rounded-md bg-accent px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-[#1d4ed8]"
@@ -659,6 +603,7 @@ export function ReviewsTable({
             <IconDownload className="h-3.5 w-3.5" />
             XLSX
           </a>
+          )}
         </div>
       </header>
 
@@ -710,7 +655,7 @@ export function ReviewsTable({
             },
             {
               id: "both" as OriginFilter,
-              label: "совпало",
+              label: "ИИ и инженер",
             },
           ]}
         />
@@ -953,69 +898,6 @@ export function ReviewsTable({
           </table>
         )}
       </div>
-
-      <footer className="border-t border-border bg-surface px-3 py-2">
-        <div className="flex flex-wrap items-end gap-2">
-          <label className="flex flex-col gap-0.5">
-            <span className="text-[10px] uppercase tracking-wider text-muted">
-              Раздел
-            </span>
-            {/* Не список, а подсказка: у РД раздел бывает шифром тома. */}
-            <input
-              value={draftSection}
-              onChange={(event) => setDraftSection(event.target.value)}
-              list="review-sections"
-              placeholder="ИОС2 или 250910-ВА-Р-ОВ1"
-              className="w-40 rounded-md border border-border bg-white px-2 py-1.5 text-xs outline-none focus:border-accent"
-            />
-            <datalist id="review-sections">
-              {[...KNOWN_SECTIONS, CROSS_SECTION].map((section) => (
-                <option key={section} value={section} />
-              ))}
-            </datalist>
-          </label>
-          <label className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <span className="text-[10px] uppercase tracking-wider text-muted">
-              Своё замечание
-            </span>
-            <input
-              value={draftText}
-              onChange={(event) => setDraftText(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") void handleAdd();
-              }}
-              placeholder="Например: площадь застройки КПП не сходится с ведомостью"
-              className="w-full rounded-md border border-border bg-white px-2 py-1.5 text-xs outline-none placeholder:text-muted focus:border-accent"
-            />
-          </label>
-          <label className="flex flex-col gap-0.5">
-            <span className="text-[10px] uppercase tracking-wider text-muted">
-              Важность
-            </span>
-            <select
-              value={draftSeverity}
-              onChange={(event) =>
-                setDraftSeverity(event.target.value as ReviewSeverity)
-              }
-              className="rounded-md border border-border bg-white px-2 py-1.5 text-xs outline-none focus:border-accent"
-            >
-              {REVIEW_SEVERITY_ORDER.map((item) => (
-                <option key={item} value={item}>
-                  {REVIEW_SEVERITY_LABEL[item]}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            type="button"
-            onClick={() => void handleAdd()}
-            disabled={adding || draftText.trim().length === 0}
-            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-text hover:border-accent hover:text-accent disabled:opacity-50"
-          >
-            {adding ? "Добавляем…" : "Добавить"}
-          </button>
-        </div>
-      </footer>
 
       {wrongFor ? (
         <WrongDialog

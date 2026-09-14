@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Spinner } from "@/components/ui-chrome";
 import { ViewerHint } from "@/components/viewer-hint";
-import { ViewerMinimap } from "@/components/viewer-minimap";
 import { ViewerToolbar } from "@/components/viewer-toolbar";
 import { usePageViewport } from "@/hooks/use-page-viewport";
 import {
@@ -116,7 +115,6 @@ export function CadPage({
   const [zoomBox, setZoomBox] = useState<DrawState | null>(null);
   const [prefs, setPrefs] = useState(() => loadViewerPrefs());
   const [hintOn, setHintOn] = useState(() => shouldShowViewerHint(loadViewerPrefs()));
-  const [wrapSize, setWrapSize] = useState({ w: 0, h: 0 });
 
   const ready = !loading && Boolean(geometry || previewUrl);
   const texts = useMemo(
@@ -171,17 +169,6 @@ export function CadPage({
       }
     },
   });
-
-  useEffect(() => {
-    const wrap = wrapRef.current;
-    if (!wrap) return;
-    const ro = new ResizeObserver(() => {
-      setWrapSize({ w: wrap.clientWidth, h: wrap.clientHeight });
-    });
-    ro.observe(wrap);
-    setWrapSize({ w: wrap.clientWidth, h: wrap.clientHeight });
-    return () => ro.disconnect();
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -673,39 +660,6 @@ export function CadPage({
           </span>
         </div>
       ) : null}
-
-      <ViewerMinimap
-        natural={natural}
-        scale={viewport.scale}
-        pan={viewport.pan}
-        viewW={wrapSize.w}
-        viewH={wrapSize.h}
-        visible={prefs.minimap && ready && viewport.scale > viewport.fitScale * 1.2}
-        onJump={viewport.jumpToPagePoint}
-      >
-        {geometry && strokeGroups ? (
-          <svg viewBox={viewBox} className="h-full w-full bg-white">
-            <g transform="scale(1,-1)">
-              {[...strokeGroups].map(([key, parts]) => {
-                const [color] = key.split("|");
-                return (
-                  <path
-                    key={key}
-                    d={parts.join("")}
-                    fill="none"
-                    stroke={color}
-                    strokeWidth={0.4}
-                    vectorEffect="non-scaling-stroke"
-                  />
-                );
-              })}
-            </g>
-          </svg>
-        ) : previewUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={previewUrl} alt="" className="h-full w-full object-contain" />
-        ) : null}
-      </ViewerMinimap>
 
       <ViewerToolbar
         scale={viewport.scale}

@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { renderPdfThumb } from "@/lib/pdf-thumb";
 import { PaneToggle } from "@/components/ui-chrome";
-import { KIND_LABEL, type PageKind } from "@/types";
+import { SEVERITY_DOT, VERDICT_DOT } from "@/lib/review-colors";
+import { KIND_LABEL, type PageKind, type ReviewSeverity, type ReviewVerdict } from "@/types";
 
 type PageStripProps = {
   url: string;
@@ -13,6 +14,7 @@ type PageStripProps = {
   kinds: Map<number, PageKind>;
   edited: Set<number>;
   viewed: Set<number>;
+  pageDots?: Map<number, { severity: ReviewSeverity; verdict: ReviewVerdict }>;
   ready: Set<number>;
   annotated?: Set<number>;
   hidden?: Set<number>;
@@ -31,7 +33,8 @@ export function PageStrip({
   current,
   kinds,
   edited,
-  viewed,
+  viewed: _viewed,
+  pageDots,
   ready,
   annotated,
   hidden,
@@ -164,8 +167,8 @@ export function PageStrip({
           <PaneToggle
             expanded
             align="left"
-            expandLabel="Показать миниатюры"
-            collapseLabel="Скрыть миниатюры"
+            expandLabel="Показать список листов"
+            collapseLabel="Скрыть список листов"
             onToggle={onCollapse}
           />
         </div>
@@ -177,7 +180,7 @@ export function PageStrip({
       {pages.map((pageNumber) => {
         const kind = kinds.get(pageNumber);
         const isEdited = edited.has(pageNumber);
-        const isViewed = viewed.has(pageNumber);
+        const dots = pageDots?.get(pageNumber);
         const isReady = ready.has(pageNumber);
         const isFlagged = annotated?.has(pageNumber) ?? false;
         const isWorking = processingPage === pageNumber;
@@ -231,14 +234,25 @@ export function PageStrip({
                 ) : (
                   <span className="h-1.5 w-1.5 rounded-full bg-slate-300" title="Ждёт текст" />
                 )}
-                {isViewed ? (
-                  <span className="h-1.5 w-1.5 rounded-full bg-accent" title="Просмотрено" />
-                ) : null}
-                {isEdited ? (
+                {dots ? (
+                  <>
+                    <span
+                      className={`h-1.5 w-1.5 rounded-full ${SEVERITY_DOT[dots.severity]}`}
+                      title={`Важность: ${dots.severity}`}
+                    />
+                    <span
+                      className={`h-1.5 w-1.5 rounded-full ${VERDICT_DOT[dots.verdict]}`}
+                      title={
+                        dots.verdict === "pending"
+                          ? "Не разобрано"
+                          : "Разбор проставлен"
+                      }
+                    />
+                  </>
+                ) : isFlagged ? (
+                  <span className="h-1.5 w-1.5 rounded-full bg-red-500" title="Есть отметка" />
+                ) : isEdited ? (
                   <span className="h-1.5 w-1.5 rounded-full bg-amber-500" title="Лист правили" />
-                ) : null}
-                {isFlagged ? (
-                  <span className="h-1.5 w-1.5 rounded-full bg-red-500" title="Есть замечание" />
                 ) : null}
               </span>
             </div>

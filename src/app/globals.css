@@ -145,7 +145,8 @@ html[data-density="compact"] {
 }
 
 .markdown-body--table {
-  overflow-x: visible;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
 }
 
 .markdown-body--table table {
@@ -160,7 +161,7 @@ html[data-density="compact"] {
 
 .markdown-body th,
 .markdown-body td {
-  border: 1px solid var(--border);
+  border: 1px solid #94a3b8;
   border-top: none;
   border-left: none;
   padding: 7px 10px;
@@ -209,7 +210,7 @@ html[data-density="compact"] {
 }
 
 .markdown-body tbody tr:nth-child(even) td {
-  background: #f7f9fc;
+  background: #e8eef6;
 }
 
 .markdown-body tbody tr:hover td {

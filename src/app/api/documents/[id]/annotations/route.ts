@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { isPublicUser, requireUser } from "@/lib/auth";
-import { createAnnotation, listAnnotations } from "@/lib/storage";
+import { createReview } from "@/lib/reviews";
+import { createAnnotation, getDocument, listAnnotations } from "@/lib/storage";
 import type { AnnotationRect } from "@/types";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -35,16 +36,40 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Опишите, что неверно" }, { status: 400 });
   }
 
+  const document = await getDocument(id);
+  if (!document) {
+    return NextResponse.json({ error: "Документ не найден" }, { status: 404 });
+  }
+
+  const expected = (body.expected ?? "").trim();
   const annotation = await createAnnotation({
     documentId: id,
     pageNumber: body.pageNumber,
     rect: body.rect,
     comment,
-    expected: (body.expected ?? "").trim(),
+    expected,
     author: { userId: user.id, userName: user.displayName },
   });
   if (!annotation) {
     return NextResponse.json({ error: "Документ не найден" }, { status: 404 });
   }
-  return NextResponse.json({ annotation }, { status: 201 });
+
+  const text = expected ? `${comment}. Должно быть: ${expected}` : comment;
+  const review = await createReview(document.projectId, {
+    section: "",
+    text,
+    origin: "engineer",
+    locations: [
+      {
+        documentId: id,
+        documentName: document.originalName,
+        pageNumber: body.pageNumber,
+        quote: comment,
+      },
+    ],
+    authorId: user.id,
+    authorName: user.displayName,
+  });
+
+  return NextResponse.json({ annotation, review }, { status: 201 });
 }

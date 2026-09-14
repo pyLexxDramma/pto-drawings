@@ -17,7 +17,6 @@ export const KEYMAP: KeymapItem[] = [
   { group: "view", keys: "F", action: "Чертёж на весь экран" },
   { group: "sheets", keys: "J / PageDown / Fn+↓", action: "Следующий лист" },
   { group: "sheets", keys: "K / PageUp / Fn+↑", action: "Предыдущий лист" },
-  { group: "sheets", keys: "V", action: "Отметить лист просмотренным" },
   { group: "search", keys: "/ или Ctrl+F / ⌘F", action: "Поиск по файлу" },
   { group: "remarks", keys: "E", action: "Отметить ошибку / отменить разметку" },
   { group: "remarks", keys: "↑ ↓", action: "Предыдущее / следующее замечание" },

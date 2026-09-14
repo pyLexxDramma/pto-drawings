@@ -533,8 +533,19 @@ export function Workspace({
     setNotes(payload.annotations ?? []);
   }, []);
 
-  // Замечания проекта: счётчик этапа и метки по листам в расшифровке. Один
-  // запрос на проект, без поллинга.
+  const loadProjectReviews = useCallback(async (id: string, signal?: AbortSignal) => {
+    const response = await fetch(`/api/projects/${id}/reviews`, { signal });
+    if (!response.ok) return;
+    const payload = (await response.json()) as { reviews?: Review[] };
+    if (!payload.reviews) return;
+    setProjectReviews(payload.reviews);
+    setReviewStats({
+      total: payload.reviews.length,
+      pending: payload.reviews.filter((item) => item.verdict === "pending").length,
+    });
+  }, []);
+
+  // Замечания проекта: счётчик этапа и метки по листам в расшифровке.
   useEffect(() => {
     if (!projectId) {
       setReviewStats(null);
@@ -544,20 +555,9 @@ export function Workspace({
     const controller = new AbortController();
     setReviewStats(null);
     setProjectReviews([]);
-    fetch(`/api/projects/${projectId}/reviews`, { signal: controller.signal })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((payload: { reviews?: Review[] } | null) => {
-        if (!payload?.reviews) return;
-        setProjectReviews(payload.reviews);
-        setReviewStats({
-          total: payload.reviews.length,
-          pending: payload.reviews.filter((item) => item.verdict === "pending")
-            .length,
-        });
-      })
-      .catch(() => undefined);
+    void loadProjectReviews(projectId, controller.signal).catch(() => undefined);
     return () => controller.abort();
-  }, [projectId]);
+  }, [loadProjectReviews, projectId]);
 
   /**
    * Переход из таблицы: обычный клик — эта вкладка; Ctrl/средняя — новая.
@@ -2065,6 +2065,7 @@ export function Workspace({
               if (projectId) {
                 void loadNotes(projectId);
                 void loadDocuments(projectId);
+                void loadProjectReviews(projectId);
               }
             }}
           />

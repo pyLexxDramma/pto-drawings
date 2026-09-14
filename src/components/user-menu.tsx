@@ -89,8 +89,9 @@ export function UserMenu({
         </span>
         {compact ? null : (
           <span className="text-[11px] leading-tight">
-            <span className="block font-semibold text-slate-900">{role}</span>
-            <span className="block text-slate-500">{user.displayName}</span>
+            <span className="block font-semibold text-slate-900">
+              {user.displayName}
+            </span>
           </span>
         )}
         <span className="text-[10px] text-slate-500" aria-hidden>
