@@ -238,7 +238,7 @@ export function PageStrip({
               }
             }}
             onClick={() => onSelect(pageNumber)}
-            className={`mb-1.5 overflow-visible rounded-md border p-1 text-left transition-[opacity,transform,box-shadow] duration-150 ${
+            className={`mx-auto mb-1 w-[4.75rem] overflow-visible rounded-md border p-0.5 text-left transition-[opacity,transform,box-shadow] duration-150 ${
               current === pageNumber
                 ? "z-[1] scale-[1.02] border-accent bg-white shadow-[0_0_0_2px_rgba(37,99,235,0.25)]"
                 : isWorking
@@ -256,8 +256,8 @@ export function PageStrip({
                 className="h-full w-full object-contain"
               />
             </span>
-            <div className="mt-1 flex items-center justify-between gap-1">
-              <span className="text-[10px] font-medium">{pageNumber}</span>
+            <div className="mt-0.5 flex items-center justify-between gap-0.5">
+              <span className="text-[9px] font-medium">{pageNumber}</span>
               <span className="flex items-center gap-1 overflow-visible">
                 {isWorking ? (
                   <StatusDot
@@ -287,7 +287,7 @@ export function PageStrip({
                 ) : null}
               </span>
             </div>
-            <div className="truncate text-[9px] text-muted">
+            <div className="truncate text-[8px] text-muted">
               {kind ? KIND_LABEL[kind].toLowerCase() : isWorking ? "сейчас" : "лист"}
             </div>
           </button>

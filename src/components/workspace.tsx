@@ -1844,7 +1844,7 @@ export function Workspace({
                 ) : (
                   <div
                     key={project.id}
-                    className={`mb-1.5 rounded-md border-2 ${
+                    className={`mb-1 rounded-md border ${
                       project.id === projectId
                         ? "border-slate-500 bg-blue-50/80"
                         : "border-slate-300 bg-white hover:border-slate-400 hover:bg-surface-2"
@@ -1857,7 +1857,7 @@ export function Workspace({
                         onClick={() => {
                           void selectProject(project.id);
                         }}
-                        className={`min-w-0 flex-1 rounded-md px-2 py-1.5 text-left text-sm ${
+                        className={`min-w-0 flex-1 rounded-md px-1.5 py-1 text-left text-[11px] ${
                           project.id === projectId ? "text-text" : "text-muted hover:text-text"
                         }`}
                         title={`Открыть файлы проекта · создан ${formatDate(project.createdAt)}`}
@@ -1869,7 +1869,7 @@ export function Workspace({
                           </span>
                           <span className="min-w-0 flex-1 truncate font-medium">{project.name}</span>
                         </span>
-                        <span className="mt-0.5 block truncate pl-4 text-[10px] font-normal tabular-nums text-muted">
+                        <span className="mt-0.5 block truncate pl-3.5 text-[9px] font-normal tabular-nums text-muted">
                           {formatDate(project.createdAt)}
                         </span>
                       </button>
@@ -1898,12 +1898,13 @@ export function Workspace({
                       </div>
                     </div>
                     {project.id === projectId ? (
-                      <div className="border-t border-border/70 px-1.5 pb-2 pt-1" data-project-files>
+                      <div className="border-t border-border/70 px-1 pb-1.5 pt-1" data-project-files>
                         <label
                           htmlFor="pto-drawing-upload"
-                          className="mb-1.5 flex cursor-pointer items-center justify-center rounded-md bg-accent px-2 py-1.5 text-[11px] font-semibold text-white hover:bg-[#1d4ed8]"
+                          title={UPLOAD_BUTTON_LABEL}
+                          className="mb-1 flex cursor-pointer items-center justify-center rounded-md bg-accent px-1.5 py-1 text-[10px] font-semibold leading-tight text-white hover:bg-[#1d4ed8]"
                         >
-                          {UPLOAD_BUTTON_LABEL}
+                          Загрузить
                         </label>
                         {error ? (
                           <div className="mb-1 rounded bg-red-50 px-2 py-1 text-[10px] text-red-700">
@@ -1939,7 +1940,7 @@ export function Workspace({
                             <button
                               type="button"
                               onClick={() => void openDocument(doc.id)}
-                              className={`min-w-0 flex-1 rounded px-1.5 py-1 text-left text-[12px] ${
+                              className={`min-w-0 flex-1 rounded px-1 py-0.5 text-left text-[11px] ${
                                 selectedId === doc.id
                                   ? "font-medium text-text"
                                   : "text-muted hover:text-text"
@@ -1995,7 +1996,7 @@ export function Workspace({
                                   <Spinner className="h-2.5 w-2.5 shrink-0 text-sky-700" />
                                 ) : null}
                               </span>
-                              <span className="mt-0.5 block truncate pl-3 text-[10px] font-normal tabular-nums text-muted">
+                              <span className="mt-0.5 block truncate pl-3 text-[9px] font-normal tabular-nums text-muted">
                                 {[
                                   uploadedLabel,
                                   elapsedLabel
@@ -2054,7 +2055,7 @@ export function Workspace({
             {selected ? (
               <div
                 ref={setStripHost}
-                className="min-h-[9rem] flex-[1.15] overflow-hidden border-t border-border"
+                className="min-h-[6rem] flex-1 overflow-hidden border-t border-border"
               />
             ) : null}
           </aside>
