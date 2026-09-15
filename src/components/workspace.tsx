@@ -335,7 +335,7 @@ export function Workspace({
   const [uploadBusy, setUploadBusy] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [processingPaused, setProcessingPaused] = useState(false);
-  const [projectsWidth, setProjectsWidth] = useState(148);
+  const [projectsWidth, setProjectsWidth] = useState(222);
   /** Job обработки, переживает смену проекта. */
   const [liveJobDoc, setLiveJobDoc] = useState<DocumentRecord | null>(null);
   const [fullProgressVisible, setFullProgressVisible] = useState(false);
@@ -627,7 +627,9 @@ export function Workspace({
       if (!raw) return;
       const parsed = JSON.parse(raw) as { projects?: number; files?: number };
       if (typeof parsed.projects === "number") {
-        setProjectsWidth(clamp(parsed.projects, 128, 156));
+        setProjectsWidth(
+          clamp(parsed.projects <= 156 ? parsed.projects * 1.5 : parsed.projects, 192, 234),
+        );
       }
     } catch {
       // ignore
@@ -2076,7 +2078,7 @@ export function Workspace({
         {focusMode || showReviews || projectsCollapsed ? null : (
           <ColumnResizer
             className="hidden md:block"
-            onDelta={(dx) => setProjectsWidth((w) => clamp(w + dx, 128, 156))}
+            onDelta={(dx) => setProjectsWidth((w) => clamp(w + dx, 192, 234))}
           />
         )}
 

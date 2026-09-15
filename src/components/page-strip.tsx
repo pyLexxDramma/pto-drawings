@@ -238,7 +238,7 @@ export function PageStrip({
               }
             }}
             onClick={() => onSelect(pageNumber)}
-            className={`mx-auto mb-1 w-[4.75rem] overflow-visible rounded-md border p-0.5 text-left transition-[opacity,transform,box-shadow] duration-150 ${
+            className={`mb-1 w-full overflow-visible rounded-md border p-0.5 text-left transition-[opacity,transform,box-shadow] duration-150 ${
               current === pageNumber
                 ? "z-[1] scale-[1.02] border-accent bg-white shadow-[0_0_0_2px_rgba(37,99,235,0.25)]"
                 : isWorking
