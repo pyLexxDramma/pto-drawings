@@ -333,7 +333,7 @@ export function Workspace({
   const [pendingUploadMode, setPendingUploadMode] = useState<UploadMode>("files");
   const [uploadBusy, setUploadBusy] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [projectsWidth, setProjectsWidth] = useState(74);
+  const [projectsWidth, setProjectsWidth] = useState(148);
   /** Job обработки, переживает смену проекта. */
   const [liveJobDoc, setLiveJobDoc] = useState<DocumentRecord | null>(null);
   const [fullProgressVisible, setFullProgressVisible] = useState(false);
@@ -621,9 +621,7 @@ export function Workspace({
       if (!raw) return;
       const parsed = JSON.parse(raw) as { projects?: number; files?: number };
       if (typeof parsed.projects === "number") {
-        setProjectsWidth(
-          parsed.projects > 90 ? 74 : clamp(parsed.projects, 64, 90),
-        );
+        setProjectsWidth(clamp(parsed.projects, 128, 156));
       }
     } catch {
       // ignore
@@ -1788,7 +1786,7 @@ export function Workspace({
             className="flex min-h-0 shrink-0 flex-col border-b border-border bg-surface md:border-b-0"
             style={{ width: projectsWidth, maxWidth: "100%" }}
           >
-            <div className="flex items-start gap-1 border-b border-border px-1 py-1">
+            <div className="flex items-start gap-1 border-b border-border px-2 py-1.5">
               <div className="min-w-0 flex-1">
               {showNewProject || projects.length === 0 ? (
                 <form onSubmit={handleCreateProject} className="space-y-1">
@@ -2065,7 +2063,7 @@ export function Workspace({
         {focusMode || showReviews || projectsCollapsed ? null : (
           <ColumnResizer
             className="hidden md:block"
-            onDelta={(dx) => setProjectsWidth((w) => clamp(w + dx, 64, 90))}
+            onDelta={(dx) => setProjectsWidth((w) => clamp(w + dx, 128, 156))}
           />
         )}
 
