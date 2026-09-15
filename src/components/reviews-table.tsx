@@ -715,16 +715,6 @@ export function ReviewsTable({
           <div className="flex items-center justify-center gap-2 p-10 text-xs text-muted">
             <Spinner /> Загружаем замечания
           </div>
-        ) : visible.length === 0 ? (
-          <div className="p-10 text-center text-xs text-muted">
-            {reviews.length === 0 ? (
-              "Замечаний пока нет — конвейер их ещё не присылал. Можно добавить своё ниже."
-            ) : currentDocumentId ? (
-              "По этому файлу замечаний нет."
-            ) : (
-              "Под фильтры ничего не попало."
-            )}
-          </div>
         ) : (
           <table className="w-full border-collapse text-xs">
             <thead className="sticky top-0 z-10 bg-slate-100 text-left text-[10px] uppercase tracking-wider text-muted">
@@ -818,6 +808,20 @@ export function ReviewsTable({
               </tr>
             </thead>
             <tbody>
+              {visible.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={9}
+                    className="px-3 py-10 text-center text-xs text-muted"
+                  >
+                    {reviews.length === 0
+                      ? "Замечаний пока нет — конвейер их ещё не присылал. Можно добавить своё ниже."
+                      : currentDocumentId
+                        ? "По этому файлу замечаний нет."
+                        : "Под фильтры ничего не попало."}
+                  </td>
+                </tr>
+              ) : null}
               {groups.map((group) => (
                 <Fragment key={group.key}>
                   <tr>
