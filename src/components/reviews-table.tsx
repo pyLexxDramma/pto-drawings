@@ -157,7 +157,7 @@ export function ReviewsTable({
 }: {
   projectId: string;
   projectName: string;
-  /** Активный файл в проекте — для фильтра «Этот файл». */
+  /** Открытый файл: в таблице только его замечания. */
   currentDocumentId?: string | null;
   /** Имя активного файла — запасное сопоставление, если в локации нет documentId. */
   currentDocumentName?: string | null;
@@ -184,11 +184,6 @@ export function ReviewsTable({
   const [sectionFilter, setSectionFilter] = useState<string>("all");
   const [groupBy, setGroupBy] = useState<GroupBy>("section");
   const [originFilter, setOriginFilter] = useState<OriginFilter>("all");
-  // Зашли из конкретного файла — сразу показываем замечания по нему; чип
-  // подсвечен, чтобы фильтр было видно и можно было снять.
-  const [onlyCurrentFile, setOnlyCurrentFile] = useState(
-    Boolean(currentDocumentId),
-  );
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<"number" | "section" | "severity" | "verdict">(
     "number",
@@ -271,7 +266,6 @@ export function ReviewsTable({
     verdictFilter !== "all" ||
     originFilter !== "all" ||
     sectionFilter !== "all" ||
-    onlyCurrentFile ||
     query.trim().length > 0;
 
   const currentFileKey = useMemo(
@@ -289,11 +283,10 @@ export function ReviewsTable({
       if (verdictFilter === "done" && item.verdict === "pending") return false;
       if (originFilter !== "all" && item.origin !== originFilter) return false;
       if (sectionFilter !== "all" && item.section !== sectionFilter) return false;
-      if (onlyCurrentFile && currentDocumentId) {
+      if (currentDocumentId) {
         const onFile = item.locations.some(
           (loc) =>
             loc.documentId === currentDocumentId ||
-            // Локация без documentId — сравниваем по имени файла (с расширением и без).
             (!loc.documentId && fileNameKey(loc.documentName) === currentFileKey),
         );
         if (!onFile) return false;
@@ -313,7 +306,6 @@ export function ReviewsTable({
   }, [
     currentDocumentId,
     currentFileKey,
-    onlyCurrentFile,
     originFilter,
     query,
     reviews,
@@ -670,24 +662,6 @@ export function ReviewsTable({
             ]}
           />
         ) : null}
-        {currentDocumentId ? (
-          <button
-            type="button"
-            onClick={() => setOnlyCurrentFile((prev) => !prev)}
-            className={`rounded-md border px-2 py-1 text-[11px] ${
-              onlyCurrentFile
-                ? "border-emerald-600 bg-emerald-600 font-semibold text-white shadow-sm hover:bg-emerald-700"
-                : "border-border bg-white text-muted hover:text-text"
-            }`}
-            title={
-              onlyCurrentFile
-                ? "Показаны только замечания по этому файлу — нажмите, чтобы увидеть весь проект"
-                : "Показать только замечания по текущему файлу"
-            }
-          >
-            {onlyCurrentFile ? "Только этот файл ✓" : "Этот файл"}
-          </button>
-        ) : null}
         {filtersOn ? (
           <button
             type="button"
@@ -696,7 +670,6 @@ export function ReviewsTable({
               setVerdictFilter("all");
               setOriginFilter("all");
               setSectionFilter("all");
-              setOnlyCurrentFile(false);
               setQuery("");
             }}
             className="rounded-md border border-border bg-white px-2 py-1 text-[11px] text-muted hover:text-text"
@@ -788,17 +761,8 @@ export function ReviewsTable({
           <div className="p-10 text-center text-xs text-muted">
             {reviews.length === 0 ? (
               "Замечаний пока нет — конвейер их ещё не присылал. Можно добавить своё ниже."
-            ) : onlyCurrentFile ? (
-              <>
-                По этому файлу замечаний нет.{" "}
-                <button
-                  type="button"
-                  onClick={() => setOnlyCurrentFile(false)}
-                  className="font-medium text-accent underline decoration-dotted"
-                >
-                  Показать весь проект ({reviews.length})
-                </button>
-              </>
+            ) : currentDocumentId ? (
+              "По этому файлу замечаний нет."
             ) : (
               "Под фильтры ничего не попало."
             )}
