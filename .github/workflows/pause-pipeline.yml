@@ -27,35 +27,24 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          script_stop: true
+          script_stop: false
           command_timeout: 5m
           request_pty: true
           envs: PTO_APP_DIR
           script: |
-            set -euo pipefail
             APP_DIR="${PTO_APP_DIR:-/var/www/pto}"
             ENV_FILE="$APP_DIR/.env.local"
             echo "[pause] host $(hostname) dir $APP_DIR"
             mkdir -p "$APP_DIR"
-            touch "$ENV_FILE" || true
-            if grep -q '^PTO_PAUSE_PROCESSING=' "$ENV_FILE" 2>/dev/null; then
-              sed -i 's/^PTO_PAUSE_PROCESSING=.*/PTO_PAUSE_PROCESSING=1/' "$ENV_FILE" || true
-            else
-              printf '\nPTO_PAUSE_PROCESSING=1\n' >> "$ENV_FILE" || true
-            fi
+            touch "$ENV_FILE"
+            grep -q '^PTO_PAUSE_PROCESSING=' "$ENV_FILE" && sed -i 's/^PTO_PAUSE_PROCESSING=.*/PTO_PAUSE_PROCESSING=1/' "$ENV_FILE" || echo 'PTO_PAUSE_PROCESSING=1' >> "$ENV_FILE"
             echo "[pause] env set"
-            for unit in pto-pipeline pto-backend pto-work; do
-              systemctl stop "$unit" 2>/dev/null || true
-            done
-            if command -v docker >/dev/null 2>&1; then
-              docker ps --format '{{.Names}}' 2>/dev/null | grep -Ei 'pto|pipeline|backend|pto-work' || true
-              docker ps --format '{{.Names}}' 2>/dev/null | grep -Ei 'pto|pipeline|backend|pto-work' | while read -r name; do
-                echo "[pause] docker stop $name"
-                docker stop "$name" || true
-              done || true
-            fi
+            systemctl stop pto-pipeline || true
+            systemctl stop pto-backend || true
+            systemctl stop pto-work || true
+            docker ps --format '{{.Names}}' | grep -Ei 'pto|pipeline|backend|pto-work' | xargs -r docker stop || true
             systemctl restart pto || true
             systemctl is-active pto || true
-            echo "[pause] free:"; free -h
+            free -h
         env:
           PTO_APP_DIR: ${{ secrets.VPS_APP_DIR }}
