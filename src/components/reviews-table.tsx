@@ -8,8 +8,16 @@ import {
   useRef,
   useState,
 } from "react";
+import { ExcelColFilter } from "@/components/excel-col-filter";
 import { SegmentedTabs, Spinner } from "@/components/ui-chrome";
 import { IconDownload } from "@/components/tool-icons";
+import {
+  applyExcelFilters,
+  excelColValues,
+  excelUniqueValues,
+  type ExcelCol,
+  type ExcelColFilters,
+} from "@/lib/excel-filter";
 import {
   SEVERITY_CHIP,
   SEVERITY_ROW,
@@ -54,10 +62,6 @@ const WRONG_TAGS = [
   "Не наша зона ответственности",
 ];
 
-type SeverityFilter = "all" | ReviewSeverity;
-type VerdictFilter = "all" | "pending" | "done";
-type OriginFilter = "all" | ReviewOrigin;
-
 /** Потоки не смешиваются: находки конвейера и замечания инженеров различимы. */
 const ORIGIN_CHIP: Record<ReviewOrigin, string> = {
   ai: "border-violet-300 bg-violet-50 text-violet-900",
@@ -97,46 +101,6 @@ function highlight(text: string, needle: string) {
         {part.match}
       </mark>
     ),
-  );
-}
-
-/**
- * Компактный фильтр вместо ряда вкладок: над таблицей их четыре, вкладками
- * они занимали всю полосу и мешали читать сами замечания.
- */
-function FilterSelect<T extends string>({
-  label,
-  value,
-  onChange,
-  options,
-}: {
-  label: string;
-  value: T;
-  onChange: (value: T) => void;
-  options: { id: T; label: string }[];
-}) {
-  const active = value !== "all";
-  return (
-    <label
-      className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] ${
-        active
-          ? "border-accent/60 bg-accent/5 text-text"
-          : "border-border bg-white text-muted"
-      }`}
-    >
-      <span>{label}</span>
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value as T)}
-        className="max-w-[8rem] bg-transparent text-[11px] font-medium text-text outline-none"
-      >
-        {options.map((option) => (
-          <option key={option.id} value={option.id}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </label>
   );
 }
 
@@ -184,15 +148,10 @@ export function ReviewsTable({
   /** Строка, по которой открыто окно «что именно неверно». */
   const [wrongFor, setWrongFor] = useState<Review | null>(null);
   const [logFor, setLogFor] = useState<Review | null>(null);
-  const [severityFilter, setSeverityFilter] = useState<SeverityFilter>("all");
-  const [verdictFilter, setVerdictFilter] = useState<VerdictFilter>("all");
-  const [sectionFilter, setSectionFilter] = useState<string>("all");
   const [groupBy, setGroupBy] = useState<GroupBy>("section");
-  const [originFilter, setOriginFilter] = useState<OriginFilter>("all");
+  const [colFilters, setColFilters] = useState<ExcelColFilters>({});
   const [query, setQuery] = useState("");
-  const [sortKey, setSortKey] = useState<"number" | "section" | "severity" | "verdict">(
-    "number",
-  );
+  const [sortKey, setSortKey] = useState<ExcelCol>("number");
   const [sortDir, setSortDir] = useState<1 | -1>(1);
   const [picked, setPicked] = useState<string[]>([]);
   const [importing, setImporting] = useState(false);
@@ -264,44 +223,28 @@ export function ReviewsTable({
     void load().catch(() => undefined);
   }, [load, refreshToken]);
 
-  const sections = useMemo(() => {
-    const seen: string[] = [];
-    for (const item of reviews) {
-      if (!seen.includes(item.section)) seen.push(item.section);
-    }
-    return seen;
-  }, [reviews]);
-
   const filtersOn =
-    severityFilter !== "all" ||
-    verdictFilter !== "all" ||
-    originFilter !== "all" ||
-    sectionFilter !== "all" ||
-    query.trim().length > 0;
+    Object.keys(colFilters).length > 0 || query.trim().length > 0;
 
   const currentFileKey = useMemo(
     () => fileNameKey(currentDocumentName),
     [currentDocumentName],
   );
 
+  const scoped = useMemo(() => {
+    if (!currentDocumentId) return reviews;
+    return reviews.filter((item) =>
+      item.locations.some(
+        (loc) =>
+          loc.documentId === currentDocumentId ||
+          (!loc.documentId && fileNameKey(loc.documentName) === currentFileKey),
+      ),
+    );
+  }, [currentDocumentId, currentFileKey, reviews]);
+
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    return reviews.filter((item) => {
-      if (severityFilter !== "all" && item.severity !== severityFilter) {
-        return false;
-      }
-      if (verdictFilter === "pending" && item.verdict !== "pending") return false;
-      if (verdictFilter === "done" && item.verdict === "pending") return false;
-      if (originFilter !== "all" && item.origin !== originFilter) return false;
-      if (sectionFilter !== "all" && item.section !== sectionFilter) return false;
-      if (currentDocumentId) {
-        const onFile = item.locations.some(
-          (loc) =>
-            loc.documentId === currentDocumentId ||
-            (!loc.documentId && fileNameKey(loc.documentName) === currentFileKey),
-        );
-        if (!onFile) return false;
-      }
+    return applyExcelFilters(scoped, colFilters).filter((item) => {
       if (!needle) return true;
       const haystack = [
         item.text,
@@ -314,16 +257,22 @@ export function ReviewsTable({
         .toLowerCase();
       return haystack.includes(needle);
     });
-  }, [
-    currentDocumentId,
-    currentFileKey,
-    originFilter,
-    query,
-    reviews,
-    sectionFilter,
-    severityFilter,
-    verdictFilter,
-  ]);
+  }, [colFilters, query, scoped]);
+
+  const filterValues = useMemo(() => {
+    const cols: ExcelCol[] = [
+      "number",
+      "section",
+      "text",
+      "place",
+      "severity",
+      "verdict",
+      "comment",
+    ];
+    return Object.fromEntries(
+      cols.map((col) => [col, excelUniqueValues(scoped, col, colFilters)]),
+    ) as Record<ExcelCol, string[]>;
+  }, [colFilters, scoped]);
 
   /** Разбор идёт построчно, поэтому счётчик «сколько осталось» всегда на виду. */
   const stats = useMemo(() => {
@@ -366,27 +315,11 @@ export function ReviewsTable({
   }, [onStatsChange, stats.pending, stats.total]);
 
   const sorted = useMemo(() => {
-    const rankSev: Record<ReviewSeverity, number> = {
-      high: 0,
-      medium: 1,
-      low: 2,
-      skip: 3,
-    };
-    const rankVer: Record<ReviewVerdict, number> = {
-      pending: 0,
-      discuss: 1,
-      partial: 2,
-      confirmed: 3,
-      outdated: 4,
-      wrong: 5,
-    };
     return [...visible].sort((a, b) => {
-      let cmp = 0;
-      if (sortKey === "number") cmp = a.number - b.number;
-      if (sortKey === "section") cmp = a.section.localeCompare(b.section, "ru");
-      if (sortKey === "severity") cmp = rankSev[a.severity] - rankSev[b.severity];
-      if (sortKey === "verdict") cmp = rankVer[a.verdict] - rankVer[b.verdict];
-      return cmp * sortDir;
+      if (sortKey === "number") return (a.number - b.number) * sortDir;
+      const left = excelColValues(a, sortKey)[0] ?? "";
+      const right = excelColValues(b, sortKey)[0] ?? "";
+      return left.localeCompare(right, "ru", { numeric: true }) * sortDir;
     });
   }, [sortDir, sortKey, visible]);
 
@@ -395,12 +328,18 @@ export function ReviewsTable({
     sorted,
   ]);
 
-  function toggleSort(key: typeof sortKey) {
-    if (sortKey === key) setSortDir((dir) => (dir === 1 ? -1 : 1));
-    else {
-      setSortKey(key);
-      setSortDir(1);
-    }
+  function sortBy(key: ExcelCol, dir: 1 | -1) {
+    setSortKey(key);
+    setSortDir(dir);
+  }
+
+  function applyColFilter(col: ExcelCol, next: string[] | null) {
+    setColFilters((prev) => {
+      const copy = { ...prev };
+      if (!next) delete copy[col];
+      else copy[col] = next;
+      return copy;
+    });
   }
 
   const patch = useCallback(
@@ -484,7 +423,7 @@ export function ReviewsTable({
         throw new Error(payload.error ?? "Не удалось импортировать");
       }
       await load();
-      setOriginFilter("engineer");
+      setColFilters({});
       setError(null);
       const added = payload.added ?? 0;
       const skipped = payload.skipped ?? 0;
@@ -681,73 +620,20 @@ export function ReviewsTable({
             { id: "file" as GroupBy, label: "По файлам" },
           ]}
         />
-        <FilterSelect
-          label="Важность"
-          value={severityFilter}
-          onChange={setSeverityFilter}
-          options={[
-            { id: "all" as SeverityFilter, label: "любая" },
-            ...REVIEW_SEVERITY_ORDER.map((item) => ({
-              id: item as SeverityFilter,
-              label: REVIEW_SEVERITY_LABEL[item].toLowerCase(),
-            })),
-          ]}
-        />
-        <FilterSelect
-          label="Статус разбора"
-          value={verdictFilter}
-          onChange={setVerdictFilter}
-          options={[
-            { id: "all" as VerdictFilter, label: "любой" },
-            { id: "pending" as VerdictFilter, label: "не разобрано" },
-            { id: "done" as VerdictFilter, label: "разобрано" },
-          ]}
-        />
-        <FilterSelect
-          label="Источник"
-          value={originFilter}
-          onChange={setOriginFilter}
-          options={[
-            { id: "all" as OriginFilter, label: "оба" },
-            {
-              id: "ai" as OriginFilter,
-              label: "нашла ИИ",
-            },
-            {
-              id: "engineer" as OriginFilter,
-              label: "инженер",
-            },
-            {
-              id: "both" as OriginFilter,
-              label: "ИИ и инженер",
-            },
-          ]}
-        />
-        {sections.length > 1 ? (
-          <FilterSelect
-            label="Раздел"
-            value={sectionFilter}
-            onChange={setSectionFilter}
-            options={[
-              { id: "all", label: "все" },
-              ...sections.map((section) => ({ id: section, label: section })),
-            ]}
-          />
-        ) : null}
+        <span className="text-[11px] text-muted">
+          Фильтры — стрелка на колонке, как в Excel
+        </span>
         {filtersOn ? (
           <button
             type="button"
             onClick={() => {
-              setSeverityFilter("all");
-              setVerdictFilter("all");
-              setOriginFilter("all");
-              setSectionFilter("all");
+              setColFilters({});
               setQuery("");
             }}
             className="rounded-md border border-border bg-white px-2 py-1 text-[11px] text-muted hover:text-text"
             title="Показать все замечания"
           >
-            Сбросить
+            Сбросить фильтры
           </button>
         ) : null}
         <span className="text-[11px] tabular-nums text-muted">
@@ -858,79 +744,75 @@ export function ReviewsTable({
                     }}
                   />
                 </th>
-                <th className="w-10 border-b border-border px-2 py-1.5 font-medium">
-                  <button type="button" onClick={() => toggleSort("number")}>
-                    №{sortKey === "number" ? (sortDir === 1 ? " ↑" : " ↓") : ""}
-                  </button>
+                <th className="w-14 border-b border-border px-2 py-1.5 font-medium normal-case tracking-normal">
+                  <ExcelColFilter
+                    label="№"
+                    values={filterValues.number}
+                    selected={colFilters.number ?? null}
+                    sortDir={sortKey === "number" ? sortDir : null}
+                    onSort={(dir) => sortBy("number", dir)}
+                    onApply={(next) => applyColFilter("number", next)}
+                  />
                 </th>
-                <th className="w-24 border-b border-border px-2 py-1.5 font-medium">
-                  <button type="button" onClick={() => toggleSort("section")}>
-                    Раздел{sortKey === "section" ? (sortDir === 1 ? " ↑" : " ↓") : ""}
-                  </button>
-                  {sections.length > 0 ? (
-                    <select
-                      value={sectionFilter}
-                      aria-label="Фильтр раздела"
-                      onChange={(event) => setSectionFilter(event.target.value)}
-                      onClick={(event) => event.stopPropagation()}
-                      className="mt-0.5 block w-full bg-white text-[10px] font-normal normal-case tracking-normal text-text"
-                    >
-                      <option value="all">все</option>
-                      {sections.map((section) => (
-                        <option key={section} value={section}>
-                          {section || "без раздела"}
-                        </option>
-                      ))}
-                    </select>
-                  ) : null}
+                <th className="w-28 border-b border-border px-2 py-1.5 font-medium normal-case tracking-normal">
+                  <ExcelColFilter
+                    label="Раздел"
+                    values={filterValues.section}
+                    selected={colFilters.section ?? null}
+                    sortDir={sortKey === "section" ? sortDir : null}
+                    onSort={(dir) => sortBy("section", dir)}
+                    onApply={(next) => applyColFilter("section", next)}
+                  />
                 </th>
-                <th className="border-b border-border px-2 py-1.5 font-medium">
-                  Замечание
+                <th className="border-b border-border px-2 py-1.5 font-medium normal-case tracking-normal">
+                  <ExcelColFilter
+                    label="Замечание"
+                    values={filterValues.text}
+                    selected={colFilters.text ?? null}
+                    sortDir={sortKey === "text" ? sortDir : null}
+                    onSort={(dir) => sortBy("text", dir)}
+                    onApply={(next) => applyColFilter("text", next)}
+                  />
                 </th>
-                <th className="w-64 border-b border-border px-2 py-1.5 font-medium">
-                  Где в ПД
+                <th className="w-64 border-b border-border px-2 py-1.5 font-medium normal-case tracking-normal">
+                  <ExcelColFilter
+                    label="Где в ПД"
+                    values={filterValues.place}
+                    selected={colFilters.place ?? null}
+                    sortDir={sortKey === "place" ? sortDir : null}
+                    onSort={(dir) => sortBy("place", dir)}
+                    onApply={(next) => applyColFilter("place", next)}
+                  />
                 </th>
-                <th className="w-28 border-b border-border px-2 py-1.5 font-medium">
-                  <button type="button" onClick={() => toggleSort("severity")}>
-                    Важность{sortKey === "severity" ? (sortDir === 1 ? " ↑" : " ↓") : ""}
-                  </button>
-                  <select
-                    value={severityFilter}
-                    aria-label="Фильтр важности"
-                    onChange={(event) =>
-                      setSeverityFilter(event.target.value as SeverityFilter)
-                    }
-                    onClick={(event) => event.stopPropagation()}
-                    className="mt-0.5 block w-full bg-white text-[10px] font-normal normal-case tracking-normal text-text"
-                  >
-                    <option value="all">любая</option>
-                    {REVIEW_SEVERITY_ORDER.map((item) => (
-                      <option key={item} value={item}>
-                        {REVIEW_SEVERITY_LABEL[item]}
-                      </option>
-                    ))}
-                  </select>
+                <th className="w-32 border-b border-border px-2 py-1.5 font-medium normal-case tracking-normal">
+                  <ExcelColFilter
+                    label="Важность"
+                    values={filterValues.severity}
+                    selected={colFilters.severity ?? null}
+                    sortDir={sortKey === "severity" ? sortDir : null}
+                    onSort={(dir) => sortBy("severity", dir)}
+                    onApply={(next) => applyColFilter("severity", next)}
+                  />
                 </th>
-                <th className="w-32 border-b border-border px-2 py-1.5 font-medium">
-                  <button type="button" onClick={() => toggleSort("verdict")}>
-                    Статус{sortKey === "verdict" ? (sortDir === 1 ? " ↑" : " ↓") : ""}
-                  </button>
-                  <select
-                    value={verdictFilter}
-                    aria-label="Фильтр статуса"
-                    onChange={(event) =>
-                      setVerdictFilter(event.target.value as VerdictFilter)
-                    }
-                    onClick={(event) => event.stopPropagation()}
-                    className="mt-0.5 block w-full bg-white text-[10px] font-normal normal-case tracking-normal text-text"
-                  >
-                    <option value="all">любой</option>
-                    <option value="pending">не разобрано</option>
-                    <option value="done">разобрано</option>
-                  </select>
+                <th className="w-36 border-b border-border px-2 py-1.5 font-medium normal-case tracking-normal">
+                  <ExcelColFilter
+                    label="Статус"
+                    values={filterValues.verdict}
+                    selected={colFilters.verdict ?? null}
+                    sortDir={sortKey === "verdict" ? sortDir : null}
+                    onSort={(dir) => sortBy("verdict", dir)}
+                    onApply={(next) => applyColFilter("verdict", next)}
+                  />
                 </th>
-                <th className="w-48 border-b border-border px-2 py-1.5 font-medium">
-                  Комментарий
+                <th className="w-48 border-b border-border px-2 py-1.5 font-medium normal-case tracking-normal">
+                  <ExcelColFilter
+                    label="Комментарий"
+                    values={filterValues.comment}
+                    selected={colFilters.comment ?? null}
+                    sortDir={sortKey === "comment" ? sortDir : null}
+                    onSort={(dir) => sortBy("comment", dir)}
+                    onApply={(next) => applyColFilter("comment", next)}
+                  />
                 </th>
                 <th className="w-8 border-b border-border px-1 py-1.5" />
               </tr>
