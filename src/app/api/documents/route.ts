@@ -7,7 +7,11 @@ import {
   isDrawingFile,
   resolveDisplayName,
 } from "@/lib/drawing-files";
-import { processDocument, reconcileOrphanedJobs } from "@/lib/process-document";
+import {
+  isProcessingPaused,
+  processDocument,
+  reconcileOrphanedJobs,
+} from "@/lib/process-document";
 import { listDocuments, saveDocument } from "@/lib/storage";
 
 export const maxDuration = 60;
@@ -23,7 +27,7 @@ export async function GET(request: Request) {
   await reconcileOrphanedJobs();
   const documents = await listDocuments(projectId, { lite });
   return NextResponse.json(
-    { documents },
+    { documents, processingPaused: isProcessingPaused() },
     {
       headers: {
         "Cache-Control": "private, max-age=0, must-revalidate",

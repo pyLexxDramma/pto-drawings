@@ -55,6 +55,7 @@ import {
   type PipelineHealth,
 } from "@/lib/pipeline";
 import { UploadDialog, type UploadDialogResult } from "@/components/upload-dialog";
+import { assessPageRisk } from "@/lib/file-risk";
 import { saveRemarkJump, takeRemarkJump, clearRemarkJump } from "@/lib/remark-jump";
 import {
   DRAWING_ACCEPT,
@@ -333,6 +334,7 @@ export function Workspace({
   const [pendingUploadMode, setPendingUploadMode] = useState<UploadMode>("files");
   const [uploadBusy, setUploadBusy] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [processingPaused, setProcessingPaused] = useState(false);
   const [projectsWidth, setProjectsWidth] = useState(148);
   /** Job обработки, переживает смену проекта. */
   const [liveJobDoc, setLiveJobDoc] = useState<DocumentRecord | null>(null);
@@ -453,7 +455,11 @@ export function Workspace({
       { signal },
     );
     if (!response.ok) return [];
-    const payload = (await response.json()) as { documents: DocumentRecord[] };
+    const payload = (await response.json()) as {
+      documents: DocumentRecord[];
+      processingPaused?: boolean;
+    };
+    setProcessingPaused(Boolean(payload.processingPaused));
     const list = payload.documents ?? [];
     setDocuments((prev) => {
       const prevById = new Map(prev.map((doc) => [doc.id, doc]));
@@ -1331,6 +1337,12 @@ export function Workspace({
   }
 
   async function handleRetry(id: string, reset = true) {
+    const doc = documents.find((item) => item.id === id);
+    const risk = assessPageRisk(doc?.pageCount ?? 0);
+    if (risk.level !== "ok") {
+      const ok = window.confirm(`${risk.title}\n\n${risk.detail}\n\nВсё равно обработать?`);
+      if (!ok) return;
+    }
     const response = await fetch(`/api/documents/${id}/process`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -2247,6 +2259,7 @@ export function Workspace({
         defaultProjectId={projectId}
         busy={uploadBusy}
         error={uploadError}
+        processingPaused={processingPaused}
         onClose={() => {
           if (uploadBusy) return;
           setPendingUploadFiles(null);

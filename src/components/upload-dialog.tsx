@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { UPLOAD_HELP_LINES } from "@/lib/drawing-files";
+import { assessUploadRisk } from "@/lib/file-risk";
 import type { Project } from "@/types";
 
 export type UploadDialogResult = {
@@ -21,6 +22,7 @@ type UploadDialogProps = {
   defaultProjectId: string;
   busy?: boolean;
   error?: string | null;
+  processingPaused?: boolean;
   onClose: () => void;
   onConfirm: (result: UploadDialogResult) => void;
 };
@@ -44,6 +46,7 @@ export function UploadDialog({
   defaultProjectId,
   busy = false,
   error = null,
+  processingPaused = false,
   onClose,
   onConfirm,
 }: UploadDialogProps) {
@@ -51,6 +54,8 @@ export function UploadDialog({
   const [projectId, setProjectId] = useState("");
   const [mode, setMode] = useState<"existing" | "create">("existing");
   const [newProjectName, setNewProjectName] = useState("");
+  const [acceptRisk, setAcceptRisk] = useState(false);
+  const risk = useMemo(() => assessUploadRisk(files), [files]);
 
   useEffect(() => {
     if (!open) return;
@@ -62,6 +67,7 @@ export function UploadDialog({
     setProjectId(initial);
     setMode(projects.length === 0 ? "create" : "existing");
     setNewProjectName("");
+    setAcceptRisk(false);
   }, [open, files, projects, defaultProjectId, uploadMode]);
 
   if (!open || files.length === 0) return null;
@@ -232,6 +238,37 @@ export function UploadDialog({
             )}
           </div>
 
+          {processingPaused ? (
+            <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-950">
+              Обработка сейчас выключена: сервер не тянет конвейер. Файл
+              сохранится, расшифровка не запустится.
+            </div>
+          ) : null}
+
+          {risk.level !== "ok" ? (
+            <div
+              className={`rounded-md border px-3 py-2 text-xs leading-relaxed ${
+                risk.level === "danger"
+                  ? "border-rose-300 bg-rose-50 text-rose-950"
+                  : "border-amber-300 bg-amber-50 text-amber-950"
+              }`}
+            >
+              <div className="font-semibold">{risk.title}</div>
+              <div className="mt-1">{risk.detail}</div>
+              {risk.level === "danger" ? (
+                <label className="mt-2 flex items-start gap-2">
+                  <input
+                    type="checkbox"
+                    checked={acceptRisk}
+                    onChange={(event) => setAcceptRisk(event.target.checked)}
+                    className="mt-0.5"
+                  />
+                  <span>Понимаю: сервер может упасть, контейнер не справится</span>
+                </label>
+              ) : null}
+            </div>
+          ) : null}
+
           {error ? (
             <div className="rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
               {error}
@@ -242,6 +279,7 @@ export function UploadDialog({
             type="submit"
             disabled={
               busy ||
+              (risk.level === "danger" && !acceptRisk) ||
               (mode === "existing" ? !projectId : !newProjectName.trim())
             }
             className="w-full rounded-md bg-accent px-3 py-2.5 text-sm font-medium text-white hover:bg-[#1d4ed8] disabled:opacity-60"
