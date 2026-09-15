@@ -9,11 +9,11 @@ import {
   kitLabelFromName,
 } from "@/lib/drawing-kit";
 import { processDocument, reconcileOrphanedJobs } from "@/lib/process-document";
+import { MAX_UPLOAD_BYTES } from "@/lib/file-risk";
 import { listDocuments, saveDocument, saveDocumentKit } from "@/lib/storage";
 
 export const maxDuration = 120;
 
-const MAX_BYTES = 80 * 1024 * 1024;
 
 export async function POST(request: Request) {
   const user = await requireUser(request);
@@ -37,8 +37,14 @@ export async function POST(request: Request) {
 
   try {
     if (zip instanceof File && isZipFile(zip)) {
-      if (zip.size > MAX_BYTES) {
-        return NextResponse.json({ error: "Архив больше 80 МБ" }, { status: 400 });
+      if (zip.size > MAX_UPLOAD_BYTES) {
+        return NextResponse.json(
+          {
+            error:
+              "Архив больше 20 МБ. Пока нельзя: сервер падает, конвейер не справляется.",
+          },
+          { status: 400 },
+        );
       }
       if (!kitLabel) kitLabel = kitLabelFromName(zip.name);
       const entries = extractDrawingFilesFromZip(
@@ -95,9 +101,12 @@ export async function POST(request: Request) {
           { status: 400 },
         );
       }
-      if (pdfFile.size + cadFile.size > MAX_BYTES) {
+      if (pdfFile.size + cadFile.size > MAX_UPLOAD_BYTES) {
         return NextResponse.json(
-          { error: "Суммарный размер больше 80 МБ" },
+          {
+            error:
+              "Суммарный размер больше 20 МБ. Пока нельзя: сервер падает, конвейер не справляется.",
+          },
           { status: 400 },
         );
       }

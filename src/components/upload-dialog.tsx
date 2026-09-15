@@ -54,7 +54,6 @@ export function UploadDialog({
   const [projectId, setProjectId] = useState("");
   const [mode, setMode] = useState<"existing" | "create">("existing");
   const [newProjectName, setNewProjectName] = useState("");
-  const [acceptRisk, setAcceptRisk] = useState(false);
   const risk = useMemo(() => assessUploadRisk(files), [files]);
 
   useEffect(() => {
@@ -67,14 +66,13 @@ export function UploadDialog({
     setProjectId(initial);
     setMode(projects.length === 0 ? "create" : "existing");
     setNewProjectName("");
-    setAcceptRisk(false);
   }, [open, files, projects, defaultProjectId, uploadMode]);
 
   if (!open || files.length === 0) return null;
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    if (busy) return;
+    if (busy || risk.level === "danger") return;
     const displayTitle = title.trim() || defaultTitle(files, uploadMode);
     if (mode === "create") {
       const name = newProjectName.trim();
@@ -255,17 +253,6 @@ export function UploadDialog({
             >
               <div className="font-semibold">{risk.title}</div>
               <div className="mt-1">{risk.detail}</div>
-              {risk.level === "danger" ? (
-                <label className="mt-2 flex items-start gap-2">
-                  <input
-                    type="checkbox"
-                    checked={acceptRisk}
-                    onChange={(event) => setAcceptRisk(event.target.checked)}
-                    className="mt-0.5"
-                  />
-                  <span>Понимаю: сервер может упасть, контейнер не справится</span>
-                </label>
-              ) : null}
             </div>
           ) : null}
 
@@ -279,7 +266,7 @@ export function UploadDialog({
             type="submit"
             disabled={
               busy ||
-              (risk.level === "danger" && !acceptRisk) ||
+              risk.level === "danger" ||
               (mode === "existing" ? !projectId : !newProjectName.trim())
             }
             className="w-full rounded-md bg-accent px-3 py-2.5 text-sm font-medium text-white hover:bg-[#1d4ed8] disabled:opacity-60"

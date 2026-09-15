@@ -1,6 +1,8 @@
 /** Пороги под текущий VPS: 4 ГБ на сайт + конвейер. */
 export const FILE_RISK_WARN_BYTES = 8 * 1024 * 1024;
+/** Жёсткий потолок загрузки, пока конвейер на той же машине. */
 export const FILE_RISK_DANGER_BYTES = 20 * 1024 * 1024;
+export const MAX_UPLOAD_BYTES = FILE_RISK_DANGER_BYTES;
 export const FILE_RISK_WARN_PAGES = 8;
 export const FILE_RISK_DANGER_PAGES = 16;
 
@@ -26,13 +28,13 @@ function formatMb(bytes: number) {
 export function assessUploadRisk(files: File[]): FileRisk {
   const bytes = files.reduce((sum, file) => sum + file.size, 0);
   const megabytes = mb(bytes);
-  if (bytes >= FILE_RISK_DANGER_BYTES) {
+  if (bytes > FILE_RISK_DANGER_BYTES) {
     return {
       level: "danger",
       megabytes,
       pages: null,
-      title: "Файл слишком большой для этого сервера",
-      detail: `Размер ${formatMb(bytes)}. Конвейер и сайт делят 4 ГБ. Такой файл контейнер часто не тянет: обработка падает и роняет весь сайт.`,
+      title: "Файл больше 20 МБ — загрузка закрыта",
+      detail: `Размер ${formatMb(bytes)}. Пока конвейер на этом сервере, такие файлы роняют сайт. Возьмите файл меньше 20 МБ.`,
     };
   }
   if (bytes >= FILE_RISK_WARN_BYTES) {

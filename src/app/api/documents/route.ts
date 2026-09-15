@@ -12,11 +12,11 @@ import {
   processDocument,
   reconcileOrphanedJobs,
 } from "@/lib/process-document";
+import { MAX_UPLOAD_BYTES } from "@/lib/file-risk";
 import { listDocuments, saveDocument } from "@/lib/storage";
 
 export const maxDuration = 60;
 
-const MAX_BYTES = 80 * 1024 * 1024;
 
 export async function GET(request: Request) {
   const user = await requireUser(request);
@@ -66,8 +66,14 @@ export async function POST(request: Request) {
     );
   }
 
-  if (file.size > MAX_BYTES) {
-    return NextResponse.json({ error: "Файл больше 80 МБ" }, { status: 400 });
+  if (file.size > MAX_UPLOAD_BYTES) {
+    return NextResponse.json(
+      {
+        error:
+          "Файл больше 20 МБ. Пока нельзя: сервер падает, конвейер не справляется.",
+      },
+      { status: 400 },
+    );
   }
 
   const displayName = resolveDisplayName(titleRaw, file.name);
