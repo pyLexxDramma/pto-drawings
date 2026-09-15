@@ -47,6 +47,7 @@ import { LiveProgressDock } from "@/components/processing-progress-panel";
 import {
   collectProcessingAlerts,
   processingFailed,
+  processingFailureReason,
 } from "@/lib/processing-alerts";
 import {
   formatElapsed,
@@ -348,6 +349,9 @@ export function Workspace({
   /** Лист открыт из таблицы замечаний (в т.ч. новая вкладка) — «Назад» ведёт туда. */
   const [navFromReviews, setNavFromReviews] = useState(false);
   const [projectReviews, setProjectReviews] = useState<Review[]>([]);
+  const [reviewsEpoch, setReviewsEpoch] = useState(0);
+  const [sheetBackHint, setSheetBackHint] = useState<string | null>(null);
+  const consumeSheetBackRef = useRef<(() => boolean) | null>(null);
   /** Прогресс-бары этапов открыты: сразу видно, где проект встал. */
   const [documentsProjectId, setDocumentsProjectId] = useState<string | null>(
     null,
@@ -1535,8 +1539,9 @@ export function Workspace({
     setProjectsCollapsed(false);
   }, []);
 
-  /** На шаг назад: замечания ← лист ← таблица ← главная проекта. */
+  /** На шаг назад: поиск/пометка ← замечания ← лист ← таблица ← главная проекта. */
   const goBack = useCallback(() => {
+    if (consumeSheetBackRef.current?.()) return;
     if (peekOpen) {
       setPeekOpen(false);
       return;
@@ -1564,13 +1569,15 @@ export function Workspace({
     setProjectsCollapsed(false);
   }, [peekOpen, selectedId, navFromReviews, showReviews]);
 
-  const backLabel = peekOpen || (selectedId && navFromReviews)
-    ? "← К замечаниям"
-    : selectedId
-      ? "← Назад"
-      : showReviews
+  const backLabel = sheetBackHint
+    ? sheetBackHint
+    : peekOpen || (selectedId && navFromReviews)
+      ? "← К замечаниям"
+      : selectedId
         ? "← Назад"
-        : null;
+        : showReviews
+          ? "← Назад"
+          : null;
 
   return (
     <div
@@ -1941,16 +1948,20 @@ export function Workspace({
                         {documents.map((doc) => {
                           const elapsedLabel = formatElapsed(doc.pipelineElapsedSec);
                           const uploadedLabel = formatDate(doc.createdAt);
+                          const failed = processingFailed(doc);
                           return (
                           <div
                             key={doc.id}
-                            className={`mb-0.5 flex items-stretch gap-0.5 rounded ${
-                              selectedId === doc.id
-                                ? "bg-accent/15 ring-1 ring-accent/40"
-                                : "hover:bg-slate-200/90"
+                            className={`mb-0.5 rounded ${
+                              failed
+                                ? "border border-red-300 bg-red-50"
+                                : selectedId === doc.id
+                                  ? "bg-accent/15 ring-1 ring-accent/40"
+                                  : "hover:bg-slate-200/90"
                             }`}
                             data-document-row={doc.id}
                           >
+                          <div className="flex items-stretch gap-0.5">
                             <button
                               type="button"
                               onClick={() => void openDocument(doc.id)}
@@ -1970,32 +1981,20 @@ export function Workspace({
                               <span className="flex items-center gap-1.5">
                                 <span
                                   className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                                    processingFailed(doc)
-                                      ? "bg-red-500"
-                                      : STATUS_DOT[doc.status]
+                                    failed ? "bg-red-500" : STATUS_DOT[doc.status]
                                   }`}
                                   title={
-                                    processingFailed(doc)
-                                      ? "Ошибка обработки"
-                                      : STATUS_LABEL[doc.status]
+                                    failed ? "Ошибка обработки" : STATUS_LABEL[doc.status]
                                   }
                                   aria-hidden
                                 />
                                 <span className="min-w-0 flex-1 truncate">{doc.originalName}</span>
-                                {processingFailed(doc) ? (
+                                {failed ? (
                                   <span
-                                    className="shrink-0 rounded bg-red-100 px-1 text-[9px] font-medium text-red-800"
-                                    title={
-                                      Object.entries(doc.pageErrors ?? {})
-                                        .map(([page, reason]) => `лист ${page}: ${reason}`)
-                                        .join(" · ") ||
-                                      doc.errorMessage ||
-                                      "ошибка"
-                                    }
+                                    className="shrink-0 rounded bg-red-600 px-1 text-[9px] font-bold uppercase tracking-wide text-white"
+                                    title={processingFailureReason(doc)}
                                   >
-                                    {Object.keys(doc.pageErrors ?? {}).length
-                                      ? `ош. ${Object.keys(doc.pageErrors).length}`
-                                      : "ошибка"}
+                                    не обработан
                                   </span>
                                 ) : null}
                                 {doc.kitId ? (
@@ -2029,9 +2028,10 @@ export function Workspace({
                                 align="right"
                                 triggerClassName="rounded px-1 py-0.5 text-[11px] leading-none text-muted hover:bg-bg hover:text-text"
                               >
-                                {doc.status === "error" ||
-                                doc.status === "done" ||
-                                Boolean(doc.errorMessage) ? (
+                                {!failed &&
+                                (doc.status === "error" ||
+                                  doc.status === "done" ||
+                                  Boolean(doc.errorMessage)) ? (
                                   <button
                                     type="button"
                                     role="menuitem"
@@ -2052,6 +2052,22 @@ export function Workspace({
                                 </button>
                               </ActionMenu>
                             </div>
+                          </div>
+                          {failed ? (
+                            <div className="space-y-1.5 px-1.5 pb-1.5 pt-0.5">
+                              <div className="text-[10px] leading-snug text-red-950">
+                                <span className="font-semibold">Не обработан.</span>{" "}
+                                {processingFailureReason(doc)}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => void handleRetry(doc.id, true)}
+                                className="w-full rounded-md bg-red-600 px-2 py-1.5 text-[11px] font-bold text-white hover:bg-red-700"
+                              >
+                                Запустить заново
+                              </button>
+                            </div>
+                          ) : null}
                           </div>
                           );
                         })}
@@ -2094,6 +2110,8 @@ export function Workspace({
               currentDocumentName={selected?.originalName ?? null}
               onJumpToPage={jumpToPage}
               onStatsChange={setReviewStats}
+              refreshToken={reviewsEpoch}
+              onReviewsMutated={() => setReviewsEpoch((n) => n + 1)}
               onClose={goBack}
             />
           </div>
@@ -2160,7 +2178,13 @@ export function Workspace({
             onCancel={() => void handleCancel(selected.id)}
             onToggleFocus={() => setFocusMode((value) => !value)}
             onBackToProjects={goBack}
+            onConsumeBack={(fn) => {
+              consumeSheetBackRef.current = fn;
+            }}
+            onSheetBackHint={setSheetBackHint}
+            notesRefreshToken={reviewsEpoch}
             onAnnotationsChanged={() => {
+              setReviewsEpoch((n) => n + 1);
               if (projectId) {
                 void loadNotes(projectId);
                 void loadDocuments(projectId);

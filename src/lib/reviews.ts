@@ -445,6 +445,16 @@ export async function deleteOrphanReviewStores(
   return removed;
 }
 
+export async function getReview(
+  projectId: string,
+  reviewId: string,
+): Promise<Review | null> {
+  return withDataLock(async () => {
+    const items = await readAll(projectId);
+    return items.find((item) => item.id === reviewId) ?? null;
+  });
+}
+
 export async function listReviews(projectId: string): Promise<Review[]> {
   return withDataLock(async () => renumber(await readAll(projectId)));
 }

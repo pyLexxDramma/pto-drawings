@@ -22,6 +22,8 @@ export type SheetSpec = {
   rows: Cell[][];
   /** Закрепить первую строку. */
   freezeHeader?: boolean;
+  /** Выпадающие фильтры Excel на шапке. */
+  autoFilter?: boolean;
 };
 
 const FILL_ARGB: Record<Exclude<CellFill, "none">, string> = {
@@ -142,6 +144,11 @@ function sheetXml(sheet: SheetSpec): string {
   const pane = sheet.freezeHeader
     ? '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>'
     : "";
+  const lastRow = Math.max(1, sheet.rows.length);
+  const lastCol = columnName(Math.max(0, (sheet.rows[0]?.length ?? 1) - 1));
+  const filter = sheet.autoFilter
+    ? `<autoFilter ref="A1:${lastCol}${lastRow}"/>`
+    : "";
 
   return (
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
@@ -149,6 +156,7 @@ function sheetXml(sheet: SheetSpec): string {
     pane +
     `<cols>${cols}</cols>` +
     `<sheetData>${rows}</sheetData>` +
+    filter +
     "</worksheet>"
   );
 }

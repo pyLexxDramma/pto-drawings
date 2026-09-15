@@ -140,6 +140,7 @@ describe("exportableReviews", () => {
     assert.match(sheet, /первое/);
     assert.match(sheet, /второе/);
     assert.ok(!sheet.includes('r="A4"'));
+    assert.match(sheet, /<autoFilter ref="A1:D3"\/>/);
   });
 });
 

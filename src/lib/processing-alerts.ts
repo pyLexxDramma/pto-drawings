@@ -67,3 +67,23 @@ export function processingFailed(doc: AlertSource): boolean {
   if (doc.status === "error") return true;
   return Object.keys(doc.pageErrors ?? {}).length > 0;
 }
+
+/** Причина, которую показываем рядом со статусом и кнопкой «Запустить заново». */
+export function processingFailureReason(doc: AlertSource): string {
+  const pages = Object.entries(doc.pageErrors ?? {}).filter(
+    ([, reason]) => reason.trim().length > 0,
+  );
+  if (pages.length === 1) {
+    const [page, reason] = pages[0];
+    return `лист ${page}: ${reason.trim()}`;
+  }
+  if (pages.length > 1) {
+    return `не обработано листов: ${pages.length}. ${pages
+      .slice(0, 2)
+      .map(([page, reason]) => `${page}: ${reason.trim()}`)
+      .join(" · ")}`;
+  }
+  const message = (doc.errorMessage ?? "").trim();
+  if (message && !isCancelMessage(message)) return message;
+  return "файл не обработан до конца";
+}

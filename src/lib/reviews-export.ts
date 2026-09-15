@@ -72,6 +72,7 @@ export function buildReviewsXlsx(input: {
     columns: WIDTHS,
     rows,
     freezeHeader: true,
+    autoFilter: true,
   });
 }
 

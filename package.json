@@ -9,7 +9,7 @@
     "live": "powershell -ExecutionPolicy Bypass -File ./scripts/serve-live.ps1",
     "lint": "eslint",
     "test:content-sync": "npx --yes tsx --test scripts/content-sync.test.ts",
-    "test:reviews": "npx --yes tsx --test scripts/reviews-export.test.ts scripts/reviews-store.test.ts scripts/reviews-import.test.ts",
+    "test:reviews": "npx --yes tsx --test scripts/reviews-export.test.ts scripts/reviews-store.test.ts scripts/reviews-import.test.ts scripts/review-annotation.test.ts",
     "test:uploads": "npx --yes tsx --test scripts/drawing-kit.test.ts",
     "test:log": "npx --yes tsx --test scripts/event-log.test.ts",
     "check:audit": "npx --yes tsx scripts/check-audit-log.mts",

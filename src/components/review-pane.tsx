@@ -82,7 +82,11 @@ type ReviewPaneProps = {
   onCancel?: () => void;
   onToggleFocus: () => void;
   onBackToProjects: () => void;
+  /** Вернуть true, если «Назад» закрыл поиск/пометку и не должен уходить с листа. */
+  onConsumeBack?: (fn: (() => boolean) | null) => void;
+  onSheetBackHint?: (label: string | null) => void;
   onAnnotationsChanged?: () => void;
+  notesRefreshToken?: number;
   /** Те же строки, что в «Замечаний по листу» — открыть таблицу по этому файлу. */
   onOpenReviews?: () => void;
   /** Миниатюры листов в колонке проектов — сворачиваются вместе с ней. */
@@ -137,7 +141,10 @@ export function ReviewPane({
   onCancel,
   onToggleFocus,
   onBackToProjects,
+  onConsumeBack,
+  onSheetBackHint,
   onAnnotationsChanged,
+  notesRefreshToken = 0,
   onOpenReviews,
   stripHost = null,
 }: ReviewPaneProps) {
@@ -509,7 +516,7 @@ export function ReviewPane({
       }
     })();
     return () => ac.abort();
-  }, [document.id]);
+  }, [document.id, notesRefreshToken]);
 
   useEffect(() => {
     if (!openPage || openPage.documentId !== document.id) return;
@@ -659,6 +666,42 @@ export function ReviewPane({
     setQuery("");
   }
 
+  function cancelMark() {
+    setMarkMode(false);
+    setPendingRect(null);
+    setNoteComment("");
+    setNoteExpected("");
+    setNoteError(null);
+    setSidePanel("text");
+  }
+
+  useEffect(() => {
+    if (searchOpen) {
+      onSheetBackHint?.("← Закрыть поиск");
+    } else if (markMode || pendingRect) {
+      onSheetBackHint?.("← Отменить пометку");
+    } else {
+      onSheetBackHint?.(null);
+    }
+    return () => onSheetBackHint?.(null);
+  }, [markMode, onSheetBackHint, pendingRect, searchOpen]);
+
+  useEffect(() => {
+    if (!onConsumeBack) return;
+    onConsumeBack(() => {
+      if (searchOpen) {
+        closeSearch();
+        return true;
+      }
+      if (markMode || pendingRect) {
+        cancelMark();
+        return true;
+      }
+      return false;
+    });
+    return () => onConsumeBack(null);
+  }, [markMode, onConsumeBack, pendingRect, searchOpen]);
+
   function toggleMark() {
     if (readOnly) return;
     if (markMode) {
@@ -742,12 +785,7 @@ export function ReviewPane({
           return;
         }
         if (markMode || pendingRect) {
-          setMarkMode(false);
-          setPendingRect(null);
-          setNoteComment("");
-          setNoteExpected("");
-          setNoteError(null);
-          setSidePanel("text");
+          cancelMark();
           return;
         }
         if (paneSolo || focusMode) {

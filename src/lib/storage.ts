@@ -197,6 +197,10 @@ function normalizeAnnotation(
     userName: raw.userName ?? null,
     createdAt: raw.createdAt ?? new Date().toISOString(),
     resolvedAt: raw.resolvedAt ?? null,
+    reviewId:
+      typeof raw.reviewId === "string" && raw.reviewId.trim()
+        ? raw.reviewId.trim()
+        : null,
   };
 }
 
@@ -1191,6 +1195,7 @@ export async function createAnnotation(input: {
   comment: string;
   expected: string;
   author: { userId: string; userName: string };
+  reviewId?: string | null;
 }): Promise<PageAnnotation | null> {
   return withDataLock(async () => {
     const db = await readIndex();
@@ -1208,6 +1213,7 @@ export async function createAnnotation(input: {
       userName: input.author.userName,
       createdAt: new Date().toISOString(),
       resolvedAt: null,
+      reviewId: input.reviewId ?? null,
     });
     body.annotations.unshift(annotation);
     applyBodyToMeta(meta, body);
@@ -1255,20 +1261,54 @@ export async function deleteAnnotation(input: {
   documentId: string;
   annotationId: string;
   actor: { userId: string; isAdmin: boolean };
-}): Promise<boolean> {
+}): Promise<PageAnnotation | null> {
   return withDataLock(async () => {
     const db = await readIndex();
     const meta = findMeta(db, input.documentId);
-    if (!meta) return false;
+    if (!meta) return null;
     const body = await readBody(input.documentId);
     const annotation = body.annotations.find((item) => item.id === input.annotationId);
-    if (!annotation) return false;
+    if (!annotation) return null;
     if (!input.actor.isAdmin && annotation.userId && annotation.userId !== input.actor.userId) {
       throw Object.assign(new Error("Замечание создал другой пользователь"), {
         status: 403,
       });
     }
     body.annotations = body.annotations.filter((item) => item.id !== input.annotationId);
+    applyBodyToMeta(meta, body);
+    await writeBody(input.documentId, body);
+    await writeIndex(db);
+    return annotation;
+  });
+}
+
+/** Снять пометку с листа, когда строку удалили из таблицы замечаний. */
+export async function deleteAnnotationForReview(input: {
+  documentId: string;
+  reviewId: string;
+  comment?: string;
+  pageNumber?: number | null;
+}): Promise<boolean> {
+  return withDataLock(async () => {
+    const db = await readIndex();
+    const meta = findMeta(db, input.documentId);
+    if (!meta) return false;
+    const body = await readBody(input.documentId);
+    const comment = (input.comment ?? "").trim().toLowerCase();
+    const next = body.annotations.filter((item) => {
+      if (item.reviewId && item.reviewId === input.reviewId) return false;
+      if (
+        !item.reviewId &&
+        comment &&
+        item.comment.trim().toLowerCase() === comment &&
+        (input.pageNumber == null || item.pageNumber === input.pageNumber)
+      ) {
+        return false;
+      }
+      return true;
+    });
+    if (next.length === body.annotations.length) return false;
+    body.annotations = next;
     applyBodyToMeta(meta, body);
     await writeBody(input.documentId, body);
     await writeIndex(db);

@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   collectProcessingAlerts,
   processingFailed,
+  processingFailureReason,
 } from "../src/lib/processing-alerts.ts";
 
 describe("collectProcessingAlerts", () => {
@@ -65,5 +66,22 @@ describe("collectProcessingAlerts", () => {
     assert.equal(alerts.length, 1);
     assert.equal(alerts[0].page, null);
     assert.equal(alerts[0].message, "Конвейер недоступен");
+  });
+});
+
+describe("processingFailureReason", () => {
+  it("берёт причину листа, если файл упал на одном", () => {
+    assert.equal(
+      processingFailureReason({
+        id: "d1",
+        originalName: "Большой.pdf",
+        status: "error",
+        errorMessage: "Не удалось обработать листов: 1",
+        pageErrors: { "8": "OOM killed" },
+        pipelineFinishedAt: null,
+        createdAt: "2026-09-15T00:00:00.000Z",
+      }),
+      "лист 8: OOM killed",
+    );
   });
 });

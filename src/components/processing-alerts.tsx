@@ -95,29 +95,38 @@ export function ProcessingAlertsBar({
           </button>
         </div>
       </div>
-      <ul className="mt-1 space-y-0.5">
+      <ul className="mt-1.5 space-y-1.5">
         {shown.map((item) => (
-          <li key={item.id} className="flex items-start gap-2">
+          <li
+            key={item.id}
+            className="flex flex-wrap items-start gap-2 rounded border border-red-200 bg-white/70 px-2 py-1.5"
+          >
             <button
               type="button"
-              className="min-w-0 flex-1 text-left hover:underline"
+              className="min-w-0 flex-1 text-left"
               onClick={() => onOpen(item)}
               title={item.message}
             >
-              <span className="font-medium">{item.documentName}</span>
-              {item.page ? <span> · лист {item.page}</span> : null}
-              <span className="text-red-800/80"> — {item.message}</span>
+              <div className="font-semibold text-red-950">
+                Не обработан
+                {item.page ? ` · лист ${item.page}` : ""}
+              </div>
+              <div className="text-red-900/90">
+                <span className="font-medium">{item.documentName}</span>
+                {" — "}
+                {item.message}
+              </div>
             </button>
             <button
               type="button"
-              className="shrink-0 text-red-800/80 hover:text-red-950"
+              className="shrink-0 rounded-md bg-red-600 px-2.5 py-1.5 text-[11px] font-bold text-white hover:bg-red-700"
               onClick={() => onRetry(item.documentId)}
             >
-              Повтор
+              Запустить заново
             </button>
             <button
               type="button"
-              className="shrink-0 text-red-800/50 hover:text-red-950"
+              className="shrink-0 px-1 text-red-800/50 hover:text-red-950"
               aria-label="Скрыть"
               onClick={() => dismiss(item.id)}
             >

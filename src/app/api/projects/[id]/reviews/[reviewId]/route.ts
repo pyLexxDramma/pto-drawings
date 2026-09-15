@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { isPublicUser, requireUser } from "@/lib/auth";
-import { deleteReview, updateReview, type ReviewPatch } from "@/lib/reviews";
+import { deleteReview, getReview, updateReview, type ReviewPatch } from "@/lib/reviews";
+import { deleteAnnotationForReview } from "@/lib/storage";
 import type { ReviewSeverity, ReviewVerdict } from "@/types";
 
 type RouteContext = { params: Promise<{ id: string; reviewId: string }> };
@@ -63,12 +64,25 @@ export async function DELETE(request: Request, context: RouteContext) {
   const user = await requireUser(request);
   if (!isPublicUser(user)) return user;
   const { id, reviewId } = await context.params;
+  const review = await getReview(id, reviewId);
   const removed = await deleteReview(id, reviewId, {
     userId: user.id,
     userName: user.displayName,
   });
   if (!removed) {
     return NextResponse.json({ error: "Замечание не найдено" }, { status: 404 });
+  }
+  if (review) {
+    const quote = review.locations[0]?.quote || review.text;
+    for (const location of review.locations) {
+      if (!location.documentId) continue;
+      await deleteAnnotationForReview({
+        documentId: location.documentId,
+        reviewId: review.id,
+        comment: location.quote || quote,
+        pageNumber: location.pageNumber,
+      });
+    }
   }
   return NextResponse.json({ ok: true });
 }

@@ -154,6 +154,8 @@ export function ReviewsTable({
   onJumpToPage,
   onStatsChange,
   onClose,
+  refreshToken = 0,
+  onReviewsMutated,
 }: {
   projectId: string;
   projectName: string;
@@ -161,6 +163,9 @@ export function ReviewsTable({
   currentDocumentId?: string | null;
   /** Имя активного файла — запасное сопоставление, если в локации нет documentId. */
   currentDocumentName?: string | null;
+  /** Перезагрузить таблицу, когда пометки на листе изменились. */
+  refreshToken?: number;
+  onReviewsMutated?: () => void;
   /** Открыть место в ПД в просмотрщике (новая вкладка + подсветка). */
   onJumpToPage: (
     documentId: string,
@@ -191,6 +196,7 @@ export function ReviewsTable({
   const [sortDir, setSortDir] = useState<1 | -1>(1);
   const [picked, setPicked] = useState<string[]>([]);
   const [importing, setImporting] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [enriching, setEnriching] = useState(false);
   const importRef = useRef<HTMLInputElement>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -252,6 +258,11 @@ export function ReviewsTable({
       });
     return () => controller.abort();
   }, [load]);
+
+  useEffect(() => {
+    if (!refreshToken) return;
+    void load().catch(() => undefined);
+  }, [load, refreshToken]);
 
   const sections = useMemo(() => {
     const seen: string[] = [];
@@ -340,6 +351,15 @@ export function ReviewsTable({
       wrong,
     };
   }, [reviews]);
+
+  const visibleExportable = useMemo(
+    () =>
+      visible.filter(
+        (item) =>
+          item.severity !== "skip" && !REVIEW_VERDICT_HIDDEN.includes(item.verdict),
+      ),
+    [visible],
+  );
 
   useEffect(() => {
     onStatsChange?.({ total: stats.total, pending: stats.pending });
@@ -438,6 +458,7 @@ export function ReviewsTable({
       if (!response.ok) throw new Error("Не удалось удалить");
       setReviews((prev) => prev.filter((item) => item.id !== reviewId));
       void refreshEvents();
+      onReviewsMutated?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ошибка удаления");
     } finally {
@@ -501,6 +522,42 @@ export function ReviewsTable({
       setError(err instanceof Error ? err.message : "Ошибка обогащения");
     } finally {
       setEnriching(false);
+    }
+  }
+
+  async function downloadVisibleXlsx() {
+    if (visibleExportable.length === 0) return;
+    setExporting(true);
+    try {
+      const response = await fetch(`/api/projects/${projectId}/reviews/export`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reviewIds: visibleExportable.map((item) => item.id),
+        }),
+      });
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        throw new Error(payload.error ?? "Не удалось выгрузить");
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const stamp = new Date().toISOString().slice(0, 10);
+      const base = projectName.replace(/[\\/:*?"<>|]/g, "").trim() || "проект";
+      link.href = url;
+      link.download = filtersOn
+        ? `${base} — замечания фильтр ${stamp}.xlsx`
+        : `${base} — замечания ${stamp}.xlsx`;
+      link.click();
+      URL.revokeObjectURL(url);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Ошибка выгрузки");
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -578,23 +635,38 @@ export function ReviewsTable({
           >
             {enriching ? "Обогащение…" : `К расшифровке${pendingEnrich ? ` · ${pendingEnrich}` : ""}`}
           </button>
-          {reviews.some((item) => item.verdict === "pending") ? (
+          {visibleExportable.length === 0 ||
+          (!filtersOn && reviews.some((item) => item.verdict === "pending")) ? (
             <span
               className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-slate-100 px-2.5 py-1.5 text-xs font-semibold text-slate-500"
-              title="Сначала проставьте важность и статус разбора у всех замечаний"
+              title={
+                visibleExportable.length === 0
+                  ? "Под текущий фильтр нечего выгружать"
+                  : "Сначала проставьте важность и статус разбора у всех замечаний"
+              }
             >
               <IconDownload className="h-3.5 w-3.5" />
               XLSX
             </span>
           ) : (
-          <a
-            href={`/api/projects/${projectId}/reviews/export`}
-            className="inline-flex items-center gap-1.5 rounded-md bg-accent px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-[#1d4ed8]"
-            title="Выгрузить наши и инженера одним файлом для проектировщиков"
-          >
-            <IconDownload className="h-3.5 w-3.5" />
-            XLSX
-          </a>
+            <button
+              type="button"
+              disabled={exporting}
+              onClick={() => void downloadVisibleXlsx()}
+              className="inline-flex items-center gap-1.5 rounded-md bg-accent px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-[#1d4ed8] disabled:opacity-50"
+              title={
+                filtersOn
+                  ? `Скачать отфильтрованные: ${visibleExportable.length}`
+                  : "Выгрузить наши и инженера одним файлом для проектировщиков"
+              }
+            >
+              <IconDownload className="h-3.5 w-3.5" />
+              {exporting
+                ? "…"
+                : filtersOn
+                  ? `XLSX · ${visibleExportable.length}`
+                  : "XLSX"}
+            </button>
           )}
         </div>
       </header>
@@ -791,10 +863,26 @@ export function ReviewsTable({
                     №{sortKey === "number" ? (sortDir === 1 ? " ↑" : " ↓") : ""}
                   </button>
                 </th>
-                <th className="w-16 border-b border-border px-2 py-1.5 font-medium">
+                <th className="w-24 border-b border-border px-2 py-1.5 font-medium">
                   <button type="button" onClick={() => toggleSort("section")}>
                     Раздел{sortKey === "section" ? (sortDir === 1 ? " ↑" : " ↓") : ""}
                   </button>
+                  {sections.length > 0 ? (
+                    <select
+                      value={sectionFilter}
+                      aria-label="Фильтр раздела"
+                      onChange={(event) => setSectionFilter(event.target.value)}
+                      onClick={(event) => event.stopPropagation()}
+                      className="mt-0.5 block w-full bg-white text-[10px] font-normal normal-case tracking-normal text-text"
+                    >
+                      <option value="all">все</option>
+                      {sections.map((section) => (
+                        <option key={section} value={section}>
+                          {section || "без раздела"}
+                        </option>
+                      ))}
+                    </select>
+                  ) : null}
                 </th>
                 <th className="border-b border-border px-2 py-1.5 font-medium">
                   Замечание
@@ -806,11 +894,40 @@ export function ReviewsTable({
                   <button type="button" onClick={() => toggleSort("severity")}>
                     Важность{sortKey === "severity" ? (sortDir === 1 ? " ↑" : " ↓") : ""}
                   </button>
+                  <select
+                    value={severityFilter}
+                    aria-label="Фильтр важности"
+                    onChange={(event) =>
+                      setSeverityFilter(event.target.value as SeverityFilter)
+                    }
+                    onClick={(event) => event.stopPropagation()}
+                    className="mt-0.5 block w-full bg-white text-[10px] font-normal normal-case tracking-normal text-text"
+                  >
+                    <option value="all">любая</option>
+                    {REVIEW_SEVERITY_ORDER.map((item) => (
+                      <option key={item} value={item}>
+                        {REVIEW_SEVERITY_LABEL[item]}
+                      </option>
+                    ))}
+                  </select>
                 </th>
                 <th className="w-32 border-b border-border px-2 py-1.5 font-medium">
                   <button type="button" onClick={() => toggleSort("verdict")}>
                     Статус{sortKey === "verdict" ? (sortDir === 1 ? " ↑" : " ↓") : ""}
                   </button>
+                  <select
+                    value={verdictFilter}
+                    aria-label="Фильтр статуса"
+                    onChange={(event) =>
+                      setVerdictFilter(event.target.value as VerdictFilter)
+                    }
+                    onClick={(event) => event.stopPropagation()}
+                    className="mt-0.5 block w-full bg-white text-[10px] font-normal normal-case tracking-normal text-text"
+                  >
+                    <option value="all">любой</option>
+                    <option value="pending">не разобрано</option>
+                    <option value="done">разобрано</option>
+                  </select>
                 </th>
                 <th className="w-48 border-b border-border px-2 py-1.5 font-medium">
                   Комментарий

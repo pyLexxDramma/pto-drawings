@@ -93,6 +93,8 @@ export type PageAnnotation = {
   userName: string | null;
   createdAt: string;
   resolvedAt: string | null;
+  /** Строка таблицы замечаний, созданная вместе с пометкой на листе. */
+  reviewId: string | null;
 };
 
 export type ProjectAnnotation = PageAnnotation & {
