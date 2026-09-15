@@ -3,11 +3,13 @@ import { isPublicUser, requireUser } from "@/lib/auth";
 import { ingestGuard } from "@/lib/ingest-auth";
 import {
   createReview,
+  deleteOrphanReviewStores,
   ingestReviews,
   listReviewEvents,
   listReviews,
+  pruneDeadReviews,
 } from "@/lib/reviews";
-import { getProject } from "@/lib/storage";
+import { getProject, listDocuments, listProjects } from "@/lib/storage";
 import type {
   ReviewIngestItem,
   ReviewLocation,
@@ -27,6 +29,16 @@ export async function GET(request: Request, context: RouteContext) {
   if (!(await getProject(id))) {
     return NextResponse.json({ error: "Проект не найден" }, { status: 404 });
   }
+  const [docs, projects] = await Promise.all([
+    listDocuments(id, { lite: true }),
+    listProjects(),
+  ]);
+  await deleteOrphanReviewStores(projects.map((item) => item.id));
+  await pruneDeadReviews(
+    id,
+    docs.map((item) => item.id),
+    docs.map((item) => item.originalName),
+  );
   const reviews = await listReviews(id);
   // Журнал отдаём вместе с таблицей: он нужен той же строке, отдельный запрос
   // на каждый разбор ничего не экономит.

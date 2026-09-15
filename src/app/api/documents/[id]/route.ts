@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { isPublicUser, requireUser } from "@/lib/auth";
 import { purgeDocumentPipeline } from "@/lib/process-document";
+import { pruneDeadReviews } from "@/lib/reviews";
 import {
   deleteDocument,
   getDocument,
+  listDocuments,
   savePageMarkdown,
 } from "@/lib/storage";
 
@@ -68,9 +70,18 @@ export async function DELETE(request: Request, context: RouteContext) {
     );
   }
 
+  const document = await getDocument(id);
   const removed = await deleteDocument(id);
   if (!removed) {
     return NextResponse.json({ error: "Документ не найден" }, { status: 404 });
+  }
+  if (document) {
+    const rest = await listDocuments(document.projectId, { lite: true });
+    await pruneDeadReviews(
+      document.projectId,
+      rest.map((item) => item.id),
+      rest.map((item) => item.originalName),
+    );
   }
   return NextResponse.json({ ok: true });
 }

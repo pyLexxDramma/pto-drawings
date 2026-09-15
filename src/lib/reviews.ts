@@ -1,4 +1,6 @@
 import {
+  deleteReviewsFile,
+  listReviewStoreIds,
   readReviewsText,
   withDataLock,
   writeReviewsText,
@@ -355,6 +357,92 @@ function logEvents(
     userName: actor?.userName ?? null,
   }));
   return [...fresh, ...events];
+}
+
+function fileNameKey(name: string) {
+  return name.trim().toLowerCase().replace(/\.(pdf|dwg|dxf|zip)$/i, "");
+}
+
+function locationFileAlive(
+  location: ReviewLocation,
+  aliveIds: Set<string>,
+  aliveNames: Set<string>,
+) {
+  if (location.documentId) return aliveIds.has(location.documentId);
+  const name = fileNameKey(location.documentName);
+  if (name && aliveNames.size > 0) return aliveNames.has(name);
+  return true;
+}
+
+/** Убирает замечания и места по уже удалённым файлам. */
+export function dropReviewsForMissingFiles(
+  reviews: Review[],
+  aliveDocumentIds: Iterable<string>,
+  aliveFileNames: Iterable<string> = [],
+): Review[] {
+  const aliveIds = new Set(aliveDocumentIds);
+  const aliveNames = new Set(
+    [...aliveFileNames].map(fileNameKey).filter(Boolean),
+  );
+  const kept: Review[] = [];
+  for (const review of reviews) {
+    if (review.locations.length === 0) {
+      kept.push(review);
+      continue;
+    }
+    const locations = review.locations.filter((location) =>
+      locationFileAlive(location, aliveIds, aliveNames),
+    );
+    if (locations.length === 0) continue;
+    kept.push(
+      locations.length === review.locations.length
+        ? review
+        : { ...review, locations },
+    );
+  }
+  return kept;
+}
+
+export async function pruneDeadReviews(
+  projectId: string,
+  aliveDocumentIds: string[],
+  aliveFileNames: string[] = [],
+): Promise<{ removed: number; remaining: number }> {
+  return withDataLock(async () => {
+    const { reviews: items, events } = await readStore(projectId);
+    const next = dropReviewsForMissingFiles(
+      items,
+      aliveDocumentIds,
+      aliveFileNames,
+    );
+    if (next.length === items.length) {
+      const same = next.every(
+        (item, index) => item.locations.length === items[index].locations.length,
+      );
+      if (same) return { removed: 0, remaining: items.length };
+    }
+    const keep = new Set(next.map((item) => item.id));
+    await writeStore(
+      projectId,
+      next,
+      events.filter((event) => keep.has(event.reviewId)),
+    );
+    return { removed: items.length - next.length, remaining: next.length };
+  });
+}
+
+export async function deleteOrphanReviewStores(
+  aliveProjectIds: Iterable<string>,
+): Promise<number> {
+  const alive = new Set(aliveProjectIds);
+  const stored = await listReviewStoreIds();
+  let removed = 0;
+  for (const id of stored) {
+    if (alive.has(id)) continue;
+    await deleteReviewsFile(id);
+    removed += 1;
+  }
+  return removed;
 }
 
 export async function listReviews(projectId: string): Promise<Review[]> {

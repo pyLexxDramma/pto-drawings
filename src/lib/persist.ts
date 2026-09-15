@@ -146,6 +146,18 @@ export async function deleteReviewsFile(projectId: string) {
   await unlink(reviewsPath(projectId)).catch(() => undefined);
 }
 
+/** Id проектов, у которых на диске ещё есть файл замечаний. */
+export async function listReviewStoreIds(): Promise<string[]> {
+  try {
+    const names = await readdir(REVIEWS_DIR);
+    return names
+      .map((name) => /^([0-9a-f-]{36})\.json$/i.exec(name)?.[1])
+      .filter((id): id is string => Boolean(id));
+  } catch {
+    return [];
+  }
+}
+
 export async function writePdfBytes(storedName: string, buffer: Buffer) {
   await mkdir(UPLOAD_DIR, { recursive: true });
   await writeFile(path.join(UPLOAD_DIR, storedName), buffer);

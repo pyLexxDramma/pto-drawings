@@ -309,6 +309,7 @@ export function Workspace({
   const [creatingProject, setCreatingProject] = useState(false);
   const [showNewProject, setShowNewProject] = useState(false);
   const [projectsCollapsed, setProjectsCollapsed] = useState(false);
+  const [stripHost, setStripHost] = useState<HTMLDivElement | null>(null);
   const [focusMode, setFocusMode] = useState(false);
   const [renameId, setRenameId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
@@ -332,7 +333,7 @@ export function Workspace({
   const [pendingUploadMode, setPendingUploadMode] = useState<UploadMode>("files");
   const [uploadBusy, setUploadBusy] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [projectsWidth, setProjectsWidth] = useState(280);
+  const [projectsWidth, setProjectsWidth] = useState(148);
   /** Job обработки, переживает смену проекта. */
   const [liveJobDoc, setLiveJobDoc] = useState<DocumentRecord | null>(null);
   const [fullProgressVisible, setFullProgressVisible] = useState(false);
@@ -620,7 +621,7 @@ export function Workspace({
       if (!raw) return;
       const parsed = JSON.parse(raw) as { projects?: number; files?: number };
       if (typeof parsed.projects === "number") {
-        setProjectsWidth(clamp(parsed.projects, 200, 420));
+        setProjectsWidth(clamp(parsed.projects, 128, 156));
       }
     } catch {
       // ignore
@@ -1776,8 +1777,8 @@ export function Workspace({
               type="button"
               onClick={() => setProjectsCollapsed(false)}
               className="flex flex-1 flex-col items-center gap-1 py-2 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-              title="Показать список файлов"
-              aria-label="Показать список файлов"
+              title="Показать проекты и листы"
+              aria-label="Показать проекты и листы"
               aria-expanded={false}
             >
               <IconChevronRight />
@@ -1823,8 +1824,8 @@ export function Workspace({
               <PaneToggle
                 expanded
                 align="left"
-                expandLabel="Показать список файлов"
-                collapseLabel="Скрыть список файлов"
+                expandLabel="Показать проекты и листы"
+                collapseLabel="Скрыть проекты и листы"
                 onToggle={() => setProjectsCollapsed(true)}
               />
             </div>
@@ -2053,13 +2054,19 @@ export function Workspace({
                 ),
               )}
             </div>
+            {selected ? (
+              <div
+                ref={setStripHost}
+                className="min-h-[9rem] flex-[1.15] overflow-hidden border-t border-border"
+              />
+            ) : null}
           </aside>
         )}
 
         {focusMode || showReviews || projectsCollapsed ? null : (
           <ColumnResizer
             className="hidden md:block"
-            onDelta={(dx) => setProjectsWidth((w) => clamp(w + dx, 200, 420))}
+            onDelta={(dx) => setProjectsWidth((w) => clamp(w + dx, 128, 156))}
           />
         )}
 
@@ -2111,6 +2118,12 @@ export function Workspace({
             document={selected}
             projectId={currentProject?.id}
             reviews={projectReviews}
+            onOpenReviews={() => {
+              setPeekOpen(false);
+              setShowReviews(true);
+              setNavFromReviews(true);
+            }}
+            stripHost={stripHost}
             onReviewPatched={(review) =>
               setProjectReviews((prev) =>
                 prev.map((item) => (item.id === review.id ? review : item)),

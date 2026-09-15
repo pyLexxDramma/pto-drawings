@@ -9,19 +9,15 @@ import {
   useState,
   type MouseEvent,
 } from "react";
+import { createPortal } from "react-dom";
 import { ColumnResizer, clamp } from "@/components/column-resizer";
 import { CadPage } from "@/components/cad-page";
 import { MarkdownView } from "@/components/markdown-view";
 import { PageStrip } from "@/components/page-strip";
 import { PdfPage } from "@/components/pdf-page";
-import { RemarkRail } from "@/components/remark-rail";
 import { PaneToggle, SegmentedTabs } from "@/components/ui-chrome";
 import { IconChevronLeft, IconChevronRight } from "@/components/tool-icons";
 import { KEYMAP, KEYMAP_GROUPS } from "@/lib/keymap";
-import {
-  loadViewerPrefs,
-  saveViewerPrefs,
-} from "@/lib/viewer-prefs";
 import { VoiceNoteButton } from "@/components/voice-note";
 import { formatDate } from "@/lib/format";
 import { getDrawingExt, isCadExt, isOfficeExt } from "@/lib/drawing-files";
@@ -87,6 +83,10 @@ type ReviewPaneProps = {
   onToggleFocus: () => void;
   onBackToProjects: () => void;
   onAnnotationsChanged?: () => void;
+  /** Те же строки, что в «Замечаний по листу» — открыть таблицу по этому файлу. */
+  onOpenReviews?: () => void;
+  /** Миниатюры листов в колонке проектов — сворачиваются вместе с ней. */
+  stripHost?: HTMLElement | null;
 };
 
 function canScrollX(element: HTMLElement) {
@@ -138,16 +138,15 @@ export function ReviewPane({
   onToggleFocus,
   onBackToProjects,
   onAnnotationsChanged,
+  onOpenReviews,
+  stripHost = null,
 }: ReviewPaneProps) {
   const [rawPage, setRawPage] = useState(() => {
     const cached = getDocumentView(document.id);
     if (cached?.pageNumber && cached.pageNumber > 0) return cached.pageNumber;
     return loadCachedProgress(document.id).lastPage;
   });
-  const [split, setSplit] = useState(50);
-  const [stripWidth, setStripWidth] = useState(160);
-  const [stripOpen, setStripOpen] = useState(() => loadViewerPrefs().thumbs);
-  const [railOpen, setRailOpen] = useState(() => loadViewerPrefs().remarks);
+  const [split, setSplit] = useState(66);
   const [query, setQuery] = useState("");
   const [showLog, setShowLog] = useState(false);
   const [filter, setFilter] = useState<KindFilter>("all");
@@ -701,20 +700,6 @@ export function ReviewPane({
       >
         {searchOpen ? "Закрыть поиск" : "Поиск"}
       </button>
-      <button
-        type="button"
-        title="Список листов"
-        onClick={() => {
-          setStripOpen((prev) => {
-            const next = !prev;
-            saveViewerPrefs({ ...loadViewerPrefs(), thumbs: next });
-            return next;
-          });
-        }}
-        className={stripOpen ? textToolBtnActive : textToolBtn}
-      >
-        Список листов
-      </button>
       {readOnly ? (
         <span className="rounded border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-900">
           Просмотр
@@ -1117,83 +1102,33 @@ export function ReviewPane({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="relative flex min-h-0 flex-1">
-        {stripOpen && !isOfficeSource ? (
-          <>
-            <PageStrip
-              url={`/api/documents/${document.id}/file`}
-              total={total}
-              current={pageNumber}
-              kinds={kinds}
-              edited={editedPages}
-              viewed={viewedSet}
-              pageDots={pageDots}
-              ready={ready}
-              annotated={annotatedPages}
-              hidden={hidden}
-              processingPage={document.processingPage}
-              width={stripWidth}
-              emptyLabel={
-                filter === "flagged"
-                  ? "Замечаний по этому файлу пока нет."
-                  : `Листов типа «${filterLabel}» в комплекте нет.`
-              }
-              onSelect={(next) => void goToPage(next)}
-              onCollapse={() => {
-                setStripOpen(false);
-                saveViewerPrefs({ ...loadViewerPrefs(), thumbs: false });
-              }}
-            />
-            <ColumnResizer
-              onDelta={(dx) => setStripWidth((w) => clamp(w + dx, 72, 220))}
-            />
-          </>
-        ) : null}
+        {stripHost && !isOfficeSource
+          ? createPortal(
+              <PageStrip
+                embedded
+                url={`/api/documents/${document.id}/file`}
+                total={total}
+                current={pageNumber}
+                kinds={kinds}
+                edited={editedPages}
+                viewed={viewedSet}
+                pageDots={pageDots}
+                ready={ready}
+                annotated={annotatedPages}
+                hidden={hidden}
+                processingPage={document.processingPage}
+                emptyLabel={
+                  filter === "flagged"
+                    ? "Замечаний по этому файлу пока нет."
+                    : `Листов типа «${filterLabel}» в комплекте нет.`
+                }
+                onSelect={(next) => void goToPage(next)}
+              />,
+              stripHost,
+            )
+          : null}
 
         <div className="flex min-h-0 min-w-0 flex-1">
-          {!stripOpen && !isOfficeSource ? (
-            <button
-              type="button"
-              title="Список листов"
-              aria-label="Показать список листов"
-              onClick={() => {
-                setStripOpen(true);
-                saveViewerPrefs({ ...loadViewerPrefs(), thumbs: true });
-              }}
-              className="flex w-8 shrink-0 flex-col items-center border-r border-border bg-surface-2 py-2 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-            >
-              <IconChevronRight />
-            </button>
-          ) : null}
-          {fileReviews.length > 0 && paneSolo !== "md" ? (
-            railOpen ? (
-            <RemarkRail
-              items={fileReviews}
-              activeId={activeReviewId}
-              pageNumber={pageNumber}
-              onSelect={selectFileReview}
-              onCollapse={() => {
-                setRailOpen(false);
-                saveViewerPrefs({ ...loadViewerPrefs(), remarks: false });
-              }}
-            />
-            ) : (
-              <button
-                type="button"
-                title="Показать замечания"
-                aria-label="Показать замечания"
-                onClick={() => {
-                  setRailOpen(true);
-                  saveViewerPrefs({ ...loadViewerPrefs(), remarks: true });
-                }}
-                className="flex w-8 shrink-0 flex-col items-center gap-1 border-r border-border bg-white py-2 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-              >
-                <IconChevronRight />
-                <span className="text-[10px] font-semibold tabular-nums">
-                  {fileReviews.length}
-                </span>
-              </button>
-            )
-          ) : null}
           {paneSolo !== "md" ? (
             <div
               className="relative h-full min-h-0 min-w-0 overflow-hidden"
@@ -1573,18 +1508,79 @@ export function ReviewPane({
               </div>
             ) : null}
 
+            {pageReviews.length > 0 ? (
+              <div className="shrink-0 border-b border-rose-200 bg-rose-50 text-[10px] leading-snug text-rose-950">
+                <div className="flex items-center justify-between gap-2 px-2 py-1">
+                  <div className="min-w-0 font-medium">
+                    Замечаний по листу: {pageReviews.length}
+                    <span className="ml-1 font-normal text-rose-800/70">
+                      те же строки в таблице · клик подсветит место
+                    </span>
+                  </div>
+                  {onOpenReviews ? (
+                    <button
+                      type="button"
+                      onClick={onOpenReviews}
+                      className="shrink-0 rounded border border-rose-300 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-rose-900 hover:bg-rose-100"
+                    >
+                      В таблице
+                    </button>
+                  ) : null}
+                </div>
+                <ul className="border-t border-rose-200/80">
+                  {pageReviews.map((review) => {
+                    const active =
+                      focusQuote.length >= 2 &&
+                      (
+                        review.locations.some(
+                          (loc) =>
+                            loc.quote &&
+                            normalizeQuote(loc.quote) ===
+                              normalizeQuote(focusQuote),
+                        ) ||
+                        normalizeQuote(review.text || "") ===
+                          normalizeQuote(focusQuote) ||
+                        normalizeQuote(review.aiFinding || "") ===
+                          normalizeQuote(focusQuote)
+                      );
+                    return (
+                      <li key={review.id} className="block w-full">
+                        <button
+                          type="button"
+                          onClick={() => focusReviewOnSheet(review)}
+                          className={`block w-full px-2 py-1 text-left hover:bg-rose-100 ${
+                            active ? "bg-rose-200 outline outline-1 outline-rose-500" : ""
+                          }`}
+                          title="Подсветить место на чертеже и в расшифровке"
+                        >
+                          <span className="font-semibold tabular-nums">
+                            № {review.number}
+                          </span>
+                          {` · ${REVIEW_SEVERITY_LABEL[
+                            review.severity
+                          ].toLowerCase()} · ${
+                            review.text || review.aiFinding
+                          }`}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ) : null}
+
             <div
               ref={textPaneRef}
               className="pto-pane-scroll min-h-0 flex-1 overflow-x-scroll overflow-y-auto overscroll-x-contain [scrollbar-gutter:stable]"
             >
               {filterEmpty ? (
-                <div className="p-6 text-sm text-muted">
+                <div className="p-4 text-xs text-muted">
                   {filter === "flagged"
                     ? "Отметьте ошибку на чертеже — лист появится в этом списке."
                     : `Нет листов типа «${filterLabel}» в этом комплекте. Выберите «Все» или вкладку с ненулевым счётчиком.`}
                 </div>
               ) : !page ? (
-                <div className="p-6 text-sm text-muted">
+                <div className="p-4 text-xs text-muted">
                   {processing
                     ? `Текст появится по мере обработки. Готово ${readyCount} из ${total}.`
                     : pageError
@@ -1593,71 +1589,16 @@ export function ReviewPane({
                 </div>
               ) : (
                 <div
-                  className={`markdown-body p-5 ${page.kind === "table" ? "markdown-body--table" : ""}`}
+                  className={`markdown-body markdown-body--compact p-3 ${page.kind === "table" ? "markdown-body--table" : ""}`}
                 >
                   {pageError ? (
-                    <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+                    <div className="mb-2 rounded-md border border-red-200 bg-red-50 px-2 py-1.5 text-[11px] text-red-800">
                       Ошибка листа: {pageError}
                     </div>
                   ) : null}
                   {showTech && isMockPage ? (
-                    <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+                    <div className="mb-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-950">
                       Это ответ режима [MOCK], не работа модели.
-                    </div>
-                  ) : null}
-                  {/* Что нашёл конвейер на этом листе: места в тексте
-                      подсвечены розовым, чтобы не искать их глазами. */}
-                  {pageReviews.length > 0 ? (
-                    <div className="mb-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-900">
-                      <div className="font-medium">
-                        Замечаний по листу: {pageReviews.length}
-                        <span className="ml-1 font-normal text-rose-700/80">
-                          {page?.source === "model"
-                            ? " · на чертеже нет текстового слоя, клик ищет в расшифровке"
-                            : " · кликните, чтобы подсветить на чертеже"}
-                        </span>
-                      </div>
-                      <ul className="mt-1 space-y-0.5">
-                        {pageReviews.map((review) => {
-                          const active =
-                            focusQuote.length >= 2 &&
-                            (
-                              review.locations.some(
-                                (loc) =>
-                                  loc.quote &&
-                                  normalizeQuote(loc.quote) ===
-                                    normalizeQuote(focusQuote),
-                              ) ||
-                              normalizeQuote(review.text || "") ===
-                                normalizeQuote(focusQuote) ||
-                              normalizeQuote(review.aiFinding || "") ===
-                                normalizeQuote(focusQuote)
-                            );
-                          return (
-                            <li key={review.id}>
-                              <button
-                                type="button"
-                                onClick={() => focusReviewOnSheet(review)}
-                                className={`w-full rounded px-1.5 py-1 text-left leading-snug hover:bg-rose-100/80 ${
-                                  active
-                                    ? "bg-rose-200/90 outline outline-2 outline-rose-500"
-                                    : ""
-                                }`}
-                                title="Подсветить место на чертеже и в расшифровке"
-                              >
-                                <span className="font-medium tabular-nums">
-                                  № {review.number}
-                                </span>
-                                {` · ${REVIEW_SEVERITY_LABEL[
-                                  review.severity
-                                ].toLowerCase()} · ${
-                                  review.text || review.aiFinding
-                                }`}
-                              </button>
-                            </li>
-                          );
-                        })}
-                      </ul>
                     </div>
                   ) : null}
                   <MarkdownView

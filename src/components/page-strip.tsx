@@ -5,7 +5,31 @@ import type { PDFDocumentProxy } from "pdfjs-dist";
 import { renderPdfThumb } from "@/lib/pdf-thumb";
 import { PaneToggle } from "@/components/ui-chrome";
 import { SEVERITY_DOT, VERDICT_DOT } from "@/lib/review-colors";
-import { KIND_LABEL, type PageKind, type ReviewSeverity, type ReviewVerdict } from "@/types";
+import {
+  KIND_LABEL,
+  REVIEW_SEVERITY_LABEL,
+  REVIEW_VERDICT_LABEL,
+  type PageKind,
+  type ReviewSeverity,
+  type ReviewVerdict,
+} from "@/types";
+
+function StatusDot({
+  className,
+  label,
+}: {
+  className: string;
+  label: string;
+}) {
+  return (
+    <span className="group/dot relative inline-flex" title={label}>
+      <span className={`h-3 w-3 rounded-full ${className}`} />
+      <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-1 hidden -translate-x-1/2 whitespace-nowrap rounded bg-slate-900 px-1.5 py-0.5 text-[10px] leading-none text-white shadow-sm group-hover/dot:block">
+        {label}
+      </span>
+    </span>
+  );
+}
 
 type PageStripProps = {
   url: string;
@@ -23,6 +47,8 @@ type PageStripProps = {
   emptyLabel?: string;
   onSelect: (page: number) => void;
   onCollapse?: () => void;
+  /** В колонке проектов: на всю ширину, без своей кнопки свернуть. */
+  embedded?: boolean;
 };
 
 const MAX_PARALLEL_RENDERS = 2;
@@ -43,6 +69,7 @@ export function PageStrip({
   emptyLabel,
   onSelect,
   onCollapse,
+  embedded = false,
 }: PageStripProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const canvases = useRef<Map<number, HTMLCanvasElement>>(new Map());
@@ -159,10 +186,18 @@ export function PageStrip({
 
   return (
     <div
-      className="flex h-full min-h-0 shrink-0 flex-col border-r border-border bg-surface-2"
-      style={{ width }}
+      className={
+        embedded
+          ? "flex h-full min-h-0 min-w-0 flex-1 flex-col bg-surface-2"
+          : "flex h-full min-h-0 shrink-0 flex-col border-r border-border bg-surface-2"
+      }
+      style={embedded ? undefined : { width }}
     >
-      {onCollapse ? (
+      {embedded ? (
+        <div className="shrink-0 border-b border-border px-2 py-1 text-[10px] font-semibold text-muted">
+          Листы
+        </div>
+      ) : onCollapse ? (
         <div className="flex shrink-0 items-center justify-end border-b border-border px-1 py-1">
           <PaneToggle
             expanded
@@ -203,7 +238,7 @@ export function PageStrip({
               }
             }}
             onClick={() => onSelect(pageNumber)}
-            className={`mb-1.5 rounded-md border p-1 text-left transition-[opacity,transform,box-shadow] duration-150 ${
+            className={`mb-1.5 overflow-visible rounded-md border p-1 text-left transition-[opacity,transform,box-shadow] duration-150 ${
               current === pageNumber
                 ? "z-[1] scale-[1.02] border-accent bg-white shadow-[0_0_0_2px_rgba(37,99,235,0.25)]"
                 : isWorking
@@ -223,36 +258,32 @@ export function PageStrip({
             </span>
             <div className="mt-1 flex items-center justify-between gap-1">
               <span className="text-[10px] font-medium">{pageNumber}</span>
-              <span className="flex items-center gap-0.5">
+              <span className="flex items-center gap-1 overflow-visible">
                 {isWorking ? (
-                  <span
-                    className="h-1.5 w-1.5 animate-pulse rounded-full bg-sky-500 motion-reduce:animate-none"
-                    title="Сейчас обрабатывается"
+                  <StatusDot
+                    className="animate-pulse bg-sky-500 motion-reduce:animate-none"
+                    label="Сейчас обрабатывается"
                   />
                 ) : isReady ? (
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" title="Текст готов" />
+                  <StatusDot className="bg-emerald-500" label="Текст готов" />
                 ) : (
-                  <span className="h-1.5 w-1.5 rounded-full bg-slate-300" title="Ждёт текст" />
+                  <StatusDot className="bg-slate-300" label="Ждёт текст" />
                 )}
                 {dots ? (
                   <>
-                    <span
-                      className={`h-1.5 w-1.5 rounded-full ${SEVERITY_DOT[dots.severity]}`}
-                      title={`Важность: ${dots.severity}`}
+                    <StatusDot
+                      className={SEVERITY_DOT[dots.severity]}
+                      label={`Важность: ${REVIEW_SEVERITY_LABEL[dots.severity]}`}
                     />
-                    <span
-                      className={`h-1.5 w-1.5 rounded-full ${VERDICT_DOT[dots.verdict]}`}
-                      title={
-                        dots.verdict === "pending"
-                          ? "Не разобрано"
-                          : "Разбор проставлен"
-                      }
+                    <StatusDot
+                      className={VERDICT_DOT[dots.verdict]}
+                      label={`Разбор: ${REVIEW_VERDICT_LABEL[dots.verdict]}`}
                     />
                   </>
                 ) : isFlagged ? (
-                  <span className="h-1.5 w-1.5 rounded-full bg-red-500" title="Есть отметка" />
+                  <StatusDot className="bg-red-500" label="Есть отметка" />
                 ) : isEdited ? (
-                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500" title="Лист правили" />
+                  <StatusDot className="bg-amber-500" label="Лист правили" />
                 ) : null}
               </span>
             </div>

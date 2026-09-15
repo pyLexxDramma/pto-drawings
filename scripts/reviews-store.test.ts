@@ -414,6 +414,66 @@ describe("ingestReviews", () => {
     assert.equal(await store.deleteReview(PROJECT, list[0].id), false);
   });
 
+  it("убирает замечания удалённого файла", async () => {
+    const project = "df97da8f-5555-4222-8333-444444444444";
+    const live = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
+    const dead = "bbbbbbbb-cccc-4ddd-8eee-ffffffffffff";
+    await store.ingestReviews(project, [
+      {
+        section: "ОВ",
+        aiFinding: "живое",
+        locations: [
+          {
+            documentId: live,
+            documentName: "живой.pdf",
+            pageNumber: 1,
+            quote: "а",
+          },
+        ],
+      },
+      {
+        section: "ОВ",
+        aiFinding: "мёртвое",
+        locations: [
+          {
+            documentId: dead,
+            documentName: "старый.pdf",
+            pageNumber: 2,
+            quote: "б",
+          },
+        ],
+      },
+      {
+        section: "ОВ",
+        aiFinding: "оба",
+        locations: [
+          {
+            documentId: live,
+            documentName: "живой.pdf",
+            pageNumber: 1,
+            quote: "в",
+          },
+          {
+            documentId: dead,
+            documentName: "старый.pdf",
+            pageNumber: 3,
+            quote: "г",
+          },
+        ],
+      },
+    ]);
+    const result = await store.pruneDeadReviews(project, [live], ["живой.pdf"]);
+    assert.equal(result.removed, 1);
+    const list = await store.listReviews(project);
+    assert.deepEqual(
+      list.map((item) => item.aiFinding).sort(),
+      ["живое", "оба"],
+    );
+    const both = list.find((item) => item.aiFinding === "оба");
+    assert.equal(both?.locations.length, 1);
+    assert.equal(both?.locations[0].documentId, live);
+  });
+
   it("пустой проект отдаёт пустой список", async () => {
     const list = await store.listReviews("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
     assert.deepEqual(list, []);
