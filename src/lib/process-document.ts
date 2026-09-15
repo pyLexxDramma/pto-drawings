@@ -38,6 +38,13 @@ const ROOT = process.env.DATA_ROOT || process.cwd();
 const UPLOAD_DIR = path.join(ROOT, "uploads");
 
 const CANCEL_PENDING = "Отмена… останавливаем после текущего листа.";
+const PAUSE_MESSAGE =
+  "Обработка на паузе: сервер перегружен. Запустим снова позже.";
+
+export function isProcessingPaused() {
+  const value = (process.env.PTO_PAUSE_PROCESSING ?? "").trim().toLowerCase();
+  return value === "1" || value === "true" || value === "yes";
+}
 
 type BackendStatus = "queued" | "processing" | "done" | "error" | "canceled";
 
@@ -257,6 +264,14 @@ export async function reconcileOrphanedJobs() {
     return;
   }
 
+  if (isProcessingPaused()) {
+    for (const doc of documents) {
+      if (doc.status !== "queued" && doc.status !== "processing") continue;
+      runInBackground(cancelDocument(doc.id).then(() => undefined));
+    }
+    return;
+  }
+
   for (const doc of documents) {
     if (doc.status !== "queued" && doc.status !== "processing") continue;
     if (active.has(doc.id)) continue;
@@ -404,6 +419,16 @@ export async function processDocument(
   id: string,
   options?: { reset?: boolean },
 ) {
+  if (isProcessingPaused()) {
+    await updateDocument(id, {
+      status: "error",
+      processingStep: null,
+      processingPage: null,
+      pipelineFinishedAt: new Date().toISOString(),
+      errorMessage: PAUSE_MESSAGE,
+    });
+    return;
+  }
   if (running.has(id)) return;
   running.add(id);
   const reset = Boolean(options?.reset);

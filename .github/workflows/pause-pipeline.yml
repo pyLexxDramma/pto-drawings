@@ -1,0 +1,66 @@
+name: Pause pipeline
+
+on:
+  workflow_dispatch:
+
+jobs:
+  pause:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Check secrets
+        id: check
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          if [ -z "$VPS_HOST" ] || [ -z "$VPS_SSH_KEY" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Stop pipeline, keep site
+        if: steps.check.outputs.skip != 'true'
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script_stop: true
+          command_timeout: 5m
+          request_pty: true
+          envs: PTO_APP_DIR
+          script: |
+            set -euo pipefail
+            APP_DIR="${PTO_APP_DIR:-/var/www/pto}"
+            ENV_FILE="$APP_DIR/.env.local"
+            echo "[pause] host $(hostname)"
+            if [[ -f "$ENV_FILE" ]]; then
+              if grep -q '^PTO_PAUSE_PROCESSING=' "$ENV_FILE"; then
+                sed -i 's/^PTO_PAUSE_PROCESSING=.*/PTO_PAUSE_PROCESSING=1/' "$ENV_FILE"
+              else
+                printf '\nPTO_PAUSE_PROCESSING=1\n' >> "$ENV_FILE"
+              fi
+            else
+              printf 'PTO_PAUSE_PROCESSING=1\n' > "$ENV_FILE"
+            fi
+            echo "[pause] env set"
+            for unit in pto-pipeline pto-backend pto-work; do
+              if systemctl cat "$unit" >/dev/null 2>&1; then
+                systemctl stop "$unit" || true
+                echo "[pause] stopped $unit"
+              fi
+            done
+            if command -v docker >/dev/null 2>&1; then
+              docker ps --format '{{.Names}}' | grep -Ei 'pto|pipeline|backend|pto-work' \
+                | while read -r name; do
+                    echo "[pause] docker stop $name"
+                    docker stop "$name" || true
+                  done
+            fi
+            systemctl restart pto || true
+            systemctl is-active pto || true
+            echo "[pause] free:"; free -h
+        env:
+          PTO_APP_DIR: ${{ secrets.VPS_APP_DIR }}
