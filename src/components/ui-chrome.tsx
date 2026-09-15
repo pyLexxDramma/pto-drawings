@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { IconChevronLeft, IconChevronRight } from "@/components/tool-icons";
 
 export function Spinner({ className = "h-3 w-3" }: { className?: string }) {
@@ -156,12 +157,39 @@ export function ActionMenu({
     onOpenChange?.(next);
   }
   const rootRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const trigger = rootRef.current?.querySelector("button");
+    const menu = menuRef.current;
+    if (!trigger || !menu) return;
+    const rect = trigger.getBoundingClientRect();
+    const mw = menu.offsetWidth;
+    const mh = menu.offsetHeight;
+    const pad = 8;
+    let left =
+      align === "right" ? rect.right + 4 : rect.left;
+    if (left + mw > window.innerWidth - pad) {
+      left = rect.left - mw - 4;
+    }
+    left = Math.min(Math.max(pad, left), window.innerWidth - mw - pad);
+    let top = rect.bottom + 4;
+    if (top + mh > window.innerHeight - pad) {
+      top = Math.max(pad, rect.top - mh - 4);
+    }
+    setPos({ top, left });
+  }, [open, align, children]);
 
   useEffect(() => {
     if (!open) return;
     // click, не mousedown: иначе пункт меню размонтируется до click и onClick не срабатывает
     function onPointer(event: MouseEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+      const node = event.target as Node;
+      if (rootRef.current?.contains(node)) return;
+      if (menuRef.current?.contains(node)) return;
+      setOpen(false);
     }
     function onKey(event: KeyboardEvent) {
       if (event.key === "Escape") setOpen(false);
@@ -180,7 +208,7 @@ export function ActionMenu({
         type="button"
         aria-expanded={open}
         aria-haspopup="menu"
-        title={label}
+        aria-label={label}
         onClick={(event) => {
           event.stopPropagation();
           setOpen(!open);
@@ -192,23 +220,26 @@ export function ActionMenu({
       >
         {trigger ?? "⋯"}
       </button>
-      {open ? (
-        <div
-          role="menu"
-          className={`absolute z-40 mt-1 min-w-[11rem] rounded-md border border-slate-300 bg-white py-1 shadow-md ${
-            align === "right" ? "right-0" : "left-0"
-          } ${menuClassName}`}
-          onMouseDown={(event) => event.stopPropagation()}
-        >
-          <div
-            onClick={() => setOpen(false)}
-            onKeyDown={() => setOpen(false)}
-            role="none"
-          >
-            {children}
-          </div>
-        </div>
-      ) : null}
+      {open
+        ? createPortal(
+            <div
+              ref={menuRef}
+              role="menu"
+              style={{ top: pos.top, left: pos.left }}
+              className={`fixed z-[80] min-w-[10rem] rounded-md border border-slate-300 bg-white py-1 shadow-md ${menuClassName}`}
+              onMouseDown={(event) => event.stopPropagation()}
+            >
+              <div
+                onClick={() => setOpen(false)}
+                onKeyDown={() => setOpen(false)}
+                role="none"
+              >
+                {children}
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }
