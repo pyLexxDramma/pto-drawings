@@ -188,10 +188,14 @@ export function ProcessingSummaryStrip({
     <div className="border-b border-border bg-[#fafbfc] px-4 py-1.5 text-[11px] text-muted">
       {stopped ? (
         <span className="text-amber-800">Обработка остановлена</span>
-      ) : document.status === "error" ? (
+      ) : document.status === "error" || errorCount > 0 ? (
         <span className="text-red-700">
           Ошибка обработки
-          {document.errorMessage ? `: ${document.errorMessage}` : ""}
+          {document.errorMessage && document.status === "error"
+            ? `: ${document.errorMessage}`
+            : errorCount > 0
+              ? `: не вышло листов ${errorCount}`
+              : ""}
         </span>
       ) : (
         <span>Обработка завершена · 100%</span>

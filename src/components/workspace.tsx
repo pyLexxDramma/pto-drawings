@@ -42,7 +42,12 @@ import {
   formatPages,
   formatTimeOnly,
 } from "@/lib/format";
+import { ProcessingAlertsBar } from "@/components/processing-alerts";
 import { LiveProgressDock } from "@/components/processing-progress-panel";
+import {
+  collectProcessingAlerts,
+  processingFailed,
+} from "@/lib/processing-alerts";
 import {
   formatElapsed,
   formatPipelineUsage,
@@ -332,6 +337,7 @@ export function Workspace({
   const [liveJobDoc, setLiveJobDoc] = useState<DocumentRecord | null>(null);
   const [fullProgressVisible, setFullProgressVisible] = useState(false);
   const [liveDockCollapsed, setLiveDockCollapsed] = useState(false);
+  const [auditTab, setAuditTab] = useState<"log" | "processing">("log");
   const [showReviews, setShowReviews] = useState(false);
   /** Лист, открытый поверх таблицы замечаний по ссылке «Где в ПД». */
   const [peekOpen, setPeekOpen] = useState(false);
@@ -877,6 +883,11 @@ export function Workspace({
     );
   }, [openPage, projectReviews]);
 
+  const processingAlerts = useMemo(
+    () => collectProcessingAlerts(documents),
+    [documents],
+  );
+
   // тост при завершении / ошибке обработки
   useEffect(() => {
     const prev = statusPrevRef.current;
@@ -889,14 +900,27 @@ export function Workspace({
         (was === "queued" || was === "processing") &&
         (doc.status === "done" || doc.status === "error")
       ) {
-        const ok = doc.status === "done";
-        const message = ok
-          ? `Готово: ${doc.originalName}`
-          : `Ошибка: ${doc.originalName}${doc.errorMessage ? ` — ${doc.errorMessage}` : ""}`;
-        pushToast(message, ok ? "ok" : "error");
+        const canceled = Boolean(doc.errorMessage?.startsWith("Отмена"));
+        const failed = processingFailed(doc);
+        const pages = Object.entries(doc.pageErrors ?? {});
+        const firstPage = pages[0];
+        const detail = firstPage
+          ? `лист ${firstPage[0]} — ${firstPage[1]}`
+          : doc.errorMessage;
+        const extra = pages.length > 1 ? ` и ещё ${pages.length - 1}` : "";
+        const message = canceled
+          ? `Остановлено: ${doc.originalName}`
+          : failed
+            ? `Ошибка: ${doc.originalName}${detail ? ` — ${detail}${extra}` : ""}`
+            : `Готово: ${doc.originalName}`;
+        pushToast(message, canceled ? "info" : failed ? "error" : "ok");
         notifyIfHidden(
-          ok ? "PTO: разбор готов" : "PTO: ошибка разбора",
-          doc.originalName,
+          canceled
+            ? "PTO: обработка остановлена"
+            : failed
+              ? "PTO: ошибка разбора"
+              : "PTO: разбор готов",
+          firstPage ? `${doc.originalName}, лист ${firstPage[0]}` : doc.originalName,
         );
       }
     }
@@ -1677,7 +1701,14 @@ export function Workspace({
               statusNote={visiblePipelineChip?.text ?? null}
               defaultPasswordWarning={defaultPasswordWarning}
               onUsers={user.role === "admin" ? () => setShowUsers(true) : undefined}
-              onAudit={user.role === "admin" ? () => setShowAudit(true) : undefined}
+              onAudit={
+                user.role === "admin"
+                  ? () => {
+                      setAuditTab("log");
+                      setShowAudit(true);
+                    }
+                  : undefined
+              }
               onPassword={() => setShowPassword(true)}
               onLogout={() => {
                 void (async () => {
@@ -1689,6 +1720,25 @@ export function Workspace({
           </div>
         </header>
       )}
+
+      {processingAlerts.length > 0 ? (
+        <ProcessingAlertsBar
+          alerts={processingAlerts}
+          canOpenLog={user.role === "admin"}
+          onOpen={(alert) => {
+            void openDocument(alert.documentId, alert.page ?? undefined);
+          }}
+          onRetry={(id) => void handleRetry(id, true)}
+          onOpenLog={
+            user.role === "admin"
+              ? () => {
+                  setAuditTab("processing");
+                  setShowAudit(true);
+                }
+              : undefined
+          }
+        />
+      ) : null}
 
       {showLiveDock && liveJobDoc ? (
         <LiveProgressDock
@@ -1906,11 +1956,35 @@ export function Workspace({
                             >
                               <span className="flex items-center gap-1.5">
                                 <span
-                                  className={`h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_DOT[doc.status]}`}
-                                  title={STATUS_LABEL[doc.status]}
+                                  className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                                    processingFailed(doc)
+                                      ? "bg-red-500"
+                                      : STATUS_DOT[doc.status]
+                                  }`}
+                                  title={
+                                    processingFailed(doc)
+                                      ? "Ошибка обработки"
+                                      : STATUS_LABEL[doc.status]
+                                  }
                                   aria-hidden
                                 />
                                 <span className="min-w-0 flex-1 truncate">{doc.originalName}</span>
+                                {processingFailed(doc) ? (
+                                  <span
+                                    className="shrink-0 rounded bg-red-100 px-1 text-[9px] font-medium text-red-800"
+                                    title={
+                                      Object.entries(doc.pageErrors ?? {})
+                                        .map(([page, reason]) => `лист ${page}: ${reason}`)
+                                        .join(" · ") ||
+                                      doc.errorMessage ||
+                                      "ошибка"
+                                    }
+                                  >
+                                    {Object.keys(doc.pageErrors ?? {}).length
+                                      ? `ош. ${Object.keys(doc.pageErrors).length}`
+                                      : "ошибка"}
+                                  </span>
+                                ) : null}
                                 {doc.kitId ? (
                                   <span
                                     className="shrink-0 rounded border border-accent/30 bg-accent/5 px-1 text-[9px] font-medium text-accent"
@@ -2145,7 +2219,11 @@ export function Workspace({
             currentUserId={user.id}
             onClose={() => setShowUsers(false)}
           />
-          <AuditPanel open={showAudit} onClose={() => setShowAudit(false)} />
+          <AuditPanel
+            open={showAudit}
+            initialTab={auditTab}
+            onClose={() => setShowAudit(false)}
+          />
         </>
       ) : null}
 

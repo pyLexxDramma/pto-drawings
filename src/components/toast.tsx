@@ -36,7 +36,10 @@ export function ToastHost({
   useEffect(() => {
     if (items.length === 0) return;
     const timers = items.map((item) =>
-      window.setTimeout(() => onDismiss(item.id), 5000),
+      window.setTimeout(
+        () => onDismiss(item.id),
+        item.tone === "error" ? 20000 : 5000,
+      ),
     );
     return () => {
       for (const timer of timers) window.clearTimeout(timer);

@@ -156,8 +156,16 @@ function LayerChip({ layer }: { layer: LogLayer }) {
 const cell = "px-2 py-1.5 align-top";
 const head = "px-2 py-1.5 text-left font-medium";
 
-export function AuditPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [tab, setTab] = useState<Tab>("log");
+export function AuditPanel({
+  open,
+  onClose,
+  initialTab = "log",
+}: {
+  open: boolean;
+  onClose: () => void;
+  initialTab?: Tab;
+}) {
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [layer, setLayer] = useState<LogLayer | "all">("all");
   const [onlyErrors, setOnlyErrors] = useState(false);
   // Ответ и ошибку держим вместе с разделом: пока пришёл ответ прошлой вкладки,
@@ -184,6 +192,10 @@ export function AuditPanel({ open, onClose }: { open: boolean; onClose: () => vo
     tab === "log"
       ? `&layer=${layer}${onlyErrors ? "&errors=1" : ""}`
       : "";
+
+  useEffect(() => {
+    if (open) setTab(initialTab);
+  }, [open, initialTab]);
 
   useEffect(() => {
     if (!open) return;
