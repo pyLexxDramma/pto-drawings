@@ -333,7 +333,7 @@ export function Workspace({
   const [pendingUploadMode, setPendingUploadMode] = useState<UploadMode>("files");
   const [uploadBusy, setUploadBusy] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [projectsWidth, setProjectsWidth] = useState(148);
+  const [projectsWidth, setProjectsWidth] = useState(74);
   /** Job обработки, переживает смену проекта. */
   const [liveJobDoc, setLiveJobDoc] = useState<DocumentRecord | null>(null);
   const [fullProgressVisible, setFullProgressVisible] = useState(false);
@@ -621,7 +621,9 @@ export function Workspace({
       if (!raw) return;
       const parsed = JSON.parse(raw) as { projects?: number; files?: number };
       if (typeof parsed.projects === "number") {
-        setProjectsWidth(clamp(parsed.projects, 128, 156));
+        setProjectsWidth(
+          parsed.projects > 90 ? 74 : clamp(parsed.projects, 64, 90),
+        );
       }
     } catch {
       // ignore
@@ -1588,19 +1590,16 @@ export function Workspace({
       />
 
       {focusMode ? null : (
-        <header className="flex shrink-0 items-center gap-2 border-b border-border bg-surface px-3 py-1.5 sm:px-4">
+        <header className="flex shrink-0 items-center gap-1.5 border-b border-border bg-surface px-2 py-0.5 sm:px-3">
           <button
             type="button"
             onClick={goHome}
-            className="flex shrink-0 items-center gap-2.5 text-left"
+            className="flex shrink-0 items-center gap-1.5 text-left"
             title="К списку проектов"
           >
-            <PtoLogo className="h-8 w-8 shrink-0" title="PTO — проверка чертежей" />
+            <PtoLogo className="h-5 w-5 shrink-0" title="PTO — проверка чертежей" />
             <div className="hidden min-w-0 sm:block">
-              <div className="text-sm font-semibold leading-none tracking-tight">PTO</div>
-              <div className="mt-0.5 text-[10px] leading-none text-muted">
-                проверка чертежей
-              </div>
+              <div className="text-xs font-semibold leading-none tracking-tight">PTO</div>
             </div>
           </button>
 
@@ -1651,7 +1650,7 @@ export function Workspace({
                 setShowNewProject(true);
               }}
               title="Создать новый проект"
-              className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-[11px] font-semibold text-slate-800 hover:bg-slate-50"
+              className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-slate-800 hover:bg-slate-50"
             >
               <span aria-hidden className="text-sm leading-none">
                 +
@@ -1789,7 +1788,7 @@ export function Workspace({
             className="flex min-h-0 shrink-0 flex-col border-b border-border bg-surface md:border-b-0"
             style={{ width: projectsWidth, maxWidth: "100%" }}
           >
-            <div className="flex items-start gap-1 border-b border-border px-2 py-1.5">
+            <div className="flex items-start gap-1 border-b border-border px-1 py-1">
               <div className="min-w-0 flex-1">
               {showNewProject || projects.length === 0 ? (
                 <form onSubmit={handleCreateProject} className="space-y-1">
@@ -2066,7 +2065,7 @@ export function Workspace({
         {focusMode || showReviews || projectsCollapsed ? null : (
           <ColumnResizer
             className="hidden md:block"
-            onDelta={(dx) => setProjectsWidth((w) => clamp(w + dx, 128, 156))}
+            onDelta={(dx) => setProjectsWidth((w) => clamp(w + dx, 64, 90))}
           />
         )}
 

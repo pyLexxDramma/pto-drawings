@@ -156,7 +156,7 @@ export function ProjectStagesBar({
   return (
     <div
       className={`flex min-w-0 flex-1 items-center gap-2 overflow-hidden ${
-        embedded ? "" : "shrink-0 border-b border-border bg-white px-2 py-1.5 sm:px-3"
+        embedded ? "" : "shrink-0 border-b border-border bg-white px-2 py-0.5 sm:px-3"
       }`}
     >
       <span
@@ -180,16 +180,16 @@ export function ProjectStagesBar({
               disabled={stage.count === PENDING.count}
               title={`${stage.hint} · ${ACTION[stage.id]}`}
               aria-current={current ? "page" : undefined}
-              className={`flex min-w-0 flex-1 flex-col justify-center rounded-md border px-3 py-2 text-left disabled:cursor-default ${
+              className={`flex min-w-0 flex-1 flex-col justify-center rounded-md border px-2 py-0.5 text-left disabled:cursor-default ${
                 current ? tone.current : tone.idle
               }`}
             >
-              <span className="flex items-baseline gap-2">
-                <span className="truncate text-[13px] font-semibold leading-tight sm:text-sm">
+              <span className="flex items-baseline gap-1.5">
+                <span className="truncate text-[11px] font-semibold leading-tight">
                   {stage.label}
                 </span>
                 <span
-                  className={`shrink-0 text-[11px] tabular-nums sm:text-xs ${
+                  className={`shrink-0 text-[10px] tabular-nums ${
                     current ? "text-white/90" : "opacity-75"
                   }`}
                 >
@@ -198,7 +198,7 @@ export function ProjectStagesBar({
                 </span>
               </span>
               <ProgressTrack
-                className={`mt-1.5 h-1.5 ${current ? "opacity-90" : ""}`}
+                className={`mt-0.5 h-0.5 ${current ? "opacity-90" : ""}`}
                 value={stage.percent}
                 tone={stage.state === "done" ? "emerald" : tone.track}
               />
@@ -212,7 +212,7 @@ export function ProjectStagesBar({
           type="button"
           onClick={onBackHome}
           title={backLabel}
-          className="shrink-0 rounded-md border border-border bg-white px-2.5 py-1 text-xs font-medium text-text hover:bg-bg"
+          className="shrink-0 rounded-md border border-border bg-white px-1.5 py-0.5 text-[10px] font-medium text-text hover:bg-bg"
         >
           {backLabel}
         </button>
@@ -220,7 +220,7 @@ export function ProjectStagesBar({
 
       {docTitle ? (
         <span
-          className="hidden max-w-[10rem] shrink truncate rounded border border-slate-300 bg-white px-2 py-1 text-[11px] font-medium text-slate-800 lg:inline"
+          className="hidden max-w-[8rem] shrink truncate rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[10px] font-medium text-slate-800 lg:inline"
           title={docTitle}
         >
           {docTitle}

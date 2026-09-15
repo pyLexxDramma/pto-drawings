@@ -1394,7 +1394,7 @@ export function ReviewPane({
               />
             ) : (
               <>
-            <div className="flex flex-wrap items-center gap-1.5 border-b border-border px-2 py-1">
+            <div className="flex flex-wrap items-center gap-1 border-b border-border px-1.5 py-0.5">
               <PaneToggle
                 expanded
                 align="right"
