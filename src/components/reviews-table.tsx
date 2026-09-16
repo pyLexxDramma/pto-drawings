@@ -534,42 +534,45 @@ export function ReviewsTable({
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-[#f4f6f9]">
-      <header className="flex flex-wrap items-center gap-2 border-b border-border bg-surface px-3 py-2">
+      <header className="flex items-center gap-2 border-b border-border bg-surface px-2 py-1">
         <button
           type="button"
           onClick={onClose}
-          className="rounded border border-border px-2 py-1 text-[11px] text-muted hover:bg-bg hover:text-text"
+          className="shrink-0 rounded border border-border px-1.5 py-0.5 text-[11px] text-muted hover:bg-bg hover:text-text"
           title="Вернуться к чертежам"
         >
           ← К чертежам
         </button>
-        <div className="min-w-0">
-          <div className="truncate text-sm font-semibold text-text">
+        <div
+          className="min-w-0 flex-1 truncate text-[11px] tabular-nums leading-tight"
+          title={
+            loading
+              ? projectName
+              : `${projectName}: ${stats.total} всего, ${stats.pending} не разобрано, выс. ${stats.high}, в выгрузку ${stats.exportable}, ИИ ${stats.ai}, инж. ${stats.engineer}`
+          }
+        >
+          <span className="font-semibold text-text">
             Замечания · {projectName}
-          </div>
-          <div className="text-[11px] tabular-nums text-muted">
-            {loading
-              ? "загрузка…"
-              : `${stats.total} всего · ${stats.pending} не разобрано · ${stats.high} высокой важности · ${stats.exportable} в выгрузку`}
-          </div>
-          {loading ? null : (
-            <div className="text-[11px] tabular-nums text-muted">
-              {`нашла ИИ ${stats.ai} · инженеры ${stats.engineer} · ИИ и инженер ${stats.both}`}
+          </span>
+          {loading ? (
+            <span className="text-muted"> · загрузка…</span>
+          ) : (
+            <span className="text-muted">
+              {` · ${stats.total} всего · ${stats.pending} не разобрано · выс. ${stats.high} · выгрузка ${stats.exportable} · ИИ ${stats.ai} · инж. ${stats.engineer}`}
+              {stats.both ? ` · оба ${stats.both}` : ""}
               {stats.wrong ? (
-                <span className="text-rose-700">
-                  {` · брак ИИ ${stats.wrong}`}
-                </span>
+                <span className="text-rose-700">{` · брак ${stats.wrong}`}</span>
               ) : null}
-            </div>
+            </span>
           )}
         </div>
 
-        <div className="ml-auto flex flex-wrap items-center gap-2">
+        <div className="ml-auto flex shrink-0 items-center gap-1.5">
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Поиск по замечаниям"
-            className="w-44 rounded-md border border-border bg-white px-2 py-1 text-xs outline-none placeholder:text-muted focus:border-accent"
+            placeholder="Поиск"
+            className="w-32 rounded-md border border-border bg-white px-1.5 py-0.5 text-[11px] outline-none placeholder:text-muted focus:border-accent"
           />
           <input
             ref={importRef}
@@ -585,7 +588,7 @@ export function ReviewsTable({
             type="button"
             disabled={importing}
             onClick={() => importRef.current?.click()}
-            className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+            className="rounded-md border border-slate-300 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
             title="Загрузить замечания инженера из Excel"
           >
             {importing ? "Загрузка…" : "Загрузить Excel"}
@@ -594,7 +597,7 @@ export function ReviewsTable({
             type="button"
             disabled={enriching || pendingEnrich === 0}
             onClick={() => void handleEnrich()}
-            className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+            className="rounded-md border border-slate-300 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
             title="Для строк из Excel без листа: проставить раздел, номер листа и цитату в колонке «Где в ПД»"
           >
             {enriching
@@ -608,7 +611,7 @@ export function ReviewsTable({
             <button
               type="button"
               onClick={goToLeftover}
-              className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-slate-100 px-2.5 py-1.5 text-xs font-semibold text-slate-500"
+              className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500"
               title={
                 leftover.length > 0
                   ? `Ещё ${leftover.length} без важности или разбора. Нажмите — перейти к строке`
@@ -623,7 +626,7 @@ export function ReviewsTable({
               type="button"
               disabled={exporting}
               onClick={() => void downloadVisibleXlsx()}
-              className="inline-flex items-center gap-1.5 rounded-md bg-accent px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-[#1d4ed8] disabled:opacity-50"
+              className="inline-flex items-center gap-1 rounded-md bg-accent px-2 py-0.5 text-[11px] font-semibold text-white hover:bg-[#1d4ed8] disabled:opacity-50"
               title={
                 filtersOn
                   ? `Скачать отфильтрованные: ${visibleExportable.length}`
@@ -648,7 +651,7 @@ export function ReviewsTable({
                   }
                 }
               }}
-              className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50"
+              className="rounded-md border border-slate-300 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-800 hover:bg-slate-50"
               title="Вернуть всем статус «Не разобрано», как после расшифровки ИИ"
             >
               Сбросить разбор
