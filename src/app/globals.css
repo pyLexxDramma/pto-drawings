@@ -196,28 +196,6 @@ html[data-density="compact"] {
   box-shadow: 0 1px 0 var(--border);
 }
 
-.markdown-body th:first-child,
-.markdown-body td:first-child {
-  position: sticky;
-  left: 0;
-  z-index: 2;
-  background: inherit;
-  box-shadow: 1px 0 0 var(--border);
-}
-
-.markdown-body thead th:first-child {
-  z-index: 3;
-  background: #e8eef6;
-}
-
-.markdown-body tbody td:first-child {
-  background: #fff;
-}
-
-.markdown-body tbody tr:nth-child(even) td:first-child {
-  background: #f7f9fc;
-}
-
 .markdown-body .pto-col-hover {
   background: #e8f1ff !important;
 }
