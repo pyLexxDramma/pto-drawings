@@ -9,7 +9,7 @@ import {
   useState,
 } from "react";
 import { ExcelColFilter } from "@/components/excel-col-filter";
-import { SegmentedTabs, Spinner } from "@/components/ui-chrome";
+import { Spinner } from "@/components/ui-chrome";
 import { IconDownload } from "@/components/tool-icons";
 import {
   applyExcelFilters,
@@ -24,7 +24,6 @@ import {
   VERDICT_CHIP,
   VERDICT_ROW,
 } from "@/lib/review-colors";
-import { groupReviews, type GroupBy } from "@/lib/reviews-group";
 import { formatDate } from "@/lib/format";
 import {
   REVIEW_EVENT_LABEL,
@@ -148,7 +147,6 @@ export function ReviewsTable({
   /** Строка, по которой открыто окно «что именно неверно». */
   const [wrongFor, setWrongFor] = useState<Review | null>(null);
   const [logFor, setLogFor] = useState<Review | null>(null);
-  const [groupBy, setGroupBy] = useState<GroupBy>("section");
   const [colFilters, setColFilters] = useState<ExcelColFilters>({});
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<ExcelCol>("number");
@@ -323,11 +321,6 @@ export function ReviewsTable({
       return left.localeCompare(right, "ru", { numeric: true }) * sortDir;
     });
   }, [sortDir, sortKey, visible]);
-
-  const groups = useMemo(() => groupReviews(sorted, groupBy), [
-    groupBy,
-    sorted,
-  ]);
 
   function sortBy(key: ExcelCol, dir: 1 | -1) {
     setSortKey(key);
@@ -660,16 +653,7 @@ export function ReviewsTable({
         </div>
       </header>
 
-      <div className="flex flex-wrap items-center gap-2 border-b border-border bg-surface-2 px-3 py-1.5">
-        <SegmentedTabs
-          size="xs"
-          value={groupBy}
-          onChange={setGroupBy}
-          options={[
-            { id: "section" as GroupBy, label: "По разделам" },
-            { id: "file" as GroupBy, label: "По файлам" },
-          ]}
-        />
+      <div className="flex flex-wrap items-center gap-2 border-b border-border bg-surface-2 px-3 py-1">
         <span className="text-[11px] text-muted">
           Фильтры — стрелка на колонке, как в Excel
         </span>
@@ -758,7 +742,7 @@ export function ReviewsTable({
         className="min-h-0 flex-1 overflow-auto outline-none"
         tabIndex={0}
         onKeyDown={(event) => {
-          const flat = groups.flatMap((group) => group.items);
+          const flat = sorted;
           if (flat.length === 0) return;
           const index = Math.max(0, flat.findIndex((item) => item.id === activeId));
           if (event.key === "ArrowDown") {
@@ -882,20 +866,7 @@ export function ReviewsTable({
                   </td>
                 </tr>
               ) : null}
-              {groups.map((group) => (
-                <Fragment key={group.key}>
-                  <tr>
-                    <th
-                      colSpan={9}
-                      className="sticky top-8 z-[9] border-y border-slate-300 bg-slate-200/80 px-2 py-1 text-left text-[11px] font-semibold text-text"
-                    >
-                      {group.key}
-                      <span className="ml-2 font-normal tabular-nums text-muted">
-                        {group.items.length}
-                      </span>
-                    </th>
-                  </tr>
-                  {group.items.map((review) => (
+              {sorted.map((review) => (
                     <ReviewRow
                       key={review.id}
                       review={review}
@@ -918,8 +889,6 @@ export function ReviewsTable({
                       onDelete={() => void handleDelete(review.id)}
                       onJumpToPage={onJumpToPage}
                     />
-                  ))}
-                </Fragment>
               ))}
             </tbody>
           </table>
