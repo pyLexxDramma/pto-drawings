@@ -638,6 +638,22 @@ export function ReviewsTable({
                   : "XLSX"}
             </button>
           )}
+          {reviews.some((item) => item.verdict !== "pending") ? (
+            <button
+              type="button"
+              onClick={() => {
+                for (const item of reviews) {
+                  if (item.verdict !== "pending") {
+                    void patch(item.id, { verdict: "pending" });
+                  }
+                }
+              }}
+              className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50"
+              title="Вернуть всем статус «Не разобрано», как после расшифровки ИИ"
+            >
+              Сбросить разбор
+            </button>
+          ) : null}
         </div>
       </header>
 
