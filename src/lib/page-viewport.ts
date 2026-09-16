@@ -1,8 +1,15 @@
 /** Рамка для зума к замечанию: крошечный rect с бэка иначе не видно. */
+export const HIGHLIGHT_PAD_W = 0.14;
+export const HIGHLIGHT_PAD_H = 0.12;
+/** Вокруг рамки оставляем поле — иначе 500% и не видно контекста. */
+export const HIGHLIGHT_CONTEXT = 1.4;
+/** Жёсткий потолок абсолютного масштаба при клике на замечание. */
+export const HIGHLIGHT_MAX_SCALE = 2.6;
+
 export function padHighlightRect(
   rect: { x: number; y: number; w: number; h: number },
-  minW = 0.06,
-  minH = 0.05,
+  minW = HIGHLIGHT_PAD_W,
+  minH = HIGHLIGHT_PAD_H,
 ): { x: number; y: number; w: number; h: number } {
   const w = Math.max(rect.w, minW);
   const h = Math.max(rect.h, minH);
@@ -12,6 +19,10 @@ export function padHighlightRect(
     w,
     h,
   };
+}
+
+export function highlightZoomScale(raw: number): number {
+  return Math.min(HIGHLIGHT_MAX_SCALE, raw / HIGHLIGHT_CONTEXT);
 }
 
 /** Не даёт утащить лист за край вьюпорта (пустой фон «ниже листа»). */

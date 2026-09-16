@@ -1,7 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { clampPan, padHighlightRect } from "@/lib/page-viewport";
+import {
+  clampPan,
+  highlightZoomScale,
+  padHighlightRect,
+} from "@/lib/page-viewport";
 import { getPageView, setPageView, type PageViewCache } from "@/lib/review-view-cache";
 
 export type FitMode = "page" | "width";
@@ -220,7 +224,7 @@ export function usePageViewport({
   );
 
   const zoomToRect = useCallback(
-    (rect: PageRegion) => {
+    (rect: PageRegion, opts?: { highlight?: boolean }) => {
       const wrap = wrapRef.current;
       if (!wrap) return;
       const n = naturalRef.current;
@@ -229,7 +233,8 @@ export function usePageViewport({
       const th = Math.max(0.008, rect.h) * n.h;
       const pageFit = computeFitScale(wrap, n, "page", minScale);
       const raw = Math.min((wrap.clientWidth - pad) / tw, (wrap.clientHeight - pad) / th);
-      const nextScale = Math.min(pageFit * maxZoomFactor, Math.max(minScale, raw));
+      const fitted = opts?.highlight ? highlightZoomScale(raw) : raw;
+      const nextScale = Math.min(pageFit * maxZoomFactor, Math.max(minScale, fitted));
       const cx = (rect.x + rect.w / 2) * n.w * nextScale;
       const cy = (rect.y + rect.h / 2) * n.h * nextScale;
       applyView(
@@ -239,7 +244,7 @@ export function usePageViewport({
           nextScale,
         ),
       );
-      onUserZoom?.();
+      if (!opts?.highlight) onUserZoom?.();
     },
     [applyView, boundPan, maxZoomFactor, minScale, onUserZoom, wrapRef],
   );
@@ -328,20 +333,19 @@ export function usePageViewport({
     return () => ro.disconnect();
   }, [fit, pageNumber, ready, wrapRef]);
 
+  const zoomToRectRef = useRef(zoomToRect);
+  zoomToRectRef.current = zoomToRect;
+  const appliedHighlightNonce = useRef(0);
+
   useEffect(() => {
     if (!panToHighlight || !highlightRegion || !highlightNonce) return;
+    if (appliedHighlightNonce.current === highlightNonce) return;
     const wrap = wrapRef.current;
     if (!wrap || wrap.clientWidth < 8 || wrap.clientHeight < 8) return;
     if (!ready) return;
-    zoomToRect(padHighlightRect(highlightRegion));
-  }, [
-    highlightNonce,
-    highlightRegion,
-    panToHighlight,
-    ready,
-    wrapRef,
-    zoomToRect,
-  ]);
+    appliedHighlightNonce.current = highlightNonce;
+    zoomToRectRef.current(padHighlightRect(highlightRegion), { highlight: true });
+  }, [highlightNonce, highlightRegion, panToHighlight, ready, wrapRef]);
 
   useEffect(() => {
     const wrap = wrapRef.current;

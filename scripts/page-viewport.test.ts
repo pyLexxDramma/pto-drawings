@@ -1,15 +1,27 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { decodeCadLabel } from "../src/lib/cad-geometry.ts";
-import { padHighlightRect } from "../src/lib/page-viewport.ts";
+import {
+  HIGHLIGHT_CONTEXT,
+  HIGHLIGHT_MAX_SCALE,
+  highlightZoomScale,
+  padHighlightRect,
+} from "../src/lib/page-viewport.ts";
 
 describe("padHighlightRect", () => {
   it("увеличивает крошечную рамку и держит центр", () => {
     const next = padHighlightRect({ x: 0.9, y: 0.93, w: 0.012, h: 0.0024 });
-    assert.ok(next.w >= 0.06);
-    assert.ok(next.h >= 0.05);
+    assert.ok(next.w >= 0.14);
+    assert.ok(next.h >= 0.12);
     assert.ok(next.x + next.w <= 1.0001);
     assert.ok(next.y + next.h <= 1.0001);
+  });
+});
+
+describe("highlightZoomScale", () => {
+  it("не даёт прыгнуть к 500%", () => {
+    assert.ok(highlightZoomScale(5.11) <= HIGHLIGHT_MAX_SCALE);
+    assert.equal(highlightZoomScale(2), 2 / HIGHLIGHT_CONTEXT);
   });
 });
 
