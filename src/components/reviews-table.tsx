@@ -494,12 +494,26 @@ export function ReviewsTable({
     }
   }
 
+  const leftover = reviews.filter(
+    (item) => item.verdict === "pending" || item.severity === "unset",
+  );
   const pendingEnrich = reviews.filter(
     (item) =>
       item.origin !== "ai" &&
       item.text &&
       (item.locations.length === 0 || item.needsRecheck),
   ).length;
+
+  function goToLeftover() {
+    const next = leftover[0];
+    if (!next) return;
+    setActiveId(next.id);
+    window.requestAnimationFrame(() => {
+      document
+        .querySelector(`[data-review-id="${next.id}"]`)
+        ?.scrollIntoView({ block: "center", behavior: "smooth" });
+    });
+  }
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-[#f4f6f9]">
@@ -573,18 +587,20 @@ export function ReviewsTable({
                 : "Проставить, где в ПД"}
           </button>
           {visibleExportable.length === 0 ||
-          (!filtersOn && reviews.some((item) => item.verdict === "pending")) ? (
-            <span
+          (!filtersOn && leftover.length > 0) ? (
+            <button
+              type="button"
+              onClick={goToLeftover}
               className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-slate-100 px-2.5 py-1.5 text-xs font-semibold text-slate-500"
               title={
-                visibleExportable.length === 0
-                  ? "Под текущий фильтр нечего выгружать"
-                  : "Сначала проставьте важность и статус разбора у всех замечаний"
+                leftover.length > 0
+                  ? `Ещё ${leftover.length} без важности или разбора. Нажмите — перейти к строке`
+                  : "Под текущий фильтр нечего выгружать"
               }
             >
               <IconDownload className="h-3.5 w-3.5" />
-              XLSX
-            </span>
+              {leftover.length > 0 ? `XLSX · ещё ${leftover.length}` : "XLSX"}
+            </button>
           ) : (
             <button
               type="button"
