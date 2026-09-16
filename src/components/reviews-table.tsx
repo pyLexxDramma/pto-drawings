@@ -159,6 +159,9 @@ export function ReviewsTable({
   const [enriching, setEnriching] = useState(false);
   const importRef = useRef<HTMLInputElement>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
+  /** Серый XLSX: строка в другом файле — показать весь проект. */
+  const [fileScopeOff, setFileScopeOff] = useState(false);
+  const jumpId = useRef<string | null>(null);
 
   const load = useCallback(
     async (signal?: AbortSignal) => {
@@ -223,6 +226,10 @@ export function ReviewsTable({
     void load().catch(() => undefined);
   }, [load, refreshToken]);
 
+  useEffect(() => {
+    setFileScopeOff(false);
+  }, [currentDocumentId]);
+
   const filtersOn =
     Object.keys(colFilters).length > 0 || query.trim().length > 0;
 
@@ -232,7 +239,7 @@ export function ReviewsTable({
   );
 
   const scoped = useMemo(() => {
-    if (!currentDocumentId) return reviews;
+    if (!currentDocumentId || fileScopeOff) return reviews;
     return reviews.filter((item) =>
       item.locations.some(
         (loc) =>
@@ -240,7 +247,7 @@ export function ReviewsTable({
           (!loc.documentId && fileNameKey(loc.documentName) === currentFileKey),
       ),
     );
-  }, [currentDocumentId, currentFileKey, reviews]);
+  }, [currentDocumentId, currentFileKey, fileScopeOff, reviews]);
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -507,13 +514,23 @@ export function ReviewsTable({
   function goToLeftover() {
     const next = leftover[0];
     if (!next) return;
+    jumpId.current = next.id;
+    if (!scoped.some((item) => item.id === next.id)) setFileScopeOff(true);
+    if (!visible.some((item) => item.id === next.id)) {
+      setColFilters({});
+      setQuery("");
+    }
     setActiveId(next.id);
-    window.requestAnimationFrame(() => {
-      document
-        .querySelector(`[data-review-id="${next.id}"]`)
-        ?.scrollIntoView({ block: "center", behavior: "smooth" });
-    });
   }
+
+  useEffect(() => {
+    const id = jumpId.current;
+    if (!id) return;
+    const node = document.querySelector(`[data-review-id="${id}"]`);
+    if (!node) return;
+    jumpId.current = null;
+    node.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [activeId, scoped, visible]);
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-[#f4f6f9]">
@@ -653,6 +670,16 @@ export function ReviewsTable({
         <span className="text-[11px] tabular-nums text-muted">
           показано {visible.length}
         </span>
+        {currentDocumentId && fileScopeOff ? (
+          <button
+            type="button"
+            onClick={() => setFileScopeOff(false)}
+            className="rounded-md border border-border bg-white px-2 py-1 text-[11px] text-muted hover:text-text"
+            title="Снова только замечания открытого файла"
+          >
+            Снова этот файл
+          </button>
+        ) : null}
       </div>
 
       {error ? (
