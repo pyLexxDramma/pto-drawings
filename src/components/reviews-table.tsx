@@ -1243,7 +1243,12 @@ function ReviewRow({
               : "—"}
           </span>
         ) : (
-          <ul className="space-y-1">
+          <ul className="space-y-0.5">
+            {review.locations.length > 1 ? (
+              <li className="mb-0.5 text-[10px] text-muted">
+                {review.locations.length} места одного расхождения
+              </li>
+            ) : null}
             {review.locations.map((location, index) => {
               const label = [
                 location.documentName || "без раздела",
@@ -1254,6 +1259,9 @@ function ReviewRow({
               const jumpable = Boolean(location.documentId && location.pageNumber);
               return (
                 <li key={`${location.documentId}-${location.pageNumber}-${index}`}>
+                  {index > 0 ? (
+                    <div className="py-0.5 text-center text-[10px] text-muted">↔</div>
+                  ) : null}
                   {jumpable ? (
                     <button
                       type="button"
