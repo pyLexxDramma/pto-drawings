@@ -20,7 +20,7 @@ export const KEYMAP: KeymapItem[] = [
   { group: "search", keys: "/ или Ctrl+F / ⌘F", action: "Поиск по файлу" },
   { group: "remarks", keys: "E", action: "Отметить ошибку / отменить разметку" },
   { group: "remarks", keys: "↑ ↓", action: "Предыдущее / следующее замечание" },
-  { group: "remarks", keys: "1 / 2 / 3", action: "Важность низкая / средняя / высокая" },
+  { group: "remarks", keys: "1 / 2 / 3", action: "Важность: низкая / средняя / высокая" }
   { group: "remarks", keys: "Enter", action: "Разобрано" },
   { group: "search", keys: "Esc", action: "Закрыть поиск, разметку, весь экран" },
   { group: "view", keys: "?", action: "Карта клавиш" },
