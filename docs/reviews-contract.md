@@ -86,6 +86,18 @@ PTO подсвечивает это место, а в списке листов 
 `enriched` — сколько находок прицепилось к замечаниям, которые инженер завёл
 руками (см. ниже).
 
+`PUT` **не удаляет** устаревшие строки. Повторный прогон без штампа `10/28`
+не снимет вчерашнюю строку — она останется и фронт будет зумить в первое «10».
+Снять брак конвейера:
+
+```
+DELETE /api/projects/<projectId>/reviews/<reviewId>
+Authorization: Bearer <PTO_INGEST_TOKEN>
+```
+
+Только `origin: ai`. Строки инженера и `both` токен не трогает. `403` — чужое,
+`404` — нет такой строки.
+
 Коды ошибок: `401` — неверный токен, `404` — нет такого проекта, `400` —
 не массив `reviews` или неизвестная важность, `503` — на сервере не задан
 `PTO_INGEST_TOKEN`.
@@ -243,7 +255,7 @@ Excel-импорт инженера без колонки важности — �
 | `GET /api/projects/<id>/reviews` | список для таблицы |
 | `POST /api/projects/<id>/reviews` | замечание руками: инженер или клиент |
 | `PATCH /api/projects/<id>/reviews/<reviewId>` | важность, итог разбора, комментарий |
-| `DELETE /api/projects/<id>/reviews/<reviewId>` | удалить замечание |
+| `DELETE /api/projects/<id>/reviews/<reviewId>` | удалить замечание (сессия или токен ингеста для `origin: ai`) |
 | `GET /api/projects/<id>/reviews/export` | XLSX |
 | `POST /api/projects/<id>/reviews/import` | Excel/CSV инженера → поток `engineer` |
 | `POST /api/projects/<id>/reviews/enrich` | прокси к агенту: `POST {PTO_BACKEND_URL}/reviews/enrich` |
