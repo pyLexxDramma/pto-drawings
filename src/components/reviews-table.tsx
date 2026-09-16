@@ -34,6 +34,7 @@ import {
   isExportableReview,
   type Review,
   type ReviewEvent,
+  type ReviewLocation,
   type ReviewOrigin,
   type ReviewSeverity,
   type ReviewVerdict,
@@ -1099,6 +1100,240 @@ function verdictish(field: ReviewEvent["field"], value: string): string {
   return value;
 }
 
+/** 1 место, 2 места, 5 мест — для «ещё N» в «Где в ПД». */
+function ruPlaces(count: number): string {
+  const abs = Math.abs(count) % 100;
+  const digit = abs % 10;
+  if (abs > 10 && abs < 20) return "мест";
+  if (digit === 1) return "место";
+  if (digit >= 2 && digit <= 4) return "места";
+  return "мест";
+}
+
+function locationHead(location: ReviewLocation, omitFile: boolean): string {
+  return [
+    omitFile ? null : location.documentName || "без раздела",
+    location.pageNumber ? `стр. ${location.pageNumber}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+type JumpToPage = (
+  documentId: string,
+  pageNumber: number,
+  options?: { reviewId?: string; quote?: string; newTab?: boolean },
+) => void;
+
+/** Формулировка в 2 строки; находка ИИ — за «ещё». «Неверно» всегда видно. */
+function RemarkText({
+  wording,
+  needle,
+  aiFinding,
+  wrongReason,
+}: {
+  wording: string;
+  needle: string;
+  aiFinding: string;
+  wrongReason: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const clampRef = useRef<HTMLDivElement>(null);
+  const [overflows, setOverflows] = useState(false);
+
+  useEffect(() => {
+    if (open) return;
+    const el = clampRef.current;
+    if (!el) return;
+    const measure = () => setOverflows(el.scrollHeight > el.clientHeight + 1);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [open, wording]);
+
+  const needleHitsAi =
+    Boolean(needle && aiFinding && aiFinding.toLowerCase().includes(needle));
+  const expanded = open || needleHitsAi;
+  const showToggle = Boolean(aiFinding) || overflows;
+
+  return (
+    <div className="min-w-0">
+      <div
+        ref={clampRef}
+        className={`whitespace-pre-wrap leading-snug text-text ${
+          expanded ? "" : "line-clamp-2"
+        }`}
+      >
+        {highlight(wording, needle)}
+      </div>
+      {expanded && aiFinding ? (
+        <div className="mt-1 whitespace-pre-wrap border-l-2 border-violet-300 pl-2 text-[11px] leading-snug text-muted">
+          Нашла ИИ: {highlight(aiFinding, needle)}
+        </div>
+      ) : null}
+      {wrongReason ? (
+        <div className="mt-1 whitespace-pre-wrap border-l-2 border-rose-400 pl-2 text-[11px] leading-snug text-rose-800">
+          Неверно: {highlight(wrongReason, needle)}
+        </div>
+      ) : null}
+      {showToggle && !needleHitsAi ? (
+        <button
+          type="button"
+          aria-expanded={expanded}
+          onClick={(event) => {
+            event.stopPropagation();
+            setOpen((value) => !value);
+          }}
+          className="mt-0.5 text-[10px] text-muted underline decoration-dotted hover:text-text"
+        >
+          {expanded ? "свернуть" : "ещё"}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function LocationLine({
+  location,
+  omitFile,
+  needle,
+  wording,
+  reviewId,
+  onJumpToPage,
+}: {
+  location: ReviewLocation;
+  omitFile: boolean;
+  needle: string;
+  wording: string;
+  reviewId: string;
+  onJumpToPage: JumpToPage;
+}) {
+  const head = locationHead(location, omitFile);
+  const jumpable = Boolean(location.documentId && location.pageNumber);
+  const title = [head, location.quote ? `«${location.quote}»` : null]
+    .filter(Boolean)
+    .join(" · ");
+
+  const body = location.quote ? (
+    <>
+      <span className="font-medium">{highlight(head || "без места", needle)}</span>
+      <span> · «{highlight(location.quote, needle)}»</span>
+    </>
+  ) : (
+    <span className="font-medium">
+      {highlight(head || (jumpable ? "открыть лист" : "—"), needle)}
+    </span>
+  );
+
+  if (!jumpable) {
+    return (
+      <span
+        title={title}
+        className="block truncate text-[11px] leading-snug text-text"
+      >
+        {body}
+      </span>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      title={`Открыть на чертеже: ${title}`}
+      onClick={(event) => {
+        event.stopPropagation();
+        onJumpToPage(location.documentId!, location.pageNumber!, {
+          reviewId,
+          quote: location.quote || wording || undefined,
+          newTab: event.ctrlKey || event.metaKey,
+        });
+      }}
+      onAuxClick={(event) => {
+        if (event.button !== 1) return;
+        event.preventDefault();
+        event.stopPropagation();
+        onJumpToPage(location.documentId!, location.pageNumber!, {
+          reviewId,
+          quote: location.quote || wording || undefined,
+          newTab: true,
+        });
+      }}
+      className="block max-w-full truncate rounded px-0.5 -mx-0.5 text-left text-[11px] leading-snug text-accent hover:bg-rose-50 hover:no-underline"
+    >
+      <span className="underline decoration-dotted">{body}</span>
+    </button>
+  );
+}
+
+/** Карточки мест раздували строку — одна строка на место, с 3-го «ещё N». */
+function ReviewLocations({
+  review,
+  needle,
+  wording,
+  onJumpToPage,
+}: {
+  review: Review;
+  needle: string;
+  wording: string;
+  onJumpToPage: JumpToPage;
+}) {
+  const [open, setOpen] = useState(false);
+  const collapse = review.locations.length > 2;
+  const hiddenNeedle =
+    Boolean(needle) &&
+    review.locations.slice(1).some(
+      (loc) =>
+        loc.quote.toLowerCase().includes(needle) ||
+        loc.documentName.toLowerCase().includes(needle) ||
+        String(loc.pageNumber ?? "").includes(needle),
+    );
+  const expanded = !collapse || open || hiddenNeedle;
+  const shown = expanded ? review.locations : review.locations.slice(0, 1);
+  const rest = review.locations.length - 1;
+  const firstName = review.locations[0]?.documentName;
+
+  return (
+    <ul className="min-w-0 space-y-0.5">
+      {shown.map((location, index) => (
+        <li
+          key={`${location.documentId}-${location.pageNumber}-${index}`}
+          className="flex min-w-0 items-baseline gap-1"
+        >
+          {index > 0 ? (
+            <span className="shrink-0 text-[10px] text-muted">↔</span>
+          ) : null}
+          <div className="min-w-0 flex-1">
+            <LocationLine
+              location={location}
+              omitFile={index > 0 && location.documentName === firstName}
+              needle={needle}
+              wording={wording}
+              reviewId={review.id}
+              onJumpToPage={onJumpToPage}
+            />
+          </div>
+        </li>
+      ))}
+      {collapse && !hiddenNeedle ? (
+        <li>
+          <button
+            type="button"
+            aria-expanded={expanded}
+            onClick={(event) => {
+              event.stopPropagation();
+              setOpen((value) => !value);
+            }}
+            className="text-[10px] text-muted underline decoration-dotted hover:text-text"
+          >
+            {expanded ? "свернуть" : `ещё ${rest} ${ruPlaces(rest)}`}
+          </button>
+        </li>
+      ) : null}
+    </ul>
+  );
+}
+
 function ReviewRow({
   review,
   needle,
@@ -1203,20 +1438,13 @@ function ReviewRow({
           >
             {ORIGIN_SHORT[review.origin]}
           </span>
-          <div className="min-w-0 whitespace-pre-wrap leading-snug text-text">
-            {highlight(wording, needle)}
-          </div>
+          <RemarkText
+            wording={wording}
+            needle={needle}
+            aiFinding={review.text && review.aiFinding ? review.aiFinding : ""}
+            wrongReason={review.wrongReason}
+          />
         </div>
-        {review.text && review.aiFinding ? (
-          <div className="mt-1 whitespace-pre-wrap border-l-2 border-violet-300 pl-2 text-[11px] leading-snug text-muted">
-            Нашла ИИ: {highlight(review.aiFinding, needle)}
-          </div>
-        ) : null}
-        {review.wrongReason ? (
-          <div className="mt-1 whitespace-pre-wrap border-l-2 border-rose-400 pl-2 text-[11px] leading-snug text-rose-800">
-            Неверно: {highlight(review.wrongReason, needle)}
-          </div>
-        ) : null}
       </td>
       <td className="px-2 py-1.5">
         {review.needsRecheck ? (
@@ -1231,86 +1459,12 @@ function ReviewRow({
               : "—"}
           </span>
         ) : (
-          <ul className="space-y-0.5">
-            {review.locations.length > 1 ? (
-              <li className="mb-0.5 text-[10px] text-muted">
-                {review.locations.length} места одного расхождения
-              </li>
-            ) : null}
-            {review.locations.map((location, index) => {
-              const label = [
-                location.documentName || "без раздела",
-                location.pageNumber ? `стр. ${location.pageNumber}` : null,
-              ]
-                .filter(Boolean)
-                .join(" · ");
-              const jumpable = Boolean(location.documentId && location.pageNumber);
-              return (
-                <li key={`${location.documentId}-${location.pageNumber}-${index}`}>
-                  {index > 0 ? (
-                    <div className="py-0.5 text-center text-[10px] text-muted">↔</div>
-                  ) : null}
-                  {jumpable ? (
-                    <button
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onJumpToPage(
-                          location.documentId!,
-                          location.pageNumber!,
-                          {
-                            reviewId: review.id,
-                            quote: location.quote || wording || undefined,
-                            newTab: event.ctrlKey || event.metaKey,
-                          },
-                        );
-                      }}
-                      onAuxClick={(event) => {
-                        if (event.button !== 1) return;
-                        event.preventDefault();
-                        event.stopPropagation();
-                        onJumpToPage(
-                          location.documentId!,
-                          location.pageNumber!,
-                          {
-                            reviewId: review.id,
-                            quote: location.quote || wording || undefined,
-                            newTab: true,
-                          },
-                        );
-                      }}
-                      title="Открыть на чертеже с подсветкой"
-                      className="group w-full rounded-md border border-rose-200 bg-rose-50/80 px-1.5 py-1 text-left hover:border-rose-400 hover:bg-rose-100"
-                    >
-                      <span className="text-[11px] font-medium text-accent underline decoration-dotted group-hover:no-underline">
-                        {highlight(label, needle)}
-                      </span>
-                      {location.quote ? (
-                        <div className="mt-0.5 text-[10px] leading-snug text-rose-900">
-                          «{highlight(location.quote, needle)}»
-                        </div>
-                      ) : (
-                        <div className="mt-0.5 text-[10px] text-muted">
-                          Открыть лист · подсветить место
-                        </div>
-                      )}
-                    </button>
-                  ) : (
-                    <>
-                      <span className="text-[11px] font-medium text-text">
-                        {highlight(label, needle)}
-                      </span>
-                      {location.quote ? (
-                        <div className="text-[10px] leading-snug text-muted">
-                          «{highlight(location.quote, needle)}»
-                        </div>
-                      ) : null}
-                    </>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+          <ReviewLocations
+            review={review}
+            needle={needle}
+            wording={wording}
+            onJumpToPage={onJumpToPage}
+          />
         )}
       </td>
       <td className="px-2 py-1.5">
