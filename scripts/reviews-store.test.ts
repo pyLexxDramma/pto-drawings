@@ -289,6 +289,7 @@ describe("ingestReviews", () => {
       { userId: "u-imp", userName: "Импорт" },
     );
     const own = created.reviews[0];
+    assert.equal(own.severity, "unset");
     const result = await store.ingestReviews(PROJECT, [
       {
         reviewId: own.id,
@@ -477,6 +478,26 @@ describe("ingestReviews", () => {
   it("пустой проект отдаёт пустой список", async () => {
     const list = await store.listReviews("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
     assert.deepEqual(list, []);
+  });
+});
+
+describe("важность по умолчанию (0072)", () => {
+  const project = "df97da8f-0072-4222-8333-444444444444";
+
+  it("ручная отметка — не задана, находка ИИ без поля — средний", async () => {
+    const own = await store.createReview(project, {
+      section: "",
+      text: "Отметил на чертеже",
+      origin: "engineer",
+    });
+    assert.equal(own.severity, "unset");
+
+    await store.ingestReviews(project, [
+      { section: "ПБ", aiFinding: "Находка без важности" },
+    ]);
+    const list = await store.listReviews(project);
+    const ai = list.find((item) => item.origin === "ai");
+    assert.equal(ai?.severity, "medium");
   });
 });
 

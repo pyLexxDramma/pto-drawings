@@ -30,6 +30,9 @@ const SEVERITY_ALIASES: Record<string, ReviewSeverity> = {
   low: "low",
   "не нужно": "skip",
   skip: "skip",
+  "не задана": "unset",
+  "не задано": "unset",
+  unset: "unset",
 };
 
 function norm(value: string): string {
@@ -41,7 +44,9 @@ function headerIndex(header: string[], keys: string[]): number {
 }
 
 function parseSeverity(raw: string): ReviewSeverity {
-  return SEVERITY_ALIASES[norm(raw)] ?? "medium";
+  const key = norm(raw);
+  if (!key) return "unset";
+  return SEVERITY_ALIASES[key] ?? "medium";
 }
 
 /**

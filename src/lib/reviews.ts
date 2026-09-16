@@ -24,7 +24,7 @@ import {
   type ReviewVerdict,
 } from "@/types";
 
-const severities: ReviewSeverity[] = ["high", "medium", "low", "skip"];
+const severities: ReviewSeverity[] = [...REVIEW_SEVERITY_ORDER];
 const verdicts: ReviewVerdict[] = [
   "pending",
   "confirmed",
@@ -489,7 +489,9 @@ export async function createReview(
       origin: input.origin ?? "engineer",
       text: input.text,
       aiFinding: input.aiFinding ?? "",
-      severity: input.severity ?? "medium",
+      severity:
+        input.severity ??
+        ((input.origin ?? "engineer") === "engineer" ? "unset" : "medium"),
       locations: input.locations ?? [],
       verdict: "pending",
       createdAt: now,
@@ -551,7 +553,7 @@ export async function createReviews(
         section: input.section,
         origin: "engineer",
         text: textValue,
-        severity: input.severity ?? "medium",
+        severity: input.severity ?? "unset",
         verdict: "pending",
         createdAt: now,
         updatedAt: now,

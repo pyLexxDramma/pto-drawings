@@ -41,7 +41,7 @@ import {
 } from "@/lib/review-state";
 import {
   REVIEW_SEVERITY_LABEL,
-  REVIEW_SEVERITY_ORDER,
+  REVIEW_SEVERITY_STRENGTH,
   type AnnotationRect,
   type DocumentRecord,
   type PageAnnotation,
@@ -375,8 +375,8 @@ export function ReviewPane({
         const prev = map.get(loc.pageNumber);
         const worse =
           !prev ||
-          REVIEW_SEVERITY_ORDER.indexOf(review.severity) <
-            REVIEW_SEVERITY_ORDER.indexOf(prev.severity);
+          REVIEW_SEVERITY_STRENGTH.indexOf(review.severity) <
+            REVIEW_SEVERITY_STRENGTH.indexOf(prev.severity);
         const pending = review.verdict === "pending" || prev?.verdict === "pending";
         map.set(loc.pageNumber, {
           severity: worse ? review.severity : prev.severity,

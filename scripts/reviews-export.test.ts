@@ -100,6 +100,7 @@ describe("exportableReviews", () => {
       review({ id: "b", section: "ПЗ", severity: "skip" }),
       review({ id: "c", section: "ПБ", severity: "high" }),
       review({ id: "d", section: "ПЗ", severity: "medium" }),
+      review({ id: "e", section: "ПЗ", severity: "unset" }),
     ];
     const out = exportableReviews(items).map((item) => item.id);
     assert.deepEqual(out, ["d", "c", "a"]);
@@ -201,6 +202,7 @@ describe("buildReviewsXlsx", () => {
 
   it("красит строки по важности", () => {
     const fills: Record<ReviewSeverity, string> = {
+      unset: "0",
       high: "4",
       medium: "8",
       low: "12",

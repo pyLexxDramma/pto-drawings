@@ -22,7 +22,7 @@ describe("parseEngineerRemarks", () => {
   it("без шапки читает первый столбец", () => {
     const parsed = parseEngineerRemarks([["Сырое замечание инженера"]]);
     assert.deepEqual(parsed, [
-      { text: "Сырое замечание инженера", section: "прочее", severity: "medium" },
+      { text: "Сырое замечание инженера", section: "прочее", severity: "unset" },
     ]);
   });
 });

@@ -2,6 +2,7 @@ import type { ReviewSeverity, ReviewVerdict } from "@/types";
 
 /** Важность и разбор — разные палитры, чтобы «низкий» не был как «верно». */
 export const SEVERITY_CHIP: Record<ReviewSeverity, string> = {
+  unset: "border-dashed border-slate-400 bg-white text-slate-500",
   high: "border-red-400 bg-red-100 text-red-950",
   medium: "border-orange-400 bg-orange-100 text-orange-950",
   low: "border-sky-400 bg-sky-100 text-sky-950",
@@ -18,6 +19,7 @@ export const VERDICT_CHIP: Record<ReviewVerdict, string> = {
 };
 
 export const SEVERITY_ROW: Record<ReviewSeverity, string> = {
+  unset: "border-l-slate-300 bg-white",
   high: "border-l-red-600 bg-red-50/70",
   medium: "border-l-orange-500 bg-orange-50/60",
   low: "border-l-sky-500 bg-sky-50/50",
@@ -33,6 +35,7 @@ export const VERDICT_ROW: Partial<Record<ReviewVerdict, string>> = {
 };
 
 export const SEVERITY_DOT: Record<ReviewSeverity, string> = {
+  unset: "bg-slate-300",
   high: "bg-red-500",
   medium: "bg-orange-500",
   low: "bg-sky-500",

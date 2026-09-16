@@ -31,8 +31,8 @@ import {
   REVIEW_ORIGIN_LABEL,
   REVIEW_SEVERITY_LABEL,
   REVIEW_SEVERITY_ORDER,
-  REVIEW_VERDICT_HIDDEN,
   REVIEW_VERDICT_LABEL,
+  isExportableReview,
   type Review,
   type ReviewEvent,
   type ReviewOrigin,
@@ -278,11 +278,8 @@ export function ReviewsTable({
   const stats = useMemo(() => {
     const total = reviews.length;
     const pending = reviews.filter((item) => item.verdict === "pending").length;
-    // В выгрузку идёт то же, что и в XLSX: без «Не нужно», «Неактуально» и «Неверно».
-    const exportable = reviews.filter(
-      (item) =>
-        item.severity !== "skip" && !REVIEW_VERDICT_HIDDEN.includes(item.verdict),
-    ).length;
+    // В выгрузку идёт то же, что и в XLSX: без «Не задана», «Не нужно», «Неактуально» и «Неверно».
+    const exportable = reviews.filter(isExportableReview).length;
     const high = reviews.filter((item) => item.severity === "high").length;
     const ai = reviews.filter((item) => item.origin === "ai").length;
     const engineer = reviews.filter((item) => item.origin === "engineer").length;
@@ -303,10 +300,7 @@ export function ReviewsTable({
 
   const visibleExportable = useMemo(
     () =>
-      visible.filter(
-        (item) =>
-          item.severity !== "skip" && !REVIEW_VERDICT_HIDDEN.includes(item.verdict),
-      ),
+      visible.filter(isExportableReview),
     [visible],
   );
 

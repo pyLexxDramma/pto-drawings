@@ -2,11 +2,11 @@ import { NextResponse } from "next/server";
 import { isPublicUser, requireUser } from "@/lib/auth";
 import { deleteReview, getReview, updateReview, type ReviewPatch } from "@/lib/reviews";
 import { deleteAnnotationForReview } from "@/lib/storage";
-import type { ReviewSeverity, ReviewVerdict } from "@/types";
+import { REVIEW_SEVERITY_ORDER, type ReviewSeverity, type ReviewVerdict } from "@/types";
 
 type RouteContext = { params: Promise<{ id: string; reviewId: string }> };
 
-const severities: ReviewSeverity[] = ["high", "medium", "low", "skip"];
+const severities: ReviewSeverity[] = [...REVIEW_SEVERITY_ORDER];
 const verdicts: ReviewVerdict[] = [
   "pending",
   "confirmed",

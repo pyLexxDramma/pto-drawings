@@ -110,8 +110,12 @@ export type PageProgress = {
 
 // ------------------------------------------------------------------ замечания
 
-/** «Не нужно» (skip) не попадает в выгрузку проектировщикам. */
-export type ReviewSeverity = "high" | "medium" | "low" | "skip";
+/**
+ * «Не задана» (unset) — ручная отметка без выбора инженера.
+ * «Не нужно» (skip) — снято как несущественное.
+ * Оба не попадают в выгрузку проектировщикам (правило 0062).
+ */
+export type ReviewSeverity = "unset" | "high" | "medium" | "low" | "skip";
 
 /**
  * Итог разбора замечания с заказчиком. «Неверно» — брак самой находки ИИ:
@@ -207,6 +211,7 @@ export type ReviewIngestItem = {
 };
 
 export const REVIEW_SEVERITY_LABEL: Record<ReviewSeverity, string> = {
+  unset: "Не задана",
   high: "Высокий",
   medium: "Средний",
   low: "Низкий",
@@ -228,6 +233,19 @@ export const REVIEW_VERDICT_LABEL: Record<ReviewVerdict, string> = {
  */
 export const REVIEW_VERDICT_HIDDEN: ReviewVerdict[] = ["outdated", "wrong"];
 
+/** Без выбранной важности и «Не нужно» в XLSX проектировщикам не идут. */
+export const REVIEW_SEVERITY_HIDDEN: ReviewSeverity[] = ["unset", "skip"];
+
+export function isExportableReview(item: {
+  severity: ReviewSeverity;
+  verdict: ReviewVerdict;
+}): boolean {
+  return (
+    !REVIEW_SEVERITY_HIDDEN.includes(item.severity) &&
+    !REVIEW_VERDICT_HIDDEN.includes(item.verdict)
+  );
+}
+
 export const REVIEW_EVENT_LABEL: Record<ReviewEventField, string> = {
   created: "Создано",
   severity: "Важность",
@@ -244,11 +262,21 @@ export const REVIEW_ORIGIN_LABEL: Record<ReviewOrigin, string> = {
   both: "ИИ и инженер",
 };
 
-/** Порядок в таблице и в выгрузке: важное сверху. */
+/** Порядок в таблице: сначала без важности (надо проставить), затем по силе. */
 export const REVIEW_SEVERITY_ORDER: ReviewSeverity[] = [
+  "unset",
   "high",
   "medium",
   "low",
+  "skip",
+];
+
+/** Сила для точек на листах: выбранная важность важнее «не задана». */
+export const REVIEW_SEVERITY_STRENGTH: ReviewSeverity[] = [
+  "high",
+  "medium",
+  "low",
+  "unset",
   "skip",
 ];
 

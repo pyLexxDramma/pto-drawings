@@ -10,17 +10,18 @@ import {
   pruneDeadReviews,
 } from "@/lib/reviews";
 import { getProject, listDocuments, listProjects } from "@/lib/storage";
-import type {
-  ReviewIngestItem,
-  ReviewLocation,
-  ReviewSeverity,
+import {
+  REVIEW_SEVERITY_ORDER,
+  type ReviewIngestItem,
+  type ReviewLocation,
+  type ReviewSeverity,
 } from "@/types";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 export const maxDuration = 60;
 
-const severities: ReviewSeverity[] = ["high", "medium", "low", "skip"];
+const severities: ReviewSeverity[] = [...REVIEW_SEVERITY_ORDER];
 
 export async function GET(request: Request, context: RouteContext) {
   const user = await requireUser(request);
