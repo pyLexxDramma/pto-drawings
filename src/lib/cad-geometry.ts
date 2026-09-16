@@ -25,6 +25,25 @@ export type CadGeometry = {
   scale: string;
 };
 
+/** CSV с конвейера часто в cp1251/latin1. Если кириллица уже есть — не трогаем. */
+export function decodeCadLabel(text: string): string {
+  if (!text || /[А-Яа-яЁё]/.test(text)) return text;
+  const bytes = Uint8Array.from(text, (ch) => ch.charCodeAt(0) & 0xff);
+  try {
+    const asUtf8 = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    if (/[А-Яа-яЁё]/.test(asUtf8)) return asUtf8;
+  } catch {
+    /* не UTF-8 */
+  }
+  try {
+    const as1251 = new TextDecoder("windows-1251").decode(bytes);
+    if (/[А-Яа-яЁё]/.test(as1251)) return as1251;
+  } catch {
+    /* нет кодека */
+  }
+  return text;
+}
+
 /** RFC 4180: кавычки, удвоенные кавычки, запятые внутри поля. */
 export function splitCsvRow(line: string): string[] {
   const out: string[] = [];
@@ -99,11 +118,11 @@ export function parseGeometry(csv: string): CadGeometry {
     primitives.push({
       type,
       id: objId,
-      layer: row[idx.layer] ?? "",
+      layer: decodeCadLabel(row[idx.layer] ?? ""),
       color: row[idx.color] || "#000000",
       lw: Number(row[idx.lw]) || 0.25,
       points: row[idx.geom] ? row[idx.geom].trim().split(/\s+/).map(Number) : [],
-      text: row[idx.text] || undefined,
+      text: row[idx.text] ? decodeCadLabel(row[idx.text]) : undefined,
       size: row[idx.size] ? Number(row[idx.size]) : undefined,
       rot: row[idx.rot] ? Number(row[idx.rot]) : 0,
       anchor: row[idx.anchor] || "left",

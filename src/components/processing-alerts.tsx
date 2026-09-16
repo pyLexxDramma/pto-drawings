@@ -25,6 +25,21 @@ function saveDismissed(ids: Set<string>) {
   }
 }
 
+export function SiteDownBanner() {
+  return (
+    <div
+      className="shrink-0 border-b border-red-300 bg-red-600 px-3 py-2.5 text-[13px] text-white"
+      role="alert"
+      aria-live="assertive"
+    >
+      <div className="font-semibold">Сервер не отвечает, скорее всего упал.</div>
+      <div className="mt-0.5 text-white/90">
+        Перезагрузи VPS в Timeweb, потом на комплекте — «Запустить заново».
+      </div>
+    </div>
+  );
+}
+
 export function ProcessingAlertsBar({
   alerts,
   canOpenLog,

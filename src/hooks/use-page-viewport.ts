@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { clampPan } from "@/lib/page-viewport";
+import { clampPan, padHighlightRect } from "@/lib/page-viewport";
 import { getPageView, setPageView, type PageViewCache } from "@/lib/review-view-cache";
 
 export type FitMode = "page" | "width";
@@ -278,6 +278,7 @@ export function usePageViewport({
     const cached =
       viewCacheRef.current.get(pageNumber) ??
       (viewCacheKey ? getPageView(viewCacheKey, pageNumber) : undefined);
+    if (panToHighlight && highlightNonce && highlightRegion) return;
     if (cached) {
       viewCacheRef.current.set(pageNumber, cached);
       const wrap = wrapRef.current;
@@ -294,7 +295,20 @@ export function usePageViewport({
       return;
     }
     fit("width");
-  }, [applyView, fit, minScale, natural.h, natural.w, pageNumber, ready, viewCacheKey, wrapRef]);
+  }, [
+    applyView,
+    fit,
+    highlightNonce,
+    highlightRegion,
+    minScale,
+    natural.h,
+    natural.w,
+    pageNumber,
+    panToHighlight,
+    ready,
+    viewCacheKey,
+    wrapRef,
+  ]);
 
   useEffect(() => {
     const wrap = wrapRef.current;
@@ -318,28 +332,15 @@ export function usePageViewport({
     if (!panToHighlight || !highlightRegion || !highlightNonce) return;
     const wrap = wrapRef.current;
     if (!wrap || wrap.clientWidth < 8 || wrap.clientHeight < 8) return;
-    const s = scaleRef.current;
-    const n = naturalRef.current;
-    const cx = (highlightRegion.x + highlightRegion.w / 2) * n.w * s;
-    const cy = (highlightRegion.y + highlightRegion.h / 2) * n.h * s;
-    const next = boundPan({
-      x: wrap.clientWidth / 2 - cx,
-      y: wrap.clientHeight / 2 - cy,
-    });
-    applyingSync.current = true;
-    panRef.current = next;
-    setPan(next);
-    requestAnimationFrame(() => {
-      applyingSync.current = false;
-    });
+    if (!ready) return;
+    zoomToRect(padHighlightRect(highlightRegion));
   }, [
-    boundPan,
     highlightNonce,
     highlightRegion,
     panToHighlight,
-    natural.w,
-    natural.h,
+    ready,
     wrapRef,
+    zoomToRect,
   ]);
 
   useEffect(() => {

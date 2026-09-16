@@ -42,7 +42,15 @@ import {
   formatPages,
   formatTimeOnly,
 } from "@/lib/format";
-import { ProcessingAlertsBar } from "@/components/processing-alerts";
+import {
+  ProcessingAlertsBar,
+  SiteDownBanner,
+} from "@/components/processing-alerts";
+import {
+  isSiteDown,
+  markSiteProbe,
+  siteAnswered,
+} from "@/lib/site-watchdog";
 import { LiveProgressDock } from "@/components/processing-progress-panel";
 import {
   collectProcessingAlerts,
@@ -336,6 +344,9 @@ export function Workspace({
   const [uploadBusy, setUploadBusy] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [processingPaused, setProcessingPaused] = useState(false);
+  const [siteFailedSince, setSiteFailedSince] = useState<number | null>(null);
+  const [siteClock, setSiteClock] = useState(() => Date.now());
+  const siteDownNotified = useRef(false);
   const [projectsWidth, setProjectsWidth] = useState(222);
   /** Job обработки, переживает смену проекта. */
   const [liveJobDoc, setLiveJobDoc] = useState<DocumentRecord | null>(null);
@@ -943,13 +954,34 @@ export function Workspace({
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
+      const ctrl = new AbortController();
+      const timeout = window.setTimeout(() => ctrl.abort(), 8000);
       try {
-        const response = await fetch("/api/pipeline/health");
-        if (!response.ok) return;
+        const response = await fetch("/api/pipeline/health", {
+          cache: "no-store",
+          signal: ctrl.signal,
+        });
+        if (cancelled) return;
+        const up = siteAnswered(response.ok, response.status);
+        setSiteFailedSince((prev) => markSiteProbe(prev, up, Date.now()));
+        if (up) siteDownNotified.current = false;
+        if (!response.ok) {
+          if (!up) {
+            setPipelineHealth({
+              ok: false,
+              mode: "unknown",
+              profile: {},
+              reachable: false,
+              error: `HTTP ${response.status}`,
+            });
+          }
+          return;
+        }
         const payload = (await response.json()) as PipelineHealth;
         if (!cancelled) setPipelineHealth(payload);
       } catch {
         if (!cancelled) {
+          setSiteFailedSince((prev) => markSiteProbe(prev, false, Date.now()));
           setPipelineHealth({
             ok: false,
             mode: "unknown",
@@ -958,15 +990,38 @@ export function Workspace({
             error: "unreachable",
           });
         }
+      } finally {
+        window.clearTimeout(timeout);
       }
     };
     void load();
-    const timer = window.setInterval(() => void load(), 15000);
+    const timer = window.setInterval(() => void load(), busy ? 10_000 : 15_000);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, []);
+  }, [busy]);
+
+  useEffect(() => {
+    if (siteFailedSince == null) return;
+    const timer = window.setInterval(() => setSiteClock(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [siteFailedSince]);
+
+  const siteDown = busy && isSiteDown(siteFailedSince, siteClock);
+
+  useEffect(() => {
+    if (!siteDown || siteDownNotified.current) return;
+    siteDownNotified.current = true;
+    pushToast(
+      "Сервер не отвечает. Перезагрузи VPS в Timeweb, потом «Запустить заново».",
+      "error",
+    );
+    notifyIfHidden(
+      "PTO: сервер не отвечает",
+      "Скорее всего упал. Перезагрузи VPS в Timeweb.",
+    );
+  }, [siteDown, pushToast]);
 
   function openProjectsList() {
     setProjectsCollapsed(false);
@@ -1739,6 +1794,8 @@ export function Workspace({
           </div>
         </header>
       )}
+
+      {siteDown ? <SiteDownBanner /> : null}
 
       {processingAlerts.length > 0 ? (
         <ProcessingAlertsBar
