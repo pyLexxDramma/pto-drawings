@@ -583,9 +583,9 @@ export function ReviewsTable({
             disabled={importing}
             onClick={() => importRef.current?.click()}
             className="rounded-md border border-slate-300 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
-            title="Ваш список замечаний в таблицу"
+            title="Загрузить свой список замечаний из файла Excel"
           >
-            {importing ? "Загрузка…" : "Мои замечания"}
+            {importing ? "Загрузка…" : "Мои замечания из Excel"}
           </button>
           <button
             type="button"
@@ -614,8 +614,8 @@ export function ReviewsTable({
             >
               <IconDownload className="h-3.5 w-3.5" />
               {leftover.length > 0
-                ? `Скачать таблицу · ещё ${leftover.length}`
-                : "Скачать таблицу"}
+                ? `Скачать Excel · ещё ${leftover.length}`
+                : "Скачать таблицу Excel"}
             </button>
           ) : (
             <button
@@ -626,15 +626,15 @@ export function ReviewsTable({
               title={
                 filtersOn
                   ? `Скачать отфильтрованные: ${visibleExportable.length}`
-                  : "То, что разобрано — одним файлом"
+                  : "То, что разобрано — одним файлом Excel"
               }
             >
               <IconDownload className="h-3.5 w-3.5" />
               {exporting
                 ? "…"
                 : filtersOn
-                  ? `Скачать таблицу · ${visibleExportable.length}`
-                  : "Скачать таблицу"}
+                  ? `Скачать Excel · ${visibleExportable.length}`
+                  : "Скачать таблицу Excel"}
             </button>
           )}
           {reviews.some((item) => item.verdict !== "pending") ? (
