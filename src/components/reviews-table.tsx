@@ -564,9 +564,13 @@ export function ReviewsTable({
             disabled={enriching || pendingEnrich === 0}
             onClick={() => void handleEnrich()}
             className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
-            title="Привязать строки инженера к расшифровке: раздел и место в ПД"
+            title="Для строк из Excel без листа: проставить раздел, номер листа и цитату в колонке «Где в ПД»"
           >
-            {enriching ? "Обогащение…" : `К расшифровке${pendingEnrich ? ` · ${pendingEnrich}` : ""}`}
+            {enriching
+              ? "Ищем места…"
+              : pendingEnrich
+                ? `Проставить, где в ПД · ${pendingEnrich}`
+                : "Проставить, где в ПД"}
           </button>
           {visibleExportable.length === 0 ||
           (!filtersOn && reviews.some((item) => item.verdict === "pending")) ? (
