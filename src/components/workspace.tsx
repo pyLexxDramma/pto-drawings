@@ -1614,17 +1614,6 @@ export function Workspace({
     setProjectsCollapsed(false);
   }, []);
 
-  /** Список всех чертежей проекта, не текущий лист из таблицы. */
-  const goToAllDrawings = useCallback(() => {
-    setPeekOpen(false);
-    setShowReviews(false);
-    setNavFromReviews(false);
-    setSelectedId(null);
-    setOpenPage(null);
-    setFocusMode(false);
-    setProjectsCollapsed(false);
-  }, []);
-
   const restoreFromPeek = useCallback(() => {
     setPeekOpen(false);
     if (returnFromPeek.kind === "drawing") {
@@ -1675,26 +1664,13 @@ export function Workspace({
     setProjectsCollapsed(false);
   }, [peekOpen, selectedId, navFromReviews, showReviews, restoreFromPeek]);
 
-  const onHeaderBack = useCallback(() => {
-    if (consumeSheetBackRef.current?.()) return;
-    if (peekOpen) {
-      goToAllDrawings();
-      return;
-    }
-    goBack();
-  }, [peekOpen, goBack, goToAllDrawings]);
+  const onHeaderBack = goBack;
 
   const backLabel = sheetBackHint
     ? sheetBackHint
-    : peekOpen
-      ? "← К проектам"
-      : selectedId && navFromReviews
-        ? "← К замечаниям"
-        : selectedId
-          ? "← Назад"
-          : showReviews
-            ? "← Назад"
-            : null;
+    : peekOpen || (selectedId && navFromReviews) || selectedId || showReviews
+      ? "← На предыдущую страницу"
+      : null;
 
   return (
     <div
@@ -2240,20 +2216,8 @@ export function Workspace({
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             {peekOpen ? (
               <div className="flex shrink-0 items-center gap-2 border-b border-accent/30 bg-accent/5 px-3 py-1.5">
-                <button
-                  type="button"
-                  onClick={restoreFromPeek}
-                  className="rounded border border-accent bg-white px-2 py-0.5 text-[11px] font-semibold text-accent hover:bg-accent/10"
-                  title="Вернуться на предыдущую страницу (Esc)"
-                >
-                  {returnFromPeek.kind === "reviews"
-                    ? "← К таблице замечаний"
-                    : "← Назад"}
-                </button>
                 <span className="truncate text-[11px] text-muted">
-                  {returnFromPeek.kind === "reviews"
-                    ? "Лист открыт из разбора · Esc в ту же строку"
-                    : "Лист открыт из разбора · Esc на предыдущую страницу"}
+                  Лист открыт из разбора · жёлтая «На предыдущую страницу» в шапке
                 </span>
                 <a
                   href={`/api/documents/${selected.id}/file`}

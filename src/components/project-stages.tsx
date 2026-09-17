@@ -211,8 +211,8 @@ export function ProjectStagesBar({
         <button
           type="button"
           onClick={onBackHome}
-          title={backLabel}
-          className="shrink-0 rounded-md border border-border bg-white px-1.5 py-0.5 text-[10px] font-medium text-text hover:bg-bg"
+          title="Туда, откуда открыли эту страницу"
+          className="shrink-0 rounded-md border-2 border-amber-500 bg-amber-500 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm hover:bg-amber-600"
         >
           {backLabel}
         </button>
