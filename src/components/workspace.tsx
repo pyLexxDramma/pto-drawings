@@ -1594,6 +1594,17 @@ export function Workspace({
     setProjectsCollapsed(false);
   }, []);
 
+  /** Список всех чертежей проекта, не текущий лист из таблицы. */
+  const goToAllDrawings = useCallback(() => {
+    setPeekOpen(false);
+    setShowReviews(false);
+    setNavFromReviews(false);
+    setSelectedId(null);
+    setOpenPage(null);
+    setFocusMode(false);
+    setProjectsCollapsed(false);
+  }, []);
+
   /** На шаг назад: поиск/пометка ← замечания ← лист ← таблица ← главная проекта. */
   const goBack = useCallback(() => {
     if (consumeSheetBackRef.current?.()) return;
@@ -1624,15 +1635,26 @@ export function Workspace({
     setProjectsCollapsed(false);
   }, [peekOpen, selectedId, navFromReviews, showReviews]);
 
+  const onHeaderBack = useCallback(() => {
+    if (consumeSheetBackRef.current?.()) return;
+    if (peekOpen) {
+      goToAllDrawings();
+      return;
+    }
+    goBack();
+  }, [peekOpen, goBack, goToAllDrawings]);
+
   const backLabel = sheetBackHint
     ? sheetBackHint
-    : peekOpen || (selectedId && navFromReviews)
-      ? "← К замечаниям"
-      : selectedId
-        ? "← Назад"
-        : showReviews
+    : peekOpen
+      ? "← К чертежам"
+      : selectedId && navFromReviews
+        ? "← К замечаниям"
+        : selectedId
           ? "← Назад"
-          : null;
+          : showReviews
+            ? "← Назад"
+            : null;
 
   return (
     <div
@@ -1690,7 +1712,7 @@ export function Workspace({
               docTitle={
                 selected && !showReviews ? selected.originalName : null
               }
-              onBackHome={goBack}
+              onBackHome={onHeaderBack}
               backLabel={backLabel}
             />
           ) : (
@@ -1698,7 +1720,7 @@ export function Workspace({
               {backLabel ? (
                 <button
                   type="button"
-                  onClick={goBack}
+                  onClick={onHeaderBack}
                   className="shrink-0 rounded-md border-2 border-amber-500 bg-amber-500 px-2.5 py-1 text-[11px] font-bold text-white shadow-sm hover:bg-amber-600"
                 >
                   {backLabel}
