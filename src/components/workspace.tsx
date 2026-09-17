@@ -1133,29 +1133,6 @@ export function Workspace({
     await Promise.all([loadDocuments(id), loadEdits(id), loadNotes(id)]);
   }
 
-  async function openExistingProject() {
-    setProjectsCollapsed(false);
-    if (projects.length === 0) {
-      setShowNewProject(true);
-      return;
-    }
-    const id = projectId || projects[0].id;
-    if (projectId !== id) await selectProject(id);
-    const list =
-      documentsProjectId === id && documents.length > 0
-        ? documents
-        : await loadDocuments(id);
-    const first = list[0];
-    if (first) {
-      void openDocument(first.id);
-    }
-    window.requestAnimationFrame(() => {
-      document
-        .querySelector(`[data-project-row="${id}"]`)
-        ?.scrollIntoView({ block: "nearest" });
-    });
-  }
-
   async function handleCreateProject(event: FormEvent) {
     event.preventDefault();
     const name = newProjectName.trim();
@@ -2350,25 +2327,13 @@ export function Workspace({
                   </li>
                 ))}
               </ul>
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
+              <div className="mt-8 flex justify-center">
                 <label
                   htmlFor="pto-drawing-upload"
                   className="inline-flex cursor-pointer items-center justify-center rounded-md bg-accent px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#1d4ed8]"
                 >
                   {UPLOAD_BUTTON_LABEL}
                 </label>
-                <button
-                  type="button"
-                  onClick={() => void openExistingProject()}
-                  className="inline-flex items-center justify-center rounded-md border-2 border-accent bg-white px-5 py-2.5 text-sm font-bold text-accent hover:bg-accent/5"
-                  title={
-                    projects.length === 0
-                      ? "Создать первый проект слева"
-                      : "Открыть последний проект и его первый файл"
-                  }
-                >
-                  Открыть проект
-                </button>
               </div>
               {projects.length > 0 ? (
                 <div className="mt-4 text-xs text-muted">
