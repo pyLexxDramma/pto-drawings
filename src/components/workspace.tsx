@@ -356,6 +356,12 @@ export function Workspace({
   const [showReviews, setShowReviews] = useState(false);
   /** Лист, открытый поверх таблицы замечаний по ссылке «Где в ПД». */
   const [peekOpen, setPeekOpen] = useState(false);
+  /** Куда вернуть «К таблице замечаний»: страница до этого листа. */
+  const [returnFromPeek, setReturnFromPeek] = useState<
+    | { kind: "reviews" }
+    | { kind: "drawing"; documentId: string }
+    | { kind: "files" }
+  >({ kind: "reviews" });
   const [reviewStats, setReviewStats] = useState<ReviewStats | null>(null);
   /** Лист открыт из таблицы замечаний (в т.ч. новая вкладка) — «Назад» ведёт туда. */
   const [navFromReviews, setNavFromReviews] = useState(false);
@@ -523,6 +529,13 @@ export function Workspace({
   const openStage = useCallback(
     (stage: StageId) => {
       if (stage === "reviews") {
+        if (!showReviews) {
+          setReturnFromPeek(
+            selectedId
+              ? { kind: "drawing", documentId: selectedId }
+              : { kind: "reviews" },
+          );
+        }
         setPeekOpen(false);
         setShowReviews(true);
         return;
@@ -538,7 +551,7 @@ export function Workspace({
       const page = Math.min(target.readyPages + 1, target.pageCount || 1);
       void openDocument(target.id, page);
     },
-    [documents, openDocument, selectedId],
+    [documents, openDocument, selectedId, showReviews],
   );
 
   const loadEdits = useCallback(async (id: string, signal?: AbortSignal) => {
@@ -620,6 +633,13 @@ export function Workspace({
         window.open(url.toString(), "_blank", "noopener,noreferrer");
         return;
       }
+      if (!peekOpen && !showReviews) {
+        setReturnFromPeek(
+          selectedId
+            ? { kind: "drawing", documentId: selectedId }
+            : { kind: "files" },
+        );
+      }
       setSelectedId(documentId);
       setShowReviews(true);
       setPeekOpen(true);
@@ -633,7 +653,7 @@ export function Workspace({
       });
       void refreshDocument(documentId);
     },
-    [projectId, refreshDocument],
+    [projectId, refreshDocument, peekOpen, showReviews, selectedId],
   );
 
   useEffect(() => {
@@ -1605,11 +1625,31 @@ export function Workspace({
     setProjectsCollapsed(false);
   }, []);
 
+  const restoreFromPeek = useCallback(() => {
+    setPeekOpen(false);
+    if (returnFromPeek.kind === "drawing") {
+      setShowReviews(false);
+      setNavFromReviews(false);
+      setSelectedId(returnFromPeek.documentId);
+      setProjectsCollapsed(false);
+      return;
+    }
+    if (returnFromPeek.kind === "files") {
+      setShowReviews(false);
+      setNavFromReviews(false);
+      setSelectedId(null);
+      setOpenPage(null);
+      setProjectsCollapsed(false);
+      return;
+    }
+    setShowReviews(true);
+  }, [returnFromPeek]);
+
   /** На шаг назад: поиск/пометка ← замечания ← лист ← таблица ← главная проекта. */
   const goBack = useCallback(() => {
     if (consumeSheetBackRef.current?.()) return;
     if (peekOpen) {
-      setPeekOpen(false);
+      restoreFromPeek();
       return;
     }
     if (selectedId && navFromReviews) {
@@ -1633,7 +1673,7 @@ export function Workspace({
       return;
     }
     setProjectsCollapsed(false);
-  }, [peekOpen, selectedId, navFromReviews, showReviews]);
+  }, [peekOpen, selectedId, navFromReviews, showReviews, restoreFromPeek]);
 
   const onHeaderBack = useCallback(() => {
     if (consumeSheetBackRef.current?.()) return;
@@ -1647,7 +1687,7 @@ export function Workspace({
   const backLabel = sheetBackHint
     ? sheetBackHint
     : peekOpen
-      ? "← К чертежам"
+      ? "← К проектам"
       : selectedId && navFromReviews
         ? "← К замечаниям"
         : selectedId
@@ -2202,14 +2242,18 @@ export function Workspace({
               <div className="flex shrink-0 items-center gap-2 border-b border-accent/30 bg-accent/5 px-3 py-1.5">
                 <button
                   type="button"
-                  onClick={() => setPeekOpen(false)}
+                  onClick={restoreFromPeek}
                   className="rounded border border-accent bg-white px-2 py-0.5 text-[11px] font-semibold text-accent hover:bg-accent/10"
-                  title="Вернуться в таблицу замечаний (Esc)"
+                  title="Вернуться на предыдущую страницу (Esc)"
                 >
-                  ← К таблице замечаний
+                  {returnFromPeek.kind === "reviews"
+                    ? "← К таблице замечаний"
+                    : "← Назад"}
                 </button>
                 <span className="truncate text-[11px] text-muted">
-                  Лист открыт из разбора · Esc возвращает в ту же строку
+                  {returnFromPeek.kind === "reviews"
+                    ? "Лист открыт из разбора · Esc в ту же строку"
+                    : "Лист открыт из разбора · Esc на предыдущую страницу"}
                 </span>
                 <a
                   href={`/api/documents/${selected.id}/file`}
@@ -2228,6 +2272,13 @@ export function Workspace({
             projectId={currentProject?.id}
             reviews={projectReviews}
             onOpenReviews={() => {
+              if (!showReviews) {
+                setReturnFromPeek(
+                  selectedId
+                    ? { kind: "drawing", documentId: selectedId }
+                    : { kind: "files" },
+                );
+              }
               setPeekOpen(false);
               setShowReviews(true);
               setNavFromReviews(true);
