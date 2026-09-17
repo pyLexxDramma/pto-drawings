@@ -356,12 +356,16 @@ export function Workspace({
   const [showReviews, setShowReviews] = useState(false);
   /** Лист, открытый поверх таблицы замечаний по ссылке «Где в ПД». */
   const [peekOpen, setPeekOpen] = useState(false);
-  /** Куда вернуть «К таблице замечаний»: страница до этого листа. */
+  /** Куда вернуть лист, открытый из «Где в ПД». */
   const [returnFromPeek, setReturnFromPeek] = useState<
     | { kind: "reviews" }
     | { kind: "drawing"; documentId: string }
     | { kind: "files" }
   >({ kind: "reviews" });
+  /** Откуда открыли таблицу замечаний — назад сначала туда. */
+  const [returnFromReviews, setReturnFromReviews] = useState<
+    { kind: "drawing"; documentId: string } | { kind: "files" }
+  >({ kind: "files" });
   const [reviewStats, setReviewStats] = useState<ReviewStats | null>(null);
   /** Лист открыт из таблицы замечаний (в т.ч. новая вкладка) — «Назад» ведёт туда. */
   const [navFromReviews, setNavFromReviews] = useState(false);
@@ -530,10 +534,10 @@ export function Workspace({
     (stage: StageId) => {
       if (stage === "reviews") {
         if (!showReviews) {
-          setReturnFromPeek(
+          setReturnFromReviews(
             selectedId
               ? { kind: "drawing", documentId: selectedId }
-              : { kind: "reviews" },
+              : { kind: "files" },
           );
         }
         setPeekOpen(false);
@@ -634,12 +638,13 @@ export function Workspace({
         return;
       }
       if (!peekOpen && !showReviews) {
-        setReturnFromPeek(
+        setReturnFromReviews(
           selectedId
             ? { kind: "drawing", documentId: selectedId }
             : { kind: "files" },
         );
       }
+      setReturnFromPeek({ kind: "reviews" });
       setSelectedId(documentId);
       setShowReviews(true);
       setPeekOpen(true);
@@ -1050,6 +1055,7 @@ export function Workspace({
     setShowReviews(false);
     setPeekOpen(false);
     setNavFromReviews(false);
+    setReturnFromReviews({ kind: "files" });
     setOpenPage(null);
     setFocusMode(false);
     setDocuments([]);
@@ -1065,6 +1071,8 @@ export function Workspace({
   async function selectProject(id: string) {
     setShowReviews(false);
     setPeekOpen(false);
+    setNavFromReviews(false);
+    setReturnFromReviews({ kind: "files" });
     if (projectId === id) {
       setProjectId("");
       setSelectedId(null);
@@ -1628,11 +1636,26 @@ export function Workspace({
     setShowReviews(true);
   }, [returnFromPeek]);
 
-  /** На шаг назад: поиск/пометка ← замечания ← лист ← таблица ← главная проекта. */
+  /** На шаг назад: поиск ← лист из таблицы ← таблица ← чертёж ← файлы проекта. */
   const goBack = useCallback(() => {
     if (consumeSheetBackRef.current?.()) return;
     if (peekOpen) {
       restoreFromPeek();
+      return;
+    }
+    if (showReviews) {
+      setShowReviews(false);
+      setNavFromReviews(false);
+      setPeekOpen(false);
+      if (returnFromReviews.kind === "drawing") {
+        setSelectedId(returnFromReviews.documentId);
+        setProjectsCollapsed(false);
+        return;
+      }
+      setSelectedId(null);
+      setOpenPage(null);
+      setFocusMode(false);
+      setProjectsCollapsed(false);
       return;
     }
     if (selectedId && navFromReviews) {
@@ -1651,12 +1674,15 @@ export function Workspace({
       setProjectsCollapsed(false);
       return;
     }
-    if (showReviews) {
-      setShowReviews(false);
-      return;
-    }
     setProjectsCollapsed(false);
-  }, [peekOpen, selectedId, navFromReviews, showReviews, restoreFromPeek]);
+  }, [
+    peekOpen,
+    selectedId,
+    navFromReviews,
+    showReviews,
+    returnFromReviews,
+    restoreFromPeek,
+  ]);
 
   const onHeaderBack = goBack;
 
@@ -2238,7 +2264,7 @@ export function Workspace({
             reviews={projectReviews}
             onOpenReviews={() => {
               if (!showReviews) {
-                setReturnFromPeek(
+                setReturnFromReviews(
                   selectedId
                     ? { kind: "drawing", documentId: selectedId }
                     : { kind: "files" },
@@ -2246,7 +2272,6 @@ export function Workspace({
               }
               setPeekOpen(false);
               setShowReviews(true);
-              setNavFromReviews(true);
             }}
             stripHost={stripHost}
             onReviewPatched={(review) =>
