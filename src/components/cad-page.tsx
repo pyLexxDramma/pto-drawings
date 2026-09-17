@@ -37,6 +37,7 @@ type CadPageProps = {
   highlightNonce?: number;
   highlightQuery?: string;
   highlightRegion?: PageTextRegion | null;
+  highlightRegions?: PageTextRegion[];
   panToHighlight?: boolean;
   remarkFocus?: boolean;
   hoverRegions?: PageTextRegion[];
@@ -89,6 +90,7 @@ export function CadPage({
   highlightNonce = 0,
   highlightQuery = "",
   highlightRegion = null,
+  highlightRegions = [],
   panToHighlight = false,
   remarkFocus = false,
   hoverRegions = [],
@@ -546,6 +548,18 @@ export function CadPage({
                 }}
               />
             ) : null}
+            {highlightRegions.map((region) => (
+              <div
+                key={region.id}
+                className="pointer-events-none absolute z-[5] bg-sky-400/25 outline outline-2 outline-sky-600"
+                style={{
+                  left: `${region.x * 100}%`,
+                  top: `${region.y * 100}%`,
+                  width: `${Math.max(2.5, region.w * 100)}%`,
+                  height: `${Math.max(1.5, region.h * 100)}%`,
+                }}
+              />
+            ))}
             {searchHits.map((hit, index) => (
               <div
                 key={`q-${index}`}

@@ -12,9 +12,10 @@ export function extractCiphers(query: string): string[] {
   const raw = query.trim();
   if (!raw) return [];
   const found = [
+    ...(raw.match(/\d{1,3}\/\d{1,3}/g) ?? []),
     ...(raw.match(/[A-Za-zА-Яа-яЁё]{1,8}[-–/.]?\d[\d.,A-Za-zА-Яа-яЁё]*/g) ?? []),
     ...(raw.match(/\d+(?:[.,]\d+)+/g) ?? []),
-    ...(raw.match(/\d{2,}/g) ?? []),
+    ...(raw.match(/\d{3,}/g) ?? []),
   ];
   return [...new Set(found.map((item) => item.trim()).filter((item) => item.length >= 2))];
 }
@@ -47,6 +48,7 @@ export function preferHighlightQuery(query: string, haystack = ""): string {
   if (raw.length < 2) return raw;
   const hay = normalizeQuote(haystack);
   for (const cipher of extractCiphers(raw).sort((a, b) => b.length - a.length)) {
+    if (/^\d{1,2}$/.test(cipher)) continue;
     if (!hay || hay.includes(normalizeQuote(cipher))) return cipher;
   }
   if (hay) {

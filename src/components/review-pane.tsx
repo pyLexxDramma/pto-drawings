@@ -89,6 +89,12 @@ type ReviewPaneProps = {
   notesRefreshToken?: number;
   /** Те же строки, что в «Замечаний по листу» — открыть таблицу по этому файлу. */
   onOpenReviews?: () => void;
+  /** Другой файл того же замечания — из «место 2 из 3». */
+  onJumpToPage?: (
+    documentId: string,
+    pageNumber: number,
+    options?: { reviewId?: string; quote?: string },
+  ) => void;
   /** Миниатюры листов в колонке проектов — сворачиваются вместе с ней. */
   stripHost?: HTMLElement | null;
 };
@@ -112,6 +118,11 @@ function jobLiveProcessing(doc: DocumentRecord) {
     doc.status === "processing" ||
     Boolean(doc.errorMessage?.startsWith("Отмена"))
   );
+}
+
+function sameRect(a?: AnnotationRect | null, b?: AnnotationRect | null) {
+  if (!a || !b) return false;
+  return a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
 }
 
 function activePageForJob(doc: DocumentRecord) {
@@ -146,6 +157,7 @@ export function ReviewPane({
   onAnnotationsChanged,
   notesRefreshToken = 0,
   onOpenReviews,
+  onJumpToPage,
   stripHost = null,
 }: ReviewPaneProps) {
   const [rawPage, setRawPage] = useState(() => {
@@ -462,6 +474,72 @@ export function ReviewPane({
   const focusHighlightRegion = focusRect
     ? { id: "review-focus", text: focusQuote, ...focusRect }
     : null;
+  const activeReview = useMemo(
+    () => reviews.find((item) => item.id === activeReviewId) ?? null,
+    [reviews, activeReviewId],
+  );
+  const siblingLocations = useMemo(
+    () =>
+      (activeReview?.locations ?? []).filter(
+        (item) => item.documentId && item.pageNumber,
+      ),
+    [activeReview],
+  );
+  const siblingIndex = useMemo(() => {
+    if (siblingLocations.length === 0) return -1;
+    const quote = normalizeQuote(focusQuote);
+    const exact = siblingLocations.findIndex(
+      (item) =>
+        item.documentId === document.id &&
+        item.pageNumber === pageNumber &&
+        (!quote || normalizeQuote(item.quote) === quote),
+    );
+    if (exact >= 0) return exact;
+    return siblingLocations.findIndex(
+      (item) =>
+        item.documentId === document.id && item.pageNumber === pageNumber,
+    );
+  }, [siblingLocations, document.id, pageNumber, focusQuote]);
+  const extraHighlightRegions = useMemo(
+    () =>
+      siblingLocations
+        .filter(
+          (item) =>
+            item.documentId === document.id &&
+            item.pageNumber === pageNumber &&
+            item.rect &&
+            !sameRect(item.rect, focusRect),
+        )
+        .map((item, index) => ({
+          id: `review-sib-${index}`,
+          text: item.quote,
+          ...item.rect!,
+        })),
+    [siblingLocations, document.id, pageNumber, focusRect],
+  );
+
+  function focusLocation(
+    location: (typeof siblingLocations)[number],
+    reviewId: string,
+  ) {
+    const quote = (location.quote || focusQuote || "").trim();
+    if (location.documentId && location.documentId !== document.id) {
+      onJumpToPage?.(location.documentId, location.pageNumber!, {
+        reviewId,
+        quote: quote || undefined,
+      });
+      return;
+    }
+    if (location.pageNumber) goToPage(location.pageNumber);
+    setActiveReviewId(reviewId);
+    setFocusQuote(quote);
+    setFocusRect(location.rect ?? null);
+    setFocusNonce(Date.now());
+    setPaneSolo(null);
+    setSidePanel("text");
+    setDrawingHitCount(0);
+    setTextHitFound(null);
+  }
   const activeNoteId = hoverNoteId;
   const viewingProcessedSheet =
     progressIsCurrentDoc &&
@@ -1172,6 +1250,50 @@ export function ReviewPane({
               className="relative h-full min-h-0 min-w-0 overflow-hidden"
               style={{ width: paneSolo === "pdf" ? "100%" : `${split}%` }}
             >
+              {siblingLocations.length > 1 && activeReview ? (
+                <div className="pointer-events-none absolute inset-x-0 top-10 z-20 flex justify-center px-2">
+                  <div className="pointer-events-auto inline-flex max-w-full items-center gap-1.5 rounded-md border border-violet-300 bg-violet-50 px-2 py-1 text-[11px] text-violet-950 shadow-sm">
+                    <button
+                      type="button"
+                      className="rounded px-1 font-semibold hover:bg-violet-100"
+                      title="Предыдущее место"
+                      onClick={() => {
+                        const from = siblingIndex >= 0 ? siblingIndex : 0;
+                        const next =
+                          siblingLocations[
+                            (from - 1 + siblingLocations.length) %
+                              siblingLocations.length
+                          ];
+                        focusLocation(next, activeReview.id);
+                      }}
+                    >
+                      ←
+                    </button>
+                    <span className="min-w-0 truncate tabular-nums">
+                      Место {Math.max(siblingIndex, 0) + 1} из{" "}
+                      {siblingLocations.length}
+                      {siblingLocations[siblingIndex]?.pageNumber
+                        ? ` · стр. ${siblingLocations[siblingIndex].pageNumber}`
+                        : ""}
+                    </span>
+                    <button
+                      type="button"
+                      className="rounded px-1 font-semibold hover:bg-violet-100"
+                      title="Следующее место"
+                      onClick={() => {
+                        const from = siblingIndex >= 0 ? siblingIndex : 0;
+                        const next =
+                          siblingLocations[
+                            (from + 1) % siblingLocations.length
+                          ];
+                        focusLocation(next, activeReview.id);
+                      }}
+                    >
+                      →
+                    </button>
+                  </div>
+                </div>
+              ) : null}
               {quoteBannerOn &&
               focusDrawing &&
               (page?.source === "model" || textHitFound !== null) &&
@@ -1292,6 +1414,7 @@ export function ReviewPane({
                   activeAnnotationId={activeNoteId}
                   highlightQuery={drawingHighlightQuery}
                   highlightRegion={focusHighlightRegion}
+                  highlightRegions={extraHighlightRegions}
                   panToHighlight={focusDrawing}
                   remarkFocus={focusDrawing}
                   highlightNonce={focusNonce}
@@ -1314,6 +1437,7 @@ export function ReviewPane({
                   activeAnnotationId={activeNoteId}
                   highlightQuery={drawingHighlightQuery}
                   highlightRegion={focusHighlightRegion}
+                  highlightRegions={extraHighlightRegions}
                   panToHighlight={focusDrawing}
                   remarkFocus={focusDrawing}
                   highlightNonce={focusNonce}
@@ -1335,6 +1459,7 @@ export function ReviewPane({
                   activeAnnotationId={activeNoteId}
                   highlightQuery={drawingHighlightQuery}
                   highlightRegion={focusHighlightRegion}
+                  highlightRegions={extraHighlightRegions}
                   panToHighlight={focusDrawing}
                   remarkFocus={focusDrawing}
                   highlightNonce={focusNonce}
@@ -1365,6 +1490,7 @@ export function ReviewPane({
                   activeAnnotationId={activeNoteId}
                   highlightQuery={drawingHighlightQuery}
                   highlightRegion={focusHighlightRegion}
+                  highlightRegions={extraHighlightRegions}
                   panToHighlight={focusDrawing}
                   remarkFocus={focusDrawing}
                   highlightNonce={focusNonce}

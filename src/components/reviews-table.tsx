@@ -1102,16 +1102,6 @@ function verdictish(field: ReviewEvent["field"], value: string): string {
   return value;
 }
 
-/** 1 место, 2 места, 5 мест — для «ещё N» в «Где в ПД». */
-function ruPlaces(count: number): string {
-  const abs = Math.abs(count) % 100;
-  const digit = abs % 10;
-  if (abs > 10 && abs < 20) return "мест";
-  if (digit === 1) return "место";
-  if (digit >= 2 && digit <= 4) return "места";
-  return "мест";
-}
-
 function locationHead(location: ReviewLocation, omitFile: boolean): string {
   return [
     omitFile ? null : location.documentName || "без раздела",
@@ -1268,7 +1258,7 @@ function LocationLine({
   );
 }
 
-/** Карточки мест раздували строку — одна строка на место, с 3-го «ещё N». */
+/** Все места одного расхождения сразу видны — иначе инженер правит одно и не видит второе. */
 function ReviewLocations({
   review,
   needle,
@@ -1280,30 +1270,20 @@ function ReviewLocations({
   wording: string;
   onJumpToPage: JumpToPage;
 }) {
-  const [open, setOpen] = useState(false);
-  const collapse = review.locations.length > 2;
-  const hiddenNeedle =
-    Boolean(needle) &&
-    review.locations.slice(1).some(
-      (loc) =>
-        loc.quote.toLowerCase().includes(needle) ||
-        loc.documentName.toLowerCase().includes(needle) ||
-        String(loc.pageNumber ?? "").includes(needle),
-    );
-  const expanded = !collapse || open || hiddenNeedle;
-  const shown = expanded ? review.locations : review.locations.slice(0, 1);
-  const rest = review.locations.length - 1;
   const firstName = review.locations[0]?.documentName;
+  const many = review.locations.length > 1;
 
   return (
     <ul className="min-w-0 space-y-0.5">
-      {shown.map((location, index) => (
+      {review.locations.map((location, index) => (
         <li
           key={`${location.documentId}-${location.pageNumber}-${index}`}
           className="flex min-w-0 items-baseline gap-1"
         >
-          {index > 0 ? (
-            <span className="shrink-0 text-[10px] text-muted">↔</span>
+          {many ? (
+            <span className="shrink-0 tabular-nums text-[10px] text-muted">
+              {index + 1}/{review.locations.length}
+            </span>
           ) : null}
           <div className="min-w-0 flex-1">
             <LocationLine
@@ -1317,21 +1297,6 @@ function ReviewLocations({
           </div>
         </li>
       ))}
-      {collapse && !hiddenNeedle ? (
-        <li>
-          <button
-            type="button"
-            aria-expanded={expanded}
-            onClick={(event) => {
-              event.stopPropagation();
-              setOpen((value) => !value);
-            }}
-            className="text-[10px] text-muted underline decoration-dotted hover:text-text"
-          >
-            {expanded ? "свернуть" : `ещё ${rest} ${ruPlaces(rest)}`}
-          </button>
-        </li>
-      ) : null}
     </ul>
   );
 }

@@ -2235,6 +2235,7 @@ export function Workspace({
             document={selected}
             projectId={currentProject?.id}
             reviews={projectReviews}
+            onJumpToPage={jumpToPage}
             onOpenReviews={() => {
               if (!showReviews) pushBack();
               setPeekOpen(false);
