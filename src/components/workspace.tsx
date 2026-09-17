@@ -2214,22 +2214,6 @@ export function Workspace({
 
         {(!showReviews || peekOpen) && selected ? (
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            {peekOpen ? (
-              <div className="flex shrink-0 items-center gap-2 border-b border-accent/30 bg-accent/5 px-3 py-1.5">
-                <span className="truncate text-[11px] text-muted">
-                  Лист открыт из разбора · в шапке «На предыдущую страницу»
-                </span>
-                <a
-                  href={`/api/documents/${selected.id}/file`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="ml-auto shrink-0 rounded border border-border bg-white px-2 py-0.5 text-[11px] text-muted hover:text-text"
-                  title="Открыть исходный файл в новой вкладке"
-                >
-                  Файл в новой вкладке
-                </a>
-              </div>
-            ) : null}
           <ReviewPane
             key={selected.id}
             document={selected}
