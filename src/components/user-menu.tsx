@@ -66,12 +66,14 @@ export function UserMenu({
         aria-label={`${role}: ${user.displayName}`}
         onClick={() => setOpen((value) => !value)}
         title={`${user.displayName} · ${role}`}
-        className={`flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md border text-left ${
+        className={`flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md border-2 text-left ${
           compact ? "px-1.5 py-1" : "px-2 py-1"
         } ${
           defaultPasswordWarning
-            ? "border-amber-400 bg-amber-50 text-amber-950 hover:bg-amber-100"
-            : "border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
+            ? "border-amber-500 bg-amber-50 text-amber-950 hover:bg-amber-100"
+            : user.role === "admin"
+              ? "border-slate-700 bg-slate-800 text-white hover:bg-slate-700"
+              : "border-sky-500 bg-sky-50 text-sky-950 hover:bg-sky-100"
         }`}
       >
         <span
@@ -81,20 +83,33 @@ export function UserMenu({
             defaultPasswordWarning
               ? "bg-amber-200 text-amber-950"
               : user.role === "admin"
-                ? "bg-slate-700 text-white"
-                : "bg-slate-200 text-slate-800"
+                ? "bg-white text-slate-900"
+                : "bg-sky-600 text-white"
           }`}
         >
           {letter}
         </span>
         {compact ? null : (
           <span className="text-[11px] leading-tight">
-            <span className="block font-semibold text-slate-900">
+            <span
+              className={`block font-semibold ${
+                defaultPasswordWarning || user.role !== "admin"
+                  ? "text-slate-900"
+                  : "text-white"
+              }`}
+            >
               {user.displayName}
             </span>
           </span>
         )}
-        <span className="text-[10px] text-slate-500" aria-hidden>
+        <span
+          className={`text-[10px] ${
+            user.role === "admin" && !defaultPasswordWarning
+              ? "text-white/80"
+              : "text-slate-500"
+          }`}
+          aria-hidden
+        >
           ▾
         </span>
       </button>

@@ -33,16 +33,16 @@ const STAGE_TAB: Record<
 > = {
   transcribe: {
     idle:
-      "border-slate-300 bg-white text-slate-800 hover:border-slate-400 hover:bg-slate-50",
+      "border-2 border-sky-400 bg-sky-50 text-sky-950 hover:border-sky-500 hover:bg-sky-100",
     current:
-      "border-slate-700 bg-slate-700 text-white shadow-sm hover:bg-slate-700",
-    track: "accent",
+      "border-2 border-sky-700 bg-sky-700 text-white shadow-sm hover:bg-sky-800",
+    track: "sky",
   },
   reviews: {
     idle:
-      "border-slate-300 bg-white text-slate-800 hover:border-slate-400 hover:bg-slate-50",
+      "border-2 border-violet-400 bg-violet-50 text-violet-950 hover:border-violet-500 hover:bg-violet-100",
     current:
-      "border-slate-700 bg-slate-700 text-white shadow-sm hover:bg-slate-700",
+      "border-2 border-violet-700 bg-violet-700 text-white shadow-sm hover:bg-violet-800",
     track: "accent",
   },
 };

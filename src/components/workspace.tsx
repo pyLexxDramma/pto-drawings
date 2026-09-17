@@ -1047,6 +1047,10 @@ export function Workspace({
     setProjectsCollapsed(false);
     setProjectId("");
     setSelectedId(null);
+    setShowReviews(false);
+    setPeekOpen(false);
+    setNavFromReviews(false);
+    setOpenPage(null);
     setFocusMode(false);
     setDocuments([]);
     setEdits([]);
@@ -1604,16 +1608,6 @@ export function Workspace({
   const visiblePipelineChip = showPipelineTech ? pipelineChip : null;
   const visibleQueueChip = queueChip;
 
-  const goHome = useCallback(() => {
-    setPeekOpen(false);
-    setSelectedId(null);
-    setShowReviews(false);
-    setNavFromReviews(false);
-    setFocusMode(false);
-    setOpenPage(null);
-    setProjectsCollapsed(false);
-  }, []);
-
   const restoreFromPeek = useCallback(() => {
     setPeekOpen(false);
     if (returnFromPeek.kind === "drawing") {
@@ -1685,8 +1679,7 @@ export function Workspace({
       }}
       onDrop={onDrop}
     >
-      {/* Живёт вне шапки: на неё ссылаются label'ы в списке файлов и в пустом состоянии,
-          а сама шапка при открытом чертеже не рендерится. */}
+      {/* Живёт вне шапки: на неё ссылаются label'ы в списке файлов и в пустом состоянии. */}
       <input
         id="pto-drawing-upload"
         ref={inputRef}
@@ -1701,19 +1694,28 @@ export function Workspace({
         }}
       />
 
-      {focusMode ? null : (
-        <header className="flex shrink-0 items-center gap-1.5 border-b border-border bg-surface px-2 py-0.5 sm:px-3">
+      <header className="sticky top-0 z-30 flex shrink-0 items-center gap-1.5 border-b border-border bg-surface px-2 py-0.5 sm:px-3">
           <button
             type="button"
-            onClick={goHome}
+            onClick={openProjectsList}
             className="flex shrink-0 items-center gap-1.5 text-left"
-            title="К списку проектов"
+            title="Ко всем проектам"
           >
             <PtoLogo className="h-5 w-5 shrink-0" title="PTO — проверка чертежей" />
             <div className="hidden min-w-0 sm:block">
               <div className="text-xs font-semibold leading-none tracking-tight">PTO</div>
             </div>
           </button>
+          {projectId ? (
+            <button
+              type="button"
+              onClick={openProjectsList}
+              title="Главная: все проекты, список слева"
+              className="shrink-0 rounded-md bg-accent px-2 py-0.5 text-[10px] font-bold text-white shadow-sm hover:bg-[#1d4ed8]"
+            >
+              ← К проектам
+            </button>
+          ) : null}
 
           {currentProject ? (
             <ProjectStagesBar
@@ -1762,7 +1764,7 @@ export function Workspace({
                 setShowNewProject(true);
               }}
               title="Создать новый проект"
-              className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-slate-800 hover:bg-slate-50"
+              className="inline-flex items-center gap-1 rounded-md border-2 border-emerald-600 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-900 hover:bg-emerald-100"
             >
               <span aria-hidden className="text-sm leading-none">
                 +
@@ -1831,7 +1833,6 @@ export function Workspace({
             />
           </div>
         </header>
-      )}
 
       {siteDown ? <SiteDownBanner /> : null}
 
@@ -2217,7 +2218,7 @@ export function Workspace({
             {peekOpen ? (
               <div className="flex shrink-0 items-center gap-2 border-b border-accent/30 bg-accent/5 px-3 py-1.5">
                 <span className="truncate text-[11px] text-muted">
-                  Лист открыт из разбора · жёлтая «На предыдущую страницу» в шапке
+                  Лист открыт из разбора · в шапке «На предыдущую страницу»
                 </span>
                 <a
                   href={`/api/documents/${selected.id}/file`}
