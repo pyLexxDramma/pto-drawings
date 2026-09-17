@@ -1794,16 +1794,9 @@ export function Workspace({
             <UserMenu
               user={user}
               sheetMenu={
-                selected ? (
+                selected &&
+                (currentProject?.specStoredName || pageLogCount) ? (
                   <>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className={menuItemClass()}
-                      onClick={() => setFocusMode((value) => !value)}
-                    >
-                      {focusMode ? "Свернуть на весь экран" : "На весь экран"}
-                    </button>
                     {currentProject?.specStoredName ? (
                       <a
                         href={`/api/projects/${currentProject.id}/spec/file`}
