@@ -356,16 +356,6 @@ export function Workspace({
   const [showReviews, setShowReviews] = useState(false);
   /** Лист, открытый поверх таблицы замечаний по ссылке «Где в ПД». */
   const [peekOpen, setPeekOpen] = useState(false);
-  /** Куда вернуть лист, открытый из «Где в ПД». */
-  const [returnFromPeek, setReturnFromPeek] = useState<
-    | { kind: "reviews" }
-    | { kind: "drawing"; documentId: string }
-    | { kind: "files" }
-  >({ kind: "reviews" });
-  /** Откуда открыли таблицу замечаний — назад сначала туда. */
-  const [returnFromReviews, setReturnFromReviews] = useState<
-    { kind: "drawing"; documentId: string } | { kind: "files" }
-  >({ kind: "files" });
   const [reviewStats, setReviewStats] = useState<ReviewStats | null>(null);
   /** Лист открыт из таблицы замечаний (в т.ч. новая вкладка) — «Назад» ведёт туда. */
   const [navFromReviews, setNavFromReviews] = useState(false);
@@ -373,6 +363,17 @@ export function Workspace({
   const [reviewsEpoch, setReviewsEpoch] = useState(0);
   const [sheetBackHint, setSheetBackHint] = useState<string | null>(null);
   const consumeSheetBackRef = useRef<(() => boolean) | null>(null);
+  type BackView =
+    | { kind: "files" }
+    | { kind: "drawing"; documentId: string }
+    | { kind: "reviews" };
+  const backStackRef = useRef<BackView[]>([]);
+  const selectedIdRef = useRef<string | null>(null);
+  const showReviewsRef = useRef(false);
+  const peekOpenRef = useRef(false);
+  selectedIdRef.current = selectedId;
+  showReviewsRef.current = showReviews;
+  peekOpenRef.current = peekOpen;
   /** Прогресс-бары этапов открыты: сразу видно, где проект встал. */
   const [documentsProjectId, setDocumentsProjectId] = useState<string | null>(
     null,
@@ -509,8 +510,54 @@ export function Workspace({
     return list;
   }, []);
 
+  function snapshotBack(): BackView {
+    if (peekOpenRef.current || showReviewsRef.current) return { kind: "reviews" };
+    if (selectedIdRef.current) {
+      return { kind: "drawing", documentId: selectedIdRef.current };
+    }
+    return { kind: "files" };
+  }
+
+  function pushBack(view?: BackView) {
+    const next = view ?? snapshotBack();
+    const last = backStackRef.current[backStackRef.current.length - 1];
+    if (
+      last &&
+      last.kind === next.kind &&
+      (next.kind !== "drawing" ||
+        (last.kind === "drawing" && last.documentId === next.documentId))
+    ) {
+      return;
+    }
+    backStackRef.current = [...backStackRef.current, next];
+  }
+
+  function applyBack(view: BackView) {
+    setPeekOpen(false);
+    setNavFromReviews(false);
+    if (view.kind === "reviews") {
+      setShowReviews(true);
+      return;
+    }
+    setShowReviews(false);
+    if (view.kind === "drawing") {
+      setSelectedId(view.documentId);
+      setProjectsCollapsed(false);
+      return;
+    }
+    setSelectedId(null);
+    setOpenPage(null);
+    setFocusMode(false);
+    setProjectsCollapsed(false);
+  }
+
   const openDocument = useCallback(
     async (id: string, page?: number) => {
+      const alreadyOpen =
+        selectedIdRef.current === id &&
+        !showReviewsRef.current &&
+        !peekOpenRef.current;
+      if (!alreadyOpen) pushBack();
       setShowReviews(false);
       setPeekOpen(false);
       setNavFromReviews(false);
@@ -533,13 +580,7 @@ export function Workspace({
   const openStage = useCallback(
     (stage: StageId) => {
       if (stage === "reviews") {
-        if (!showReviews) {
-          setReturnFromReviews(
-            selectedId
-              ? { kind: "drawing", documentId: selectedId }
-              : { kind: "files" },
-          );
-        }
+        if (!showReviews) pushBack();
         setPeekOpen(false);
         setShowReviews(true);
         return;
@@ -637,14 +678,6 @@ export function Workspace({
         window.open(url.toString(), "_blank", "noopener,noreferrer");
         return;
       }
-      if (!peekOpen && !showReviews) {
-        setReturnFromReviews(
-          selectedId
-            ? { kind: "drawing", documentId: selectedId }
-            : { kind: "files" },
-        );
-      }
-      setReturnFromPeek({ kind: "reviews" });
       setSelectedId(documentId);
       setShowReviews(true);
       setPeekOpen(true);
@@ -658,7 +691,7 @@ export function Workspace({
       });
       void refreshDocument(documentId);
     },
-    [projectId, refreshDocument, peekOpen, showReviews, selectedId],
+    [projectId, refreshDocument],
   );
 
   useEffect(() => {
@@ -1055,7 +1088,7 @@ export function Workspace({
     setShowReviews(false);
     setPeekOpen(false);
     setNavFromReviews(false);
-    setReturnFromReviews({ kind: "files" });
+    backStackRef.current = [];
     setOpenPage(null);
     setFocusMode(false);
     setDocuments([]);
@@ -1072,7 +1105,7 @@ export function Workspace({
     setShowReviews(false);
     setPeekOpen(false);
     setNavFromReviews(false);
-    setReturnFromReviews({ kind: "files" });
+    backStackRef.current = [];
     if (projectId === id) {
       setProjectId("");
       setSelectedId(null);
@@ -1616,73 +1649,34 @@ export function Workspace({
   const visiblePipelineChip = showPipelineTech ? pipelineChip : null;
   const visibleQueueChip = queueChip;
 
-  const restoreFromPeek = useCallback(() => {
-    setPeekOpen(false);
-    if (returnFromPeek.kind === "drawing") {
-      setShowReviews(false);
-      setNavFromReviews(false);
-      setSelectedId(returnFromPeek.documentId);
-      setProjectsCollapsed(false);
-      return;
-    }
-    if (returnFromPeek.kind === "files") {
-      setShowReviews(false);
-      setNavFromReviews(false);
-      setSelectedId(null);
-      setOpenPage(null);
-      setProjectsCollapsed(false);
-      return;
-    }
-    setShowReviews(true);
-  }, [returnFromPeek]);
-
-  /** На шаг назад: поиск ← лист из таблицы ← таблица ← чертёж ← файлы проекта. */
+  /** Жёлтая: только один шаг назад. Проект не бросает. */
   const goBack = useCallback(() => {
     if (consumeSheetBackRef.current?.()) return;
-    if (peekOpen) {
-      restoreFromPeek();
-      return;
-    }
-    if (showReviews) {
-      setShowReviews(false);
-      setNavFromReviews(false);
+    if (peekOpenRef.current) {
       setPeekOpen(false);
-      if (returnFromReviews.kind === "drawing") {
-        setSelectedId(returnFromReviews.documentId);
-        setProjectsCollapsed(false);
-        return;
-      }
-      setSelectedId(null);
-      setOpenPage(null);
-      setFocusMode(false);
-      setProjectsCollapsed(false);
-      return;
-    }
-    if (selectedId && navFromReviews) {
-      setSelectedId(null);
-      setOpenPage(null);
-      setFocusMode(false);
-      setNavFromReviews(false);
       setShowReviews(true);
-      setProjectsCollapsed(false);
+      setNavFromReviews(false);
       return;
     }
-    if (selectedId) {
+    const prev = backStackRef.current[backStackRef.current.length - 1];
+    if (prev) {
+      backStackRef.current = backStackRef.current.slice(0, -1);
+      applyBack(prev);
+      return;
+    }
+    if (showReviewsRef.current) {
+      setShowReviews(false);
+      setPeekOpen(false);
+      setNavFromReviews(false);
+      return;
+    }
+    if (selectedIdRef.current) {
       setSelectedId(null);
       setOpenPage(null);
       setFocusMode(false);
       setProjectsCollapsed(false);
-      return;
     }
-    setProjectsCollapsed(false);
-  }, [
-    peekOpen,
-    selectedId,
-    navFromReviews,
-    showReviews,
-    returnFromReviews,
-    restoreFromPeek,
-  ]);
+  }, []);
 
   const onHeaderBack = goBack;
 
@@ -2263,13 +2257,7 @@ export function Workspace({
             projectId={currentProject?.id}
             reviews={projectReviews}
             onOpenReviews={() => {
-              if (!showReviews) {
-                setReturnFromReviews(
-                  selectedId
-                    ? { kind: "drawing", documentId: selectedId }
-                    : { kind: "files" },
-                );
-              }
+              if (!showReviews) pushBack();
               setPeekOpen(false);
               setShowReviews(true);
             }}
