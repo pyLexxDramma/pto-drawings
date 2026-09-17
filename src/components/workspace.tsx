@@ -1777,20 +1777,6 @@ export function Workspace({
                 <span className="truncate">{visibleQueueChip.text}</span>
               </div>
             ) : null}
-            <button
-              type="button"
-              onClick={() => {
-                setProjectsCollapsed(false);
-                setShowNewProject(true);
-              }}
-              title="Создать новый проект"
-              className="inline-flex items-center gap-1 rounded-md border-2 border-emerald-600 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-900 hover:bg-emerald-100"
-            >
-              <span aria-hidden className="text-sm leading-none">
-                +
-              </span>
-              <span className="hidden sm:inline">Новый проект</span>
-            </button>
             <UserMenu
               user={user}
               sheetMenu={

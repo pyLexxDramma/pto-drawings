@@ -119,7 +119,7 @@ function buildStages(
 }
 
 /**
- * Только этапы: на всю ширину шапки от логотипа до «Новый проект» / Админ.
+ * Только этапы: на всю ширину шапки от логотипа до Админ.
  */
 export function ProjectStagesBar({
   projectName,
