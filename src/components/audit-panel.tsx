@@ -29,7 +29,7 @@ const HINT: Record<Tab, string> = {
     "Расшифровка по листам: где конвейер не справился и что именно вернул.",
   files: "Загрузки файлов: кто, когда, каким конвейером расшифровали.",
   releases:
-    "Что выкатили на прод: main — то, что работает сейчас; ветки коллег — что ещё ждёт слияния.",
+    "Что выкатили на прод: ветки коллег и правки в main. Без перечисления каждого запуска.",
 };
 
 type FileRow = {
@@ -78,7 +78,6 @@ type Commit = {
   subject: string;
   merge: boolean;
 };
-type Start = { sha: string; shortSha: string; at: string; version: string | null };
 type Branch = {
   repo: Repo;
   branch: string;
@@ -92,7 +91,6 @@ type Branch = {
 type Payload = {
   rows?: unknown[];
   commits?: Commit[];
-  starts?: Start[];
   branches?: Branch[];
   sources?: { repo: Repo; label: string; dir: string; readable: boolean }[];
   error?: string;
@@ -414,38 +412,6 @@ export function AuditPanel({
 
           {tab === "releases" ? (
             <div className="space-y-4">
-              <div>
-                <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted">
-                  Запуски приложения после обновления
-                </div>
-                {payload?.starts?.length ? (
-                  <table className="w-full border-collapse text-[11px]">
-                    <thead className="bg-slate-100 text-[10px] uppercase tracking-wide text-muted">
-                      <tr>
-                        <th className={head}>Когда</th>
-                        <th className={head}>Коммит</th>
-                        <th className={head}>Версия</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {payload.starts.map((row) => (
-                        <tr key={`${row.sha}-${row.at}`} className="border-b border-slate-200">
-                          <td className={`${cell} whitespace-nowrap text-muted`}>
-                            {formatDate(row.at)}
-                          </td>
-                          <td className={`${cell} font-mono`}>{row.shortSha}</td>
-                          <td className={`${cell} text-muted`}>{row.version ?? "—"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                ) : (
-                  <div className="text-xs text-muted">
-                    Отметок пока нет — появятся при следующем обновлении.
-                  </div>
-                )}
-              </div>
-
               <div>
                 <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted">
                   Ветки коллег

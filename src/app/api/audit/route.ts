@@ -5,7 +5,6 @@ import {
   listBranchTips,
   listReleaseCommits,
   listReleaseSources,
-  listReleaseStarts,
   recordAppStart,
 } from "@/lib/releases";
 import { listReviewEvents, listReviews } from "@/lib/reviews";
@@ -69,13 +68,12 @@ export async function GET(request: Request) {
 
   if (kind === "releases") {
     await recordAppStart();
-    const [commits, starts, branches, sources] = await Promise.all([
+    const [commits, branches, sources] = await Promise.all([
       listReleaseCommits(60),
-      listReleaseStarts(),
       listBranchTips(40),
       listReleaseSources(),
     ]);
-    return NextResponse.json({ kind, commits, starts, branches, sources });
+    return NextResponse.json({ kind, commits, branches, sources });
   }
 
   const projects = await listProjects();
