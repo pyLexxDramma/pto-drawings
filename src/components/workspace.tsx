@@ -2234,7 +2234,7 @@ export function Workspace({
               onStatsChange={setReviewStats}
               refreshToken={reviewsEpoch}
               onReviewsMutated={() => setReviewsEpoch((n) => n + 1)}
-              onClose={goBack}
+              onClose={openProjectsList}
             />
           </div>
         ) : null}

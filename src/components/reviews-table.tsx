@@ -532,10 +532,10 @@ export function ReviewsTable({
         <button
           type="button"
           onClick={onClose}
-          className="shrink-0 rounded border border-border px-1.5 py-0.5 text-[11px] text-muted hover:bg-bg hover:text-text"
-          title="Вернуться к чертежам"
+          className="shrink-0 rounded-md bg-accent px-2 py-0.5 text-[10px] font-bold text-white shadow-sm hover:bg-[#1d4ed8]"
+          title="Главная: все проекты, список слева"
         >
-          ← К чертежам
+          ← К проектам
         </button>
         <div
           className="min-w-0 flex-1 truncate text-[11px] tabular-nums leading-tight"
