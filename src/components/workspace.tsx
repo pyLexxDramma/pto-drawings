@@ -66,6 +66,8 @@ import {
 import { UploadDialog, type UploadDialogResult } from "@/components/upload-dialog";
 import { assessPageRisk } from "@/lib/file-risk";
 import { saveRemarkJump, takeRemarkJump, clearRemarkJump } from "@/lib/remark-jump";
+import { isPlaceMessage } from "@/lib/place-bridge";
+import { ResolvedSummary } from "@/components/resolved-summary";
 import {
   DRAWING_ACCEPT,
   DRAWING_ACCEPT_HINT,
@@ -693,6 +695,36 @@ export function Workspace({
     },
     [projectId, refreshDocument],
   );
+
+  /**
+   * Вкладка разобранных замечаний присылает место — показываем его здесь, а не
+   * плодим третью вкладку. Чужой проект открываем ссылкой.
+   */
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      if (!isPlaceMessage(event.data)) return;
+      const place = event.data;
+      if (place.projectId !== projectId) {
+        const url = new URL(window.location.href);
+        url.search = "";
+        url.searchParams.set("project", place.projectId);
+        url.searchParams.set("doc", place.documentId);
+        url.searchParams.set("page", String(place.page));
+        url.searchParams.set("from", "reviews");
+        if (place.reviewId) url.searchParams.set("review", place.reviewId);
+        if (place.quote) url.searchParams.set("quote", place.quote);
+        window.location.href = url.toString();
+        return;
+      }
+      jumpToPage(place.documentId, place.page, {
+        reviewId: place.reviewId,
+        quote: place.quote,
+      });
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [jumpToPage, projectId]);
 
   useEffect(() => {
     try {
@@ -2177,6 +2209,14 @@ export function Workspace({
                 ),
               )}
             </div>
+            {currentProject ? (
+              <div className="border-t border-border px-1.5 py-1">
+                <ResolvedSummary
+                  reviews={projectReviews}
+                  projectId={currentProject.id}
+                />
+              </div>
+            ) : null}
             {selected ? (
               <div
                 ref={setStripHost}

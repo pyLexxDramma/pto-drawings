@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import { ExcelColFilter } from "@/components/excel-col-filter";
+import { ResolvedSummary } from "@/components/resolved-summary";
 import { Spinner } from "@/components/ui-chrome";
 import { IconDownload } from "@/components/tool-icons";
 import {
@@ -22,6 +23,7 @@ import {
   SEVERITY_CHIP,
   SEVERITY_ROW,
   VERDICT_CHIP,
+  VERDICT_DOT,
   VERDICT_ROW,
 } from "@/lib/review-colors";
 import { formatDate } from "@/lib/format";
@@ -519,6 +521,11 @@ export function ReviewsTable({
         </div>
 
         <div className="ml-auto flex shrink-0 items-center gap-1.5">
+          <ResolvedSummary
+            reviews={reviews}
+            projectId={projectId}
+            className="w-48"
+          />
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -1333,7 +1340,24 @@ function ReviewRow({
           aria-label={`Выбрать замечание ${review.number}`}
         />
       </td>
-      <td className="px-2 py-1.5 tabular-nums text-muted">{review.number}</td>
+      <td className="px-2 py-1.5 tabular-nums text-muted">
+        <span className="inline-flex items-center gap-1">
+          {review.number}
+          {review.verdict === "pending" ? null : (
+            <span
+              className="group/mark relative inline-flex"
+              title={`Разобрано: ${REVIEW_VERDICT_LABEL[review.verdict]}`}
+            >
+              <span
+                className={`h-2 w-2 rounded-full ${VERDICT_DOT[review.verdict]}`}
+              />
+              <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-1 hidden -translate-x-1/2 whitespace-nowrap rounded bg-slate-900 px-1.5 py-0.5 text-[10px] leading-none text-white shadow-sm group-hover/mark:block">
+                {REVIEW_VERDICT_LABEL[review.verdict]}
+              </span>
+            </span>
+          )}
+        </span>
+      </td>
       <td className="px-2 py-1.5">
         <span className="rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[10px] font-medium text-text">
           {review.section}
