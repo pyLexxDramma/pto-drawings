@@ -556,10 +556,10 @@ export function ReviewPane({
   // Один ряд плашек над листом: счётчик поиска, места, легенда цветов.
   const placeBar =
     siblingLocations.length > 1 && activeReview ? (
-      <span className="pointer-events-auto inline-flex max-w-full items-center gap-0.5 rounded border border-violet-300 bg-violet-50/90 px-1.5 py-0.5 text-[10px] leading-none text-violet-950 shadow-sm backdrop-blur">
+      <span className="pointer-events-auto inline-flex max-w-full items-center gap-0.5 rounded border border-violet-300/40 bg-slate-900/80 px-2 py-1 text-[10px] font-medium leading-none text-violet-100 shadow-md backdrop-blur">
         <button
           type="button"
-          className="rounded px-1 font-semibold hover:bg-violet-100"
+          className="rounded px-1 font-semibold hover:bg-white/15"
           title="Предыдущее место"
           onClick={() => {
             const from = siblingIndex >= 0 ? siblingIndex : 0;
@@ -580,7 +580,7 @@ export function ReviewPane({
         </span>
         <button
           type="button"
-          className="rounded px-1 font-semibold hover:bg-violet-100"
+          className="rounded px-1 font-semibold hover:bg-white/15"
           title="Следующее место"
           onClick={() => {
             const from = siblingIndex >= 0 ? siblingIndex : 0;

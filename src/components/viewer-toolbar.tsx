@@ -52,22 +52,24 @@ export function ViewerToolbar({
     };
   }, [open]);
 
+  // Тёмный полупрозрачный фон: кнопки читаются на любом чертеже, но лист
+  // сквозь них виден (созвон 18.09).
   return (
     <div
       ref={rootRef}
       onMouseDown={(event) => event.stopPropagation()}
-      className="absolute right-1.5 top-1.5 z-30 flex items-center gap-0.5 rounded border border-border bg-white/85 px-1 py-0.5 opacity-80 shadow-sm backdrop-blur transition-opacity hover:opacity-100 focus-within:opacity-100"
+      className="absolute right-1.5 top-1.5 z-30 flex items-center gap-0.5 rounded border border-white/15 bg-slate-900/80 px-1 py-0.5 text-white shadow-md backdrop-blur"
       data-viewer-toolbar=""
     >
       {onPrevPage || onNextPage ? (
-        <div className="flex items-center overflow-hidden rounded border border-border bg-white">
+        <div className="flex items-center overflow-hidden rounded border border-white/20 bg-white/10">
           <button
             type="button"
             title="Предыдущий лист (K / PageUp)"
             aria-label="Предыдущий лист"
             onClick={() => onPrevPage?.()}
             disabled={!canPrevPage}
-            className="pto-tool inline-flex w-8 items-center justify-center text-sm font-bold text-text hover:bg-bg disabled:cursor-default disabled:opacity-40"
+            className="pto-tool inline-flex w-8 items-center justify-center text-sm font-bold text-white hover:bg-white/20 disabled:cursor-default disabled:opacity-40"
           >
             ←
           </button>
@@ -77,7 +79,7 @@ export function ViewerToolbar({
             aria-label="Следующий лист"
             onClick={() => onNextPage?.()}
             disabled={!canNextPage}
-            className="pto-tool inline-flex w-8 items-center justify-center border-l border-border text-sm font-bold text-text hover:bg-bg disabled:cursor-default disabled:opacity-40"
+            className="pto-tool inline-flex w-8 items-center justify-center border-l border-white/20 text-sm font-bold text-white hover:bg-white/20 disabled:cursor-default disabled:opacity-40"
           >
             →
           </button>
@@ -85,7 +87,7 @@ export function ViewerToolbar({
       ) : null}
       <div
         className={`flex items-center gap-0.5 ${
-          onPrevPage || onNextPage ? "border-l border-border pl-1.5" : ""
+          onPrevPage || onNextPage ? "border-l border-white/20 pl-1.5" : ""
         }`}
       >
         <button
@@ -93,7 +95,7 @@ export function ViewerToolbar({
           title="Отдалить"
           aria-label="Отдалить"
           onClick={() => onZoomBy(1 / 1.25)}
-          className="pto-tool flex w-7 items-center justify-center rounded text-base leading-none text-text hover:bg-bg"
+          className="pto-tool flex w-7 items-center justify-center rounded text-base leading-none text-white hover:bg-white/20"
         >
           −
         </button>
@@ -104,7 +106,7 @@ export function ViewerToolbar({
             aria-expanded={open}
             aria-haspopup="listbox"
             onClick={() => setOpen((value) => !value)}
-            className="pto-tool min-w-[3.25rem] rounded px-1 text-center text-xs tabular-nums text-text hover:bg-bg"
+            className="pto-tool min-w-[3.25rem] rounded px-1 text-center text-xs font-medium tabular-nums text-white hover:bg-white/20"
             data-viewer-scale=""
           >
             {Math.round(scale * 100)}%
@@ -161,7 +163,7 @@ export function ViewerToolbar({
           title="Приблизить"
           aria-label="Приблизить"
           onClick={() => onZoomBy(1.25)}
-          className="pto-tool flex w-7 items-center justify-center rounded text-base leading-none text-text hover:bg-bg"
+          className="pto-tool flex w-7 items-center justify-center rounded text-base leading-none text-white hover:bg-white/20"
         >
           +
         </button>
@@ -179,7 +181,7 @@ export function ViewerToolbar({
           className={`pto-tool inline-flex w-7 items-center justify-center rounded border ${
             fullscreenActive
               ? "border-accent bg-accent text-white"
-              : "border-border bg-white text-text hover:bg-bg"
+              : "border-white/20 bg-white/10 text-white hover:bg-white/20"
           }`}
         >
           <IconExpand className="h-3.5 w-3.5" />

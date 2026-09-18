@@ -53,14 +53,14 @@ export function SearchHitBadge({
 }) {
   if (count === 0) return null;
   return (
-    <span className="pointer-events-auto inline-flex items-center gap-0.5 rounded border border-amber-300 bg-amber-50/90 px-1.5 py-0.5 text-[10px] leading-none text-amber-900 shadow-sm backdrop-blur">
+    <span className="pointer-events-auto inline-flex items-center gap-0.5 rounded border border-amber-300/40 bg-slate-900/80 px-2 py-1 text-[10px] font-medium leading-none text-amber-200 shadow-md backdrop-blur">
       {count > 1 ? (
         <button
           type="button"
           title="Предыдущее совпадение"
           aria-label="Предыдущее совпадение"
           onClick={() => onStep(-1)}
-          className="rounded px-1 font-semibold leading-none hover:bg-amber-100"
+          className="rounded px-1 font-semibold leading-none hover:bg-white/15"
         >
           ←
         </button>
@@ -75,7 +75,7 @@ export function SearchHitBadge({
           title="Следующее совпадение"
           aria-label="Следующее совпадение"
           onClick={() => onStep(1)}
-          className="rounded px-1 font-semibold leading-none hover:bg-amber-100"
+          className="rounded px-1 font-semibold leading-none hover:bg-white/15"
         >
           →
         </button>
@@ -85,69 +85,63 @@ export function SearchHitBadge({
 }
 
 /**
- * Что значат рамки на листе. Подписи держим пару секунд после перехода на
- * место, дальше — только квадратики: чертёж важнее подсказки. Наведение
- * и клик снова раскрывают.
+ * Что значат рамки на листе. Подписи видны всегда: инженеры не угадывали цвета
+ * по квадратикам, а сворачивание по таймеру прятало ответ (созвон 18.09).
  */
 export function HighlightLegend({
   hasZone,
   hasHits,
   hasSiblings,
-  nonce = 0,
 }: {
   hasZone: boolean;
   hasHits: boolean;
   hasSiblings: boolean;
-  /** Смена места/цитаты — снова показать подписи. */
-  nonce?: number;
 }) {
-  const [fresh, setFresh] = useState(true);
-  const [pinned, setPinned] = useState(false);
-  useEffect(() => {
-    setFresh(true);
-    const timer = setTimeout(() => setFresh(false), 4000);
-    return () => clearTimeout(timer);
-  }, [nonce]);
-
   if (!hasZone && !hasHits) return null;
-  const open = fresh || pinned;
   const items = [
     hasZone
       ? {
           key: "zone",
-          swatch: "bg-emerald-400/35 outline-emerald-600",
-          label: "место замечания",
+          swatch: "bg-emerald-400/60 outline-emerald-300",
+          label: "где замечание",
+          hint: "Зелёная рамка — строка или зона листа, к которой относится замечание",
         }
       : null,
     hasHits
       ? {
           key: "hits",
-          swatch: "bg-orange-400/20 outline-orange-600/50",
-          label: "спорное значение",
+          swatch: "bg-orange-400/60 outline-orange-300",
+          label: "значение из замечания",
+          hint: "Оранжевым — само значение из замечания: цифра или шифр, который расходится",
         }
       : null,
     hasSiblings
       ? {
           key: "siblings",
-          swatch: "bg-sky-400/25 outline-sky-600",
-          label: "другие места",
+          swatch: "bg-sky-400/60 outline-sky-300",
+          label: "то же замечание рядом",
+          hint: "Синим — другие места этого же замечания на этом листе",
         }
       : null,
-  ].filter(Boolean) as { key: string; swatch: string; label: string }[];
+  ].filter(Boolean) as {
+    key: string;
+    swatch: string;
+    label: string;
+    hint: string;
+  }[];
 
   return (
-    <span
-      className="pointer-events-auto inline-flex items-center gap-1.5 rounded border border-border bg-white/90 px-1.5 py-0.5 text-[10px] leading-none text-muted shadow-sm backdrop-blur"
-      title={items.map((item) => item.label).join(" · ")}
-      onMouseEnter={() => setPinned(true)}
-      onMouseLeave={() => setPinned(false)}
-    >
+    <span className="pointer-events-auto inline-flex items-center gap-2 rounded border border-white/15 bg-slate-900/80 px-2 py-1 text-[10px] font-medium leading-none text-white shadow-md backdrop-blur">
       {items.map((item) => (
-        <span key={item.key} className="inline-flex items-center gap-1">
+        <span
+          key={item.key}
+          className="inline-flex items-center gap-1"
+          title={item.hint}
+        >
           <span
-            className={`h-2 w-2 shrink-0 rounded-[2px] outline outline-1 ${item.swatch}`}
+            className={`h-2.5 w-2.5 shrink-0 rounded-[2px] outline outline-1 ${item.swatch}`}
           />
-          {open ? item.label : null}
+          {item.label}
         </span>
       ))}
     </span>
