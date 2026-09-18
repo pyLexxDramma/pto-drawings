@@ -117,7 +117,6 @@ export function ReviewsTable({
   currentDocumentName = null,
   onJumpToPage,
   onStatsChange,
-  onClose,
   refreshToken = 0,
   onReviewsMutated,
 }: {
@@ -138,7 +137,6 @@ export function ReviewsTable({
   ) => void;
   /** Держит счётчик этапа «Замечания» в панели проекта в согласии с таблицей. */
   onStatsChange?: (stats: { total: number; pending: number }) => void;
-  onClose: () => void;
 }) {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [events, setEvents] = useState<ReviewEvent[]>([]);
@@ -494,15 +492,8 @@ export function ReviewsTable({
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-[#f4f6f9]">
+      {/* «К проектам» живёт в шапке приложения — вторая кнопка тут дублировала. */}
       <header className="flex items-center gap-2 border-b border-border bg-surface px-2 py-1">
-        <button
-          type="button"
-          onClick={onClose}
-          className="shrink-0 rounded-md bg-accent px-2 py-0.5 text-[10px] font-bold text-white shadow-sm hover:bg-[#1d4ed8]"
-          title="Главная: все проекты, список слева"
-        >
-          ← К проектам
-        </button>
         <div
           className="min-w-0 flex-1 truncate text-[11px] tabular-nums leading-tight"
           title={
