@@ -42,7 +42,6 @@ import {
 } from "@/lib/review-state";
 import {
   REVIEW_SEVERITY_LABEL,
-  REVIEW_SEVERITY_STRENGTH,
   type AnnotationRect,
   type DocumentRecord,
   type PageAnnotation,
@@ -198,6 +197,8 @@ export function ReviewPane({
   const [focusRect, setFocusRect] = useState<AnnotationRect | null>(null);
   const [focusNonce, setFocusNonce] = useState(0);
   const [activeReviewId, setActiveReviewId] = useState<string | null>(null);
+  /** Список замечаний листа держим свёрнутым: он закрывал расшифровку. */
+  const [pageReviewsOpen, setPageReviewsOpen] = useState(false);
   const [keymapOpen, setKeymapOpen] = useState(false);
   const [drawingHitCount, setDrawingHitCount] = useState<number | null>(null);
   const [textHitFound, setTextHitFound] = useState<boolean | null>(null);
@@ -377,23 +378,32 @@ export function ReviewPane({
       ),
     [document.id, reviews],
   );
+  // На миниатюре — сколько замечаний на листе, цвет по разбору: важность у них
+  // разная, и одна точка «средняя» вводила в заблуждение (созвон 18.09).
   const pageDots = useMemo(() => {
-    const map = new Map<
-      number,
-      { severity: Review["severity"]; verdict: Review["verdict"] }
-    >();
+    const strength: Review["verdict"][] = [
+      "pending",
+      "wrong",
+      "discuss",
+      "partial",
+      "confirmed",
+      "outdated",
+    ];
+    const map = new Map<number, { count: number; verdict: Review["verdict"] }>();
     for (const review of fileReviews) {
+      const pages = new Set<number>();
       for (const loc of review.locations) {
         if (loc.documentId !== document.id || !loc.pageNumber) continue;
-        const prev = map.get(loc.pageNumber);
+        pages.add(loc.pageNumber);
+      }
+      for (const pageNumber of pages) {
+        const prev = map.get(pageNumber);
         const worse =
           !prev ||
-          REVIEW_SEVERITY_STRENGTH.indexOf(review.severity) <
-            REVIEW_SEVERITY_STRENGTH.indexOf(prev.severity);
-        const pending = review.verdict === "pending" || prev?.verdict === "pending";
-        map.set(loc.pageNumber, {
-          severity: worse ? review.severity : prev.severity,
-          verdict: pending ? "pending" : (worse ? review.verdict : prev.verdict),
+          strength.indexOf(review.verdict) < strength.indexOf(prev.verdict);
+        map.set(pageNumber, {
+          count: (prev?.count ?? 0) + 1,
+          verdict: worse ? review.verdict : prev.verdict,
         });
       }
     }
@@ -440,6 +450,8 @@ export function ReviewPane({
     setSidePanel("text");
     setDrawingHitCount(null);
     setTextHitFound(null);
+    // Замечание выбрано — список больше не нужен, отдаём место расшифровке.
+    setPageReviewsOpen(false);
   }
   function selectFileReview(review: Review) {
     const location =
@@ -449,21 +461,37 @@ export function ReviewPane({
     focusReviewOnSheet(review);
   }
 
-  const pageReviewQuotes = remarkTermsInMarkdown(
-    page?.markdown ?? "",
-    pageReviews.map((review) => ({
-      text: review.text,
-      aiFinding: review.aiFinding,
-      quotes: review.locations
-        .filter(
-          (location) =>
-            location.documentId === document.id &&
-            location.pageNumber === pageNumber,
-        )
-        .map((location) => location.quote),
-    })),
-    page?.numbers?.suspect ?? [],
-  );
+  /**
+   * Жёлтым — места листа. Пока замечание не выбрано, показываем все; после
+   * клика — только цитаты выбранного, иначе лист пестрит и непонятно, к чему
+   * относится замечание (созвон 18.09). Слова из формулировки не берём: они
+   * красили пол-листа.
+   */
+  const pageReviewQuotes = useMemo(() => {
+    const picked = pageReviews.filter((review) => review.id === activeReviewId);
+    const focused = picked.length > 0;
+    const list = focused ? picked : pageReviews;
+    return remarkTermsInMarkdown(
+      page?.markdown ?? "",
+      list.map((review) => ({
+        quotes: review.locations
+          .filter(
+            (location) =>
+              location.documentId === document.id &&
+              location.pageNumber === pageNumber,
+          )
+          .map((location) => location.quote),
+      })),
+      focused ? [] : (page?.numbers?.suspect ?? []),
+    );
+  }, [
+    activeReviewId,
+    document.id,
+    page?.markdown,
+    page?.numbers?.suspect,
+    pageNumber,
+    pageReviews,
+  ]);
   /** На чертеже и в расшифровке сначала шифр/число, иначе цитата. */
   const drawingHighlightQuery = (() => {
     const raw =
@@ -482,6 +510,9 @@ export function ReviewPane({
     () => reviews.find((item) => item.id === activeReviewId) ?? null,
     [reviews, activeReviewId],
   );
+  /** Выбранное замечание этого листа — для свёрнутой шапки списка. */
+  const activePageReview =
+    pageReviews.find((item) => item.id === activeReviewId) ?? null;
   const siblingLocations = useMemo(
     () =>
       (activeReview?.locations ?? []).filter(
@@ -583,6 +614,43 @@ export function ReviewPane({
     setSidePanel("text");
     setDrawingHitCount(null);
     setTextHitFound(null);
+  }
+  /**
+   * Места замечания — чипсами в самой строке: стрелки «Место N из M» над листом
+   * инженеры не замечали и второе место оставалось непросмотренным.
+   */
+  function renderPlaceChips(review: Review) {
+    const places = review.locations.filter(
+      (item) => item.documentId && item.pageNumber,
+    );
+    if (places.length < 2) return null;
+    return (
+      <span className="inline-flex shrink-0 items-center gap-0.5">
+        <span className="text-rose-800/70">места:</span>
+        {places.map((place, index) => {
+          const here =
+            place.documentId === document.id && place.pageNumber === pageNumber;
+          const current = activeReviewId === review.id && index === siblingIndex;
+          return (
+            <button
+              key={`${place.documentId}-${place.pageNumber}-${index}`}
+              type="button"
+              onClick={() => focusLocation(place, review.id)}
+              title={`Место ${index + 1} из ${places.length} · стр. ${place.pageNumber}${
+                here ? "" : " · другой лист или файл"
+              }`}
+              className={`rounded border px-1 py-[1px] font-semibold tabular-nums ${
+                current
+                  ? "border-violet-500 bg-violet-200 text-violet-950"
+                  : "border-rose-300 bg-white text-rose-900 hover:bg-rose-100"
+              }`}
+            >
+              {index + 1}
+            </button>
+          );
+        })}
+      </span>
+    );
   }
   const activeNoteId = hoverNoteId;
   const viewingProcessedSheet =
@@ -1692,12 +1760,37 @@ export function ReviewPane({
             {pageReviews.length > 0 ? (
               <div className="shrink-0 border-b border-rose-200 bg-rose-50 text-[10px] leading-snug text-rose-950">
                 <div className="flex items-center justify-between gap-2 px-2 py-1">
-                  <div className="min-w-0 font-medium">
-                    Замечаний по листу: {pageReviews.length}
-                    <span className="ml-1 font-normal text-rose-800/70">
-                      те же строки в таблице · клик подсветит место
+                  <button
+                    type="button"
+                    onClick={() => setPageReviewsOpen((prev) => !prev)}
+                    className="flex min-w-0 flex-1 items-center gap-1 text-left font-medium hover:text-rose-700"
+                    title={
+                      pageReviewsOpen
+                        ? "Свернуть список замечаний"
+                        : "Показать замечания листа"
+                    }
+                  >
+                    <span className="shrink-0">
+                      {pageReviewsOpen ? "▾" : "▸"}
                     </span>
-                  </div>
+                    <span className="shrink-0">
+                      Замечаний по листу: {pageReviews.length}
+                    </span>
+                    <span className="min-w-0 truncate font-normal text-rose-800/70">
+                      {pageReviewsOpen
+                        ? "· клик по строке подсветит место"
+                        : activePageReview
+                          ? `· № ${activePageReview.number} ${
+                              activePageReview.text ||
+                              activePageReview.aiFinding ||
+                              ""
+                            }`
+                          : "· нажмите, чтобы раскрыть список"}
+                    </span>
+                  </button>
+                  {!pageReviewsOpen && activePageReview
+                    ? renderPlaceChips(activePageReview)
+                    : null}
                   {onOpenReviews ? (
                     <button
                       type="button"
@@ -1708,7 +1801,8 @@ export function ReviewPane({
                     </button>
                   ) : null}
                 </div>
-                <ul className="border-t border-rose-200/80">
+                {pageReviewsOpen ? (
+                <ul className="max-h-40 overflow-auto border-t border-rose-200/80">
                   {pageReviews.map((review) => {
                     const active =
                       focusQuote.length >= 2 &&
@@ -1725,13 +1819,18 @@ export function ReviewPane({
                           normalizeQuote(focusQuote)
                       );
                     return (
-                      <li key={review.id} className="block w-full">
+                      <li
+                        key={review.id}
+                        className={`flex w-full items-start gap-1 px-2 py-1 ${
+                          active
+                            ? "bg-rose-200 outline outline-1 outline-rose-500"
+                            : "hover:bg-rose-100"
+                        }`}
+                      >
                         <button
                           type="button"
                           onClick={() => focusReviewOnSheet(review)}
-                          className={`block w-full px-2 py-1 text-left hover:bg-rose-100 ${
-                            active ? "bg-rose-200 outline outline-1 outline-rose-500" : ""
-                          }`}
+                          className="min-w-0 flex-1 text-left"
                           title="Подсветить место на чертеже и в расшифровке"
                         >
                           <span className="font-semibold tabular-nums">
@@ -1743,10 +1842,12 @@ export function ReviewPane({
                             review.text || review.aiFinding
                           }`}
                         </button>
+                        {renderPlaceChips(review)}
                       </li>
                     );
                   })}
                 </ul>
+                ) : null}
               </div>
             ) : null}
 

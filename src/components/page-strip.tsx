@@ -4,13 +4,11 @@ import { useCallback, useEffect, useRef } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { renderPdfThumb } from "@/lib/pdf-thumb";
 import { PaneToggle } from "@/components/ui-chrome";
-import { SEVERITY_DOT, VERDICT_DOT } from "@/lib/review-colors";
+import { VERDICT_COUNT } from "@/lib/review-colors";
 import {
   KIND_LABEL,
-  REVIEW_SEVERITY_LABEL,
   REVIEW_VERDICT_LABEL,
   type PageKind,
-  type ReviewSeverity,
   type ReviewVerdict,
 } from "@/types";
 
@@ -38,7 +36,7 @@ type PageStripProps = {
   kinds: Map<number, PageKind>;
   edited: Set<number>;
   viewed: Set<number>;
-  pageDots?: Map<number, { severity: ReviewSeverity; verdict: ReviewVerdict }>;
+  pageDots?: Map<number, { count: number; verdict: ReviewVerdict }>;
   ready: Set<number>;
   annotated?: Set<number>;
   hidden?: Set<number>;
@@ -270,16 +268,17 @@ export function PageStrip({
                   <StatusDot className="bg-slate-300" label="Ждёт текст" />
                 )}
                 {dots ? (
-                  <>
-                    <StatusDot
-                      className={SEVERITY_DOT[dots.severity]}
-                      label={`Важность: ${REVIEW_SEVERITY_LABEL[dots.severity]}`}
-                    />
-                    <StatusDot
-                      className={VERDICT_DOT[dots.verdict]}
-                      label={`Разбор: ${REVIEW_VERDICT_LABEL[dots.verdict]}`}
-                    />
-                  </>
+                  /* Важность у замечаний листа разная — одна точка путала.
+                     Показываем счётчик, цвет — по разбору. */
+                  <span
+                    className={`group/dot relative inline-flex min-w-[14px] items-center justify-center rounded-full px-1 text-[9px] font-semibold leading-[14px] tabular-nums ${VERDICT_COUNT[dots.verdict]}`}
+                    title={`Замечаний: ${dots.count} · разбор: ${REVIEW_VERDICT_LABEL[dots.verdict]}`}
+                  >
+                    {dots.count}
+                    <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-1 hidden -translate-x-1/2 whitespace-nowrap rounded bg-slate-900 px-1.5 py-0.5 text-[10px] font-normal leading-none text-white shadow-sm group-hover/dot:block">
+                      {`Замечаний: ${dots.count} · разбор: ${REVIEW_VERDICT_LABEL[dots.verdict]}`}
+                    </span>
+                  </span>
                 ) : isFlagged ? (
                   <StatusDot className="bg-red-500" label="Есть отметка" />
                 ) : isEdited ? (

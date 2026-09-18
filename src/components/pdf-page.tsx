@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { HighlightLegend, SearchHitBadge } from "@/components/ui-chrome";
 import { ViewerHint } from "@/components/viewer-hint";
 import { ViewerToolbar } from "@/components/viewer-toolbar";
@@ -296,28 +302,68 @@ export function PdfPage({
   useEffect(() => {
     if (!markMode) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onCancelMark?.();
+      if (event.key !== "Escape") return;
+      setDraw(null);
+      onCancelMark?.();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [markMode, onCancelMark]);
 
-  function finishDraw(state: DrawState) {
-    const x = Math.min(state.x0, state.x1);
-    const y = Math.min(state.y0, state.y1);
-    let w = Math.abs(state.x1 - state.x0);
-    let h = Math.abs(state.y1 - state.y0);
-    if (w < MIN_SIDE && h < MIN_SIDE) {
-      w = 0.05;
-      h = 0.05;
-    }
-    onMarkRect?.({
-      x,
-      y,
-      w: Math.min(1 - x, Math.max(MIN_SIDE, w)),
-      h: Math.min(1 - y, Math.max(MIN_SIDE, h)),
-    });
-  }
+  const finishDraw = useCallback(
+    (state: DrawState) => {
+      const x = Math.min(state.x0, state.x1);
+      const y = Math.min(state.y0, state.y1);
+      let w = Math.abs(state.x1 - state.x0);
+      let h = Math.abs(state.y1 - state.y0);
+      if (w < MIN_SIDE && h < MIN_SIDE) {
+        w = 0.05;
+        h = 0.05;
+      }
+      onMarkRect?.({
+        x,
+        y,
+        w: Math.min(1 - x, Math.max(MIN_SIDE, w)),
+        h: Math.min(1 - y, Math.max(MIN_SIDE, h)),
+      });
+    },
+    [onMarkRect],
+  );
+
+  /**
+   * Рамку ведём на окне: курсор ушёл за край листа или на панель — обводка не
+   * сбрасывается, точка прижимается к краю (созвон 18.09).
+   */
+  useEffect(() => {
+    if (!draw && !zoomBox) return;
+    const move = (event: MouseEvent) => {
+      const point = viewport.toPagePoint(event.clientX, event.clientY);
+      if (draw) setDraw({ ...draw, x1: point.x, y1: point.y });
+      else if (zoomBox) setZoomBox({ ...zoomBox, x1: point.x, y1: point.y });
+    };
+    const up = () => {
+      if (draw) {
+        finishDraw(draw);
+        setDraw(null);
+        return;
+      }
+      if (!zoomBox) return;
+      const rect = {
+        x: Math.min(zoomBox.x0, zoomBox.x1),
+        y: Math.min(zoomBox.y0, zoomBox.y1),
+        w: Math.abs(zoomBox.x1 - zoomBox.x0),
+        h: Math.abs(zoomBox.y1 - zoomBox.y0),
+      };
+      setZoomBox(null);
+      if (rect.w > 0.01 && rect.h > 0.01) viewport.zoomToRect(rect);
+    };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+    return () => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+    };
+  }, [draw, zoomBox, viewport, finishDraw]);
 
   const preview = markMode && draw
     ? {
@@ -397,17 +443,8 @@ export function PdfPage({
           viewport.startPan(event.clientX, event.clientY);
         }}
         onMouseMove={(event) => {
-          if (markMode) {
-            if (!draw) return;
-            const point = viewport.toPagePoint(event.clientX, event.clientY);
-            setDraw({ ...draw, x1: point.x, y1: point.y });
-            return;
-          }
-          if (zoomBox) {
-            const point = viewport.toPagePoint(event.clientX, event.clientY);
-            setZoomBox({ ...zoomBox, x1: point.x, y1: point.y });
-            return;
-          }
+          // Рамку и зум-рамку ведёт слушатель окна: он не теряет курсор за краем.
+          if (markMode || draw || zoomBox) return;
           if (viewport.movePan(event.clientX, event.clientY)) return;
           if (onHoverRegion && hoverRegions.length) {
             const point = viewport.toPagePoint(event.clientX, event.clientY);
@@ -416,22 +453,7 @@ export function PdfPage({
           }
         }}
         onMouseUp={(event) => {
-          if (markMode) {
-            if (draw) finishDraw(draw);
-            setDraw(null);
-            return;
-          }
-          if (zoomBox) {
-            const rect = {
-              x: Math.min(zoomBox.x0, zoomBox.x1),
-              y: Math.min(zoomBox.y0, zoomBox.y1),
-              w: Math.abs(zoomBox.x1 - zoomBox.x0),
-              h: Math.abs(zoomBox.y1 - zoomBox.y0),
-            };
-            setZoomBox(null);
-            if (rect.w > 0.01 && rect.h > 0.01) viewport.zoomToRect(rect);
-            return;
-          }
+          if (markMode || draw || zoomBox) return;
           const wasClick = viewport.endPan();
           if (wasClick && onSelectRegion && hoverRegions.length) {
             const point = viewport.toPagePoint(event.clientX, event.clientY);
@@ -440,9 +462,8 @@ export function PdfPage({
           }
         }}
         onMouseLeave={() => {
+          if (draw || zoomBox) return;
           viewport.endPan();
-          setDraw(null);
-          setZoomBox(null);
           onHoverRegion?.(null);
         }}
       >

@@ -34,12 +34,14 @@ export const VERDICT_ROW: Partial<Record<ReviewVerdict, string>> = {
   wrong: "bg-rose-100/80",
 };
 
-export const SEVERITY_DOT: Record<ReviewSeverity, string> = {
-  unset: "bg-slate-300",
-  high: "bg-red-500",
-  medium: "bg-orange-500",
-  low: "bg-sky-500",
-  skip: "bg-slate-400",
+/** Счётчик замечаний на миниатюре листа: цвет — по разбору. */
+export const VERDICT_COUNT: Record<ReviewVerdict, string> = {
+  pending: "bg-slate-200 text-slate-700",
+  confirmed: "bg-emerald-500 text-white",
+  partial: "bg-amber-500 text-white",
+  discuss: "bg-violet-500 text-white",
+  outdated: "bg-slate-400 text-white",
+  wrong: "bg-rose-500 text-white",
 };
 
 export const VERDICT_DOT: Record<ReviewVerdict, string> = {
