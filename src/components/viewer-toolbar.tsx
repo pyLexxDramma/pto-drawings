@@ -58,7 +58,7 @@ export function ViewerToolbar({
     <div
       ref={rootRef}
       onMouseDown={(event) => event.stopPropagation()}
-      className="absolute right-1.5 top-1.5 z-30 flex items-center gap-0.5 rounded border border-white/15 bg-slate-900/80 px-1 py-0.5 text-white shadow-md backdrop-blur"
+      className="absolute right-1.5 top-1.5 z-30 flex items-center gap-0.5 rounded border border-white/15 bg-slate-900/55 px-0.5 py-[3px] text-white shadow-md backdrop-blur"
       data-viewer-toolbar=""
     >
       {onPrevPage || onNextPage ? (
@@ -69,7 +69,7 @@ export function ViewerToolbar({
             aria-label="Предыдущий лист"
             onClick={() => onPrevPage?.()}
             disabled={!canPrevPage}
-            className="pto-tool inline-flex w-8 items-center justify-center text-sm font-bold text-white hover:bg-white/20 disabled:cursor-default disabled:opacity-40"
+            className="pto-tool pto-tool--slim inline-flex w-6 items-center justify-center text-xs font-bold text-white hover:bg-white/20 disabled:cursor-default disabled:opacity-40"
           >
             ←
           </button>
@@ -79,7 +79,7 @@ export function ViewerToolbar({
             aria-label="Следующий лист"
             onClick={() => onNextPage?.()}
             disabled={!canNextPage}
-            className="pto-tool inline-flex w-8 items-center justify-center border-l border-white/20 text-sm font-bold text-white hover:bg-white/20 disabled:cursor-default disabled:opacity-40"
+            className="pto-tool pto-tool--slim inline-flex w-6 items-center justify-center border-l border-white/20 text-xs font-bold text-white hover:bg-white/20 disabled:cursor-default disabled:opacity-40"
           >
             →
           </button>
@@ -87,7 +87,7 @@ export function ViewerToolbar({
       ) : null}
       <div
         className={`flex items-center gap-0.5 ${
-          onPrevPage || onNextPage ? "border-l border-white/20 pl-1.5" : ""
+          onPrevPage || onNextPage ? "border-l border-white/20 pl-1" : ""
         }`}
       >
         <button
@@ -95,7 +95,7 @@ export function ViewerToolbar({
           title="Отдалить"
           aria-label="Отдалить"
           onClick={() => onZoomBy(1 / 1.25)}
-          className="pto-tool flex w-7 items-center justify-center rounded text-base leading-none text-white hover:bg-white/20"
+          className="pto-tool pto-tool--slim flex w-6 items-center justify-center rounded text-sm leading-none text-white hover:bg-white/20"
         >
           −
         </button>
@@ -106,7 +106,7 @@ export function ViewerToolbar({
             aria-expanded={open}
             aria-haspopup="listbox"
             onClick={() => setOpen((value) => !value)}
-            className="pto-tool min-w-[3.25rem] rounded px-1 text-center text-xs font-medium tabular-nums text-white hover:bg-white/20"
+            className="pto-tool pto-tool--slim min-w-[2.5rem] rounded px-0.5 text-center text-[11px] font-medium tabular-nums text-white hover:bg-white/20"
             data-viewer-scale=""
           >
             {Math.round(scale * 100)}%
@@ -163,7 +163,7 @@ export function ViewerToolbar({
           title="Приблизить"
           aria-label="Приблизить"
           onClick={() => onZoomBy(1.25)}
-          className="pto-tool flex w-7 items-center justify-center rounded text-base leading-none text-white hover:bg-white/20"
+          className="pto-tool pto-tool--slim flex w-6 items-center justify-center rounded text-sm leading-none text-white hover:bg-white/20"
         >
           +
         </button>
@@ -178,13 +178,13 @@ export function ViewerToolbar({
           }
           aria-label={fullscreenActive ? "Свернуть чертёж" : "Весь экран"}
           onClick={() => onToggleFullscreen()}
-          className={`pto-tool inline-flex w-7 items-center justify-center rounded border ${
+          className={`pto-tool pto-tool--slim inline-flex w-6 items-center justify-center rounded border ${
             fullscreenActive
               ? "border-accent bg-accent text-white"
               : "border-white/20 bg-white/10 text-white hover:bg-white/20"
           }`}
         >
-          <IconExpand className="h-3.5 w-3.5" />
+          <IconExpand className="h-3 w-3" />
         </button>
       ) : null}
       {extra}

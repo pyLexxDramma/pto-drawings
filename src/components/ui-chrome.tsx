@@ -53,7 +53,7 @@ export function SearchHitBadge({
 }) {
   if (count === 0) return null;
   return (
-    <span className="pointer-events-auto inline-flex items-center gap-0.5 rounded border border-amber-300/40 bg-slate-900/80 px-2 py-1 text-[10px] font-medium leading-none text-amber-200 shadow-md backdrop-blur">
+    <span className="pointer-events-auto inline-flex items-center gap-0.5 rounded border border-amber-300/30 bg-slate-900/55 px-1.5 py-[3px] text-[9px] font-medium leading-none text-amber-200 shadow-md backdrop-blur">
       {count > 1 ? (
         <button
           type="button"
@@ -85,8 +85,8 @@ export function SearchHitBadge({
 }
 
 /**
- * Что значат рамки на листе. Подписи видны всегда: инженеры не угадывали цвета
- * по квадратикам, а сворачивание по таймеру прятало ответ (созвон 18.09).
+ * Что значат рамки на листе. Подписи показываем сразу на три секунды, дальше
+ * остаются квадратики — и подписи возвращаются на каждое наведение мышкой.
  */
 export function HighlightLegend({
   hasZone,
@@ -97,7 +97,15 @@ export function HighlightLegend({
   hasHits: boolean;
   hasSiblings: boolean;
 }) {
+  const [fresh, setFresh] = useState(true);
+  const [hovered, setHovered] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setFresh(false), 3000);
+    return () => clearTimeout(timer);
+  }, []);
+
   if (!hasZone && !hasHits) return null;
+  const open = fresh || hovered;
   const items = [
     hasZone
       ? {
@@ -131,7 +139,12 @@ export function HighlightLegend({
   }[];
 
   return (
-    <span className="pointer-events-auto inline-flex items-center gap-2 rounded border border-white/15 bg-slate-900/80 px-2 py-1 text-[10px] font-medium leading-none text-white shadow-md backdrop-blur">
+    <span
+      className="pointer-events-auto inline-flex items-center gap-1.5 rounded border border-white/15 bg-slate-900/55 px-1.5 py-[3px] text-[9px] font-medium leading-none text-white shadow-md backdrop-blur"
+      title={items.map((item) => item.hint).join("\n")}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
       {items.map((item) => (
         <span
           key={item.key}
@@ -139,9 +152,9 @@ export function HighlightLegend({
           title={item.hint}
         >
           <span
-            className={`h-2.5 w-2.5 shrink-0 rounded-[2px] outline outline-1 ${item.swatch}`}
+            className={`h-2 w-2 shrink-0 rounded-[2px] outline outline-1 ${item.swatch}`}
           />
-          {item.label}
+          {open ? item.label : null}
         </span>
       ))}
     </span>

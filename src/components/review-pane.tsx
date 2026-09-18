@@ -556,7 +556,7 @@ export function ReviewPane({
   // Один ряд плашек над листом: счётчик поиска, места, легенда цветов.
   const placeBar =
     siblingLocations.length > 1 && activeReview ? (
-      <span className="pointer-events-auto inline-flex max-w-full items-center gap-0.5 rounded border border-violet-300/40 bg-slate-900/80 px-2 py-1 text-[10px] font-medium leading-none text-violet-100 shadow-md backdrop-blur">
+      <span className="pointer-events-auto inline-flex max-w-full items-center gap-0.5 rounded border border-violet-300/30 bg-slate-900/55 px-1.5 py-[3px] text-[9px] font-medium leading-none text-violet-100 shadow-md backdrop-blur">
         <button
           type="button"
           className="rounded px-1 font-semibold hover:bg-white/15"
