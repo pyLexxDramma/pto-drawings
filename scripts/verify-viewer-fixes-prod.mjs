@@ -57,10 +57,15 @@ for (const project of projects.projects || []) {
       places: (review.locations || []).filter((loc) => loc.pageNumber).length,
       sheetReviews: onSamePage.length,
     };
-    if (!target || candidate.places > target.places) target = candidate;
-    if (target.places > 1 && target.sheetReviews > 1) break;
+    const better =
+      !target ||
+      candidate.sheetReviews > target.sheetReviews ||
+      (candidate.sheetReviews === target.sheetReviews &&
+        candidate.places > target.places);
+    if (better) target = candidate;
+    if (target.places > 1 && target.sheetReviews > 2) break;
   }
-  if (target && target.places > 1 && target.sheetReviews > 1) break;
+  if (target && target.places > 1 && target.sheetReviews > 2) break;
 }
 if (!target) {
   console.log("FAIL нет листа с замечаниями");
@@ -112,10 +117,16 @@ await page.waitForTimeout(1200);
 const rowsAfterPick = await page.locator("ul.max-h-40 > li").count();
 check("после выбора список сворачивается", rowsAfterPick === 0, `строк: ${rowsAfterPick}`);
 const flagsAfter = await page.locator("mark[class*='bg-rose-200']").count();
+const marksAfter = await page.locator(".markdown-body mark").count();
 check(
   "подсветка только выбранного",
-  target.sheetReviews > 1 ? flagsAfter <= flagsBefore : true,
-  `мест подсвечено: ${flagsBefore} → ${flagsAfter}`,
+  target.sheetReviews > 1 ? flagsAfter < flagsBefore : flagsAfter <= flagsBefore,
+  `мест подсвечено: ${flagsBefore} → ${flagsAfter}, всего подсветок в тексте: ${marksAfter}`,
+);
+check(
+  "цитата выбранного видна в расшифровке",
+  marksAfter > 0,
+  `подсветок: ${marksAfter}`,
 );
 await page.screenshot({ path: "samples/shots/fix-picked.png" });
 
