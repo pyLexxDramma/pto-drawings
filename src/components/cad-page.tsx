@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Spinner } from "@/components/ui-chrome";
+import { SearchHitBadge, Spinner } from "@/components/ui-chrome";
 import { ViewerHint } from "@/components/viewer-hint";
 import { ViewerToolbar } from "@/components/viewer-toolbar";
 import { usePageViewport } from "@/hooks/use-page-viewport";
+import { useSearchHitFocus } from "@/hooks/use-search-hit-focus";
 import {
   bboxSize,
   cadTextLines,
@@ -170,6 +171,14 @@ export function CadPage({
         setHintOn(false);
       }
     },
+  });
+  const hitFocus = useSearchHitFocus({
+    hits: searchHits,
+    query: highlightQuery,
+    pageNumber,
+    ready,
+    auto: !remarkFocus,
+    zoomToRect: viewport.zoomToRect,
   });
 
   useEffect(() => {
@@ -571,7 +580,9 @@ export function CadPage({
                 className={
                   remarkFocus
                     ? "pointer-events-none absolute z-[7] pto-remark-zone"
-                    : "pointer-events-none absolute bg-amber-300/45 outline outline-1 outline-amber-500/80"
+                    : index === hitFocus.index
+                      ? "pointer-events-none absolute z-[7] bg-amber-300/60 outline outline-2 outline-amber-600"
+                      : "pointer-events-none absolute bg-amber-300/45 outline outline-1 outline-amber-500/80"
                 }
                 style={{
                   left: `${hit.x * 100}%`,
@@ -654,11 +665,11 @@ export function CadPage({
               Обведите место на чертеже · Esc — отмена
             </span>
           ) : null}
-          {searchHits.length > 0 ? (
-            <span className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] text-amber-900 shadow-sm">
-              найдено: {searchHits.length}
-            </span>
-          ) : null}
+          <SearchHitBadge
+            count={hitFocus.count}
+            index={hitFocus.index}
+            onStep={hitFocus.step}
+          />
         </div>
       ) : (
         <ViewerHint show={hintOn} wheelMode="pan" />

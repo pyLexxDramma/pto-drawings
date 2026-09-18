@@ -41,6 +41,49 @@ export function ProgressTrack({
   );
 }
 
+/** Счётчик совпадений поиска по листу с шагом по ним. */
+export function SearchHitBadge({
+  count,
+  index,
+  onStep,
+}: {
+  count: number;
+  index: number;
+  onStep: (delta: number) => void;
+}) {
+  if (count === 0) return null;
+  return (
+    <span className="pointer-events-auto inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-50 px-1.5 py-1 text-[11px] text-amber-900 shadow-sm">
+      {count > 1 ? (
+        <button
+          type="button"
+          title="Предыдущее совпадение"
+          aria-label="Предыдущее совпадение"
+          onClick={() => onStep(-1)}
+          className="rounded px-1 font-semibold leading-none hover:bg-amber-100"
+        >
+          ←
+        </button>
+      ) : null}
+      <span className="tabular-nums">
+        найдено: {count}
+        {count > 1 ? ` · ${index + 1}` : ""}
+      </span>
+      {count > 1 ? (
+        <button
+          type="button"
+          title="Следующее совпадение"
+          aria-label="Следующее совпадение"
+          onClick={() => onStep(1)}
+          className="rounded px-1 font-semibold leading-none hover:bg-amber-100"
+        >
+          →
+        </button>
+      ) : null}
+    </span>
+  );
+}
+
 type SegmentAccent = "critical" | "warn" | "info" | "neutral";
 
 type SegmentOption<T extends string> = {
