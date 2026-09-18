@@ -227,9 +227,13 @@ export function PdfPage({
 
   useEffect(() => {
     const stored = textContentRef.current;
-    if (!stored || highlightQuery.trim().length < 2) {
+    if (highlightQuery.trim().length < 2) {
       setSearchHits([]);
       onHighlightHits?.(0);
+      return;
+    }
+    if (!stored) {
+      setSearchHits([]);
       return;
     }
     const { items, viewport: pageViewport } = stored;

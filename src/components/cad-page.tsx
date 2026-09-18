@@ -276,8 +276,13 @@ export function CadPage({
   );
 
   useEffect(() => {
+    if (highlightQuery.trim().length < 2) {
+      onHighlightHits?.(0);
+      return;
+    }
+    if (!geometry) return;
     onHighlightHits?.(searchHits.length);
-  }, [searchHits.length, onHighlightHits]);
+  }, [searchHits.length, onHighlightHits, highlightQuery, geometry]);
 
   const preview = markMode && draw
     ? {

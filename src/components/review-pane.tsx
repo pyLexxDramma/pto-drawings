@@ -32,6 +32,7 @@ import {
   preferHighlightQuery,
   remarkTermsInMarkdown,
 } from "@/lib/highlight-text";
+import { quoteBannerKind } from "@/lib/quote-banner";
 import { normalizeQuote } from "@/lib/remark-jump";
 import {
   cacheProgress,
@@ -198,7 +199,7 @@ export function ReviewPane({
   const [focusNonce, setFocusNonce] = useState(0);
   const [activeReviewId, setActiveReviewId] = useState<string | null>(null);
   const [keymapOpen, setKeymapOpen] = useState(false);
-  const [drawingHitCount, setDrawingHitCount] = useState(0);
+  const [drawingHitCount, setDrawingHitCount] = useState<number | null>(null);
   const [textHitFound, setTextHitFound] = useState<boolean | null>(null);
   const [quoteBannerOn, setQuoteBannerOn] = useState(true);
   const handleHighlightHits = useCallback((count: number) => {
@@ -437,7 +438,7 @@ export function ReviewPane({
     setFocusNonce(Date.now());
     setPaneSolo(null);
     setSidePanel("text");
-    setDrawingHitCount(0);
+    setDrawingHitCount(null);
     setTextHitFound(null);
   }
   function selectFileReview(review: Review) {
@@ -537,7 +538,7 @@ export function ReviewPane({
     setFocusNonce(Date.now());
     setPaneSolo(null);
     setSidePanel("text");
-    setDrawingHitCount(0);
+    setDrawingHitCount(null);
     setTextHitFound(null);
   }
   const activeNoteId = hoverNoteId;
@@ -613,10 +614,9 @@ export function ReviewPane({
     }
   }, [document.id, openPage]);
 
-  // Счётчики совпадений обнуляем только при смене цитаты/листа, иначе
-  // повторный рендер openPage затирал уже найденные попадания.
+  // textHitFound / плашку сбрасываем при смене цитаты. drawingHitCount
+  // не трогаем: эффект родителя бежит после зрителя и затирал «найдено: N».
   useEffect(() => {
-    setDrawingHitCount(0);
     setTextHitFound(null);
     setQuoteBannerOn(true);
   }, [focusQuote, focusNonce, document.id, pageNumber]);
@@ -1215,6 +1215,14 @@ export function ReviewPane({
     </div>
   );
 
+  const quoteMiss = quoteBannerKind({
+    bannerOn: quoteBannerOn,
+    focusDrawing,
+    pageSource: page?.source,
+    textHitFound,
+    drawingHitCount,
+  });
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="relative flex min-h-0 flex-1">
@@ -1294,23 +1302,19 @@ export function ReviewPane({
                   </div>
                 </div>
               ) : null}
-              {quoteBannerOn &&
-              focusDrawing &&
-              (page?.source === "model" || textHitFound !== null) &&
-              (drawingHitCount === 0 || textHitFound === false) ? (
+              {quoteMiss ? (
                 <div className="pointer-events-none absolute inset-x-0 bottom-2 z-20 flex justify-center px-2">
                   <div
                     className={`pointer-events-auto inline-flex max-w-full items-start gap-2 rounded-md border px-2.5 py-1 text-[11px] shadow-sm ${
-                      page?.source === "model" ||
-                      (drawingHitCount === 0 && textHitFound === false)
+                      quoteMiss === "model-no-layer" || quoteMiss === "miss-both"
                         ? "border-amber-300 bg-amber-50 text-amber-950"
-                        : drawingHitCount === 0
+                        : quoteMiss === "miss-drawing"
                           ? "border-rose-300 bg-rose-50 text-rose-950"
                           : "border-sky-300 bg-sky-50 text-sky-950"
                     }`}
                   >
                     <span className="min-w-0">
-                      {drawingHitCount === 0 && page?.source === "model" ? (
+                      {quoteMiss === "model-no-layer" ? (
                         <>
                           На листе нет текстового слоя — на чертеже подсветить
                           нечего.
@@ -1333,9 +1337,9 @@ export function ReviewPane({
                             " В расшифровке точного совпадения тоже нет."
                           ) : null}
                         </>
-                      ) : drawingHitCount === 0 && textHitFound === false ? (
+                      ) : quoteMiss === "miss-both" ? (
                         "Цитата не найдена на чертеже и в тексте"
-                      ) : drawingHitCount === 0 ? (
+                      ) : quoteMiss === "miss-drawing" ? (
                         <>
                           Цитата не найдена на чертеже.{" "}
                           <button
