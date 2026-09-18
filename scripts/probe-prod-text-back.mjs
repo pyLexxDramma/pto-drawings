@@ -59,26 +59,23 @@ await page.goto(
 await page.locator("[data-viewer-toolbar]").waitFor({ timeout: 60000 });
 await page.waitForTimeout(1500);
 
-const back = page.getByRole("button", {
-  name: /^← (Назад|Лист \d+|К замечаниям листа)$/,
-});
+const back = page.getByRole("button", { name: "← Назад" });
 check("кнопка возврата в строке расшифровки", (await back.count()) > 0, await back.first().innerText());
 
-// Уходим на другой лист — кнопка должна предложить вернуться на первый.
+// Шаг возврата виден в подсказке: уходим на другой лист — обещает лист 1.
 await page.getByRole("button", { name: "Следующий лист" }).first().click();
 await page.waitForTimeout(1200);
-const label = await back.first().innerText();
-check("после перехода помнит лист", /Лист\s*1/.test(label), label);
+const hint = await back.first().getAttribute("title");
+check("после перехода помнит лист", /листу\s*1/i.test(hint || ""), hint || "");
 await page.screenshot({ path: "samples/shots/fix-text-back.png" });
 
 await back.first().click();
 await page.waitForTimeout(1200);
-const scale = await page.locator("[data-viewer-scale]").first().innerText();
-const pageLabelNow = await back.first().innerText();
+const hintNow = await back.first().getAttribute("title");
 check(
   "возврат сработал",
-  !/Лист\s*1$/.test(pageLabelNow),
-  `кнопка теперь: ${pageLabelNow}, масштаб: ${scale}`,
+  !/листу\s*1/i.test(hintNow || ""),
+  `подсказка теперь: ${hintNow}`,
 );
 
 // Сценарий инженера: раскрыл список, выбрал замечание, нажал «Назад».
@@ -93,8 +90,12 @@ if (await header.count()) {
     .first()
     .click();
   await page.waitForTimeout(1200);
-  const picked = await back.first().innerText();
-  check("после выбора замечания кнопка ведёт к списку", /замечаниям/i.test(picked), picked);
+  const picked = await back.first().getAttribute("title");
+  check(
+    "после выбора замечания первый шаг — снять замечание",
+    /снять выбранное замечание/i.test(picked || ""),
+    picked || "",
+  );
   await back.first().click();
   await page.waitForTimeout(1200);
   const stillHere = await header.count();

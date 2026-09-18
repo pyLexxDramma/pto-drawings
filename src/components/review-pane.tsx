@@ -15,7 +15,7 @@ import { CadPage } from "@/components/cad-page";
 import { MarkdownView } from "@/components/markdown-view";
 import { PageStrip } from "@/components/page-strip";
 import { PdfPage } from "@/components/pdf-page";
-import { SegmentedTabs } from "@/components/ui-chrome";
+import { PaneToggle, SegmentedTabs } from "@/components/ui-chrome";
 import { IconChevronLeft, IconChevronRight } from "@/components/tool-icons";
 import { KEYMAP, KEYMAP_GROUPS } from "@/lib/keymap";
 import { VoiceNoteButton } from "@/components/voice-note";
@@ -1717,11 +1717,7 @@ export function ReviewPane({
                 }
                 className="shrink-0 rounded border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-900 hover:bg-amber-100"
               >
-                {backStep === "remark"
-                  ? "← К замечаниям листа"
-                  : backStep === "page"
-                    ? `← Лист ${trailTop}`
-                    : "← Назад"}
+                ← Назад
               </button>
               <button
                 type="button"
@@ -1758,14 +1754,13 @@ export function ReviewPane({
                     По изображению · сверить
                   </span>
                 ) : null}
-                <button
-                  type="button"
-                  onClick={() => setPaneSolo("pdf")}
-                  title="Скрыть расшифровку — на экране останется только чертёж"
-                  className="shrink-0 rounded border border-slate-300 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-800 hover:bg-slate-50"
-                >
-                  Скрыть текст · только чертёж ›
-                </button>
+                <PaneToggle
+                  expanded
+                  align="right"
+                  expandLabel="Показать текст"
+                  collapseLabel="Скрыть расшифровку — останется только чертёж"
+                  onToggle={() => setPaneSolo("pdf")}
+                />
               </span>
             </div>
 
