@@ -20,10 +20,20 @@ import {
   type Project,
   type Review,
   type ReviewLocation,
+  type ReviewSeverity,
   type ReviewVerdict,
 } from "@/types";
 
 /** Что значит каждый итог — инженер видит расшифровку, а не только кружок. */
+/** Внутри блока сначала «Высокий», «не задана» — в хвост. */
+const SEVERITY_RANK: Record<ReviewSeverity, number> = {
+  high: 0,
+  medium: 1,
+  low: 2,
+  unset: 3,
+  skip: 4,
+};
+
 const VERDICT_HINT: Record<ReviewVerdict, string> = {
   pending: "Ещё не разобрано",
   confirmed: "Расхождение подтверждено, идёт проектировщикам",
@@ -136,8 +146,22 @@ export function ResolvedReviewsPage() {
           .toLowerCase()
           .includes(needle);
       })
-      .sort((a, b) => a.number - b.number);
+      .sort(
+        (a, b) =>
+          SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] ||
+          a.number - b.number,
+      );
   }, [only, query, reviews]);
+
+  /** Блок на каждый итог разбора; внутри блока — самые важные сверху. */
+  const groups = useMemo(
+    () =>
+      RESOLVED_ORDER.map((verdict) => ({
+        verdict,
+        items: rows.filter((item) => item.verdict === verdict),
+      })).filter((group) => group.items.length > 0),
+    [rows],
+  );
 
   async function downloadXlsx() {
     if (!projectId || rows.length === 0) return;
@@ -286,8 +310,27 @@ export function ResolvedReviewsPage() {
                 <Th className="w-56">Комментарий</Th>
               </tr>
             </thead>
-            <tbody>
-              {rows.map((review) => (
+            {groups.map((group) => (
+              <tbody key={group.verdict}>
+              <tr>
+                <td colSpan={7} className="px-2 pb-1 pt-3">
+                  <div className="flex items-center gap-2 border-b border-border pb-1">
+                    <span
+                      className={`h-3 w-3 shrink-0 rounded-full ${VERDICT_DOT[group.verdict]}`}
+                    />
+                    <span className="text-[12px] font-semibold text-text">
+                      {REVIEW_VERDICT_LABEL[group.verdict]}
+                    </span>
+                    <span className="text-[11px] text-muted tabular-nums">
+                      {group.items.length}
+                    </span>
+                    <span className="text-[11px] text-muted">
+                      · {VERDICT_HINT[group.verdict]} · сверху самые важные
+                    </span>
+                  </div>
+                </td>
+              </tr>
+              {group.items.map((review) => (
                 <tr
                   key={review.id}
                   className={`align-top ${VERDICT_ROW[review.verdict] ?? ""}`}
@@ -343,7 +386,8 @@ export function ResolvedReviewsPage() {
                   </Td>
                 </tr>
               ))}
-            </tbody>
+              </tbody>
+            ))}
           </table>
 
           <div className="mt-3 rounded-md border border-border bg-surface px-3 py-2 text-[11px] text-muted">

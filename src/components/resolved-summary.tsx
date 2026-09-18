@@ -40,22 +40,54 @@ export function ResolvedSummary({
   reviews,
   projectId,
   className = "",
+  compact = false,
 }: {
   reviews: Review[];
   projectId: string;
   className?: string;
+  /** Одна строка: для шапки таблицы, где высота на счёт. */
+  compact?: boolean;
 }) {
   const { counts, resolved, total } = resolvedCounts(reviews);
   if (total === 0) return null;
   const shown = RESOLVED_ORDER.filter((verdict) => (counts.get(verdict) ?? 0) > 0);
+  const open = () => {
+    // Без noopener: из новой вкладки нужно вернуться в эту и показать место.
+    window.open(reviewsPageUrl(projectId), "_blank");
+  };
+
+  if (compact) {
+    return (
+      <button
+        type="button"
+        onClick={open}
+        title="Открыть разобранные замечания в отдельной вкладке"
+        className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-border bg-white px-1.5 py-0.5 text-[11px] leading-none hover:border-accent hover:bg-blue-50/60 ${className}`}
+      >
+        <span className="font-medium text-text tabular-nums">
+          Разобрано {resolved} из {total}
+        </span>
+        {shown.map((verdict) => (
+          <span
+            key={verdict}
+            title={`${REVIEW_VERDICT_LABEL[verdict]}: ${counts.get(verdict)}`}
+            className="inline-flex items-center gap-0.5 text-muted"
+          >
+            <span
+              className={`h-2 w-2 shrink-0 rounded-full ${VERDICT_DOT[verdict]}`}
+            />
+            <span className="tabular-nums">{counts.get(verdict)}</span>
+          </span>
+        ))}
+        <span className="text-accent underline decoration-dotted">открыть</span>
+      </button>
+    );
+  }
 
   return (
     <button
       type="button"
-      onClick={() => {
-        // Без noopener: из новой вкладки нужно вернуться в эту и показать место.
-        window.open(reviewsPageUrl(projectId), "_blank");
-      }}
+      onClick={open}
       title="Открыть разобранные замечания в отдельной вкладке"
       className={`w-full rounded-md border border-border bg-white px-1.5 py-1 text-left hover:border-accent hover:bg-blue-50/60 ${className}`}
     >

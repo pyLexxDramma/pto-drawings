@@ -495,7 +495,8 @@ export function ReviewsTable({
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-[#f4f6f9]">
       {/* «К проектам» живёт в шапке приложения — вторая кнопка тут дублировала. */}
-      <header className="flex items-center gap-2 border-b border-border bg-surface px-2 py-1">
+      {/* Панель в одну строку: высота нужна чертежу и таблице, не кнопкам. */}
+      <header className="flex items-center gap-2 border-b border-border bg-surface px-2 py-0.5">
         <div
           className="min-w-0 flex-1 truncate text-[11px] tabular-nums leading-tight"
           title={
@@ -521,11 +522,7 @@ export function ReviewsTable({
         </div>
 
         <div className="ml-auto flex shrink-0 items-center gap-1.5">
-          <ResolvedSummary
-            reviews={reviews}
-            projectId={projectId}
-            className="w-48"
-          />
+          <ResolvedSummary reviews={reviews} projectId={projectId} compact />
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -546,7 +543,7 @@ export function ReviewsTable({
             type="button"
             disabled={importing}
             onClick={() => importRef.current?.click()}
-            className="rounded-md border border-slate-300 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+            className="whitespace-nowrap rounded-md border border-slate-300 bg-white px-2 py-0.5 text-[11px] font-semibold leading-none text-slate-800 hover:bg-slate-50 disabled:opacity-50"
             title="Загрузить свой список замечаний из файла Excel"
           >
             {importing ? "Загрузка…" : "Мои замечания из Excel"}
@@ -556,7 +553,7 @@ export function ReviewsTable({
             <button
               type="button"
               onClick={goToLeftover}
-              className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500"
+              className="inline-flex items-center gap-1 whitespace-nowrap rounded-md border border-slate-300 bg-slate-100 px-2 py-0.5 text-[11px] font-semibold leading-none text-slate-500"
               title={
                 leftover.length > 0
                   ? `Ещё ${leftover.length} без важности или разбора. Нажмите — перейти к строке`
@@ -573,7 +570,7 @@ export function ReviewsTable({
               type="button"
               disabled={exporting}
               onClick={() => void downloadVisibleXlsx()}
-              className="inline-flex items-center gap-1 rounded-md bg-accent px-2 py-0.5 text-[11px] font-semibold text-white hover:bg-[#1d4ed8] disabled:opacity-50"
+              className="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-accent px-2 py-0.5 text-[11px] font-semibold leading-none text-white hover:bg-[#1d4ed8] disabled:opacity-50"
               title={
                 filtersOn
                   ? `Скачать отфильтрованные: ${visibleExportable.length}`
@@ -598,7 +595,7 @@ export function ReviewsTable({
                   }
                 }
               }}
-              className="rounded-md border border-slate-300 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-800 hover:bg-slate-50"
+              className="whitespace-nowrap rounded-md border border-slate-300 bg-white px-2 py-0.5 text-[11px] font-semibold leading-none text-slate-800 hover:bg-slate-50"
               title="Вернуть всем статус «Не разобрано», как после расшифровки ИИ"
             >
               Сбросить разбор
