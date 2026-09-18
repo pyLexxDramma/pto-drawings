@@ -155,7 +155,6 @@ export function ReviewsTable({
   const [picked, setPicked] = useState<string[]>([]);
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const [enriching, setEnriching] = useState(false);
   const importRef = useRef<HTMLInputElement>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   /** Серый XLSX: строка в другом файле — показать весь проект. */
@@ -433,32 +432,6 @@ export function ReviewsTable({
     }
   }
 
-  async function handleEnrich() {
-    setEnriching(true);
-    try {
-      const response = await fetch(
-        `/api/projects/${projectId}/reviews/enrich`,
-        { method: "POST" },
-      );
-      const payload = (await response.json().catch(() => ({}))) as {
-        error?: string;
-        message?: string;
-        enriched?: number;
-        updated?: number;
-      };
-      if (!response.ok) {
-        throw new Error(payload.error ?? "Не удалось обогатить");
-      }
-      await load();
-      setError(null);
-      if (payload.message) setError(payload.message);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Ошибка обогащения");
-    } finally {
-      setEnriching(false);
-    }
-  }
-
   async function downloadVisibleXlsx() {
     if (visibleExportable.length === 0) return;
     setExporting(true);
@@ -498,13 +471,6 @@ export function ReviewsTable({
   const leftover = reviews.filter(
     (item) => item.verdict === "pending" || item.severity === "unset",
   );
-  const pendingEnrich = reviews.filter(
-    (item) =>
-      item.origin !== "ai" &&
-      item.text &&
-      (item.locations.length === 0 || item.needsRecheck),
-  ).length;
-
   function goToLeftover() {
     const next = leftover[0];
     if (!next) return;
@@ -586,19 +552,6 @@ export function ReviewsTable({
             title="Загрузить свой список замечаний из файла Excel"
           >
             {importing ? "Загрузка…" : "Мои замечания из Excel"}
-          </button>
-          <button
-            type="button"
-            disabled={enriching || pendingEnrich === 0}
-            onClick={() => void handleEnrich()}
-            className="rounded-md border border-slate-300 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
-            title="Для строк из Excel без листа: проставить раздел, номер листа и цитату в колонке «Где в ПД»"
-          >
-            {enriching
-              ? "Ищем места…"
-              : pendingEnrich
-                ? `Проставить, где в ПД · ${pendingEnrich}`
-                : "Проставить, где в ПД"}
           </button>
           {visibleExportable.length === 0 ||
           (!filtersOn && leftover.length > 0) ? (
