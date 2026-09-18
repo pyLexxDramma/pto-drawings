@@ -54,17 +54,18 @@ await page.goto(
     `&from=reviews&review=${target.review.id}&quote=${encodeURIComponent(target.loc.quote)}`,
   { waitUntil: "domcontentloaded", timeout: 90000 },
 );
-await page.waitForTimeout(8000);
-
-// Подписи гаснут через 4 с — наводимся, чтобы снять раскрытую легенду.
-const legend = page.locator("[title*='место замечания']").first();
-await legend.hover();
-await page.waitForTimeout(500);
-const bar = legend.locator("xpath=..");
+// Подписи живут три секунды, потом остаются квадратики и возвращаются
+// по наведению: снимаем все три состояния, первый кадр — сразу.
+const legend = page.locator("[title*='Зелёная рамка']").first();
+await legend.waitFor({ timeout: 60000 });
+const bar = legend.locator("xpath=../..");
 await bar.screenshot({ path: join(shots, "legend-bar.png") });
-await page.mouse.move(10, 500);
-await page.waitForTimeout(500);
+await page.waitForTimeout(3500);
 await bar.screenshot({ path: join(shots, "legend-bar-collapsed.png") });
+await legend.hover();
+await page.waitForTimeout(400);
+await bar.screenshot({ path: join(shots, "legend-bar-hover.png") });
+await page.mouse.move(12, 600);
 
 const zone = page.locator(".pto-remark-zone").first();
 const box = await zone.boundingBox();
