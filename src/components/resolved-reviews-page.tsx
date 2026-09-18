@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   SEVERITY_CHIP,
@@ -14,6 +14,7 @@ import {
   type PlacePayload,
 } from "@/lib/place-bridge";
 import { RESOLVED_ORDER, resolvedCounts } from "@/components/resolved-summary";
+import { IconDownload } from "@/components/tool-icons";
 import {
   REVIEW_SEVERITY_LABEL,
   REVIEW_VERDICT_LABEL,
@@ -55,6 +56,9 @@ export function ResolvedReviewsPage() {
   const [only, setOnly] = useState<ReviewVerdict | null>(null);
   const [query, setQuery] = useState("");
   const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  const importRef = useRef<HTMLInputElement>(null);
   /** Место ушло в рабочую вкладку, но браузер не переключил её сам. */
   const [stuck, setStuck] = useState<PlacePayload | null>(null);
 
@@ -163,6 +167,43 @@ export function ResolvedReviewsPage() {
     [rows],
   );
 
+  /**
+   * Свой список из Excel ложится в общую таблицу замечаний со статусом
+   * «Не разобрано», поэтому здесь строки появятся только после разбора.
+   */
+  async function handleImport(file: File) {
+    if (!projectId) return;
+    setImporting(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const response = await fetch(`/api/projects/${projectId}/reviews/import`, {
+        method: "POST",
+        body: form,
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        added?: number;
+        skipped?: number;
+      };
+      if (!response.ok) throw new Error(payload.error ?? "Не удалось импортировать");
+      await load(projectId);
+      setError(null);
+      const added = payload.added ?? 0;
+      const skipped = payload.skipped ?? 0;
+      setNote(
+        added === 0
+          ? `Новых строк нет: все ${skipped} уже были в таблице`
+          : `Загружено строк: ${added}${skipped ? `, пропущено дублей: ${skipped}` : ""}. Они лежат в таблице замечаний со статусом «Не разобрано» — здесь появятся, когда поставите статус.`,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Ошибка импорта");
+    } finally {
+      setImporting(false);
+      if (importRef.current) importRef.current.value = "";
+    }
+  }
+
   async function downloadXlsx() {
     if (!projectId || rows.length === 0) return;
     setExporting(true);
@@ -238,13 +279,38 @@ export function ResolvedReviewsPage() {
               placeholder="Поиск по замечаниям"
               className="w-44 rounded-md border border-border bg-white px-2 py-1 text-[12px] outline-none placeholder:text-muted focus:border-accent"
             />
+            <input
+              ref={importRef}
+              type="file"
+              accept=".xlsx,.xlsm,.csv,.txt"
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) void handleImport(file);
+              }}
+            />
+            <button
+              type="button"
+              disabled={importing}
+              onClick={() => importRef.current?.click()}
+              className="whitespace-nowrap rounded-md border border-slate-300 bg-white px-2 py-1 text-[12px] font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+              title="Загрузить свой список замечаний из файла Excel — строки уйдут в таблицу замечаний"
+            >
+              {importing ? "Загрузка…" : "Мои замечания из Excel"}
+            </button>
             <button
               type="button"
               onClick={() => void downloadXlsx()}
               disabled={exporting || rows.length === 0}
-              className="rounded-md border border-border px-2 py-1 text-[12px] text-muted hover:text-text disabled:opacity-50"
+              className="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-accent px-2 py-1 text-[12px] font-semibold text-white hover:bg-[#1d4ed8] disabled:opacity-50"
+              title={
+                only || query.trim()
+                  ? `Скачать то, что видно: ${rows.length}`
+                  : "Скачать все разобранные замечания одним файлом Excel"
+              }
             >
-              {exporting ? "Выгрузка…" : "Excel"}
+              <IconDownload className="h-3.5 w-3.5" />
+              {exporting ? "Выгрузка…" : `Скачать Excel · ${rows.length}`}
             </button>
             <button
               type="button"
@@ -277,6 +343,19 @@ export function ResolvedReviewsPage() {
             type="button"
             onClick={() => setStuck(null)}
             className="text-amber-800 underline decoration-dotted"
+          >
+            скрыть
+          </button>
+        </div>
+      ) : null}
+
+      {note ? (
+        <div className="flex items-start gap-2 border-b border-emerald-200 bg-emerald-50 px-4 py-2 text-[12px] text-emerald-900">
+          <span className="min-w-0 flex-1">{note}</span>
+          <button
+            type="button"
+            onClick={() => setNote(null)}
+            className="shrink-0 text-emerald-800 underline decoration-dotted"
           >
             скрыть
           </button>
