@@ -189,6 +189,9 @@ export function ReviewPane({
   const [progressExpanded, setProgressExpanded] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const pageRef = useRef(rawPage);
+  /** След переходов по листам: куда вернёт «Назад» над расшифровкой. */
+  const pageTrailRef = useRef<number[]>([]);
+  const [trailTop, setTrailTop] = useState<number | null>(null);
   const navigatedRef = useRef(false);
   const textPaneRef = useRef<HTMLDivElement>(null);
   const deferredQuery = useDeferredValue(query);
@@ -713,6 +716,8 @@ export function ReviewPane({
     navigatedRef.current = true;
     // Переход из фида проекта: внешнее событие, поэтому состояние двигаем здесь.
     // eslint-disable-next-line react-hooks/set-state-in-effect
+    pushPageTrail(openPage.page);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setRawPage(openPage.page);
     const quote = (openPage.quote ?? "").trim();
     setFocusQuote(quote);
@@ -839,9 +844,38 @@ export function ReviewPane({
    * Текст расшифровки не правится руками (решение Дархана 09.09): исправления
    * идут только через «Ошибка» — тогда у конвейера остаётся, чему учиться.
    */
+  function pushPageTrail(next: number) {
+    const from = pageRef.current;
+    if (!from || from === next) return;
+    pageTrailRef.current = [...pageTrailRef.current.slice(-19), from];
+    setTrailTop(from);
+  }
+
   function goToPage(next: number) {
     navigatedRef.current = true;
+    pushPageTrail(next);
     setRawPage(next);
+  }
+
+  /**
+   * Возврат над расшифровкой: сначала к листу, с которого пришли на это место,
+   * а когда следа нет — на предыдущий экран (таблица замечаний, файлы).
+   */
+  function goBackInTrail() {
+    const trail = pageTrailRef.current;
+    const previous = trail[trail.length - 1];
+    if (previous === undefined) {
+      onBackToProjects();
+      return;
+    }
+    pageTrailRef.current = trail.slice(0, -1);
+    setTrailTop(pageTrailRef.current[pageTrailRef.current.length - 1] ?? null);
+    navigatedRef.current = true;
+    setRawPage(previous);
+    // Возврат — это чтение листа, а не разбор замечания: гасим фокус цитаты.
+    setFocusQuote("");
+    setFocusRect(null);
+    setActiveReviewId(null);
   }
 
   function stepVisible(delta: number) {
@@ -1644,13 +1678,19 @@ export function ReviewPane({
             ) : (
               <>
             <div className="flex flex-wrap items-center gap-1 border-b border-border px-1.5 py-0.5">
-              <PaneToggle
-                expanded
-                align="right"
-                expandLabel="Показать текст"
-                collapseLabel="Скрыть текст"
-                onToggle={() => setPaneSolo("pdf")}
-              />
+              {/* Слева — возврат туда, откуда пришли; свернуть текст ушло вправо. */}
+              <button
+                type="button"
+                onClick={goBackInTrail}
+                title={
+                  trailTop
+                    ? `Вернуться к листу ${trailTop} расшифровки`
+                    : "Вернуться на предыдущую страницу"
+                }
+                className="shrink-0 rounded border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-900 hover:bg-amber-100"
+              >
+                {trailTop ? `← Лист ${trailTop}` : "← Назад"}
+              </button>
               <button
                 type="button"
                 title={markMode ? "Отменить разметку (Esc)" : "Обвести ошибку на чертеже"}
@@ -1677,14 +1717,23 @@ export function ReviewPane({
                   PDF · DWG для сверки
                 </span>
               ) : null}
-              {sidePanel === "text" && page?.source === "model" ? (
-                <span
-                  className="ml-auto truncate text-[10px] text-orange-700"
-                  title="Текстового слоя нет — содержимое прочитано по изображению; сверьте числа и марки с оригиналом"
-                >
-                  По изображению · сверить
-                </span>
-              ) : null}
+              <span className="ml-auto flex shrink-0 items-center gap-1">
+                {sidePanel === "text" && page?.source === "model" ? (
+                  <span
+                    className="truncate text-[10px] text-orange-700"
+                    title="Текстового слоя нет — содержимое прочитано по изображению; сверьте числа и марки с оригиналом"
+                  >
+                    По изображению · сверить
+                  </span>
+                ) : null}
+                <PaneToggle
+                  expanded
+                  align="right"
+                  expandLabel="Показать текст"
+                  collapseLabel="Скрыть текст · оставить чертёж"
+                  onToggle={() => setPaneSolo("pdf")}
+                />
+              </span>
             </div>
 
             {sidePanel === "notes" ? (
