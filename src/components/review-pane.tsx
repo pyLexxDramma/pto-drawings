@@ -15,7 +15,7 @@ import { CadPage } from "@/components/cad-page";
 import { MarkdownView } from "@/components/markdown-view";
 import { PageStrip } from "@/components/page-strip";
 import { PdfPage } from "@/components/pdf-page";
-import { PaneToggle, SegmentedTabs } from "@/components/ui-chrome";
+import { SegmentedTabs } from "@/components/ui-chrome";
 import { IconChevronLeft, IconChevronRight } from "@/components/tool-icons";
 import { KEYMAP, KEYMAP_GROUPS } from "@/lib/keymap";
 import { VoiceNoteButton } from "@/components/voice-note";
@@ -857,25 +857,51 @@ export function ReviewPane({
     setRawPage(next);
   }
 
-  /**
-   * Возврат над расшифровкой: сначала к листу, с которого пришли на это место,
-   * а когда следа нет — на предыдущий экран (таблица замечаний, файлы).
-   */
-  function goBackInTrail() {
+  /** Разбираем выбранное замечание — «Назад» сначала снимает выбор. */
+  const backStep: "remark" | "page" | "screen" =
+    focusQuote.trim().length >= 2 || activeReviewId
+      ? "remark"
+      : trailTop
+        ? "page"
+        : "screen";
+
+  function popTrail(): number | null {
     const trail = pageTrailRef.current;
     const previous = trail[trail.length - 1];
-    if (previous === undefined) {
+    if (previous === undefined) return null;
+    pageTrailRef.current = trail.slice(0, -1);
+    setTrailTop(pageTrailRef.current[pageTrailRef.current.length - 1] ?? null);
+    return previous;
+  }
+
+  /**
+   * Возврат над расшифровкой, по шагам: снять выбранное замечание → вернуться
+   * на лист, с которого пришли → уйти на предыдущий экран. Так «Назад» не
+   * выбрасывает к проектам сразу после разбора замечания.
+   */
+  function goBackInTrail() {
+    if (backStep === "remark") {
+      const previous = popTrail();
+      if (previous !== null) {
+        navigatedRef.current = true;
+        setRawPage(previous);
+      }
+      setFocusQuote("");
+      setFocusRect(null);
+      setActiveReviewId(null);
+      setDrawingHitCount(null);
+      setTextHitFound(null);
+      // Список замечаний листа остаётся свёрнутым — открыть можно кликом.
+      setPageReviewsOpen(false);
+      return;
+    }
+    const previous = popTrail();
+    if (previous === null) {
       onBackToProjects();
       return;
     }
-    pageTrailRef.current = trail.slice(0, -1);
-    setTrailTop(pageTrailRef.current[pageTrailRef.current.length - 1] ?? null);
     navigatedRef.current = true;
     setRawPage(previous);
-    // Возврат — это чтение листа, а не разбор замечания: гасим фокус цитаты.
-    setFocusQuote("");
-    setFocusRect(null);
-    setActiveReviewId(null);
   }
 
   function stepVisible(delta: number) {
@@ -1683,13 +1709,19 @@ export function ReviewPane({
                 type="button"
                 onClick={goBackInTrail}
                 title={
-                  trailTop
-                    ? `Вернуться к листу ${trailTop} расшифровки`
-                    : "Вернуться на предыдущую страницу"
+                  backStep === "remark"
+                    ? "Снять выбранное замечание и вернуться к списку замечаний листа"
+                    : backStep === "page"
+                      ? `Вернуться к листу ${trailTop} расшифровки`
+                      : "Вернуться на предыдущую страницу"
                 }
                 className="shrink-0 rounded border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-900 hover:bg-amber-100"
               >
-                {trailTop ? `← Лист ${trailTop}` : "← Назад"}
+                {backStep === "remark"
+                  ? "← К замечаниям листа"
+                  : backStep === "page"
+                    ? `← Лист ${trailTop}`
+                    : "← Назад"}
               </button>
               <button
                 type="button"
@@ -1726,13 +1758,14 @@ export function ReviewPane({
                     По изображению · сверить
                   </span>
                 ) : null}
-                <PaneToggle
-                  expanded
-                  align="right"
-                  expandLabel="Показать текст"
-                  collapseLabel="Скрыть текст · оставить чертёж"
-                  onToggle={() => setPaneSolo("pdf")}
-                />
+                <button
+                  type="button"
+                  onClick={() => setPaneSolo("pdf")}
+                  title="Скрыть расшифровку — на экране останется только чертёж"
+                  className="shrink-0 rounded border border-slate-300 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-800 hover:bg-slate-50"
+                >
+                  Скрыть текст · только чертёж ›
+                </button>
               </span>
             </div>
 
