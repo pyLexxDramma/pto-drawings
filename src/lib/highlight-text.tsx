@@ -179,6 +179,32 @@ function mergeHits(hits: LayerTextHit[]): LayerTextHit[] {
 }
 
 /**
+ * Совпадения оставляем в рамке места: то же значение в соседних строках листа
+ * сбивает — инженер смотрит на строку замечания. Если в рамке ничего не
+ * попало (рамка конвейера мимо), отдаём всё, иначе лист выглядит пустым.
+ */
+export function hitsInsideRegion<
+  T extends { x: number; y: number; w: number; h: number },
+>(
+  hits: T[],
+  region: { x: number; y: number; w: number; h: number } | null,
+): T[] {
+  if (!region || hits.length === 0) return hits;
+  const pad = Math.max(0.004, region.h * 0.5);
+  const inside = hits.filter((hit) => {
+    const cx = hit.x + hit.w / 2;
+    const cy = hit.y + hit.h / 2;
+    return (
+      cx >= region.x - pad &&
+      cx <= region.x + region.w + pad &&
+      cy >= region.y - pad &&
+      cy <= region.y + region.h + pad
+    );
+  });
+  return inside.length > 0 ? inside : hits;
+}
+
+/**
  * Ищет цитату в текстовом слое: берём самый длинный подошедший needle,
  * прямоугольники обрезаны по доле совпавшего текста — не вся строка листа.
  */

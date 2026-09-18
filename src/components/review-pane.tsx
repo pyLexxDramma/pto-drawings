@@ -472,9 +472,12 @@ export function ReviewPane({
   })();
   const textHighlightQuery = drawingHighlightQuery;
   const focusDrawing = focusQuote.trim().length >= 2 || Boolean(focusRect);
-  const focusHighlightRegion = focusRect
-    ? { id: "review-focus", text: focusQuote, ...focusRect }
-    : null;
+  // Ссылка должна быть стабильной: зритель фильтрует по ней совпадения поиска.
+  const focusHighlightRegion = useMemo(
+    () =>
+      focusRect ? { id: "review-focus", text: focusQuote, ...focusRect } : null,
+    [focusRect, focusQuote],
+  );
   const activeReview = useMemo(
     () => reviews.find((item) => item.id === activeReviewId) ?? null,
     [reviews, activeReviewId],

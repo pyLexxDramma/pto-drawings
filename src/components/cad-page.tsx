@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { SearchHitBadge, Spinner } from "@/components/ui-chrome";
+import {
+  HighlightLegend,
+  SearchHitBadge,
+  Spinner,
+} from "@/components/ui-chrome";
 import { ViewerHint } from "@/components/viewer-hint";
 import { ViewerToolbar } from "@/components/viewer-toolbar";
 import { usePageViewport } from "@/hooks/use-page-viewport";
@@ -20,7 +24,11 @@ import {
   regionAtPoint,
   type PageTextRegion,
 } from "@/lib/content-sync";
-import { findLayerHits, highlightNeedles } from "@/lib/highlight-text";
+import {
+  findLayerHits,
+  highlightNeedles,
+  hitsInsideRegion,
+} from "@/lib/highlight-text";
 import { normalizeQuote } from "@/lib/remark-jump";
 import {
   loadViewerPrefs,
@@ -129,7 +137,7 @@ export function CadPage({
         : [],
     [geometry],
   );
-  const searchHits = useMemo(() => {
+  const pageHits = useMemo(() => {
     if (!geometry || highlightQuery.trim().length < 2) return [];
     const size = bboxSize(geometry.bbox);
     const layer = texts.flatMap((t) => {
@@ -152,6 +160,10 @@ export function CadPage({
     });
     return findLayerHits(layer, highlightQuery);
   }, [geometry, highlightQuery, texts]);
+  const searchHits = useMemo(
+    () => hitsInsideRegion(pageHits, remarkFocus ? highlightRegion : null),
+    [pageHits, remarkFocus, highlightRegion],
+  );
   const focusRegion =
     highlightRegion ??
     (remarkFocus && searchHits[0] ? searchHits[0] : null);
@@ -180,6 +192,10 @@ export function CadPage({
     auto: !remarkFocus,
     zoomToRect: viewport.zoomToRect,
   });
+  // Легенда нужна только на листе из разбора: в свободном поиске зелёной рамки
+  // нет и объяснять нечего.
+  const legendOn =
+    remarkFocus && (Boolean(highlightRegion) || searchHits.length > 0);
 
   useEffect(() => {
     let cancelled = false;
@@ -658,7 +674,7 @@ export function CadPage({
         ) : null}
       </div>
 
-      {markMode || searchHits.length > 0 ? (
+      {markMode || searchHits.length > 0 || legendOn ? (
         <div className="pointer-events-none absolute left-1/2 top-2 z-30 flex -translate-x-1/2 items-center gap-1.5">
           {markMode ? (
             <span className="rounded-md bg-red-600 px-2.5 py-1 text-[11px] font-medium text-white shadow-md">
@@ -670,6 +686,13 @@ export function CadPage({
             index={hitFocus.index}
             onStep={hitFocus.step}
           />
+          {legendOn ? (
+            <HighlightLegend
+              hasZone={Boolean(highlightRegion)}
+              hasHits={searchHits.length > 0}
+              hasSiblings={highlightRegions.length > 0}
+            />
+          ) : null}
         </div>
       ) : (
         <ViewerHint show={hintOn} wheelMode="pan" />

@@ -84,6 +84,41 @@ export function SearchHitBadge({
   );
 }
 
+/** Что значат рамки на листе: спрашивают на каждом показе. */
+export function HighlightLegend({
+  hasZone,
+  hasHits,
+  hasSiblings,
+}: {
+  hasZone: boolean;
+  hasHits: boolean;
+  hasSiblings: boolean;
+}) {
+  if (!hasZone && !hasHits) return null;
+  return (
+    <span className="inline-flex items-center gap-2 rounded-md border border-border bg-white/95 px-2 py-1 text-[11px] text-muted shadow-sm">
+      {hasZone ? (
+        <span className="inline-flex items-center gap-1">
+          <span className="h-2.5 w-2.5 rounded-[2px] bg-emerald-400/35 outline outline-2 outline-emerald-600" />
+          место замечания
+        </span>
+      ) : null}
+      {hasHits ? (
+        <span className="inline-flex items-center gap-1">
+          <span className="h-2.5 w-2.5 rounded-[2px] bg-orange-400/20 outline outline-2 outline-orange-600/50" />
+          спорное значение
+        </span>
+      ) : null}
+      {hasSiblings ? (
+        <span className="inline-flex items-center gap-1">
+          <span className="h-2.5 w-2.5 rounded-[2px] bg-sky-400/25 outline outline-2 outline-sky-600" />
+          другие места
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
 type SegmentAccent = "critical" | "warn" | "info" | "neutral";
 
 type SegmentOption<T extends string> = {
