@@ -144,8 +144,13 @@ for (const { review, loc } of targets) {
       // Рамка места — зелёная, «другие места» — синие.
       greenRects: document.querySelectorAll("[class*='outline-emerald-600']").length,
       blueRects: document.querySelectorAll("[class*='outline-sky-600']").length,
-      legendZone: /место замечания/i.test(text),
-      legendHits: /спорное значение/i.test(text),
+      // Подписи легенды гаснут через 4 с, остаются квадратики: ищем по title.
+      legendZone: /место замечания/i.test(
+        document.querySelector("[title*='место замечания']")?.getAttribute("title") ?? "",
+      ),
+      legendHits: /спорное значение/i.test(
+        document.querySelector("[title*='место замечания']")?.getAttribute("title") ?? "",
+      ),
     };
   });
 

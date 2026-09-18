@@ -56,9 +56,15 @@ await page.goto(
 );
 await page.waitForTimeout(8000);
 
-const legend = page.getByText("место замечания").first();
-const bar = legend.locator("xpath=ancestor::div[contains(@class,'top-2')][1]");
+// Подписи гаснут через 4 с — наводимся, чтобы снять раскрытую легенду.
+const legend = page.locator("[title*='место замечания']").first();
+await legend.hover();
+await page.waitForTimeout(500);
+const bar = legend.locator("xpath=..");
 await bar.screenshot({ path: join(shots, "legend-bar.png") });
+await page.mouse.move(10, 500);
+await page.waitForTimeout(500);
+await bar.screenshot({ path: join(shots, "legend-bar-collapsed.png") });
 
 const zone = page.locator(".pto-remark-zone").first();
 const box = await zone.boundingBox();
