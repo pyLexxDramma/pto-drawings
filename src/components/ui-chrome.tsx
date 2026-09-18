@@ -53,7 +53,7 @@ export function SearchHitBadge({
 }) {
   if (count === 0) return null;
   return (
-    <span className="pointer-events-auto inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-50 px-1.5 py-1 text-[11px] text-amber-900 shadow-sm">
+    <span className="pointer-events-auto inline-flex items-center gap-0.5 rounded border border-amber-300 bg-amber-50/90 px-1.5 py-0.5 text-[10px] leading-none text-amber-900 shadow-sm backdrop-blur">
       {count > 1 ? (
         <button
           type="button"
@@ -84,37 +84,72 @@ export function SearchHitBadge({
   );
 }
 
-/** Что значат рамки на листе: спрашивают на каждом показе. */
+/**
+ * Что значат рамки на листе. Подписи держим пару секунд после перехода на
+ * место, дальше — только квадратики: чертёж важнее подсказки. Наведение
+ * и клик снова раскрывают.
+ */
 export function HighlightLegend({
   hasZone,
   hasHits,
   hasSiblings,
+  nonce = 0,
 }: {
   hasZone: boolean;
   hasHits: boolean;
   hasSiblings: boolean;
+  /** Смена места/цитаты — снова показать подписи. */
+  nonce?: number;
 }) {
+  const [fresh, setFresh] = useState(true);
+  const [pinned, setPinned] = useState(false);
+  useEffect(() => {
+    setFresh(true);
+    const timer = setTimeout(() => setFresh(false), 4000);
+    return () => clearTimeout(timer);
+  }, [nonce]);
+
   if (!hasZone && !hasHits) return null;
+  const open = fresh || pinned;
+  const items = [
+    hasZone
+      ? {
+          key: "zone",
+          swatch: "bg-emerald-400/35 outline-emerald-600",
+          label: "место замечания",
+        }
+      : null,
+    hasHits
+      ? {
+          key: "hits",
+          swatch: "bg-orange-400/20 outline-orange-600/50",
+          label: "спорное значение",
+        }
+      : null,
+    hasSiblings
+      ? {
+          key: "siblings",
+          swatch: "bg-sky-400/25 outline-sky-600",
+          label: "другие места",
+        }
+      : null,
+  ].filter(Boolean) as { key: string; swatch: string; label: string }[];
+
   return (
-    <span className="inline-flex items-center gap-2 rounded-md border border-border bg-white/95 px-2 py-1 text-[11px] text-muted shadow-sm">
-      {hasZone ? (
-        <span className="inline-flex items-center gap-1">
-          <span className="h-2.5 w-2.5 rounded-[2px] bg-emerald-400/35 outline outline-2 outline-emerald-600" />
-          место замечания
+    <span
+      className="pointer-events-auto inline-flex items-center gap-1.5 rounded border border-border bg-white/90 px-1.5 py-0.5 text-[10px] leading-none text-muted shadow-sm backdrop-blur"
+      title={items.map((item) => item.label).join(" · ")}
+      onMouseEnter={() => setPinned(true)}
+      onMouseLeave={() => setPinned(false)}
+    >
+      {items.map((item) => (
+        <span key={item.key} className="inline-flex items-center gap-1">
+          <span
+            className={`h-2 w-2 shrink-0 rounded-[2px] outline outline-1 ${item.swatch}`}
+          />
+          {open ? item.label : null}
         </span>
-      ) : null}
-      {hasHits ? (
-        <span className="inline-flex items-center gap-1">
-          <span className="h-2.5 w-2.5 rounded-[2px] bg-orange-400/20 outline outline-2 outline-orange-600/50" />
-          спорное значение
-        </span>
-      ) : null}
-      {hasSiblings ? (
-        <span className="inline-flex items-center gap-1">
-          <span className="h-2.5 w-2.5 rounded-[2px] bg-sky-400/25 outline outline-2 outline-sky-600" />
-          другие места
-        </span>
-      ) : null}
+      ))}
     </span>
   );
 }

@@ -56,7 +56,7 @@ export function ViewerToolbar({
     <div
       ref={rootRef}
       onMouseDown={(event) => event.stopPropagation()}
-      className="absolute right-2 top-2 z-30 flex items-center gap-1 rounded-md border border-border bg-white/95 px-1.5 py-1 shadow-sm backdrop-blur"
+      className="absolute right-1.5 top-1.5 z-30 flex items-center gap-0.5 rounded border border-border bg-white/85 px-1 py-0.5 opacity-80 shadow-sm backdrop-blur transition-opacity hover:opacity-100 focus-within:opacity-100"
       data-viewer-toolbar=""
     >
       {onPrevPage || onNextPage ? (

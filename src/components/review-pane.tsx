@@ -522,6 +522,46 @@ export function ReviewPane({
     [siblingLocations, document.id, pageNumber, focusRect],
   );
 
+  // Один ряд плашек над листом: счётчик поиска, места, легенда цветов.
+  const placeBar =
+    siblingLocations.length > 1 && activeReview ? (
+      <span className="pointer-events-auto inline-flex max-w-full items-center gap-0.5 rounded border border-violet-300 bg-violet-50/90 px-1.5 py-0.5 text-[10px] leading-none text-violet-950 shadow-sm backdrop-blur">
+        <button
+          type="button"
+          className="rounded px-1 font-semibold hover:bg-violet-100"
+          title="Предыдущее место"
+          onClick={() => {
+            const from = siblingIndex >= 0 ? siblingIndex : 0;
+            const next =
+              siblingLocations[
+                (from - 1 + siblingLocations.length) % siblingLocations.length
+              ];
+            focusLocation(next, activeReview.id);
+          }}
+        >
+          ←
+        </button>
+        <span className="min-w-0 truncate tabular-nums">
+          Место {Math.max(siblingIndex, 0) + 1} из {siblingLocations.length}
+          {siblingLocations[siblingIndex]?.pageNumber
+            ? ` · стр. ${siblingLocations[siblingIndex].pageNumber}`
+            : ""}
+        </span>
+        <button
+          type="button"
+          className="rounded px-1 font-semibold hover:bg-violet-100"
+          title="Следующее место"
+          onClick={() => {
+            const from = siblingIndex >= 0 ? siblingIndex : 0;
+            const next = siblingLocations[(from + 1) % siblingLocations.length];
+            focusLocation(next, activeReview.id);
+          }}
+        >
+          →
+        </button>
+      </span>
+    ) : null;
+
   function focusLocation(
     location: (typeof siblingLocations)[number],
     reviewId: string,
@@ -1271,50 +1311,6 @@ export function ReviewPane({
               className="relative h-full min-h-0 min-w-0 overflow-hidden"
               style={{ width: paneSolo === "pdf" ? "100%" : `${split}%` }}
             >
-              {siblingLocations.length > 1 && activeReview ? (
-                <div className="pointer-events-none absolute inset-x-0 top-10 z-20 flex justify-center px-2">
-                  <div className="pointer-events-auto inline-flex max-w-full items-center gap-1.5 rounded-md border border-violet-300 bg-violet-50 px-2 py-1 text-[11px] text-violet-950 shadow-sm">
-                    <button
-                      type="button"
-                      className="rounded px-1 font-semibold hover:bg-violet-100"
-                      title="Предыдущее место"
-                      onClick={() => {
-                        const from = siblingIndex >= 0 ? siblingIndex : 0;
-                        const next =
-                          siblingLocations[
-                            (from - 1 + siblingLocations.length) %
-                              siblingLocations.length
-                          ];
-                        focusLocation(next, activeReview.id);
-                      }}
-                    >
-                      ←
-                    </button>
-                    <span className="min-w-0 truncate tabular-nums">
-                      Место {Math.max(siblingIndex, 0) + 1} из{" "}
-                      {siblingLocations.length}
-                      {siblingLocations[siblingIndex]?.pageNumber
-                        ? ` · стр. ${siblingLocations[siblingIndex].pageNumber}`
-                        : ""}
-                    </span>
-                    <button
-                      type="button"
-                      className="rounded px-1 font-semibold hover:bg-violet-100"
-                      title="Следующее место"
-                      onClick={() => {
-                        const from = siblingIndex >= 0 ? siblingIndex : 0;
-                        const next =
-                          siblingLocations[
-                            (from + 1) % siblingLocations.length
-                          ];
-                        focusLocation(next, activeReview.id);
-                      }}
-                    >
-                      →
-                    </button>
-                  </div>
-                </div>
-              ) : null}
               {quoteMiss ? (
                 <div className="pointer-events-none absolute inset-x-0 bottom-2 z-20 flex justify-center px-2">
                   <div
@@ -1436,6 +1432,7 @@ export function ReviewPane({
                   remarkFocus={focusDrawing}
                   highlightNonce={focusNonce}
                   onHighlightHits={handleHighlightHits}
+                  overlay={placeBar}
                   {...pageNav}
                   onMarkRect={(rect) => setPendingRect(rect)}
                   onSelectAnnotation={(id) => setHoverNoteId(id)}
@@ -1459,6 +1456,7 @@ export function ReviewPane({
                   remarkFocus={focusDrawing}
                   highlightNonce={focusNonce}
                   onHighlightHits={handleHighlightHits}
+                  overlay={placeBar}
                   {...pageNav}
                   onMarkRect={(rect) => setPendingRect(rect)}
                   onSelectAnnotation={(id) => setHoverNoteId(id)}
@@ -1481,6 +1479,7 @@ export function ReviewPane({
                   remarkFocus={focusDrawing}
                   highlightNonce={focusNonce}
                   onHighlightHits={handleHighlightHits}
+                  overlay={placeBar}
                   {...pageNav}
                   onMarkRect={(rect) => setPendingRect(rect)}
                   onSelectAnnotation={(id) => setHoverNoteId(id)}
@@ -1512,6 +1511,7 @@ export function ReviewPane({
                   remarkFocus={focusDrawing}
                   highlightNonce={focusNonce}
                   onHighlightHits={handleHighlightHits}
+                  overlay={placeBar}
                   {...pageNav}
                   onMarkRect={(rect) => setPendingRect(rect)}
                   onSelectAnnotation={(id) => setHoverNoteId(id)}

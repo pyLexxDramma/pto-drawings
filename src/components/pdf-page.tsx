@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { HighlightLegend, SearchHitBadge } from "@/components/ui-chrome";
 import { ViewerHint } from "@/components/viewer-hint";
 import { ViewerToolbar } from "@/components/viewer-toolbar";
@@ -44,6 +44,8 @@ type PdfPageProps = {
   canNextPage?: boolean;
   onToggleFullscreen?: () => void;
   fullscreenActive?: boolean;
+  /** Плашки разбора («Место N из M») в общий ряд поверх листа. */
+  overlay?: ReactNode;
 };
 
 type DrawState = { x0: number; y0: number; x1: number; y1: number };
@@ -77,6 +79,7 @@ export function PdfPage({
   canNextPage = false,
   onToggleFullscreen,
   fullscreenActive = false,
+  overlay,
 }: PdfPageProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -580,10 +583,10 @@ export function PdfPage({
         )}
       </div>
 
-      {markMode || searchHits.length > 0 || legendOn ? (
-        <div className="pointer-events-none absolute left-1/2 top-2 z-30 flex -translate-x-1/2 items-center gap-1.5">
+      {markMode || searchHits.length > 0 || legendOn || overlay ? (
+        <div className="pointer-events-none absolute left-1/2 top-1.5 z-30 flex max-w-[calc(100%-13rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-1 opacity-80 transition-opacity hover:opacity-100">
           {markMode ? (
-            <span className="rounded-md bg-red-600 px-2.5 py-1 text-[11px] font-medium text-white shadow-md">
+            <span className="rounded bg-red-600 px-2 py-0.5 text-[10px] font-medium leading-none text-white shadow-md">
               Обведите место на чертеже · Esc — отмена
             </span>
           ) : null}
@@ -592,11 +595,13 @@ export function PdfPage({
             index={hitFocus.index}
             onStep={hitFocus.step}
           />
+          {overlay}
           {legendOn ? (
             <HighlightLegend
               hasZone={Boolean(highlightRegion)}
               hasHits={searchHits.length > 0}
               hasSiblings={highlightRegions.length > 0}
+              nonce={highlightNonce}
             />
           ) : null}
         </div>
