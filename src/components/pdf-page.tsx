@@ -587,6 +587,7 @@ export function PdfPage({
             })}
             {preview ? (
               <div
+                data-mark-preview=""
                 className="pointer-events-none absolute"
                 style={{
                   left: `${preview.x * 100}%`,
