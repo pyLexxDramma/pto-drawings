@@ -626,27 +626,37 @@ export function ReviewPane({
 
   // Цитата из reviewId, если workspace ещё не дописал quote в openPage.
   useEffect(() => {
-    if (focusQuote.trim().length >= 2) return;
     const reviewId = openPage?.reviewId;
     if (!reviewId || openPage.documentId !== document.id) return;
     const review = reviews.find((item) => item.id === reviewId);
     if (!review) return;
+    const onPage = review.locations.filter(
+      (item) =>
+        item.documentId === document.id &&
+        item.pageNumber === (openPage.page || pageNumber),
+    );
+    const wanted = normalizeQuote(focusQuote);
     const location =
-      review.locations.find(
-        (item) =>
-          item.documentId === document.id &&
-          item.pageNumber === (openPage.page || pageNumber),
-      ) ??
+      (wanted.length >= 2
+        ? onPage.find((item) => normalizeQuote(item.quote) === wanted)
+        : undefined) ??
+      onPage[0] ??
       review.locations.find((item) => item.documentId === document.id) ??
       review.locations[0];
     const quote = location?.quote?.trim() ?? "";
     if (quote.length < 2 && !location?.rect) return;
+    // Ссылка из разбора приносит цитату, но не рамку. Без неё своё место
+    // уходило в «другие места» синим, а зелёного не было вовсе.
+    if (focusQuote.trim().length >= 2) {
+      if (!focusRect && location?.rect) setFocusRect(location.rect);
+      return;
+    }
     setFocusQuote(quote);
     setFocusRect(location?.rect ?? null);
     setFocusNonce(Date.now());
     setPaneSolo(null);
     setSidePanel("text");
-  }, [focusQuote, openPage, reviews, document.id, pageNumber]);
+  }, [focusQuote, focusRect, openPage, reviews, document.id, pageNumber]);
 
   // После появления markdown / смены листа — к цитате в расшифровке.
   useEffect(() => {
