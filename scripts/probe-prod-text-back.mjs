@@ -25,9 +25,20 @@ for (const project of projects.projects || []) {
   const docs = await (
     await ctx.request.get(`${BASE}/api/documents?projectId=${project.id}`)
   ).json();
-  const doc = (docs.documents || []).find(
-    (item) => item.readyPages > 1 && item.pageCount > 1,
+  const reviews = await (
+    await ctx.request.get(`${BASE}/api/projects/${project.id}/reviews`)
+  ).json();
+  const withReviews = new Set(
+    (reviews.reviews || []).flatMap((review) =>
+      (review.locations || []).map((loc) => loc.documentId),
+    ),
   );
+  const docs2 = docs.documents || [];
+  const doc =
+    docs2.find(
+      (item) =>
+        item.readyPages > 1 && item.pageCount > 1 && withReviews.has(item.id),
+    ) ?? docs2.find((item) => item.readyPages > 1 && item.pageCount > 1);
   if (doc) {
     target = { project, doc };
     break;
@@ -48,7 +59,9 @@ await page.goto(
 await page.locator("[data-viewer-toolbar]").waitFor({ timeout: 60000 });
 await page.waitForTimeout(1500);
 
-const back = page.getByRole("button", { name: /^← (Назад|Лист \d+)$/ });
+const back = page.getByRole("button", {
+  name: /^← (Назад|Лист \d+|К замечаниям листа)$/,
+});
 check("кнопка возврата в строке расшифровки", (await back.count()) > 0, await back.first().innerText());
 
 // Уходим на другой лист — кнопка должна предложить вернуться на первый.
@@ -68,6 +81,31 @@ check(
   `кнопка теперь: ${pageLabelNow}, масштаб: ${scale}`,
 );
 
+// Сценарий инженера: раскрыл список, выбрал замечание, нажал «Назад».
+const header = page.getByRole("button", { name: /Замечаний по листу/ });
+if (await header.count()) {
+  await header.first().click();
+  await page.waitForTimeout(400);
+  await page
+    .locator("ul.max-h-40 > li")
+    .first()
+    .locator("button")
+    .first()
+    .click();
+  await page.waitForTimeout(1200);
+  const picked = await back.first().innerText();
+  check("после выбора замечания кнопка ведёт к списку", /замечаниям/i.test(picked), picked);
+  await back.first().click();
+  await page.waitForTimeout(1200);
+  const stillHere = await header.count();
+  const listRows = await page.locator("ul.max-h-40 > li").count();
+  const focused = await page.locator(".pto-remark-text").count();
+  check("остались на листе со списком замечаний", stillHere > 0);
+  check("список снова свёрнут", listRows === 0, `строк: ${listRows}`);
+  check("подсветка выбранного снята", focused === 0, `подсветок цитаты: ${focused}`);
+  await page.screenshot({ path: "samples/shots/fix-back-to-list.png" });
+}
+
 // «Свернуть текст» должно быть последним в строке.
 const row = back.first().locator("xpath=..");
 const order = await row.evaluate((node) =>
@@ -77,8 +115,8 @@ const order = await row.evaluate((node) =>
 );
 console.log("кнопки строки:", order.join(" | "));
 check(
-  "«свернуть текст» в правом краю",
-  /Скрыть текст/.test(order[order.length - 1] || ""),
+  "«скрыть расшифровку» в правом краю",
+  /Скрыть расшифровку/.test(order[order.length - 1] || ""),
   order[order.length - 1],
 );
 await page.screenshot({ path: "samples/shots/fix-text-row.png" });
