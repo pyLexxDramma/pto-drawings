@@ -501,6 +501,96 @@ describe("важность по умолчанию (0072)", () => {
   });
 });
 
+describe("pruneAi: полный набор прогона заменяет строки ИИ", () => {
+  const project = "df97da8f-6666-4222-8333-444444444444";
+
+  function place(name: string, page: number, quote: string) {
+    return { documentId: null, documentName: name, pageNumber: page, quote };
+  }
+
+  it("снимает строку ИИ, которой в новом прогоне нет", async () => {
+    await store.ingestReviews(project, [
+      {
+        section: "ОВ",
+        aiFinding: "Отметка пола не сходится",
+        locations: [place("ОВ1.pdf", 10, "+0.150")],
+      },
+    ]);
+
+    // Тот же лист, место переехало: без pruneAi это была бы вторая строка.
+    const result = await store.ingestReviews(
+      project,
+      [
+        {
+          section: "ОВ",
+          aiFinding: "Отметка пола не сходится",
+          locations: [place("ОВ1.pdf", 12, "+0.150")],
+        },
+      ],
+      { pruneAi: true },
+    );
+
+    assert.equal(result.added, 1);
+    assert.equal(result.removed, 1);
+    assert.equal(result.total, 1);
+
+    const list = await store.listReviews(project);
+    assert.equal(list.length, 1);
+    assert.equal(list[0].locations[0].pageNumber, 12);
+  });
+
+  it("не трогает файлы вне прогона", async () => {
+    await store.ingestReviews(project, [
+      {
+        section: "ВК",
+        aiFinding: "Счётчик ВСХН-20: 7 шт против 4",
+        locations: [place("ВК2.pdf", 3, "7 шт")],
+      },
+    ]);
+
+    const result = await store.ingestReviews(
+      project,
+      [
+        {
+          section: "ОВ",
+          aiFinding: "Отметка пола не сходится",
+          locations: [place("ОВ1.pdf", 12, "+0.150")],
+        },
+      ],
+      { pruneAi: true },
+    );
+
+    assert.equal(result.removed, 0);
+    const names = (await store.listReviews(project)).map(
+      (item) => item.locations[0]?.documentName,
+    );
+    assert.deepEqual(names.sort(), ["ВК2.pdf", "ОВ1.pdf"]);
+  });
+
+  it("разобранное человеком остаётся", async () => {
+    const [review] = (await store.listReviews(project)).filter(
+      (item) => item.locations[0]?.documentName === "ОВ1.pdf",
+    );
+    await store.updateReview(project, review.id, { verdict: "confirmed" });
+
+    const result = await store.ingestReviews(
+      project,
+      [
+        {
+          section: "ОВ",
+          aiFinding: "Совсем другая находка",
+          locations: [place("ОВ1.pdf", 4, "1:200")],
+        },
+      ],
+      { pruneAi: true },
+    );
+
+    assert.equal(result.removed, 0);
+    const kept = await store.listReviews(project);
+    assert.ok(kept.some((item) => item.id === review.id));
+  });
+});
+
 describe("журнал разбора", () => {
   const project = "df97da8f-4444-4222-8333-444444444444";
 

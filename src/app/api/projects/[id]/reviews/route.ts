@@ -102,7 +102,11 @@ export async function PUT(request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Проект не найден" }, { status: 404 });
   }
 
-  const body = (await request.json()) as { reviews?: ReviewIngestItem[] };
+  const body = (await request.json()) as {
+    reviews?: ReviewIngestItem[];
+    /** Полный набор по файлам прогона: лишние строки ИИ снять. */
+    pruneAi?: boolean;
+  };
   if (!Array.isArray(body.reviews)) {
     return NextResponse.json(
       { error: "Ожидается { reviews: [...] }" },
@@ -120,6 +124,8 @@ export async function PUT(request: Request, context: RouteContext) {
     );
   }
 
-  const result = await ingestReviews(id, body.reviews);
+  const result = await ingestReviews(id, body.reviews, {
+    pruneAi: Boolean(body.pruneAi),
+  });
   return NextResponse.json(result);
 }

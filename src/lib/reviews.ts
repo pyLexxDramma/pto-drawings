@@ -332,11 +332,6 @@ async function writeStore(
   return reviews;
 }
 
-async function writeAll(projectId: string, items: Review[]) {
-  const { events } = await readStore(projectId);
-  return writeStore(projectId, items, events);
-}
-
 /** Новые записи журнала — сверху: читают всегда последние решения. */
 function logEvents(
   events: ReviewEvent[],
@@ -674,7 +669,17 @@ export type IngestResult = {
   /** Сколько находок прицепилось к замечаниям, заведённым руками. */
   enriched: number;
   total: number;
+  /** Снятые строки ИИ, если прогон прислал pruneAi. */
+  removed?: number;
 };
+
+/** Файл места: id, если конвейер его знает, иначе имя. */
+function locationDocKey(location: ReviewLocation): string {
+  return (
+    location.documentId ||
+    location.documentName.toLowerCase().replace(/\s+/g, " ").trim()
+  );
+}
 
 /**
  * Пакетный приём от агента конвейера. Разбор человека (verdict, comment,
@@ -683,10 +688,18 @@ export type IngestResult = {
 export async function ingestReviews(
   projectId: string,
   incoming: ReviewIngestItem[],
+  options?: {
+    /**
+     * Прогон прислал полный набор по своим файлам: строки ИИ, которых в нём
+     * нет, снимаем. Иначе смена мест плодила вторую строку вместо замены.
+     */
+    pruneAi?: boolean;
+  },
 ): Promise<IngestResult> {
   return withDataLock(async () => {
     const items = await readAll(projectId);
     const byId = new Map(items.map((item) => [item.id, item]));
+    const touched = new Set<string>();
     const idByKey = new Map(items.map((item) => [ingestKey(item), item.id]));
 
     /**
@@ -765,6 +778,7 @@ export async function ingestReviews(
         });
         byId.set(review.id, review);
         rememberKey(review);
+        touched.add(review.id);
         added += 1;
         continue;
       }
@@ -802,11 +816,53 @@ export async function ingestReviews(
       });
       byId.set(merged.id, merged);
       rememberKey(merged);
+      touched.add(merged.id);
       if (isEnrichment) enriched += 1;
       else updated += 1;
     }
 
-    const saved = await writeAll(projectId, [...byId.values()]);
-    return { added, updated, enriched, total: saved.length };
+    let removed = 0;
+    if (options?.pruneAi) {
+      // Только файлы этого прогона: публикация одного листа не должна уносить
+      // находки по остальным файлам проекта.
+      const scope = new Set(
+        incoming.flatMap((item) =>
+          (item.locations ?? []).map((location) =>
+            locationDocKey(normalizeLocation(location ?? {})),
+          ),
+        ),
+      );
+      for (const review of [...byId.values()]) {
+        if (touched.has(review.id)) continue;
+        // Разбор человека и формулировки инженера прогон не снимает.
+        if (review.origin !== "ai" || review.verdict !== "pending") continue;
+        const ours =
+          review.locations.length === 0 ||
+          review.locations.every((location) =>
+            scope.has(locationDocKey(location)),
+          );
+        if (!ours) continue;
+        byId.delete(review.id);
+        removed += 1;
+      }
+    }
+
+    const next = [...byId.values()];
+    const keep = new Set(next.map((item) => item.id));
+    const { events } = await readStore(projectId);
+    const saved = await writeStore(
+      projectId,
+      next,
+      removed > 0
+        ? events.filter((event) => keep.has(event.reviewId))
+        : events,
+    );
+    return {
+      added,
+      updated,
+      enriched,
+      total: saved.length,
+      ...(options?.pruneAi ? { removed } : {}),
+    };
   });
 }
