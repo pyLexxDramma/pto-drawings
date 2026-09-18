@@ -57,7 +57,7 @@ export function PageStrip({
   current,
   kinds,
   edited,
-  viewed: _viewed,
+  viewed,
   pageDots,
   ready,
   annotated,
@@ -217,6 +217,9 @@ export function PageStrip({
         const isReady = ready.has(pageNumber);
         const isFlagged = annotated?.has(pageNumber) ?? false;
         const isWorking = processingPage === pageNumber;
+        // Готов, но глазами не смотрели: в комплекте на 30 листов это главное,
+        // что нужно видеть в полоске.
+        const isUnseen = isReady && !isWorking && !viewed.has(pageNumber);
         return (
           <button
             key={pageNumber}
@@ -236,7 +239,7 @@ export function PageStrip({
               }
             }}
             onClick={() => onSelect(pageNumber)}
-            className={`mb-1 w-full overflow-visible rounded-md border p-0.5 text-left transition-[opacity,transform,box-shadow] duration-150 ${
+            className={`group/page mb-1 w-full overflow-visible rounded-md border p-0.5 text-left transition-[opacity,transform,box-shadow] duration-150 ${
               current === pageNumber
                 ? "z-[1] scale-[1.02] border-accent bg-white shadow-[0_0_0_2px_rgba(37,99,235,0.25)]"
                 : isWorking
@@ -267,6 +270,12 @@ export function PageStrip({
                 ) : (
                   <StatusDot className="bg-slate-300" label="Ждёт текст" />
                 )}
+                {isUnseen ? (
+                  <StatusDot
+                    className="border border-slate-400 bg-white"
+                    label="Лист не просмотрен"
+                  />
+                ) : null}
                 {dots ? (
                   /* Важность у замечаний листа разная — одна точка путала.
                      Показываем счётчик, цвет — по разбору. */
@@ -286,7 +295,9 @@ export function PageStrip({
                 ) : null}
               </span>
             </div>
-            <div className="truncate text-[8px] text-muted">
+            {/* Тип листа мешал считать миниатюры — показываем по наведению,
+                место под подпись держим, чтобы плитки не подпрыгивали. */}
+            <div className="truncate text-[8px] text-muted opacity-0 transition-opacity group-hover/page:opacity-100">
               {kind ? KIND_LABEL[kind].toLowerCase() : isWorking ? "сейчас" : "лист"}
             </div>
           </button>
