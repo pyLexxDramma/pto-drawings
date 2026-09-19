@@ -190,6 +190,8 @@ export function ReviewPane({
   const [searchOpen, setSearchOpen] = useState(false);
   /** Пользователь развернул прогресс поверх просмотра готового листа. */
   const [progressExpanded, setProgressExpanded] = useState(false);
+  /** Клик по листу в полоске / прогрессе — показать чертёж, не панель обработки. */
+  const [sheetPeek, setSheetPeek] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const pageRef = useRef(rawPage);
   /** След переходов по листам: куда вернёт «Назад» над расшифровкой. */
@@ -665,8 +667,8 @@ export function ReviewPane({
   const viewingProcessedSheet =
     progressIsCurrentDoc &&
     progressLive &&
-    ready.has(pageNumber) &&
-    pageNumber !== activeProcessingPage;
+    (sheetPeek ||
+      (ready.has(pageNumber) && pageNumber !== activeProcessingPage));
   const showFullProgress =
     progressIsCurrentDoc &&
     progressLive &&
@@ -725,6 +727,10 @@ export function ReviewPane({
     pushPageTrail(openPage.page);
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setRawPage(openPage.page);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSheetPeek(true);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setProgressExpanded(false);
     const quote = (openPage.quote ?? "").trim();
     setFocusQuote(quote);
     if (!openPage.reviewId) setFocusRect(null);
@@ -861,6 +867,9 @@ export function ReviewPane({
     navigatedRef.current = true;
     pushPageTrail(next);
     setRawPage(next);
+    setSheetPeek(true);
+    setProgressExpanded(false);
+    setPaneSolo(null);
   }
 
   /** Разбираем выбранное замечание — «Назад» сначала снимает выбор. */
@@ -891,6 +900,8 @@ export function ReviewPane({
       if (previous !== null) {
         navigatedRef.current = true;
         setRawPage(previous);
+        setSheetPeek(true);
+        setProgressExpanded(false);
       }
       setFocusQuote("");
       setFocusRect(null);
@@ -908,6 +919,8 @@ export function ReviewPane({
     }
     navigatedRef.current = true;
     setRawPage(previous);
+    setSheetPeek(true);
+    setProgressExpanded(false);
   }
 
   function stepVisible(delta: number) {
@@ -1701,10 +1714,7 @@ export function ReviewPane({
                 canceling={canceling}
                 onCancel={onCancel}
                 currentPage={pageNumber}
-                onOpenPage={(page) => {
-                  setPaneSolo(null);
-                  goToPage(page);
-                }}
+                onOpenPage={(page) => goToPage(page)}
                 onCollapse={
                   viewingProcessedSheet
                     ? () => setProgressExpanded(false)
