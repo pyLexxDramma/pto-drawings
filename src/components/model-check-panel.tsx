@@ -1,6 +1,6 @@
 "use client";
 
-import { IconCat } from "@/components/tool-icons";
+import { IconWarn } from "@/components/tool-icons";
 import {
   buildModelCheck,
   type ModelCheckInput,
@@ -21,8 +21,8 @@ export function ModelCheckChip({
 }) {
   if (count <= 0 && !open) return null;
   const label = open
-    ? "Закрыть сверку модели"
-    : `Сверка модели: ${count}`;
+    ? "Закрыть ошибки модели"
+    : `Ошибки модели: ${count}`;
   return (
     <button
       type="button"
@@ -30,14 +30,15 @@ export function ModelCheckChip({
       aria-label={label}
       title={label}
       onClick={onToggle}
-      className={`inline-flex shrink-0 items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold tabular-nums ${
+      className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold ${
         open
           ? "border-amber-800 bg-amber-800 text-white"
           : "border-amber-300 bg-amber-50 text-amber-950 hover:bg-amber-100"
       }`}
     >
-      <IconCat className="h-3 w-3" />
-      <span>{count}</span>
+      <IconWarn className="h-3 w-3" />
+      <span>Ошибки модели</span>
+      <span className="tabular-nums">{count}</span>
     </button>
   );
 }
@@ -55,7 +56,7 @@ export function ModelCheckPanel({
       <div className="flex shrink-0 items-center justify-between gap-2 border-b border-amber-200 bg-amber-50 px-3 py-2">
         <div className="min-w-0">
           <div className="text-[12px] font-semibold text-amber-950">
-            Сверка модели · лист {input.pageNumber}
+            Ошибки модели · лист {input.pageNumber}
           </div>
           <div className="text-[10px] text-amber-900/80">
             Не замечания в таблице — разбор, откуда текст и где модель ошиблась

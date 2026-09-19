@@ -212,24 +212,22 @@ export function IconEyeOff({ className = "h-4 w-4" }: IconProps) {
   );
 }
 
-export function IconCat({ className = "h-3.5 w-3.5" }: IconProps) {
+export function IconWarn({ className = "h-3.5 w-3.5" }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 16 16" fill="none" aria-hidden>
       <path
-        d="M3.2 6.2 5 2.6 7.1 6.1M12.8 6.2 11 2.6 8.9 6.1"
+        d="M8 2.4 14.4 13.6H1.6L8 2.4Z"
         stroke="currentColor"
         strokeWidth="1.5"
-        strokeLinecap="round"
         strokeLinejoin="round"
       />
       <path
-        d="M3 7.4c0 3.2 2.2 5.8 5 5.8s5-2.6 5-5.8c0-.4-1.8-.9-5-.9s-5 .5-5 .9Z"
+        d="M8 6.4v3.2"
         stroke="currentColor"
         strokeWidth="1.5"
-        strokeLinejoin="round"
+        strokeLinecap="round"
       />
-      <circle cx="6.3" cy="8.6" r="0.7" fill="currentColor" />
-      <circle cx="9.7" cy="8.6" r="0.7" fill="currentColor" />
+      <circle cx="8" cy="11.4" r="0.7" fill="currentColor" />
     </svg>
   );
 }
