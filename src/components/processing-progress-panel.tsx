@@ -25,6 +25,9 @@ type ProcessingProgressPanelProps = {
   showTech?: boolean;
   onCancel?: () => void;
   onCollapse?: () => void;
+  /** Открыть лист на чертеже (готовый или тот, что сейчас считается). */
+  onOpenPage?: (page: number) => void;
+  currentPage?: number | null;
 };
 
 function isCancelMessage(message: string | null | undefined) {
@@ -53,6 +56,8 @@ export function ProcessingProgressPanel({
   showTech = false,
   onCancel,
   onCollapse,
+  onOpenPage,
+  currentPage = null,
 }: ProcessingProgressPanelProps) {
   const cancelPending = isCancelMessage(document.errorMessage);
   const target = processingPercent(document);
@@ -132,45 +137,71 @@ export function ProcessingProgressPanel({
         <div className="text-[10px] font-medium uppercase tracking-wider text-muted">
           По листам
         </div>
-        {rows.map((row) => (
-          <div
-            key={row.pageNumber}
-            className={`rounded-md border px-2.5 py-2 ${
-              row.status === "active"
-                ? "border-sky-200 bg-white"
-                : row.status === "error"
-                  ? "border-red-200 bg-red-50/70"
-                  : "border-border bg-white"
-            }`}
-          >
-            <div className="mb-1 flex items-center justify-between gap-2 text-[11px]">
-              <span
-                className={`font-medium ${
-                  row.status === "error"
-                    ? "text-red-800"
-                    : row.status === "active"
-                      ? "text-sky-950"
-                      : row.status === "done"
-                        ? "text-emerald-900"
-                        : "text-muted"
-                }`}
-              >
-                Лист {row.pageNumber}
-                <span className="ml-1.5 font-normal opacity-80">
-                  · {row.label}
+        {rows.map((row) => {
+          const canOpen =
+            Boolean(onOpenPage) &&
+            (row.status === "done" ||
+              row.status === "active" ||
+              row.status === "error");
+          const isCurrent = currentPage === row.pageNumber;
+          const className = `w-full rounded-md border px-2.5 py-2 text-left ${
+            row.status === "active"
+              ? "border-sky-200 bg-white"
+              : row.status === "error"
+                ? "border-red-200 bg-red-50/70"
+                : "border-border bg-white"
+          } ${canOpen ? "cursor-pointer hover:border-sky-400 hover:bg-sky-50/80" : ""} ${
+            isCurrent ? "ring-1 ring-sky-400" : ""
+          }`;
+          const body = (
+            <>
+              <div className="mb-1 flex items-center justify-between gap-2 text-[11px]">
+                <span
+                  className={`font-medium ${
+                    row.status === "error"
+                      ? "text-red-800"
+                      : row.status === "active"
+                        ? "text-sky-950"
+                        : row.status === "done"
+                          ? "text-emerald-900"
+                          : "text-muted"
+                  }`}
+                >
+                  Лист {row.pageNumber}
+                  <span className="ml-1.5 font-normal opacity-80">
+                    · {row.label}
+                  </span>
                 </span>
-              </span>
-              <span className="font-semibold tabular-nums">
-                {formatProcessingPercent(row.percent)}
-              </span>
+                <span className="font-semibold tabular-nums">
+                  {formatProcessingPercent(row.percent)}
+                </span>
+              </div>
+              <ProgressTrack
+                value={row.percent}
+                tone={row.status === "active" ? "sky" : "accent"}
+                className="h-1.5"
+              />
+            </>
+          );
+          if (canOpen) {
+            return (
+              <button
+                key={row.pageNumber}
+                type="button"
+                className={className}
+                onClick={() => onOpenPage?.(row.pageNumber)}
+                title={`Открыть лист ${row.pageNumber} на чертеже`}
+              >
+                {body}
+              </button>
+            );
+          }
+          return (
+            <div key={row.pageNumber} className={className}>
+              {body}
             </div>
-            <ProgressTrack
-              value={row.percent}
-              tone={row.status === "active" ? "sky" : "accent"}
-              className="h-1.5"
-            />
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

@@ -1417,7 +1417,6 @@ export function ReviewPane({
           ? createPortal(
               <PageStrip
                 embedded
-                url={`/api/documents/${document.id}/file`}
                 total={total}
                 current={pageNumber}
                 kinds={kinds}
@@ -1701,6 +1700,11 @@ export function ReviewPane({
                 showTech={showTech}
                 canceling={canceling}
                 onCancel={onCancel}
+                currentPage={pageNumber}
+                onOpenPage={(page) => {
+                  setPaneSolo(null);
+                  goToPage(page);
+                }}
                 onCollapse={
                   viewingProcessedSheet
                     ? () => setProgressExpanded(false)

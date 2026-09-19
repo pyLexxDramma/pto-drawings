@@ -1,8 +1,5 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
-import type { PDFDocumentProxy } from "pdfjs-dist";
-import { renderPdfThumb } from "@/lib/pdf-thumb";
 import { PaneToggle } from "@/components/ui-chrome";
 import { VERDICT_COUNT } from "@/lib/review-colors";
 import {
@@ -21,7 +18,7 @@ function StatusDot({
 }) {
   return (
     <span className="group/dot relative inline-flex" aria-label={label}>
-      <span className={`h-3 w-3 rounded-full ${className}`} />
+      <span className={`h-2.5 w-2.5 rounded-full ${className}`} />
       <span className="pointer-events-none absolute bottom-full right-0 z-30 mb-1 hidden whitespace-nowrap rounded bg-slate-900 px-1.5 py-0.5 text-[10px] leading-none text-white shadow-sm group-hover/dot:block">
         {label}
       </span>
@@ -30,7 +27,6 @@ function StatusDot({
 }
 
 type PageStripProps = {
-  url: string;
   total: number;
   current: number;
   kinds: Map<number, PageKind>;
@@ -49,10 +45,7 @@ type PageStripProps = {
   embedded?: boolean;
 };
 
-const MAX_PARALLEL_RENDERS = 2;
-
 export function PageStrip({
-  url,
   total,
   current,
   kinds,
@@ -69,115 +62,6 @@ export function PageStrip({
   onCollapse,
   embedded = false,
 }: PageStripProps) {
-  const rootRef = useRef<HTMLDivElement>(null);
-  const canvases = useRef<Map<number, HTMLCanvasElement>>(new Map());
-  const nodes = useRef<Map<number, HTMLElement>>(new Map());
-  const observerRef = useRef<IntersectionObserver | null>(null);
-  const pdfRef = useRef<PDFDocumentProxy | null>(null);
-  const renderedPages = useRef<Set<number>>(new Set());
-  const visiblePages = useRef<Set<number>>(new Set());
-  const queue = useRef<number[]>([]);
-  const inFlight = useRef(0);
-  const currentRef = useRef(current);
-
-  const pump = useCallback(() => {
-    function run() {
-      const pdf = pdfRef.current;
-      if (!pdf) return;
-
-      while (inFlight.current < MAX_PARALLEL_RENDERS) {
-        const pageNumber = queue.current.shift();
-        if (pageNumber === undefined) return;
-        if (renderedPages.current.has(pageNumber)) continue;
-        if (!visiblePages.current.has(pageNumber)) continue;
-        const canvas = canvases.current.get(pageNumber);
-        if (!canvas) continue;
-
-        inFlight.current += 1;
-        renderedPages.current.add(pageNumber);
-        void renderPdfThumb(pdf, pageNumber, canvas)
-          .catch(() => {
-            // даём шанс перерисовать лист, когда он снова попадёт в кадр
-            renderedPages.current.delete(pageNumber);
-          })
-          .finally(() => {
-            inFlight.current -= 1;
-            run();
-          });
-      }
-    }
-    run();
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    let task: { promise: Promise<PDFDocumentProxy>; destroy: () => Promise<void> } | null =
-      null;
-
-    renderedPages.current.clear();
-    queue.current = [];
-
-    (async () => {
-      try {
-        const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
-        pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
-        task = pdfjs.getDocument({ url, withCredentials: false });
-        const pdf = await task.promise;
-        if (cancelled) {
-          void task.destroy();
-          return;
-        }
-        pdfRef.current = pdf;
-        visiblePages.current.add(currentRef.current);
-        queue.current.unshift(currentRef.current);
-        pump();
-      } catch {
-        // миниатюры необязательны: сам лист всё равно откроется
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      pdfRef.current = null;
-      void task?.destroy();
-    };
-  }, [pump, url]);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          const pageNumber = Number((entry.target as HTMLElement).dataset.page);
-          if (!pageNumber) continue;
-          if (entry.isIntersecting) {
-            visiblePages.current.add(pageNumber);
-            if (!renderedPages.current.has(pageNumber)) queue.current.push(pageNumber);
-          } else {
-            visiblePages.current.delete(pageNumber);
-          }
-        }
-        pump();
-      },
-      { root: rootRef.current, rootMargin: "400px 0px" },
-    );
-
-    observerRef.current = observer;
-    for (const node of nodes.current.values()) observer.observe(node);
-
-    return () => {
-      observer.disconnect();
-      observerRef.current = null;
-    };
-  }, [pump]);
-
-  useEffect(() => {
-    // Открытый лист рисуем первым, даже если полоса пролистана в другое место.
-    currentRef.current = current;
-    visiblePages.current.add(current);
-    if (!renderedPages.current.has(current)) queue.current.unshift(current);
-    pump();
-  }, [current, pump]);
-
   const pages = Array.from({ length: total }, (_, index) => index + 1).filter(
     (pageNumber) => !hidden?.has(pageNumber),
   );
@@ -190,6 +74,7 @@ export function PageStrip({
           : "flex h-full min-h-0 shrink-0 flex-col border-r border-border bg-surface-2"
       }
       style={embedded ? undefined : { width }}
+      data-page-strip
     >
       {embedded ? (
         <div className="shrink-0 border-b border-border px-2 py-1 text-[10px] font-semibold text-muted">
@@ -206,60 +91,45 @@ export function PageStrip({
           />
         </div>
       ) : null}
-      <div ref={rootRef} className="min-h-0 flex-1 overflow-y-auto p-1.5">
-      {pages.length === 0 && emptyLabel ? (
-        <div className="px-1 py-2 text-[10px] leading-snug text-muted">{emptyLabel}</div>
-      ) : null}
-      {pages.map((pageNumber) => {
-        const kind = kinds.get(pageNumber);
-        const isEdited = edited.has(pageNumber);
-        const dots = pageDots?.get(pageNumber);
-        const isReady = ready.has(pageNumber);
-        const isFlagged = annotated?.has(pageNumber) ?? false;
-        const isWorking = processingPage === pageNumber;
-        // Готов, но глазами не смотрели: в комплекте на 30 листов это главное,
-        // что нужно видеть в полоске.
-        const isUnseen = isReady && !isWorking && !viewed.has(pageNumber);
-        return (
-          <button
-            key={pageNumber}
-            type="button"
-            data-page={pageNumber}
-            ref={(node) => {
-              const previous = nodes.current.get(pageNumber);
-              if (previous && previous !== node) {
-                observerRef.current?.unobserve(previous);
-              }
-              if (node) {
-                nodes.current.set(pageNumber, node);
-                observerRef.current?.observe(node);
-              } else {
-                nodes.current.delete(pageNumber);
-                visiblePages.current.delete(pageNumber);
-              }
-            }}
-            onClick={() => onSelect(pageNumber)}
-            className={`group/page mb-1 w-full overflow-visible rounded-md border p-0.5 text-left transition-[opacity,transform,box-shadow] duration-150 ${
-              current === pageNumber
-                ? "z-[1] scale-[1.02] border-accent bg-white shadow-[0_0_0_2px_rgba(37,99,235,0.25)]"
-                : isWorking
-                  ? "pto-page-working border-sky-400 bg-white opacity-90"
-                  : "border-transparent opacity-45 hover:border-border hover:bg-white hover:opacity-100"
-            }`}
-          >
-            {/* Постоянная высота места под миниатюру: иначе все листы сразу попадают в кадр. */}
-            <span className="block aspect-[1/1.41] w-full overflow-hidden rounded-[3px] bg-white">
-              <canvas
-                ref={(node) => {
-                  if (node) canvases.current.set(pageNumber, node);
-                  else canvases.current.delete(pageNumber);
-                }}
-                className="h-full w-full object-contain"
-              />
-            </span>
-            <div className="mt-0.5 flex items-center justify-between gap-0.5">
-              <span className="text-[9px] font-medium">{pageNumber}</span>
-              <span className="flex items-center gap-1 overflow-visible">
+      <div className="min-h-0 flex-1 overflow-y-auto p-1">
+        {pages.length === 0 && emptyLabel ? (
+          <div className="px-1 py-2 text-[10px] leading-snug text-muted">
+            {emptyLabel}
+          </div>
+        ) : null}
+        {pages.map((pageNumber) => {
+          const kind = kinds.get(pageNumber);
+          const isEdited = edited.has(pageNumber);
+          const dots = pageDots?.get(pageNumber);
+          const isReady = ready.has(pageNumber);
+          const isFlagged = annotated?.has(pageNumber) ?? false;
+          const isWorking = processingPage === pageNumber;
+          const isUnseen = isReady && !isWorking && !viewed.has(pageNumber);
+          const kindLabel = kind
+            ? KIND_LABEL[kind]
+            : isWorking
+              ? "сейчас"
+              : "лист";
+          return (
+            <button
+              key={pageNumber}
+              type="button"
+              data-page={pageNumber}
+              aria-current={current === pageNumber ? "page" : undefined}
+              onClick={() => onSelect(pageNumber)}
+              title={`${kindLabel} ${pageNumber}`}
+              className={`mb-0.5 flex w-full items-center gap-1 rounded px-1 py-0.5 text-left ${
+                current === pageNumber
+                  ? "bg-white ring-1 ring-accent/50"
+                  : isWorking
+                    ? "pto-page-working bg-sky-50"
+                    : "hover:bg-white"
+              }`}
+            >
+              <span className="min-w-0 flex-1 truncate text-[10px] font-medium leading-tight">
+                Лист {pageNumber}
+              </span>
+              <span className="flex shrink-0 items-center gap-0.5 overflow-visible">
                 {isWorking ? (
                   <StatusDot
                     className="animate-pulse bg-sky-500 motion-reduce:animate-none"
@@ -277,8 +147,6 @@ export function PageStrip({
                   />
                 ) : null}
                 {dots ? (
-                  /* Важность у замечаний листа разная — одна точка путала.
-                     Показываем счётчик, цвет — по разбору. */
                   <span
                     className={`group/dot relative inline-flex min-w-[14px] items-center justify-center rounded-full px-1 text-[9px] font-semibold leading-[14px] tabular-nums ${VERDICT_COUNT[dots.verdict]}`}
                     aria-label={`Замечаний: ${dots.count} · разбор: ${REVIEW_VERDICT_LABEL[dots.verdict]}`}
@@ -294,17 +162,10 @@ export function PageStrip({
                   <StatusDot className="bg-amber-500" label="Лист правили" />
                 ) : null}
               </span>
-            </div>
-            {/* Тип листа мешал считать миниатюры — показываем по наведению,
-                место под подпись держим, чтобы плитки не подпрыгивали. */}
-            <div className="truncate text-[8px] text-muted opacity-0 transition-opacity group-hover/page:opacity-100">
-              {kind ? KIND_LABEL[kind].toLowerCase() : isWorking ? "сейчас" : "лист"}
-            </div>
-          </button>
-        );
-      })}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
 }
-
