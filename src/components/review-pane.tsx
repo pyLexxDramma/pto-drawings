@@ -16,6 +16,11 @@ import { MarkdownView } from "@/components/markdown-view";
 import { PageStrip } from "@/components/page-strip";
 import { PdfPage } from "@/components/pdf-page";
 import { PaneToggle, SegmentedTabs } from "@/components/ui-chrome";
+import {
+  ModelCheckChip,
+  ModelCheckPanel,
+  modelIssueCount,
+} from "@/components/model-check-panel";
 import { IconChevronLeft, IconChevronRight } from "@/components/tool-icons";
 import { KEYMAP, KEYMAP_GROUPS } from "@/lib/keymap";
 import { VoiceNoteButton } from "@/components/voice-note";
@@ -186,7 +191,7 @@ export function ReviewPane({
     const cached = getDocumentView(document.id);
     return cached?.paneSolo ?? null;
   });
-  const [sidePanel, setSidePanel] = useState<"text" | "notes">("text");
+  const [sidePanel, setSidePanel] = useState<"text" | "notes" | "model">("text");
   const [searchOpen, setSearchOpen] = useState(false);
   /** Пользователь развернул прогресс поверх просмотра готового листа. */
   const [progressExpanded, setProgressExpanded] = useState(false);
@@ -1273,8 +1278,16 @@ export function ReviewPane({
   const pageWarning = document.pageWarnings?.[String(pageNumber)] ?? null;
   const isMockPage = Boolean(page?.markdown.includes("[MOCK]"));
   const errorCount = Object.keys(document.pageErrors ?? {}).length;
-  const suspectNumbers =
-    page?.numbers?.suspect?.filter((item) => item.trim().length > 0) ?? [];
+  const modelCheckInput = {
+    pageNumber,
+    source: page?.source,
+    warnings: page?.warnings ?? [],
+    pageWarning,
+    pageError,
+    numbers: page?.numbers,
+    reviewCount: pageReviews.length,
+  };
+  const modelIssues = modelIssueCount(modelCheckInput);
 
   useEffect(() => {
     setHoverNoteId(null);
@@ -1290,6 +1303,10 @@ export function ReviewPane({
   useEffect(() => {
     if (pendingRect) setSidePanel("notes");
   }, [pendingRect]);
+
+  useEffect(() => {
+    if (sidePanel === "model" && modelIssues <= 0) setSidePanel("text");
+  }, [modelIssues, pageNumber, sidePanel]);
 
   const notesPanel = (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -1766,6 +1783,13 @@ export function ReviewPane({
                 </span>
               ) : null}
               <span className="ml-auto flex shrink-0 items-center gap-1">
+                <ModelCheckChip
+                  count={modelIssues}
+                  open={sidePanel === "model"}
+                  onToggle={() =>
+                    setSidePanel((prev) => (prev === "model" ? "text" : "model"))
+                  }
+                />
                 <PaneToggle
                   expanded
                   align="right"
@@ -1778,30 +1802,13 @@ export function ReviewPane({
 
             {sidePanel === "notes" ? (
               notesPanel
+            ) : sidePanel === "model" ? (
+              <ModelCheckPanel
+                input={modelCheckInput}
+                onBack={() => setSidePanel("text")}
+              />
             ) : (
               <>
-            {page && page.warnings.length > 0 ? (
-              <div className="border-b border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
-                {page.warnings.map((warning) => (
-                  <div key={warning}>{warning}</div>
-                ))}
-              </div>
-            ) : null}
-
-            {pageWarning && !(page && page.warnings.length > 0) ? (
-              <div className="border-b border-orange-200 bg-orange-50 px-3 py-2 text-[11px] text-orange-900">
-                {pageWarning}
-              </div>
-            ) : null}
-
-            {suspectNumbers.length > 0 ? (
-              <div className="border-b border-rose-200 bg-rose-50 px-3 py-2 text-[11px] text-rose-900">
-                <div className="font-medium">Числа для сверки с оригиналом</div>
-                <div className="mt-0.5 break-words">
-                  {suspectNumbers.join(" · ")}
-                </div>
-              </div>
-            ) : null}
 
             {searchOpen ? (
               <div className="border-b border-border px-3 py-2">
