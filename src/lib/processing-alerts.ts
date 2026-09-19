@@ -20,8 +20,15 @@ type AlertSource = Pick<
   | "createdAt"
 >;
 
-function isCancelMessage(message: string | null | undefined) {
-  return Boolean(message && message.startsWith("Отмена"));
+export function isCancelMessage(message: string | null | undefined) {
+  if (!message) return false;
+  return (
+    message.startsWith("Отмена") || message.startsWith("Обработка отменена")
+  );
+}
+
+export function processingCanceled(doc: AlertSource): boolean {
+  return isCancelMessage(doc.errorMessage);
 }
 
 /** Падения файла и отдельных листов — то, что иначе прячется в журнале. */

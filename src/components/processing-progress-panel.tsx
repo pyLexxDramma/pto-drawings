@@ -28,7 +28,10 @@ type ProcessingProgressPanelProps = {
 };
 
 function isCancelMessage(message: string | null | undefined) {
-  return Boolean(message && message.startsWith("Отмена"));
+  return Boolean(
+    message &&
+      (message.startsWith("Отмена") || message.startsWith("Обработка отменена")),
+  );
 }
 
 export function processingStatusLabel(

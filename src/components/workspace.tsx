@@ -54,6 +54,8 @@ import {
 import { LiveProgressDock } from "@/components/processing-progress-panel";
 import {
   collectProcessingAlerts,
+  isCancelMessage,
+  processingCanceled,
   processingFailed,
   processingFailureReason,
 } from "@/lib/processing-alerts";
@@ -129,7 +131,7 @@ function pickLiveJob(
     (doc) =>
       doc.status === "queued" ||
       doc.status === "processing" ||
-      Boolean(doc.errorMessage?.startsWith("Отмена")),
+      isCancelMessage(doc.errorMessage),
   );
   if (active.length === 0) return null;
   return (
@@ -889,7 +891,7 @@ export function Workspace({
     const active =
       liveJobDoc.status === "queued" ||
       liveJobDoc.status === "processing" ||
-      Boolean(liveJobDoc.errorMessage?.startsWith("Отмена"));
+      isCancelMessage(liveJobDoc.errorMessage);
     if (!active && liveJobDoc.status !== "done" && liveJobDoc.status !== "error") {
       return;
     }
@@ -1014,7 +1016,7 @@ export function Workspace({
         (was === "queued" || was === "processing") &&
         (doc.status === "done" || doc.status === "error")
       ) {
-        const canceled = Boolean(doc.errorMessage?.startsWith("Отмена"));
+        const canceled = isCancelMessage(doc.errorMessage);
         const failed = processingFailed(doc);
         const pages = Object.entries(doc.pageErrors ?? {});
         const firstPage = pages[0];
@@ -1440,15 +1442,26 @@ export function Workspace({
 
   async function handleDelete(id: string) {
     const doc = documents.find((item) => item.id === id);
-    const label = doc?.originalName ?? "файл";
-    if (!window.confirm(`Удалить файл «${label}»?`)) return;
-    const response = await fetch(`/api/documents/${id}`, { method: "DELETE" });
-    if (!response.ok) {
-      setError("Не удалось удалить файл");
-      return;
+    const pack = doc?.kitId
+      ? documents.filter((item) => item.kitId === doc.kitId)
+      : doc
+        ? [doc]
+        : [];
+    const ids = pack.length > 0 ? pack.map((item) => item.id) : [id];
+    const label =
+      pack.length > 1
+        ? `комплект «${doc?.originalName ?? "файл"}» (${pack.length} файла)`
+        : `файл «${doc?.originalName ?? "файл"}»`;
+    if (!window.confirm(`Удалить ${label}?`)) return;
+    for (const docId of ids) {
+      const response = await fetch(`/api/documents/${docId}`, { method: "DELETE" });
+      if (!response.ok) {
+        setError("Не удалось удалить файл");
+        return;
+      }
     }
-    setDocuments((prev) => prev.filter((item) => item.id !== id));
-    if (selectedId === id) setSelectedId(null);
+    setDocuments((prev) => prev.filter((item) => !ids.includes(item.id)));
+    if (selectedId && ids.includes(selectedId)) setSelectedId(null);
     if (projectId) {
       void loadEdits(projectId);
       void loadNotes(projectId);
@@ -1599,7 +1612,7 @@ export function Workspace({
         liveJobDoc.status === "processing" ||
         liveJobDoc.status === "done" ||
         liveJobDoc.status === "error" ||
-        liveJobDoc.errorMessage?.startsWith("Отмена")),
+        isCancelMessage(liveJobDoc.errorMessage)),
   );
   const filteredNotes = notes.filter((note) => {
     if (notesFilter === "all") return true;
@@ -2076,15 +2089,19 @@ export function Workspace({
                           const elapsedLabel = formatElapsed(doc.pipelineElapsedSec);
                           const uploadedLabel = formatDate(doc.createdAt);
                           const failed = processingFailed(doc);
+                          const canceled = processingCanceled(doc);
+                          const blocked = failed || canceled;
                           return (
                           <div
                             key={doc.id}
                             className={`mb-0.5 rounded ${
                               failed
                                 ? "border border-red-300 bg-red-50"
-                                : selectedId === doc.id
-                                  ? "bg-accent/15 ring-1 ring-accent/40"
-                                  : "hover:bg-slate-200/90"
+                                : canceled
+                                  ? "border border-amber-300 bg-amber-50"
+                                  : selectedId === doc.id
+                                    ? "bg-accent/15 ring-1 ring-accent/40"
+                                    : "hover:bg-slate-200/90"
                             }`}
                             data-document-row={doc.id}
                           >
@@ -2108,10 +2125,18 @@ export function Workspace({
                               <span className="flex items-center gap-1.5">
                                 <span
                                   className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                                    failed ? "bg-red-500" : STATUS_DOT[doc.status]
+                                    failed
+                                      ? "bg-red-500"
+                                      : canceled
+                                        ? "bg-amber-500"
+                                        : STATUS_DOT[doc.status]
                                   }`}
                                   title={
-                                    failed ? "Ошибка обработки" : STATUS_LABEL[doc.status]
+                                    failed
+                                      ? "Ошибка обработки"
+                                      : canceled
+                                        ? "Обработка остановлена"
+                                        : STATUS_LABEL[doc.status]
                                   }
                                   aria-hidden
                                 />
@@ -2122,6 +2147,14 @@ export function Workspace({
                                     title={processingFailureReason(doc)}
                                   >
                                     не обработан
+                                  </span>
+                                ) : null}
+                                {canceled ? (
+                                  <span
+                                    className="shrink-0 rounded bg-amber-600 px-1 text-[9px] font-bold uppercase tracking-wide text-white"
+                                    title={doc.errorMessage ?? "остановлен"}
+                                  >
+                                    остановлен
                                   </span>
                                 ) : null}
                                 {doc.kitId ? (
@@ -2180,19 +2213,40 @@ export function Workspace({
                               </ActionMenu>
                             </div>
                           </div>
-                          {failed ? (
+                          {blocked ? (
                             <div className="space-y-1.5 px-1.5 pb-1.5 pt-0.5">
-                              <div className="text-[10px] leading-snug text-red-950">
-                                <span className="font-semibold">Не обработан.</span>{" "}
-                                {processingFailureReason(doc)}
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => void handleRetry(doc.id, true)}
-                                className="w-full rounded-md bg-red-600 px-2 py-1.5 text-[11px] font-bold text-white hover:bg-red-700"
+                              <div
+                                className={`text-[10px] leading-snug ${
+                                  failed ? "text-red-950" : "text-amber-950"
+                                }`}
                               >
-                                Запустить заново
-                              </button>
+                                <span className="font-semibold">
+                                  {canceled ? "Остановлен." : "Не обработан."}
+                                </span>{" "}
+                                {canceled
+                                  ? (doc.errorMessage ?? "Обработка отменена.")
+                                  : processingFailureReason(doc)}
+                              </div>
+                              <div className="flex gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => void handleRetry(doc.id, true)}
+                                  className={`min-w-0 flex-1 rounded-md px-2 py-1.5 text-[11px] font-bold text-white ${
+                                    failed
+                                      ? "bg-red-600 hover:bg-red-700"
+                                      : "bg-amber-600 hover:bg-amber-700"
+                                  }`}
+                                >
+                                  Запустить заново
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => void handleDelete(doc.id)}
+                                  className="shrink-0 rounded-md border border-slate-400 bg-white px-2 py-1.5 text-[11px] font-semibold text-slate-800 hover:bg-slate-100"
+                                >
+                                  Удалить
+                                </button>
+                              </div>
                             </div>
                           ) : null}
                           </div>
@@ -2281,7 +2335,7 @@ export function Workspace({
               liveJobDoc &&
               (liveJobDoc.status === "queued" ||
                 liveJobDoc.status === "processing" ||
-                Boolean(liveJobDoc.errorMessage?.startsWith("Отмена")))
+                isCancelMessage(liveJobDoc.errorMessage))
                 ? liveJobDoc
                 : null
             }

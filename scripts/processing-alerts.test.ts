@@ -24,6 +24,21 @@ describe("collectProcessingAlerts", () => {
     assert.equal(alerts[0].message, "OOM killed");
   });
 
+  it("не орёт на финальное «Обработка отменена»", () => {
+    const doc = {
+      id: "d2b",
+      originalName: "Стоп.pdf",
+      status: "error" as const,
+      errorMessage:
+        "Обработка отменена. Сохранено листов: 1. Можно «Обработать заново» — готовые не пересчитаются.",
+      pageErrors: {},
+      pipelineFinishedAt: "2026-09-14T17:00:00.000Z",
+      createdAt: "2026-09-14T16:00:00.000Z",
+    };
+    assert.equal(collectProcessingAlerts([doc]).length, 0);
+    assert.equal(processingFailed(doc), false);
+  });
+
   it("не орёт на пользовательский Стоп", () => {
     const alerts = collectProcessingAlerts([
       {

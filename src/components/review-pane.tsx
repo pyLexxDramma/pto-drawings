@@ -116,7 +116,10 @@ function jobLiveProcessing(doc: DocumentRecord) {
   return (
     doc.status === "queued" ||
     doc.status === "processing" ||
-    Boolean(doc.errorMessage?.startsWith("Отмена"))
+    Boolean(
+      doc.errorMessage?.startsWith("Отмена") ||
+        doc.errorMessage?.startsWith("Обработка отменена"),
+    )
   );
 }
 
@@ -259,7 +262,10 @@ export function ReviewPane({
   }, [paneSolo, document.id]);
   const processing =
     document.status === "queued" || document.status === "processing";
-  const cancelPending = Boolean(document.errorMessage?.startsWith("Отмена"));
+  const cancelPending = Boolean(
+    document.errorMessage?.startsWith("Отмена") ||
+      document.errorMessage?.startsWith("Обработка отменена"),
+  );
   const liveProcessing = processing || cancelPending;
   const progressDocument =
     activeJobDocument && jobLiveProcessing(activeJobDocument)

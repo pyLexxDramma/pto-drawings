@@ -119,7 +119,10 @@ export function activeDocumentIds() {
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function isCancelMessage(message: string | null | undefined) {
-  return Boolean(message && message.startsWith("Отмена"));
+  return Boolean(
+    message &&
+      (message.startsWith("Отмена") || message.startsWith("Обработка отменена")),
+  );
 }
 
 class PermanentError extends Error {}
