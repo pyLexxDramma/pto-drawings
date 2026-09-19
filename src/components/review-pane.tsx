@@ -1766,14 +1766,6 @@ export function ReviewPane({
                 </span>
               ) : null}
               <span className="ml-auto flex shrink-0 items-center gap-1">
-                {sidePanel === "text" && page?.source === "model" ? (
-                  <span
-                    className="truncate text-[10px] text-orange-700"
-                    title="Текстового слоя нет — содержимое прочитано по изображению; сверьте числа и марки с оригиналом"
-                  >
-                    По изображению · сверить
-                  </span>
-                ) : null}
                 <PaneToggle
                   expanded
                   align="right"
