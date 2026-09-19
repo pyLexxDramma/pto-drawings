@@ -20,9 +20,9 @@ function StatusDot({
   label: string;
 }) {
   return (
-    <span className="group/dot relative inline-flex" title={label}>
+    <span className="group/dot relative inline-flex" aria-label={label}>
       <span className={`h-3 w-3 rounded-full ${className}`} />
-      <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-1 hidden -translate-x-1/2 whitespace-nowrap rounded bg-slate-900 px-1.5 py-0.5 text-[10px] leading-none text-white shadow-sm group-hover/dot:block">
+      <span className="pointer-events-none absolute bottom-full right-0 z-30 mb-1 hidden whitespace-nowrap rounded bg-slate-900 px-1.5 py-0.5 text-[10px] leading-none text-white shadow-sm group-hover/dot:block">
         {label}
       </span>
     </span>
@@ -281,10 +281,10 @@ export function PageStrip({
                      Показываем счётчик, цвет — по разбору. */
                   <span
                     className={`group/dot relative inline-flex min-w-[14px] items-center justify-center rounded-full px-1 text-[9px] font-semibold leading-[14px] tabular-nums ${VERDICT_COUNT[dots.verdict]}`}
-                    title={`Замечаний: ${dots.count} · разбор: ${REVIEW_VERDICT_LABEL[dots.verdict]}`}
+                    aria-label={`Замечаний: ${dots.count} · разбор: ${REVIEW_VERDICT_LABEL[dots.verdict]}`}
                   >
                     {dots.count}
-                    <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-1 hidden -translate-x-1/2 whitespace-nowrap rounded bg-slate-900 px-1.5 py-0.5 text-[10px] font-normal leading-none text-white shadow-sm group-hover/dot:block">
+                    <span className="pointer-events-none absolute bottom-full right-0 z-30 mb-1 hidden whitespace-nowrap rounded bg-slate-900 px-1.5 py-0.5 text-[10px] font-normal leading-none text-white shadow-sm group-hover/dot:block">
                       {`Замечаний: ${dots.count} · разбор: ${REVIEW_VERDICT_LABEL[dots.verdict]}`}
                     </span>
                   </span>
