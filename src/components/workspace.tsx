@@ -811,8 +811,13 @@ export function Workspace({
         const fromReviews =
           storedJump?.from === "reviews" || params.get("from") === "reviews";
         const target =
-          (deepProject && list.find((item) => item.id === deepProject)) ||
-          list[0];
+          deepProject && list.find((item) => item.id === deepProject);
+
+        if (!target) {
+          setProjectId("");
+          setDescriptionDraft("");
+          return;
+        }
 
         setProjectId(target.id);
         setDescriptionDraft(target.description ?? "");
@@ -2098,7 +2103,7 @@ export function Workspace({
                               failed
                                 ? "border border-red-300 bg-red-50"
                                 : canceled
-                                  ? "border border-amber-300 bg-amber-50"
+                                  ? "border border-red-300 bg-red-50"
                                   : selectedId === doc.id
                                     ? "bg-accent/15 ring-1 ring-accent/40"
                                     : "hover:bg-slate-200/90"
@@ -2128,7 +2133,7 @@ export function Workspace({
                                     failed
                                       ? "bg-red-500"
                                       : canceled
-                                        ? "bg-amber-500"
+                                        ? "bg-red-500"
                                         : STATUS_DOT[doc.status]
                                   }`}
                                   title={
@@ -2151,7 +2156,7 @@ export function Workspace({
                                 ) : null}
                                 {canceled ? (
                                   <span
-                                    className="shrink-0 rounded bg-amber-600 px-1 text-[9px] font-bold uppercase tracking-wide text-white"
+                                    className="shrink-0 rounded bg-red-600 px-1 text-[9px] font-bold uppercase tracking-wide text-white"
                                     title={doc.errorMessage ?? "остановлен"}
                                   >
                                     остановлен
@@ -2215,11 +2220,7 @@ export function Workspace({
                           </div>
                           {blocked ? (
                             <div className="space-y-1.5 px-1.5 pb-1.5 pt-0.5">
-                              <div
-                                className={`text-[10px] leading-snug ${
-                                  failed ? "text-red-950" : "text-amber-950"
-                                }`}
-                              >
+                              <div className="text-[10px] leading-snug text-red-950">
                                 <span className="font-semibold">
                                   {canceled ? "Остановлен." : "Не обработан."}
                                 </span>{" "}
@@ -2231,18 +2232,14 @@ export function Workspace({
                                 <button
                                   type="button"
                                   onClick={() => void handleRetry(doc.id, true)}
-                                  className={`min-w-0 flex-1 rounded-md px-2 py-1.5 text-[11px] font-bold text-white ${
-                                    failed
-                                      ? "bg-red-600 hover:bg-red-700"
-                                      : "bg-amber-600 hover:bg-amber-700"
-                                  }`}
+                                  className="min-w-0 flex-1 rounded-md bg-emerald-600 px-2 py-0.5 text-[10px] font-bold leading-tight text-white hover:bg-emerald-700"
                                 >
                                   Запустить заново
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => void handleDelete(doc.id)}
-                                  className="shrink-0 rounded-md border border-slate-400 bg-white px-2 py-1.5 text-[11px] font-semibold text-slate-800 hover:bg-slate-100"
+                                  className="shrink-0 rounded-md border border-slate-400 bg-white px-2 py-0.5 text-[10px] font-semibold leading-tight text-slate-800 hover:bg-slate-100"
                                 >
                                   Удалить
                                 </button>
