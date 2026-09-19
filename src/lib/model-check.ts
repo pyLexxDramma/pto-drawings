@@ -122,13 +122,14 @@ export function buildModelCheck(input: ModelCheckInput): ModelCheck {
     "Пары в тексте есть, а в таблице нет — это конвейер, не файл: после VLM должна работать та же искалка, что на DWG.",
   ];
 
-  const sections: ModelCheckSection[] = [
+  const allSections: ModelCheckSection[] = [
     { id: "source", title: "Откуда текст", items: unique(sourceItems) },
     { id: "compare", title: "Что с чем сверять", items: unique(compareItems) },
     { id: "missed", title: "Что модель не нашла", items: unique(missedItems) },
     { id: "process", title: "Ошибки обработки", items: unique(processItems) },
     { id: "fix", title: "Как исправить", items: fixItems },
-  ].filter((section) => section.items.length > 0);
+  ];
+  const sections = allSections.filter((section) => section.items.length > 0);
 
   const count =
     extras.length +

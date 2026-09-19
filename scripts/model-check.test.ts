@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { buildModelCheck } from "./model-check.ts";
+import { buildModelCheck } from "../src/lib/model-check.ts";
 
 describe("buildModelCheck", () => {
   it("не показывает значок на чистом CAD-листе", () => {
