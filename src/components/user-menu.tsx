@@ -18,9 +18,6 @@ type UserMenuProps = {
   onUsers?: () => void;
   /** Журналы правок — только админу. */
   onAudit?: () => void;
-  /** Сверка модели текущего листа — вкладка «Агент ИИ (ошибки)». */
-  onAgentErrors?: () => void;
-  agentErrorCount?: number;
   onPassword: () => void;
   onLogout: () => void;
 };
@@ -34,8 +31,6 @@ export function UserMenu({
   sheetMenu = null,
   onUsers,
   onAudit,
-  onAgentErrors,
-  agentErrorCount = 0,
   onPassword,
   onLogout,
 }: UserMenuProps) {
@@ -165,22 +160,6 @@ export function UserMenu({
               }}
             >
               Журналы правок
-            </button>
-          ) : null}
-          {onAgentErrors ? (
-            <button
-              type="button"
-              role="menuitem"
-              className="flex w-full items-center justify-between px-3 py-1.5 text-left text-xs hover:bg-bg"
-              onClick={() => {
-                setOpen(false);
-                onAgentErrors();
-              }}
-            >
-              <span>Агент ИИ (ошибки)</span>
-              {agentErrorCount > 0 ? (
-                <span className="tabular-nums text-amber-800">{agentErrorCount}</span>
-              ) : null}
             </button>
           ) : null}
           <button

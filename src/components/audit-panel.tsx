@@ -257,7 +257,12 @@ export function AuditPanel({
             size="xs"
             value={tab}
             onChange={(value) => setTab(value as Tab)}
-            options={TABS}
+            options={TABS.map((item) => {
+              const agentCount = modelCheck?.count ?? 0;
+              return item.id === "agent" && agentCount > 0
+                ? { ...item, label: `${item.label} ${agentCount}` }
+                : item;
+            })}
           />
           {busy ? <span className="text-[11px] text-muted">Читаем…</span> : null}
         </div>

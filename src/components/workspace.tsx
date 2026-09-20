@@ -1879,15 +1879,6 @@ export function Workspace({
                     }
                   : undefined
               }
-              onAgentErrors={
-                user.role === "admin"
-                  ? () => {
-                      setAuditTab("agent");
-                      setShowAudit(true);
-                    }
-                  : undefined
-              }
-              agentErrorCount={modelCheck?.count ?? 0}
               onPassword={() => setShowPassword(true)}
               onLogout={() => {
                 void (async () => {

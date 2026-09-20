@@ -75,7 +75,7 @@ type ReviewPaneProps = {
   showTech?: boolean;
   /** Открыть историю правок текущего листа — пункт в верхнем меню пользователя. */
   onPageLogReady?: (api: { open: () => void; count: number } | null) => void;
-  /** Сверка модели текущего листа — вкладка Админ → Агент ИИ (ошибки). */
+  /** Сверка модели текущего листа — вкладка журналов «Агент ИИ (ошибки)». */
   onModelCheckChange?: (state: {
     count: number;
     input: ModelCheckInput;
