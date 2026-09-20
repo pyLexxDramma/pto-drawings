@@ -10,6 +10,7 @@ import {
   type FormEvent,
 } from "react";
 import { AuditPanel } from "@/components/audit-panel";
+import type { ModelCheckInput } from "@/lib/model-check";
 import { PasswordPanel } from "@/components/password-panel";
 import { ColumnResizer, clamp } from "@/components/column-resizer";
 import { ReviewPane } from "@/components/review-pane";
@@ -356,7 +357,13 @@ export function Workspace({
   const [liveJobDoc, setLiveJobDoc] = useState<DocumentRecord | null>(null);
   const [fullProgressVisible, setFullProgressVisible] = useState(false);
   const [liveDockCollapsed, setLiveDockCollapsed] = useState(false);
-  const [auditTab, setAuditTab] = useState<"log" | "processing">("log");
+  const [auditTab, setAuditTab] = useState<"log" | "processing" | "agent">(
+    "log",
+  );
+  const [modelCheck, setModelCheck] = useState<{
+    count: number;
+    input: ModelCheckInput;
+  } | null>(null);
   const [showReviews, setShowReviews] = useState(false);
   /** Лист, открытый поверх таблицы замечаний по ссылке «Где в ПД». */
   const [peekOpen, setPeekOpen] = useState(false);
@@ -1872,6 +1879,15 @@ export function Workspace({
                     }
                   : undefined
               }
+              onAgentErrors={
+                user.role === "admin"
+                  ? () => {
+                      setAuditTab("agent");
+                      setShowAudit(true);
+                    }
+                  : undefined
+              }
+              agentErrorCount={modelCheck?.count ?? 0}
               onPassword={() => setShowPassword(true)}
               onLogout={() => {
                 void (async () => {
@@ -2328,6 +2344,7 @@ export function Workspace({
             readOnly={false}
             showTech={user.role === "admin"}
             onPageLogReady={handlePageLogReady}
+            onModelCheckChange={setModelCheck}
             activeJobDocument={
               liveJobDoc &&
               (liveJobDoc.status === "queued" ||
@@ -2426,6 +2443,7 @@ export function Workspace({
           <AuditPanel
             open={showAudit}
             initialTab={auditTab}
+            modelCheck={modelCheck}
             onClose={() => setShowAudit(false)}
           />
         </>

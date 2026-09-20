@@ -16,12 +16,9 @@ import { MarkdownView } from "@/components/markdown-view";
 import { PageStrip } from "@/components/page-strip";
 import { PdfPage } from "@/components/pdf-page";
 import { PaneToggle, SegmentedTabs } from "@/components/ui-chrome";
-import {
-  ModelCheckChip,
-  ModelCheckPanel,
-  modelIssueCount,
-} from "@/components/model-check-panel";
+import { modelIssueCount } from "@/components/model-check-panel";
 import { IconChevronLeft, IconChevronRight } from "@/components/tool-icons";
+import type { ModelCheckInput } from "@/lib/model-check";
 import { KEYMAP, KEYMAP_GROUPS } from "@/lib/keymap";
 import { VoiceNoteButton } from "@/components/voice-note";
 import { formatDate } from "@/lib/format";
@@ -78,6 +75,11 @@ type ReviewPaneProps = {
   showTech?: boolean;
   /** Открыть историю правок текущего листа — пункт в верхнем меню пользователя. */
   onPageLogReady?: (api: { open: () => void; count: number } | null) => void;
+  /** Сверка модели текущего листа — вкладка Админ → Агент ИИ (ошибки). */
+  onModelCheckChange?: (state: {
+    count: number;
+    input: ModelCheckInput;
+  } | null) => void;
   /** Файл с активной обработкой в проекте (может отличаться от открытого). */
   activeJobDocument?: DocumentRecord | null;
   /** Связанный PDF или DWG из комплекта kitId. */
@@ -154,6 +156,7 @@ export function ReviewPane({
   readOnly = false,
   showTech = false,
   onPageLogReady,
+  onModelCheckChange,
   activeJobDocument = null,
   kitSibling = null,
   onFullProgressVisible,
@@ -191,7 +194,7 @@ export function ReviewPane({
     const cached = getDocumentView(document.id);
     return cached?.paneSolo ?? null;
   });
-  const [sidePanel, setSidePanel] = useState<"text" | "notes" | "model">("text");
+  const [sidePanel, setSidePanel] = useState<"text" | "notes">("text");
   const [searchOpen, setSearchOpen] = useState(false);
   /** Пользователь развернул прогресс поверх просмотра готового листа. */
   const [progressExpanded, setProgressExpanded] = useState(false);
@@ -1278,15 +1281,26 @@ export function ReviewPane({
   const pageWarning = document.pageWarnings?.[String(pageNumber)] ?? null;
   const isMockPage = Boolean(page?.markdown.includes("[MOCK]"));
   const errorCount = Object.keys(document.pageErrors ?? {}).length;
-  const modelCheckInput = {
-    pageNumber,
-    source: page?.source,
-    warnings: page?.warnings ?? [],
-    pageWarning,
-    pageError,
-    numbers: page?.numbers,
-    reviewCount: pageReviews.length,
-  };
+  const modelCheckInput = useMemo(
+    () => ({
+      pageNumber,
+      source: page?.source,
+      warnings: page?.warnings ?? [],
+      pageWarning,
+      pageError,
+      numbers: page?.numbers,
+      reviewCount: pageReviews.length,
+    }),
+    [
+      pageNumber,
+      page?.source,
+      page?.warnings,
+      pageWarning,
+      pageError,
+      page?.numbers,
+      pageReviews.length,
+    ],
+  );
   const modelIssues = modelIssueCount(modelCheckInput);
 
   useEffect(() => {
@@ -1305,8 +1319,12 @@ export function ReviewPane({
   }, [pendingRect]);
 
   useEffect(() => {
-    if (sidePanel === "model" && modelIssues <= 0) setSidePanel("text");
-  }, [modelIssues, pageNumber, sidePanel]);
+    onModelCheckChange?.({ count: modelIssues, input: modelCheckInput });
+  }, [modelIssues, modelCheckInput, onModelCheckChange]);
+
+  useEffect(() => {
+    return () => onModelCheckChange?.(null);
+  }, [onModelCheckChange]);
 
   const notesPanel = (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -1783,13 +1801,6 @@ export function ReviewPane({
                 </span>
               ) : null}
               <span className="ml-auto flex shrink-0 items-center gap-1">
-                <ModelCheckChip
-                  count={modelIssues}
-                  open={sidePanel === "model"}
-                  onToggle={() =>
-                    setSidePanel((prev) => (prev === "model" ? "text" : "model"))
-                  }
-                />
                 <PaneToggle
                   expanded
                   align="right"
@@ -1802,11 +1813,6 @@ export function ReviewPane({
 
             {sidePanel === "notes" ? (
               notesPanel
-            ) : sidePanel === "model" ? (
-              <ModelCheckPanel
-                input={modelCheckInput}
-                onBack={() => setSidePanel("text")}
-              />
             ) : (
               <>
 
