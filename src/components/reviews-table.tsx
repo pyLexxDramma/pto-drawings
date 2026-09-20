@@ -766,7 +766,7 @@ export function ReviewsTable({
                     onApply={(next) => applyColFilter("text", next)}
                   />
                 </th>
-                <th className="w-44 border-b border-border px-2 py-1.5 font-medium normal-case tracking-normal xl:w-56 2xl:w-64 min-[1900px]:w-[34rem]">
+                <th className="w-44 border-b border-border px-2 py-1.5 font-medium normal-case tracking-normal xl:w-56 2xl:w-64 3xl:w-[34rem]">
                   <ExcelColFilter
                     label="Где в ПД"
                     values={filterValues.place}
@@ -796,7 +796,7 @@ export function ReviewsTable({
                     onApply={(next) => applyColFilter("verdict", next)}
                   />
                 </th>
-                <th className="w-32 border-b border-border px-2 py-1.5 font-medium normal-case tracking-normal xl:w-40 2xl:w-48 min-[1900px]:w-64">
+                <th className="w-32 border-b border-border px-2 py-1.5 font-medium normal-case tracking-normal xl:w-40 2xl:w-48 3xl:w-64">
                   <ExcelColFilter
                     label="Комментарий"
                     values={filterValues.comment}

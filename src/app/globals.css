@@ -26,6 +26,14 @@
   --ui-t-lg: 13px;
 }
 
+/**
+ * Свой брейкпоинт под большие мониторы — 1840px. Задаём в rem, как дефолтные:
+ * в px Tailwind не сравнивает его с ними и выводит раньше 2xl, а тот перебивает.
+ */
+@theme {
+  --breakpoint-3xl: 115rem;
+}
+
 @theme inline {
   --color-bg: var(--bg);
   --color-surface: var(--surface);
