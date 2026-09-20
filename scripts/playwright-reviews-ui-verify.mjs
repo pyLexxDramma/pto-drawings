@@ -58,7 +58,7 @@ if (stagesVisible === 0) {
 }
 
 // --- полоса этапов ---
-const COUNT = String.raw`(\d+\/\d+|—)`;
+const COUNT = String.raw`(\d+\/\d+|ещё нет|нет файлов|режем на листы)`;
 const transcribeStage = page.getByRole("button", {
   name: new RegExp(`^Расшифровка ${COUNT}$`),
 });
@@ -89,7 +89,7 @@ await page.getByRole("button", { name: "Свернуть ▴" }).waitFor({ timeo
 await page
   .getByRole("button", { name: new RegExp(`^Таблица замечаний ${COUNT}$`) })
   .click();
-await page.getByRole("button", { name: /К чертежам/ }).waitFor({ timeout: 20000 });
+await page.getByRole("button", { name: /К проектам/ }).waitFor({ timeout: 20000 });
 check("таблица открылась из этапа", true);
 
 const rows = page.locator("tbody tr").filter({ has: page.locator("select") });
@@ -217,7 +217,7 @@ if (await placeLink.count()) {
   await popup.close();
   check(
     "таблица замечаний на месте",
-    (await page.getByRole("button", { name: /К чертежам/ }).count()) > 0 ||
+    (await page.getByRole("button", { name: /К проектам/ }).count()) > 0 ||
       (await page.getByText(/Замечания ·/).count()) > 0,
   );
 } else {

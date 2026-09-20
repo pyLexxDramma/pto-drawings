@@ -106,7 +106,7 @@ export function ViewerToolbar({
             aria-expanded={open}
             aria-haspopup="listbox"
             onClick={() => setOpen((value) => !value)}
-            className="pto-tool pto-tool--slim min-w-[2.5rem] rounded px-0.5 text-center text-[11px] font-medium tabular-nums text-white hover:bg-white/20"
+            className="pto-tool pto-tool--slim min-w-[2.5rem] rounded px-0.5 text-center pto-t-md font-medium tabular-nums text-white hover:bg-white/20"
             data-viewer-scale=""
           >
             {Math.round(scale * 100)}%

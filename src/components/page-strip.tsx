@@ -19,7 +19,7 @@ function StatusDot({
   return (
     <span className="group/dot relative inline-flex" aria-label={label}>
       <span className={`h-2.5 w-2.5 rounded-full ${className}`} />
-      <span className="pointer-events-none absolute bottom-full right-0 z-30 mb-1 hidden whitespace-nowrap rounded bg-slate-900 px-1.5 py-0.5 text-[10px] leading-none text-white shadow-sm group-hover/dot:block">
+      <span className="pointer-events-none absolute bottom-full right-0 z-30 mb-1 hidden whitespace-nowrap rounded bg-slate-900 px-1.5 py-0.5 pto-t-sm leading-none text-white shadow-sm group-hover/dot:block">
         {label}
       </span>
     </span>
@@ -77,7 +77,7 @@ export function PageStrip({
       data-page-strip
     >
       {embedded ? (
-        <div className="shrink-0 border-b border-border px-2 py-1 text-[10px] font-semibold text-muted">
+        <div className="shrink-0 border-b border-border px-2 py-1 pto-t-sm font-semibold text-muted">
           Листы
         </div>
       ) : onCollapse ? (
@@ -93,7 +93,7 @@ export function PageStrip({
       ) : null}
       <div className="min-h-0 flex-1 overflow-y-auto p-1">
         {pages.length === 0 && emptyLabel ? (
-          <div className="px-1 py-2 text-[10px] leading-snug text-muted">
+          <div className="px-1 py-2 pto-t-sm leading-snug text-muted">
             {emptyLabel}
           </div>
         ) : null}
@@ -126,7 +126,7 @@ export function PageStrip({
                     : "hover:bg-white"
               }`}
             >
-              <span className="min-w-0 flex-1 truncate text-[10px] font-medium leading-tight">
+              <span className="min-w-0 flex-1 truncate pto-t-sm font-medium leading-tight">
                 Лист {pageNumber}
               </span>
               <span className="flex shrink-0 items-center gap-0.5 overflow-visible">
@@ -148,11 +148,11 @@ export function PageStrip({
                 ) : null}
                 {dots ? (
                   <span
-                    className={`group/dot relative inline-flex min-w-[14px] items-center justify-center rounded-full px-1 text-[9px] font-semibold leading-[14px] tabular-nums ${VERDICT_COUNT[dots.verdict]}`}
+                    className={`group/dot relative inline-flex min-w-[14px] items-center justify-center rounded-full px-1 pto-t-xs font-semibold leading-[14px] tabular-nums ${VERDICT_COUNT[dots.verdict]}`}
                     aria-label={`Замечаний: ${dots.count} · разбор: ${REVIEW_VERDICT_LABEL[dots.verdict]}`}
                   >
                     {dots.count}
-                    <span className="pointer-events-none absolute bottom-full right-0 z-30 mb-1 hidden whitespace-nowrap rounded bg-slate-900 px-1.5 py-0.5 text-[10px] font-normal leading-none text-white shadow-sm group-hover/dot:block">
+                    <span className="pointer-events-none absolute bottom-full right-0 z-30 mb-1 hidden whitespace-nowrap rounded bg-slate-900 px-1.5 py-0.5 pto-t-sm font-normal leading-none text-white shadow-sm group-hover/dot:block">
                       {`Замечаний: ${dots.count} · разбор: ${REVIEW_VERDICT_LABEL[dots.verdict]}`}
                     </span>
                   </span>

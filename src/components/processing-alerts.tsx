@@ -28,7 +28,7 @@ function saveDismissed(ids: Set<string>) {
 export function SiteDownBanner() {
   return (
     <div
-      className="shrink-0 border-b border-red-300 bg-red-600 px-3 py-2.5 text-[13px] text-white"
+      className="pto-t-lg shrink-0 border-b border-red-300 bg-red-600 px-3 py-2.5 text-white"
       role="alert"
       aria-live="assertive"
     >
@@ -83,7 +83,7 @@ export function ProcessingAlertsBar({
 
   return (
     <div
-      className="shrink-0 border-b border-red-200 bg-red-50 px-3 py-1.5 text-[11px] text-red-950"
+      className="shrink-0 border-b border-red-200 bg-red-50 px-3 py-1.5 pto-t-md text-red-950"
       role="alert"
     >
       <div className="flex items-center justify-between gap-2">
@@ -134,7 +134,7 @@ export function ProcessingAlertsBar({
             </button>
             <button
               type="button"
-              className="shrink-0 rounded-md bg-red-600 px-2.5 py-1.5 text-[11px] font-bold text-white hover:bg-red-700"
+              className="shrink-0 rounded-md bg-red-600 px-2.5 py-1.5 pto-t-md font-bold text-white hover:bg-red-700"
               onClick={() => onRetry(item.documentId)}
             >
               Запустить заново

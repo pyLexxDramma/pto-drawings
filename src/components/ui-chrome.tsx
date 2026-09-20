@@ -53,7 +53,7 @@ export function SearchHitBadge({
 }) {
   if (count === 0) return null;
   return (
-    <span className="pointer-events-auto inline-flex items-center gap-0.5 rounded border border-amber-300/30 bg-slate-900/55 px-1.5 py-[3px] text-[9px] font-medium leading-none text-amber-200 shadow-md backdrop-blur">
+    <span className="pointer-events-auto inline-flex items-center gap-0.5 rounded border border-amber-300/30 bg-slate-900/55 px-1.5 py-[3px] pto-t-xs font-medium leading-none text-amber-200 shadow-md backdrop-blur">
       {count > 1 ? (
         <button
           type="button"
@@ -140,7 +140,7 @@ export function HighlightLegend({
 
   return (
     <span
-      className="pointer-events-auto inline-flex items-center gap-1.5 rounded border border-white/15 bg-slate-900/55 px-1.5 py-[3px] text-[9px] font-medium leading-none text-white shadow-md backdrop-blur"
+      className="pointer-events-auto inline-flex items-center gap-1.5 rounded border border-white/15 bg-slate-900/55 px-1.5 py-[3px] pto-t-xs font-medium leading-none text-white shadow-md backdrop-blur"
       title={items.map((item) => item.hint).join("\n")}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -201,7 +201,7 @@ export function SegmentedTabs<T extends string>({
   tone?: "light" | "dark";
   className?: string;
 }) {
-  const pad = size === "xs" ? "px-2 py-0.5 text-[11px]" : "px-2.5 py-1 text-xs";
+  const pad = size === "xs" ? "px-2 py-0.5 pto-t-md" : "px-2.5 py-1 text-xs";
   const shell =
     tone === "dark"
       ? "border-[#3a4454] bg-[#12161c]"
@@ -335,7 +335,7 @@ export function ActionMenu({
         }}
         className={
           triggerClassName ??
-          "rounded border border-border px-1.5 py-0.5 text-[11px] leading-none text-muted hover:bg-bg hover:text-text"
+          "rounded border border-border px-1.5 py-0.5 pto-t-md leading-none text-muted hover:bg-bg hover:text-text"
         }
       >
         {trigger ?? "⋯"}

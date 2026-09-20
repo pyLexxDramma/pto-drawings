@@ -83,12 +83,12 @@ export function ProcessingProgressPanel({
               )}
               {statusLabel}
               {showTech && document.pipelineMode === "mock" ? (
-                <span className="rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-900">
+                <span className="rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 pto-t-sm font-bold uppercase tracking-wide text-amber-900">
                   mock
                 </span>
               ) : null}
             </div>
-            <div className="mt-1 truncate text-[11px] text-sky-900/80">
+            <div className="mt-1 truncate pto-t-md text-sky-900/80">
               {document.originalName ?? "Документ"}
               {showTech
                 ? document.pipelineMode === "mock"
@@ -126,7 +126,7 @@ export function ProcessingProgressPanel({
         </div>
 
         <div className="mt-3 space-y-1.5">
-          <div className="text-[11px] font-semibold tabular-nums text-sky-950">
+          <div className="pto-t-md font-semibold tabular-nums text-sky-950">
             {formatProcessingPercent(overallPercent)}
           </div>
           <ProgressTrack value={overallPercent} tone="sky" className="h-2" />
@@ -134,7 +134,7 @@ export function ProcessingProgressPanel({
       </div>
 
       <div className="min-h-0 flex-1 space-y-2 overflow-auto px-3 py-3">
-        <div className="text-[10px] font-medium uppercase tracking-wider text-muted">
+        <div className="pto-t-sm font-medium uppercase tracking-wider text-muted">
           По листам
         </div>
         {rows.map((row) => {
@@ -155,7 +155,7 @@ export function ProcessingProgressPanel({
           }`;
           const body = (
             <>
-              <div className="mb-1 flex items-center justify-between gap-2 text-[11px]">
+              <div className="mb-1 flex items-center justify-between gap-2 pto-t-md">
                 <span
                   className={`font-medium ${
                     row.status === "error"
@@ -219,7 +219,7 @@ export function ProcessingSummaryStrip({
   if (document.status !== "done" && document.status !== "error") return null;
 
   return (
-    <div className="border-b border-border bg-[#fafbfc] px-4 py-1.5 text-[11px] text-muted">
+    <div className="border-b border-border bg-[#fafbfc] px-4 py-1.5 pto-t-md text-muted">
       {stopped ? (
         <span className="text-amber-800">Обработка остановлена</span>
       ) : document.status === "error" || errorCount > 0 ? (
@@ -369,7 +369,7 @@ export function LiveProgressDock({
       <button
         type="button"
         onClick={onExpand}
-        className="pointer-events-auto fixed bottom-3 right-3 z-40 flex max-w-[11rem] items-center gap-1.5 rounded-full border border-sky-200 bg-white/95 px-2.5 py-1.5 text-[10px] font-semibold tabular-nums text-sky-950 shadow-lg backdrop-blur hover:bg-sky-50"
+        className="pointer-events-auto fixed bottom-3 right-3 z-40 flex max-w-[11rem] items-center gap-1.5 rounded-full border border-sky-200 bg-white/95 px-2.5 py-1.5 pto-t-sm font-semibold tabular-nums text-sky-950 shadow-lg backdrop-blur hover:bg-sky-50"
         title="Показать прогресс (обработка продолжается)"
         data-testid="live-progress-dock-collapsed"
       >
@@ -406,10 +406,10 @@ export function LiveProgressDock({
               <Spinner className="mt-0.5 h-3 w-3 shrink-0 text-sky-700" />
             ) : null}
             <div className="min-w-0 flex-1">
-              <div className="truncate text-[11px] font-semibold text-sky-950">
+              <div className="truncate pto-t-md font-semibold text-sky-950">
                 {document.originalName ?? "Обработка"}
               </div>
-              <div className="mt-0.5 truncate text-[10px] tabular-nums text-sky-900/80">
+              <div className="mt-0.5 truncate pto-t-sm tabular-nums text-sky-900/80">
                 {summaryLine}
               </div>
             </div>
@@ -419,7 +419,7 @@ export function LiveProgressDock({
           <button
             type="button"
             onClick={isFinished ? closeFinished : onHide}
-            className="shrink-0 rounded px-1 py-0.5 text-[11px] leading-none text-sky-800/70 hover:bg-sky-50 hover:text-sky-950"
+            className="shrink-0 rounded px-1 py-0.5 pto-t-md leading-none text-sky-800/70 hover:bg-sky-50 hover:text-sky-950"
             title={
               isFinished
                 ? "Закрыть"
@@ -436,12 +436,12 @@ export function LiveProgressDock({
       </div>
       {isActive && onCancel && !cancelPending ? (
         <div className="flex items-center justify-between gap-2 border-t border-sky-100 px-2 py-1">
-          <span className="text-[9px] text-sky-800/60">Стоп — остановить</span>
+          <span className="pto-t-xs text-sky-800/60">Стоп — остановить</span>
           <button
             type="button"
             disabled={canceling}
             onClick={onCancel}
-            className="rounded border border-sky-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-sky-900 hover:bg-sky-50 disabled:opacity-50"
+            className="rounded border border-sky-200 bg-white px-1.5 py-0.5 pto-t-sm font-semibold text-sky-900 hover:bg-sky-50 disabled:opacity-50"
             title="Остановить обработку"
           >
             {canceling ? "…" : "Стоп"}
@@ -526,13 +526,13 @@ export function ProcessingCompactBadge({
       >
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <div className="flex items-center gap-1.5 text-[11px] font-semibold text-sky-950">
+            <div className="flex items-center gap-1.5 pto-t-md font-semibold text-sky-950">
               {live && !cancelPending && document.status !== "done" ? (
                 <Spinner className="h-3 w-3 text-sky-700" />
               ) : null}
               <span>{statusLabel}</span>
             </div>
-            <div className="mt-1 flex items-baseline gap-2 text-[11px] text-muted">
+            <div className="mt-1 flex items-baseline gap-2 pto-t-md text-muted">
               <span className="font-semibold tabular-nums text-sky-950">
                 {formatProcessingPercent(percent)}
               </span>
@@ -556,13 +556,13 @@ export function ProcessingCompactBadge({
                   setHidden(true);
                 }
               }}
-              className="shrink-0 rounded px-1.5 py-0.5 text-[11px] text-muted hover:bg-bg hover:text-text"
+              className="shrink-0 rounded px-1.5 py-0.5 pto-t-md text-muted hover:bg-bg hover:text-text"
               title="Скрыть"
             >
               ✕
             </span>
           ) : interactive ? (
-            <span className="shrink-0 text-[10px] font-medium text-sky-800">
+            <span className="shrink-0 pto-t-sm font-medium text-sky-800">
               Развернуть
             </span>
           ) : null}
@@ -573,7 +573,7 @@ export function ProcessingCompactBadge({
         <button
           type="button"
           onClick={onGoToCurrent}
-          className="mt-2 w-full rounded-md border border-sky-200 bg-sky-50 px-2 py-1 text-[11px] font-semibold text-sky-950 hover:bg-sky-100"
+          className="mt-2 w-full rounded-md border border-sky-200 bg-sky-50 px-2 py-1 pto-t-md font-semibold text-sky-950 hover:bg-sky-100"
         >
           К текущему листу {currentPage}
         </button>

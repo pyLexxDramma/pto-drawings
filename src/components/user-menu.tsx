@@ -77,7 +77,7 @@ export function UserMenu({
         }`}
       >
         <span
-          className={`flex shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${
+          className={`flex shrink-0 items-center justify-center rounded-full pto-t-md font-semibold ${
             compact ? "h-6 w-6" : "h-7 w-7"
           } ${
             defaultPasswordWarning
@@ -90,7 +90,7 @@ export function UserMenu({
           {letter}
         </span>
         {compact ? null : (
-          <span className="text-[11px] leading-tight">
+          <span className="pto-t-md leading-tight">
             <span
               className={`block font-semibold ${
                 defaultPasswordWarning || user.role !== "admin"
@@ -103,7 +103,7 @@ export function UserMenu({
           </span>
         )}
         <span
-          className={`text-[10px] ${
+          className={`pto-t-sm ${
             user.role === "admin" && !defaultPasswordWarning
               ? "text-white/80"
               : "text-slate-500"
@@ -122,14 +122,14 @@ export function UserMenu({
           onClick={() => setOpen(false)}
         >
           {compact ? (
-            <div className="border-b border-border px-3 pb-1.5 pt-1 text-[11px] leading-tight">
+            <div className="border-b border-border px-3 pb-1.5 pt-1 pto-t-md leading-tight">
               <div className="font-medium text-text">{user.displayName}</div>
               <div className="text-muted">роль: {role}</div>
             </div>
           ) : null}
           {sheetMenu ? (
             <>
-              <div className="px-3 pb-1 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
+              <div className="px-3 pb-1 pt-1.5 pto-t-sm font-semibold uppercase tracking-wide text-muted">
                 Лист
               </div>
               {sheetMenu}
@@ -199,7 +199,7 @@ export function UserMenu({
             Выйти
           </button>
           {statusNote ? (
-            <div className="mt-1 border-t border-border px-3 pb-0.5 pt-1.5 text-[10px] leading-snug text-muted">
+            <div className="mt-1 border-t border-border px-3 pb-0.5 pt-1.5 pto-t-sm leading-snug text-muted">
               {statusNote}
             </div>
           ) : null}

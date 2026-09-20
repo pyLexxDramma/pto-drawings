@@ -210,7 +210,7 @@ export function VoiceNoteButton({ onText }: VoiceNoteButtonProps) {
           {state === "rec" ? "Остановить запись" : "Наговорить замечание"}
         </span>
       </button>
-      {hint ? <span className="text-[10px] text-muted">{hint}</span> : null}
+      {hint ? <span className="pto-t-sm text-muted">{hint}</span> : null}
     </span>
   );
 }

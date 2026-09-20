@@ -129,7 +129,7 @@ export function LoginForm({
         </button>
 
         {showBootstrapHint ? (
-          <p className="mt-4 text-center text-[11px] leading-relaxed text-muted">
+          <p className="mt-4 text-center pto-t-md leading-relaxed text-muted">
             Первый запуск: логин{" "}
             <span className="font-medium text-text">admin</span>, пароль{" "}
             <span className="font-medium text-text">admin123</span>. Админ

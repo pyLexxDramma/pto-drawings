@@ -486,7 +486,7 @@ export function CadPage({
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 text-sm text-[#8b93a3]">
             <Spinner className="h-5 w-5 text-sky-700" />
             <span>Загрузка геометрии листа…</span>
-            <span className="text-[11px] text-muted">
+            <span className="pto-t-md text-muted">
               первый раз может занять несколько секунд
             </span>
           </div>
@@ -496,7 +496,7 @@ export function CadPage({
             <div className="max-w-sm rounded-xl border border-dashed border-slate-300 bg-white px-6 py-8 shadow-sm">
               <div className="text-sm font-semibold text-text">Лист без геометрии</div>
               <div className="mt-2 text-xs leading-relaxed text-muted">{error}</div>
-              <div className="mt-3 text-[11px] text-muted">
+              <div className="mt-3 pto-t-md text-muted">
                 Текст листа справа, если конвейер его вернул.
               </div>
             </div>
@@ -703,7 +703,7 @@ export function CadPage({
       {markMode || searchHits.length > 0 || legendOn || overlay ? (
         <div className="pointer-events-none absolute left-1/2 top-1.5 z-30 flex max-w-[calc(100%-13rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-1">
           {markMode ? (
-            <span className="rounded bg-red-600 px-2 py-0.5 text-[10px] font-medium leading-none text-white shadow-md">
+            <span className="rounded bg-red-600 px-2 py-0.5 pto-t-sm font-medium leading-none text-white shadow-md">
               Обведите место на чертеже · Esc — отмена
             </span>
           ) : null}
@@ -727,7 +727,7 @@ export function CadPage({
 
       {geometry && ready ? (
         <div
-          className="pointer-events-none absolute bottom-2 left-2 z-20 flex items-end gap-2 rounded border border-border bg-white/90 px-2 py-1 text-[10px] text-muted shadow-sm"
+          className="pointer-events-none absolute bottom-2 left-2 z-20 flex items-end gap-2 rounded border border-border bg-white/90 px-2 py-1 pto-t-sm text-muted shadow-sm"
           data-viewer-scalebar=""
         >
           <span

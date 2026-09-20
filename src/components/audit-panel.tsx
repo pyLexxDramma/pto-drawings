@@ -114,7 +114,7 @@ const REPO_CHIP: Record<Repo, string> = {
 function RepoChip({ repo }: { repo: Repo }) {
   return (
     <span
-      className={`whitespace-nowrap rounded border px-1 py-0.5 text-[9px] uppercase ${REPO_CHIP[repo]}`}
+      className={`whitespace-nowrap rounded border px-1 py-0.5 pto-t-xs uppercase ${REPO_CHIP[repo]}`}
     >
       {REPO_LABEL[repo]}
     </span>
@@ -149,7 +149,7 @@ const LAYER_FILTERS: { id: LogLayer | "all"; label: string }[] = [
 function LayerChip({ layer }: { layer: LogLayer }) {
   return (
     <span
-      className={`whitespace-nowrap rounded border px-1 py-0.5 text-[9px] uppercase ${LAYER_CHIP[layer]}`}
+      className={`whitespace-nowrap rounded border px-1 py-0.5 pto-t-xs uppercase ${LAYER_CHIP[layer]}`}
     >
       {LOG_LAYER_LABEL[layer]}
     </span>
@@ -241,7 +241,7 @@ export function AuditPanel({
         <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
           <div>
             <div className="text-sm font-semibold text-text">Журналы правок</div>
-            <div className="text-[11px] text-muted">{HINT[tab]}</div>
+            <div className="pto-t-md text-muted">{HINT[tab]}</div>
           </div>
           <button
             type="button"
@@ -264,7 +264,7 @@ export function AuditPanel({
                 : item;
             })}
           />
-          {busy ? <span className="text-[11px] text-muted">Читаем…</span> : null}
+          {busy ? <span className="pto-t-md text-muted">Читаем…</span> : null}
         </div>
 
         {tab === "log" ? (
@@ -275,7 +275,7 @@ export function AuditPanel({
               onChange={(value) => setLayer(value as LogLayer | "all")}
               options={LAYER_FILTERS}
             />
-            <label className="flex items-center gap-1.5 text-[11px] text-muted">
+            <label className="flex items-center gap-1.5 pto-t-md text-muted">
               <input
                 type="checkbox"
                 checked={onlyErrors}
@@ -305,8 +305,8 @@ export function AuditPanel({
           ) : null}
 
           {tab === "log" && rows.length ? (
-            <table className="w-full border-collapse text-[11px]">
-              <thead className="bg-slate-100 text-[10px] uppercase tracking-wide text-muted">
+            <table className="w-full border-collapse pto-t-md">
+              <thead className="bg-slate-100 pto-t-sm uppercase tracking-wide text-muted">
                 <tr>
                   <th className={head}>Когда</th>
                   <th className={head}>Где</th>
@@ -359,8 +359,8 @@ export function AuditPanel({
           ) : null}
 
           {tab === "processing" && rows.length ? (
-            <table className="w-full border-collapse text-[11px]">
-              <thead className="bg-slate-100 text-[10px] uppercase tracking-wide text-muted">
+            <table className="w-full border-collapse pto-t-md">
+              <thead className="bg-slate-100 pto-t-sm uppercase tracking-wide text-muted">
                 <tr>
                   <th className={head}>Когда</th>
                   <th className={head}>Проект</th>
@@ -406,8 +406,8 @@ export function AuditPanel({
           ) : null}
 
           {tab === "files" && rows.length ? (
-            <table className="w-full border-collapse text-[11px]">
-              <thead className="bg-slate-100 text-[10px] uppercase tracking-wide text-muted">
+            <table className="w-full border-collapse pto-t-md">
+              <thead className="bg-slate-100 pto-t-sm uppercase tracking-wide text-muted">
                 <tr>
                   <th className={head}>Когда</th>
                   <th className={head}>Кто загрузил</th>
@@ -441,23 +441,23 @@ export function AuditPanel({
           {tab === "releases" ? (
             <div className="space-y-4">
               <div>
-                <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted">
+                <div className="mb-1 pto-t-sm font-semibold uppercase tracking-wide text-muted">
                   Ветки коллег
                 </div>
-                <div className="mb-1 text-[11px] text-muted">
+                <div className="mb-1 pto-t-md text-muted">
                   Состояние на момент последнего деплоя: прод подтягивает все ветки, но выкатывает
                   только main. «Слита» — код уже на проде.
                 </div>
                 {payload?.sources &&
                 !payload.sources.some((item) => item.repo === "pipeline" && item.readable) ? (
-                  <div className="mb-1 rounded-md bg-amber-50 px-2 py-1 text-[11px] text-amber-900">
+                  <div className="mb-1 rounded-md bg-amber-50 px-2 py-1 pto-t-md text-amber-900">
                     Копию конвейера прочитать не удалось — видны только правки фронта. Путь к ней
                     задаётся переменной PTO_PIPELINE_REPO.
                   </div>
                 ) : null}
                 {payload?.branches?.length ? (
-                  <table className="w-full border-collapse text-[11px]">
-                    <thead className="bg-slate-100 text-[10px] uppercase tracking-wide text-muted">
+                  <table className="w-full border-collapse pto-t-md">
+                    <thead className="bg-slate-100 pto-t-sm uppercase tracking-wide text-muted">
                       <tr>
                         <th className={head}>Где</th>
                         <th className={head}>Ветка</th>
@@ -500,16 +500,16 @@ export function AuditPanel({
               </div>
 
               <div>
-                <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted">
+                <div className="mb-1 pto-t-sm font-semibold uppercase tracking-wide text-muted">
                   Коммиты в main
                 </div>
-                <div className="mb-1 text-[11px] text-muted">
+                <div className="mb-1 pto-t-md text-muted">
                   Фронт и конвейер вместе: правки коллеги по ИИ лежат в репозитории конвейера, в
                   истории фронта их не видно.
                 </div>
                 {payload?.commits?.length ? (
-                  <table className="w-full border-collapse text-[11px]">
-                    <thead className="bg-slate-100 text-[10px] uppercase tracking-wide text-muted">
+                  <table className="w-full border-collapse pto-t-md">
+                    <thead className="bg-slate-100 pto-t-sm uppercase tracking-wide text-muted">
                       <tr>
                         <th className={head}>Где</th>
                         <th className={head}>Когда</th>
@@ -531,7 +531,7 @@ export function AuditPanel({
                           <td className={`${cell} font-mono`}>{row.shortSha}</td>
                           <td className={cell}>
                             {row.merge ? (
-                              <span className="mr-1.5 rounded border border-slate-300 bg-slate-50 px-1 py-0.5 text-[9px] uppercase text-muted">
+                              <span className="mr-1.5 rounded border border-slate-300 bg-slate-50 px-1 py-0.5 pto-t-xs uppercase text-muted">
                                 ветка
                               </span>
                             ) : null}

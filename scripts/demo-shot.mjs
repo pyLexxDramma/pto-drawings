@@ -34,7 +34,9 @@ const wanted = rows.filter({ hasText: PROJECT }).first();
 await ((await wanted.count()) ? wanted : rows.first()).locator("button").first().click();
 await page.waitForTimeout(1500);
 
-const stage = page.getByRole("button", { name: /^Таблица замечаний (\d+\/\d+|—)$/ });
+const stage = page.getByRole("button", {
+  name: /^Таблица замечаний (\d+\/\d+|ещё нет)$/,
+});
 console.log("этап «Таблица замечаний»:", await stage.count());
 await stage.first().click();
 await page.waitForTimeout(2500);
@@ -45,7 +47,7 @@ await page.screenshot({ path: OUT });
 console.log("таблица:", OUT);
 
 // --- лист: в тулбаре должна остаться только «Ошибка» ---
-await page.getByRole("button", { name: /К чертежам/ }).click();
+await page.getByRole("button", { name: /К проектам/ }).click();
 await page.waitForTimeout(1200);
 await page.locator("[data-project-files] button").filter({ hasText: ".pdf" }).first().click();
 await page.waitForTimeout(4000);

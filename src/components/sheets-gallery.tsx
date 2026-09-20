@@ -226,12 +226,12 @@ export function SheetsGallery({
                   />
                 )}
                 {!isReady && !isWorking ? (
-                  <div className="absolute inset-0 flex items-center justify-center bg-white/70 text-[11px] text-muted">
+                  <div className="absolute inset-0 flex items-center justify-center bg-white/70 pto-t-md text-muted">
                     Текст ещё не готов
                   </div>
                 ) : null}
                 {isWorking ? (
-                  <div className="absolute left-2 top-2 rounded bg-sky-600 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                  <div className="absolute left-2 top-2 rounded bg-sky-600 px-1.5 py-0.5 pto-t-sm font-medium text-white">
                     обрабатывается
                   </div>
                 ) : null}
@@ -256,10 +256,10 @@ export function SheetsGallery({
                     ) : null}
                   </span>
                 </div>
-                <div className="text-[11px] text-muted">
+                <div className="pto-t-md text-muted">
                   {kind ? KIND_LABEL[kind] : isWorking ? "В работе" : "Лист"}
                 </div>
-                <div className="line-clamp-4 text-[12px] leading-snug text-text/90">
+                <div className="line-clamp-4 pto-t-lg leading-snug text-text/90">
                   {text || (
                     <span className="text-muted">
                       {isReady ? "Пустая расшифровка" : "Ожидает расшифровку"}

@@ -11,7 +11,7 @@ import {
 import { ExcelColFilter } from "@/components/excel-col-filter";
 import { ResolvedSummary } from "@/components/resolved-summary";
 import { Spinner } from "@/components/ui-chrome";
-import { IconDownload } from "@/components/tool-icons";
+import { IconDoc, IconDownload } from "@/components/tool-icons";
 import {
   applyExcelFilters,
   excelColValues,
@@ -118,6 +118,7 @@ export function ReviewsTable({
   currentDocumentId = null,
   currentDocumentName = null,
   onJumpToPage,
+  onOpenTranscript,
   onStatsChange,
   refreshToken = 0,
   onReviewsMutated,
@@ -137,6 +138,8 @@ export function ReviewsTable({
     pageNumber: number,
     options?: { reviewId?: string; quote?: string; newTab?: boolean },
   ) => void;
+  /** Уйти на этап расшифровки — из пустой таблицы это единственный выход. */
+  onOpenTranscript?: () => void;
   /** Держит счётчик этапа «Замечания» в панели проекта в согласии с таблицей. */
   onStatsChange?: (stats: { total: number; pending: number }) => void;
 }) {
@@ -498,7 +501,7 @@ export function ReviewsTable({
       {/* Панель в одну строку: высота нужна чертежу и таблице, не кнопкам. */}
       <header className="flex items-center gap-2 border-b border-border bg-surface px-2 py-0.5">
         <div
-          className="min-w-0 flex-1 truncate text-[11px] tabular-nums leading-tight"
+          className="min-w-0 flex-1 truncate pto-t-md tabular-nums leading-tight"
           title={
             loading
               ? projectName
@@ -527,7 +530,7 @@ export function ReviewsTable({
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Поиск"
-            className="w-32 rounded-md border border-border bg-white px-1.5 py-0.5 text-[11px] outline-none placeholder:text-muted focus:border-accent"
+            className="w-32 rounded-md border border-border bg-white px-1.5 py-0.5 pto-t-md outline-none placeholder:text-muted focus:border-accent"
           />
           <input
             ref={importRef}
@@ -543,7 +546,7 @@ export function ReviewsTable({
             type="button"
             disabled={importing}
             onClick={() => importRef.current?.click()}
-            className="whitespace-nowrap rounded-md border border-slate-300 bg-white px-2 py-0.5 text-[11px] font-semibold leading-none text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+            className="whitespace-nowrap rounded-md border border-slate-300 bg-white px-2 py-0.5 pto-t-md font-semibold leading-none text-slate-800 hover:bg-slate-50 disabled:opacity-50"
             title="Загрузить свой список замечаний из файла Excel"
           >
             {importing ? "Загрузка…" : "Мои замечания из Excel"}
@@ -553,7 +556,7 @@ export function ReviewsTable({
             <button
               type="button"
               onClick={goToLeftover}
-              className="inline-flex items-center gap-1 whitespace-nowrap rounded-md border border-slate-300 bg-slate-100 px-2 py-0.5 text-[11px] font-semibold leading-none text-slate-500"
+              className="inline-flex items-center gap-1 whitespace-nowrap rounded-md border border-slate-300 bg-slate-100 px-2 py-0.5 pto-t-md font-semibold leading-none text-slate-500"
               title={
                 leftover.length > 0
                   ? `Ещё ${leftover.length} без важности или разбора. Нажмите — перейти к строке`
@@ -570,7 +573,7 @@ export function ReviewsTable({
               type="button"
               disabled={exporting}
               onClick={() => void downloadVisibleXlsx()}
-              className="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-accent px-2 py-0.5 text-[11px] font-semibold leading-none text-white hover:bg-[#1d4ed8] disabled:opacity-50"
+              className="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-accent px-2 py-0.5 pto-t-md font-semibold leading-none text-white hover:bg-[#1d4ed8] disabled:opacity-50"
               title={
                 filtersOn
                   ? `Скачать отфильтрованные: ${visibleExportable.length}`
@@ -595,7 +598,7 @@ export function ReviewsTable({
                   }
                 }
               }}
-              className="whitespace-nowrap rounded-md border border-slate-300 bg-white px-2 py-0.5 text-[11px] font-semibold leading-none text-slate-800 hover:bg-slate-50"
+              className="whitespace-nowrap rounded-md border border-slate-300 bg-white px-2 py-0.5 pto-t-md font-semibold leading-none text-slate-800 hover:bg-slate-50"
               title="Вернуть всем статус «Не разобрано», как после расшифровки ИИ"
             >
               Сбросить разбор
@@ -605,7 +608,7 @@ export function ReviewsTable({
       </header>
 
       <div className="flex flex-wrap items-center gap-2 border-b border-border bg-surface-2 px-3 py-1">
-        <span className="text-[11px] text-muted">
+        <span className="pto-t-md text-muted">
           Фильтры — стрелка на колонке, как в Excel
         </span>
         {filtersOn ? (
@@ -615,20 +618,20 @@ export function ReviewsTable({
               setColFilters({});
               setQuery("");
             }}
-            className="rounded-md border border-border bg-white px-2 py-1 text-[11px] text-muted hover:text-text"
+            className="rounded-md border border-border bg-white px-2 py-1 pto-t-md text-muted hover:text-text"
             title="Показать все замечания"
           >
             Сбросить фильтры
           </button>
         ) : null}
-        <span className="text-[11px] tabular-nums text-muted">
+        <span className="pto-t-md tabular-nums text-muted">
           показано {visible.length}
         </span>
         {currentDocumentId && fileScopeOff ? (
           <button
             type="button"
             onClick={() => setFileScopeOff(false)}
-            className="rounded-md border border-border bg-white px-2 py-1 text-[11px] text-muted hover:text-text"
+            className="rounded-md border border-border bg-white px-2 py-1 pto-t-md text-muted hover:text-text"
             title="Снова только замечания открытого файла"
           >
             Снова этот файл
@@ -637,7 +640,7 @@ export function ReviewsTable({
       </div>
 
       {error ? (
-        <div className="border-b border-red-200 bg-red-50 px-3 py-1.5 text-[11px] text-red-700">
+        <div className="border-b border-red-200 bg-red-50 px-3 py-1.5 pto-t-md text-red-700">
           {error}
         </div>
       ) : null}
@@ -711,8 +714,10 @@ export function ReviewsTable({
             <Spinner /> Загружаем замечания
           </div>
         ) : (
-          <table className="w-full border-collapse text-xs">
-            <thead className="sticky top-0 z-10 bg-slate-100 text-left text-[10px] uppercase tracking-wider text-muted">
+          // table-fixed: без него длинные ссылки в «Где в ПД» задавали
+          // min-content колонки и выдавливали текст замечания в столбик.
+          <table className="w-full table-fixed border-collapse text-xs">
+            <thead className="sticky top-0 z-10 bg-slate-100 text-left pto-t-sm uppercase tracking-wider text-muted">
               <tr>
                 <th className="w-8 border-b border-border px-1 py-1.5">
                   <input
@@ -739,7 +744,9 @@ export function ReviewsTable({
                     onApply={(next) => applyColFilter("number", next)}
                   />
                 </th>
-                <th className="w-28 border-b border-border px-2 py-1.5 font-medium normal-case tracking-normal">
+                {/* На узком окне колонки поджимаются, чтобы текст замечания не
+                    превращался в столбик по три слова. */}
+                <th className="w-24 border-b border-border px-2 py-1.5 font-medium normal-case tracking-normal xl:w-28">
                   <ExcelColFilter
                     label="Раздел"
                     values={filterValues.section}
@@ -759,7 +766,7 @@ export function ReviewsTable({
                     onApply={(next) => applyColFilter("text", next)}
                   />
                 </th>
-                <th className="w-64 border-b border-border px-2 py-1.5 font-medium normal-case tracking-normal">
+                <th className="w-44 border-b border-border px-2 py-1.5 font-medium normal-case tracking-normal xl:w-56 2xl:w-64 min-[1900px]:w-96">
                   <ExcelColFilter
                     label="Где в ПД"
                     values={filterValues.place}
@@ -769,7 +776,7 @@ export function ReviewsTable({
                     onApply={(next) => applyColFilter("place", next)}
                   />
                 </th>
-                <th className="w-32 border-b border-border px-2 py-1.5 font-medium normal-case tracking-normal">
+                <th className="w-28 border-b border-border px-2 py-1.5 font-medium normal-case tracking-normal xl:w-32">
                   <ExcelColFilter
                     label="Важность"
                     values={filterValues.severity}
@@ -779,7 +786,7 @@ export function ReviewsTable({
                     onApply={(next) => applyColFilter("severity", next)}
                   />
                 </th>
-                <th className="w-36 border-b border-border px-2 py-1.5 font-medium normal-case tracking-normal">
+                <th className="w-32 border-b border-border px-2 py-1.5 font-medium normal-case tracking-normal xl:w-36">
                   <ExcelColFilter
                     label="Статус"
                     values={filterValues.verdict}
@@ -789,7 +796,7 @@ export function ReviewsTable({
                     onApply={(next) => applyColFilter("verdict", next)}
                   />
                 </th>
-                <th className="w-48 border-b border-border px-2 py-1.5 font-medium normal-case tracking-normal">
+                <th className="w-32 border-b border-border px-2 py-1.5 font-medium normal-case tracking-normal xl:w-40 2xl:w-48 min-[1900px]:w-64">
                   <ExcelColFilter
                     label="Комментарий"
                     values={filterValues.comment}
@@ -805,15 +812,29 @@ export function ReviewsTable({
             <tbody>
               {visible.length === 0 ? (
                 <tr>
-                  <td
-                    colSpan={9}
-                    className="px-3 py-10 text-center text-xs text-muted"
-                  >
-                    {reviews.length === 0
-                      ? "Замечаний пока нет — конвейер их ещё не присылал. Можно добавить своё ниже."
-                      : currentDocumentId
-                        ? "По этому файлу замечаний нет."
-                        : "Под фильтры ничего не попало."}
+                  <td colSpan={9} className="px-3 py-12">
+                    <EmptyReviews
+                      kind={
+                        filtersOn
+                          ? "filtered"
+                          : reviews.length === 0
+                            ? "none"
+                            : currentDocumentId
+                              ? "file"
+                              : "filtered"
+                      }
+                      fileName={currentDocumentName}
+                      onOpenTranscript={onOpenTranscript}
+                      onShowWholeProject={
+                        currentDocumentId && !fileScopeOff
+                          ? () => setFileScopeOff(true)
+                          : undefined
+                      }
+                      onResetFilters={() => {
+                        setColFilters({});
+                        setQuery("");
+                      }}
+                    />
                   </td>
                 </tr>
               ) : null}
@@ -877,6 +898,82 @@ export function ReviewsTable({
  * конвейер останется с той же ошибкой. Поэтому статус ставится только вместе
  * с причиной.
  */
+/**
+ * Пустая таблица — самый частый первый экран инженера. Серая строка по центру
+ * читается как «приложение сломалось», поэтому здесь всегда есть выход.
+ */
+function EmptyReviews({
+  kind,
+  fileName,
+  onOpenTranscript,
+  onShowWholeProject,
+  onResetFilters,
+}: {
+  kind: "none" | "file" | "filtered";
+  fileName: string | null;
+  onOpenTranscript?: () => void;
+  onShowWholeProject?: () => void;
+  onResetFilters: () => void;
+}) {
+  const title =
+    kind === "none"
+      ? "Замечаний пока нет"
+      : kind === "file"
+        ? `По файлу ${fileName ?? "этому"} замечаний нет`
+        : "Под фильтры ничего не попало";
+  const hint =
+    kind === "none"
+      ? "Конвейер их ещё не присылал. Своё замечание ставят на чертеже: откройте лист и нажмите «Отметить ошибку» — строка появится здесь сама."
+      : kind === "file"
+        ? "По другим файлам проекта замечания могут быть."
+        : "Снимите фильтры по колонкам или очистите поиск.";
+
+  return (
+    <div className="mx-auto flex max-w-md flex-col items-center gap-3 text-center">
+      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-surface-2 text-muted">
+        <IconDoc className="h-5 w-5" />
+      </div>
+      <div>
+        <div className="text-sm font-semibold text-text">{title}</div>
+        <p className="mt-1 text-xs leading-relaxed text-muted">{hint}</p>
+      </div>
+      <div className="flex flex-wrap items-center justify-center gap-2">
+        {kind === "filtered" ? (
+          <button
+            type="button"
+            onClick={onResetFilters}
+            className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#1d4ed8]"
+          >
+            Сбросить фильтры
+          </button>
+        ) : null}
+        {onOpenTranscript ? (
+          <button
+            type="button"
+            onClick={onOpenTranscript}
+            className={
+              kind === "filtered"
+                ? "rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50"
+                : "rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#1d4ed8]"
+            }
+          >
+            Открыть расшифровку
+          </button>
+        ) : null}
+        {onShowWholeProject ? (
+          <button
+            type="button"
+            onClick={onShowWholeProject}
+            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50"
+          >
+            Показать весь проект
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function WrongDialog({
   review,
   onCancel,
@@ -912,7 +1009,7 @@ function WrongDialog({
         <div className="text-sm font-semibold text-rose-900">
           Замечание № {review.number} неверно
         </div>
-        <div className="mt-1 line-clamp-3 text-[11px] leading-snug text-muted">
+        <div className="mt-1 line-clamp-3 pto-t-md leading-snug text-muted">
           {review.text || review.aiFinding}
         </div>
         <textarea
@@ -939,7 +1036,7 @@ function WrongDialog({
                   prev.trim() ? `${prev.trim()}. ${label}` : label,
                 )
               }
-              className="rounded-full border border-rose-200 bg-white px-2 py-0.5 text-[10px] text-rose-800 hover:bg-rose-50"
+              className="rounded-full border border-rose-200 bg-white px-2 py-0.5 pto-t-sm text-rose-800 hover:bg-rose-50"
             >
               {label}
             </button>
@@ -961,7 +1058,7 @@ function WrongDialog({
           >
             Отмена
           </button>
-          <span className="ml-auto text-[10px] text-muted">Ctrl+Enter</span>
+          <span className="ml-auto pto-t-sm text-muted">Ctrl+Enter</span>
         </div>
       </div>
     </div>
@@ -1011,7 +1108,7 @@ function ReviewLogDialog({
             events.map((event) => (
               <div
                 key={event.id}
-                className="rounded-md bg-surface-2 px-2 py-1.5 text-[11px] leading-snug"
+                className="rounded-md bg-surface-2 px-2 py-1.5 pto-t-md leading-snug"
               >
                 <div className="text-muted">
                   {formatDate(event.at)}
@@ -1108,12 +1205,12 @@ function RemarkText({
         {highlight(wording, needle)}
       </div>
       {expanded && aiFinding ? (
-        <div className="mt-1 whitespace-pre-wrap border-l-2 border-violet-300 pl-2 text-[11px] leading-snug text-muted">
+        <div className="mt-1 whitespace-pre-wrap border-l-2 border-violet-300 pl-2 pto-t-md leading-snug text-muted">
           Нашла ИИ: {highlight(aiFinding, needle)}
         </div>
       ) : null}
       {wrongReason ? (
-        <div className="mt-1 whitespace-pre-wrap border-l-2 border-rose-400 pl-2 text-[11px] leading-snug text-rose-800">
+        <div className="mt-1 whitespace-pre-wrap border-l-2 border-rose-400 pl-2 pto-t-md leading-snug text-rose-800">
           Неверно: {highlight(wrongReason, needle)}
         </div>
       ) : null}
@@ -1125,7 +1222,7 @@ function RemarkText({
             event.stopPropagation();
             setOpen((value) => !value);
           }}
-          className="mt-0.5 text-[10px] text-muted underline decoration-dotted hover:text-text"
+          className="mt-0.5 pto-t-sm text-muted underline decoration-dotted hover:text-text"
         >
           {expanded ? "свернуть" : "ещё"}
         </button>
@@ -1170,7 +1267,7 @@ function LocationLine({
     return (
       <span
         title={title}
-        className="block truncate text-[11px] leading-snug text-text"
+        className="block truncate pto-t-md leading-snug text-text"
       >
         {body}
       </span>
@@ -1199,7 +1296,7 @@ function LocationLine({
           newTab: true,
         });
       }}
-      className="block max-w-full truncate rounded px-0.5 -mx-0.5 text-left text-[11px] leading-snug text-accent hover:bg-rose-50 hover:no-underline"
+      className="block max-w-full truncate rounded px-0.5 -mx-0.5 text-left pto-t-md leading-snug text-accent hover:bg-rose-50 hover:no-underline"
     >
       <span className="underline decoration-dotted">{body}</span>
     </button>
@@ -1229,7 +1326,7 @@ function ReviewLocations({
           className="flex min-w-0 items-baseline gap-1"
         >
           {many ? (
-            <span className="shrink-0 tabular-nums text-[10px] text-muted">
+            <span className="shrink-0 tabular-nums pto-t-sm text-muted">
               {index + 1}/{review.locations.length}
             </span>
           ) : null}
@@ -1348,7 +1445,7 @@ function ReviewRow({
               <span
                 className={`h-2 w-2 rounded-full ${VERDICT_DOT[review.verdict]}`}
               />
-              <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-1 hidden -translate-x-1/2 whitespace-nowrap rounded bg-slate-900 px-1.5 py-0.5 text-[10px] leading-none text-white shadow-sm group-hover/mark:block">
+              <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-1 hidden -translate-x-1/2 whitespace-nowrap rounded bg-slate-900 px-1.5 py-0.5 pto-t-sm leading-none text-white shadow-sm group-hover/mark:block">
                 {REVIEW_VERDICT_LABEL[review.verdict]}
               </span>
             </span>
@@ -1356,14 +1453,14 @@ function ReviewRow({
         </span>
       </td>
       <td className="px-2 py-1.5">
-        <span className="rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[10px] font-medium text-text">
+        <span className="rounded border border-slate-300 bg-white px-1.5 py-0.5 pto-t-sm font-medium text-text">
           {review.section}
         </span>
       </td>
       <td className="px-2 py-1.5">
         <div className="flex items-start gap-1.5">
           <span
-            className={`mt-0.5 shrink-0 rounded border px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide ${
+            className={`mt-0.5 shrink-0 rounded border px-1.5 py-0.5 pto-t-xs font-medium uppercase tracking-wide ${
               ORIGIN_CHIP[review.origin]
             }`}
             title={REVIEW_ORIGIN_LABEL[review.origin]}
@@ -1380,12 +1477,12 @@ function ReviewRow({
       </td>
       <td className="px-2 py-1.5">
         {review.needsRecheck ? (
-          <div className="mb-1 text-[10px] font-medium text-amber-800">
+          <div className="mb-1 pto-t-sm font-medium text-amber-800">
             нужно перепроверить
           </div>
         ) : null}
         {review.locations.length === 0 ? (
-          <span className="text-[11px] text-muted">
+          <span className="pto-t-md text-muted">
             {review.origin !== "ai" && !review.needsRecheck
               ? "ждёт обогащения"
               : "—"}
@@ -1406,7 +1503,7 @@ function ReviewRow({
             onPatch({ severity: event.target.value as ReviewSeverity })
           }
           onClick={(event) => event.stopPropagation()}
-          className={`w-full rounded border px-1.5 py-1 text-[11px] font-medium outline-none ${
+          className={`w-full rounded border px-1.5 py-1 pto-t-md font-medium outline-none ${
             SEVERITY_CHIP[review.severity]
           }`}
         >
@@ -1427,7 +1524,7 @@ function ReviewRow({
             else onPatch({ verdict: next });
           }}
           onClick={(event) => event.stopPropagation()}
-          className={`w-full rounded border px-1.5 py-1 text-[11px] font-medium outline-none ${
+          className={`w-full rounded border px-1.5 py-1 pto-t-md font-medium outline-none ${
             VERDICT_CHIP[review.verdict]
           }`}
         >
@@ -1444,7 +1541,7 @@ function ReviewRow({
               event.stopPropagation();
               onMarkWrong();
             }}
-            className="mt-1 w-full rounded border border-rose-200 bg-white px-1 py-0.5 text-[10px] text-rose-800 hover:bg-rose-50"
+            className="mt-1 w-full rounded border border-rose-200 bg-white px-1 py-0.5 pto-t-sm text-rose-800 hover:bg-rose-50"
           >
             Уточнить причину
           </button>
@@ -1463,7 +1560,7 @@ function ReviewRow({
           }}
           onClick={(event) => event.stopPropagation()}
           placeholder="Заметка проверяющего"
-          className={`w-full resize-y rounded border bg-white px-1.5 py-1 text-[11px] outline-none placeholder:text-muted focus:border-accent ${
+          className={`w-full resize-y rounded border bg-white px-1.5 py-1 pto-t-md outline-none placeholder:text-muted focus:border-accent ${
             commentDirty ? "border-accent" : "border-slate-300"
           }`}
         />
@@ -1478,7 +1575,7 @@ function ReviewRow({
                   event.stopPropagation();
                   commitComment();
                 }}
-                className="rounded bg-accent px-1.5 py-0.5 text-[10px] font-semibold text-white hover:bg-[#1d4ed8]"
+                className="rounded bg-accent px-1.5 py-0.5 pto-t-sm font-semibold text-white hover:bg-[#1d4ed8]"
               >
                 Сохранить
               </button>
@@ -1488,13 +1585,13 @@ function ReviewRow({
                   event.stopPropagation();
                   setComment(review.comment);
                 }}
-                className="rounded border border-slate-300 px-1.5 py-0.5 text-[10px] text-muted hover:text-text"
+                className="rounded border border-slate-300 px-1.5 py-0.5 pto-t-sm text-muted hover:text-text"
               >
                 Отмена
               </button>
             </>
           ) : savedFlash ? (
-            <span className="text-[10px] text-emerald-700">Сохранено</span>
+            <span className="pto-t-sm text-emerald-700">Сохранено</span>
           ) : lastEvent ? (
             <button
               type="button"
@@ -1503,7 +1600,7 @@ function ReviewRow({
                 onShowLog();
               }}
               title="Журнал правок этого замечания"
-              className="truncate text-[10px] text-muted underline decoration-dotted hover:text-text"
+              className="truncate pto-t-sm text-muted underline decoration-dotted hover:text-text"
             >
               {`${REVIEW_EVENT_LABEL[lastEvent.field].toLowerCase()} · ${
                 lastEvent.userName ?? "система"
@@ -1523,7 +1620,7 @@ function ReviewRow({
               onDelete();
             }}
             title="Удалить замечание"
-            className="rounded px-1 text-[11px] leading-none text-muted hover:bg-red-50 hover:text-red-600"
+            className="rounded px-1 pto-t-md leading-none text-muted hover:bg-red-50 hover:text-red-600"
           >
             ×
           </button>

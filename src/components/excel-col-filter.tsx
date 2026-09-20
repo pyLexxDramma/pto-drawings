@@ -143,7 +143,7 @@ export function ExcelColFilter({
               role="dialog"
               aria-label={`Фильтр ${label}`}
               style={{ top: pos.top, left: pos.left }}
-              className="fixed z-[80] w-56 rounded-md border border-slate-300 bg-white p-2 text-[11px] text-text shadow-md"
+              className="fixed z-[80] w-56 rounded-md border border-slate-300 bg-white p-2 pto-t-md text-text shadow-md"
               onMouseDown={(event) => event.stopPropagation()}
             >
               <div className="mb-1.5 flex flex-col gap-0.5">

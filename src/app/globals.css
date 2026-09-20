@@ -13,6 +13,17 @@
   --state-ok: #059669;
   --control-h: 1.75rem;
   --ui-text: 12px;
+  /** Комфортная длина строки расшифровки. */
+  --md-measure: 92ch;
+  /**
+   * Шкала мелкого текста интерфейса. Раньше размеры были зашиты в классы
+   * (text-[9px] и родня) и не зависели ни от монитора, ни от настроек —
+   * на большом экране подписи не читались.
+   */
+  --ui-t-xs: 10px;
+  --ui-t-sm: 11px;
+  --ui-t-md: 12px;
+  --ui-t-lg: 13px;
 }
 
 @theme inline {
@@ -37,14 +48,41 @@ body {
   font-family: var(--font-inter), Arial, Helvetica, sans-serif;
 }
 
-html[data-density="compact"] {
-  --control-h: 1.5rem;
-  --ui-text: 11px;
+/**
+ * Широкий монитор — текст крупнее. Настройки для этого нет и не нужно:
+ * размер идёт за шириной окна сам, включая переезд на другой экран.
+ */
+@media (min-width: 1800px) {
+  :root {
+    --control-h: 2rem;
+    --ui-text: 13px;
+    --ui-t-xs: 11px;
+    --ui-t-sm: 12px;
+    --ui-t-md: 13px;
+    --ui-t-lg: 14px;
+    --md-measure: 96ch;
+  }
 }
 
 .pto-tool {
   height: var(--control-h);
   font-size: var(--ui-text);
+}
+
+.pto-t-xs {
+  font-size: var(--ui-t-xs);
+}
+
+.pto-t-sm {
+  font-size: var(--ui-t-sm);
+}
+
+.pto-t-md {
+  font-size: var(--ui-t-md);
+}
+
+.pto-t-lg {
+  font-size: var(--ui-t-lg);
 }
 
 /** Кнопки поверх чертежа: вдвое ниже обычных, чтобы не закрывать лист. */
@@ -146,6 +184,29 @@ html[data-density="compact"] {
 .markdown-body ul,
 .markdown-body ol {
   margin: 0.55em 0;
+}
+
+/**
+ * На широком мониторе строка тянулась во всю панель — 200+ знаков, глаз теряет
+ * строку. Режем только текстовый поток: таблицы и pre остаются max-content,
+ * иначе поломается горизонтальная прокрутка расшифровки.
+ */
+.markdown-body p,
+.markdown-body ul,
+.markdown-body ol,
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body blockquote {
+  max-width: var(--md-measure);
+}
+
+/** В ячейках ограничение только мешает: ширину колонки задаёт таблица. */
+.markdown-body td p,
+.markdown-body th p,
+.markdown-body td ul,
+.markdown-body td ol {
+  max-width: none;
 }
 
 .markdown-body ul {

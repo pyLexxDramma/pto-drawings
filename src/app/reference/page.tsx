@@ -98,7 +98,7 @@ export default function ReferencePage() {
             onChange={(event) => setReference(event.target.value)}
             rows={10}
             spellCheck={false}
-            className="w-full resize-y border-b border-border bg-[#f7f8fa] p-3 font-mono text-[12px] outline-none"
+            className="w-full resize-y border-b border-border bg-[#f7f8fa] p-3 font-mono pto-t-lg outline-none"
           />
           <div className="flex flex-wrap gap-1 border-b border-border px-3 py-2">
             {CHECKS.map((check) => {
@@ -106,7 +106,7 @@ export default function ReferencePage() {
               return (
                 <span
                   key={check.id}
-                  className={`rounded-full px-2 py-0.5 text-[11px] ${
+                  className={`rounded-full px-2 py-0.5 pto-t-md ${
                     ok ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-muted"
                   }`}
                 >
@@ -129,7 +129,7 @@ export default function ReferencePage() {
             onChange={(event) => setOurs(event.target.value)}
             rows={10}
             spellCheck={false}
-            className="w-full resize-y border-b border-border bg-[#f7f8fa] p-3 font-mono text-[12px] outline-none"
+            className="w-full resize-y border-b border-border bg-[#f7f8fa] p-3 font-mono pto-t-lg outline-none"
           />
           <div className="flex flex-wrap gap-1 border-b border-border px-3 py-2">
             {CHECKS.map((check) => {
@@ -137,7 +137,7 @@ export default function ReferencePage() {
               return (
                 <span
                   key={check.id}
-                  className={`rounded-full px-2 py-0.5 text-[11px] ${
+                  className={`rounded-full px-2 py-0.5 pto-t-md ${
                     ok ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-muted"
                   }`}
                 >

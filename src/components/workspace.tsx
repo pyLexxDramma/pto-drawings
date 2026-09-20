@@ -83,7 +83,7 @@ import {
   isZipFile,
 } from "@/lib/drawing-kit";
 import { loadCachedProgress } from "@/lib/review-state";
-import { bumpViewerSession, loadViewerPrefs } from "@/lib/viewer-prefs";
+import { bumpViewerSession } from "@/lib/viewer-prefs";
 import {
   KIND_LABEL,
   type DocumentRecord,
@@ -116,6 +116,38 @@ const STATUS_CLASS: Record<DocumentStatus, string> = {
   done: "bg-emerald-50 text-emerald-800",
   error: "bg-red-50 text-red-800",
 };
+
+/**
+ * Колонка проектов. Верхнюю границу держали на 234px ради ноутбуков, но на
+ * широком мониторе имена файлов упирались в обрез — считаем от ширины окна.
+ */
+const PROJECTS_MIN_W = 192;
+const PROJECTS_MAX_W = 360;
+
+function defaultProjectsWidth(viewportW: number) {
+  if (viewportW >= 2400) return 320;
+  if (viewportW >= 1800) return 280;
+  if (viewportW >= 1500) return 248;
+  return 222;
+}
+
+/**
+ * Узкий десктоп — 1280×800 и мелкие окна. Дерево проектов и открытый лист туда
+ * рядом не влезают, поэтому при переходе на лист дерево сворачивается само.
+ */
+const NARROW_DESKTOP_W = 1180;
+
+function useNarrowDesktop() {
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${NARROW_DESKTOP_W - 1}px)`);
+    const apply = () => setNarrow(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
+  return narrow;
+}
 
 const STATUS_DOT: Record<DocumentStatus, string> = {
   queued: "bg-amber-500",
@@ -324,6 +356,9 @@ export function Workspace({
   const [creatingProject, setCreatingProject] = useState(false);
   const [showNewProject, setShowNewProject] = useState(false);
   const [projectsCollapsed, setProjectsCollapsed] = useState(false);
+  const narrowDesktop = useNarrowDesktop();
+  const narrowRef = useRef(narrowDesktop);
+  narrowRef.current = narrowDesktop;
   const [stripHost, setStripHost] = useState<HTMLDivElement | null>(null);
   const [focusMode, setFocusMode] = useState(false);
   const [renameId, setRenameId] = useState<string | null>(null);
@@ -553,7 +588,7 @@ export function Workspace({
     setShowReviews(false);
     if (view.kind === "drawing") {
       setSelectedId(view.documentId);
-      setProjectsCollapsed(false);
+      setProjectsCollapsed(narrowRef.current);
       return;
     }
     setSelectedId(null);
@@ -573,6 +608,8 @@ export function Workspace({
       setPeekOpen(false);
       setNavFromReviews(false);
       setSelectedId(id);
+      // На узком десктопе дерево и лист рядом не живут — уступаем место чертежу.
+      setProjectsCollapsed(narrowRef.current);
       setOpenPage(
         page && page > 0
           ? { nonce: Date.now(), page, documentId: id }
@@ -597,7 +634,7 @@ export function Workspace({
         return;
       }
       setShowReviews(false);
-      setProjectsCollapsed(false);
+      setProjectsCollapsed(narrowRef.current);
       // Уже в файле — просто вернуться к расшифровке, не прыгать на другой лист.
       if (selectedId) return;
 
@@ -738,11 +775,18 @@ export function Workspace({
   useEffect(() => {
     try {
       const raw = localStorage.getItem("pto-column-widths");
-      if (!raw) return;
+      if (!raw) {
+        setProjectsWidth(defaultProjectsWidth(window.innerWidth));
+        return;
+      }
       const parsed = JSON.parse(raw) as { projects?: number; files?: number };
       if (typeof parsed.projects === "number") {
         setProjectsWidth(
-          clamp(parsed.projects <= 156 ? parsed.projects * 1.5 : parsed.projects, 192, 234),
+          clamp(
+            parsed.projects <= 156 ? parsed.projects * 1.5 : parsed.projects,
+            PROJECTS_MIN_W,
+            PROJECTS_MAX_W,
+          ),
         );
       }
     } catch {
@@ -752,7 +796,6 @@ export function Workspace({
 
   useEffect(() => {
     bumpViewerSession();
-    document.documentElement.dataset.density = loadViewerPrefs().density;
   }, []);
 
   useEffect(() => {
@@ -1609,7 +1652,7 @@ export function Workspace({
     if (event.dataTransfer.files.length) void queueUpload(event.dataTransfer.files);
   }
 
-  const gridClass = "flex min-h-0 flex-1 flex-col md:flex-row";
+  const gridClass = "flex min-h-0 flex-1 flex-row";
   const showPipelineTech = user.role === "admin";
   const pipelineUsageLabel = formatPipelineUsage(pipelineHealth?.usage);
   const summaryLine = projectSummaryLine(
@@ -1788,7 +1831,7 @@ export function Workspace({
               type="button"
               onClick={openProjectsList}
               title="Главная: все проекты, список слева"
-              className="shrink-0 rounded-md bg-accent px-2 py-0.5 text-[10px] font-bold text-white shadow-sm hover:bg-[#1d4ed8]"
+              className="shrink-0 rounded-md bg-accent px-2 py-0.5 pto-t-sm font-bold text-white shadow-sm hover:bg-[#1d4ed8]"
             >
               ← К проектам
             </button>
@@ -1816,7 +1859,7 @@ export function Workspace({
                 <button
                   type="button"
                   onClick={onHeaderBack}
-                  className="shrink-0 rounded-md border-2 border-amber-500 bg-amber-500 px-2.5 py-1 text-[11px] font-bold text-white shadow-sm hover:bg-amber-600"
+                  className="shrink-0 rounded-md border-2 border-amber-500 bg-amber-500 px-2.5 py-1 pto-t-md font-bold text-white shadow-sm hover:bg-amber-600"
                 >
                   {backLabel}
                 </button>
@@ -1827,7 +1870,7 @@ export function Workspace({
           <div className="flex shrink-0 items-center gap-2">
             {visibleQueueChip ? (
               <div
-                className={`hidden max-w-[12rem] items-center gap-1.5 truncate whitespace-nowrap rounded-md border px-2 py-1 text-[10px] lg:flex ${visibleQueueChip.className}`}
+                className={`hidden max-w-[12rem] items-center gap-1.5 truncate whitespace-nowrap rounded-md border px-2 py-1 pto-t-sm lg:flex ${visibleQueueChip.className}`}
                 title={visibleQueueChip.text}
               >
                 {busy ? <Spinner className="h-3 w-3 opacity-80" /> : null}
@@ -1860,7 +1903,7 @@ export function Workspace({
                         onClick={() => pageLogApiRef.current?.open()}
                       >
                         <span>История правок листа</span>
-                        <span className="text-[10px] tabular-nums text-muted">
+                        <span className="pto-t-sm tabular-nums text-muted">
                           {pageLogCount}
                         </span>
                       </button>
@@ -1942,7 +1985,7 @@ export function Workspace({
 
       <div className={gridClass}>
         {focusMode || showReviews ? null : projectsCollapsed ? (
-          <div className="flex w-8 shrink-0 flex-col border-b border-border bg-surface md:border-b-0 md:border-r">
+          <div className="flex w-8 shrink-0 flex-col border-r border-border bg-surface">
             <button
               type="button"
               onClick={() => setProjectsCollapsed(false)}
@@ -1956,7 +1999,7 @@ export function Workspace({
           </div>
         ) : (
           <aside
-            className="flex min-h-0 shrink-0 flex-col border-b border-border bg-surface md:border-b-0"
+            className="flex min-h-0 shrink-0 flex-col bg-surface"
             style={{ width: projectsWidth, maxWidth: "100%" }}
           >
             <div className="flex items-start gap-1 border-b border-border px-2 py-1.5">
@@ -1986,7 +2029,7 @@ export function Workspace({
                   />
                 </form>
               ) : (
-                <div className="truncate px-1 text-[10px] text-muted" title={currentProject?.name}>
+                <div className="truncate px-1 pto-t-sm text-muted" title={currentProject?.name}>
                   {currentProject?.name}
                 </div>
               )}
@@ -2030,19 +2073,19 @@ export function Workspace({
                         onClick={() => {
                           void selectProject(project.id);
                         }}
-                        className={`min-w-0 flex-1 rounded-md px-1.5 py-1 text-left text-[11px] ${
+                        className={`min-w-0 flex-1 rounded-md px-1.5 py-1 text-left pto-t-md ${
                           project.id === projectId ? "text-text" : "text-muted hover:text-text"
                         }`}
                         title={`Открыть файлы проекта · создан ${formatDate(project.createdAt)}`}
                         aria-expanded={project.id === projectId}
                       >
                         <span className="flex items-center gap-1">
-                          <span className="text-[10px] text-muted">
+                          <span className="pto-t-sm text-muted">
                             {project.id === projectId ? "▾" : "▸"}
                           </span>
                           <span className="min-w-0 flex-1 truncate font-medium">{project.name}</span>
                         </span>
-                        <span className="mt-0.5 block truncate pl-3.5 text-[9px] font-normal tabular-nums text-muted">
+                        <span className="mt-0.5 block truncate pl-3.5 pto-t-xs font-normal tabular-nums text-muted">
                           {formatDate(project.createdAt)}
                         </span>
                       </button>
@@ -2075,12 +2118,12 @@ export function Workspace({
                         <label
                           htmlFor="pto-drawing-upload"
                           title={UPLOAD_BUTTON_LABEL}
-                          className="mb-1 flex cursor-pointer items-center justify-center rounded-md bg-accent px-1.5 py-1 text-[10px] font-semibold leading-tight text-white hover:bg-[#1d4ed8]"
+                          className="mb-1 flex cursor-pointer items-center justify-center rounded-md bg-accent px-1.5 py-1 pto-t-sm font-semibold leading-tight text-white hover:bg-[#1d4ed8]"
                         >
                           Загрузить
                         </label>
                         {error ? (
-                          <div className="mb-1 rounded bg-red-50 px-2 py-1 text-[10px] text-red-700">
+                          <div className="mb-1 rounded bg-red-50 px-2 py-1 pto-t-sm text-red-700">
                             {error}
                           </div>
                         ) : null}
@@ -2089,7 +2132,7 @@ export function Workspace({
                             key={item.tempId}
                             className="mb-1 rounded border border-border bg-white px-2 py-1"
                           >
-                            <div className="flex justify-between gap-1 text-[11px]">
+                            <div className="flex justify-between gap-1 pto-t-md">
                               <span className="truncate">{item.name}</span>
                               <span className="shrink-0 text-muted">
                                 {item.error ?? `${item.progress}%`}
@@ -2121,7 +2164,7 @@ export function Workspace({
                             <button
                               type="button"
                               onClick={() => void openDocument(doc.id)}
-                              className={`min-w-0 flex-1 rounded px-1 py-0.5 text-left text-[11px] ${
+                              className={`min-w-0 flex-1 rounded px-1 py-0.5 text-left pto-t-md ${
                                 selectedId === doc.id
                                   ? "font-medium text-text"
                                   : "text-muted hover:text-text"
@@ -2155,7 +2198,7 @@ export function Workspace({
                                 <span className="min-w-0 flex-1 truncate">{doc.originalName}</span>
                                 {failed ? (
                                   <span
-                                    className="shrink-0 rounded bg-red-600 px-1 text-[9px] font-bold uppercase tracking-wide text-white"
+                                    className="shrink-0 rounded bg-red-600 px-1 pto-t-xs font-bold uppercase tracking-wide text-white"
                                     title={processingFailureReason(doc)}
                                   >
                                     не обработан
@@ -2163,7 +2206,7 @@ export function Workspace({
                                 ) : null}
                                 {canceled ? (
                                   <span
-                                    className="shrink-0 rounded bg-red-600 px-1 text-[9px] font-bold uppercase tracking-wide text-white"
+                                    className="shrink-0 rounded bg-red-600 px-1 pto-t-xs font-bold uppercase tracking-wide text-white"
                                     title={doc.errorMessage ?? "остановлен"}
                                   >
                                     остановлен
@@ -2171,7 +2214,7 @@ export function Workspace({
                                 ) : null}
                                 {doc.kitId ? (
                                   <span
-                                    className="shrink-0 rounded border border-accent/30 bg-accent/5 px-1 text-[9px] font-medium text-accent"
+                                    className="shrink-0 rounded border border-accent/30 bg-accent/5 px-1 pto-t-xs font-medium text-accent"
                                     title={doc.kitLabel ?? "PDF + DWG"}
                                   >
                                     PDF+DWG
@@ -2181,7 +2224,7 @@ export function Workspace({
                                   <Spinner className="h-2.5 w-2.5 shrink-0 text-sky-700" />
                                 ) : null}
                               </span>
-                              <span className="mt-0.5 block truncate pl-3 text-[9px] font-normal tabular-nums text-muted">
+                              <span className="mt-0.5 block truncate pl-3 pto-t-xs font-normal tabular-nums text-muted">
                                 {[
                                   uploadedLabel,
                                   elapsedLabel
@@ -2198,7 +2241,7 @@ export function Workspace({
                               <ActionMenu
                                 label="Действия файла"
                                 align="right"
-                                triggerClassName="rounded px-1 py-0.5 text-[11px] leading-none text-muted hover:bg-bg hover:text-text"
+                                triggerClassName="rounded px-1 py-0.5 pto-t-md leading-none text-muted hover:bg-bg hover:text-text"
                               >
                                 {!failed &&
                                 (doc.status === "error" ||
@@ -2227,7 +2270,7 @@ export function Workspace({
                           </div>
                           {blocked ? (
                             <div className="space-y-1.5 px-1.5 pb-1.5 pt-0.5">
-                              <div className="text-[10px] leading-snug text-red-950">
+                              <div className="pto-t-sm leading-snug text-red-950">
                                 <span className="font-semibold">
                                   {canceled ? "Остановлен." : "Не обработан."}
                                 </span>{" "}
@@ -2239,14 +2282,14 @@ export function Workspace({
                                 <button
                                   type="button"
                                   onClick={() => void handleRetry(doc.id, true)}
-                                  className="min-w-0 flex-1 rounded-md bg-emerald-600 px-2 py-0.5 text-[10px] font-bold leading-tight text-white hover:bg-emerald-700"
+                                  className="min-w-0 flex-1 rounded-md bg-emerald-600 px-2 py-0.5 pto-t-sm font-bold leading-tight text-white hover:bg-emerald-700"
                                 >
                                   Запустить заново
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => void handleDelete(doc.id)}
-                                  className="shrink-0 rounded-md border border-slate-400 bg-white px-2 py-0.5 text-[10px] font-semibold leading-tight text-slate-800 hover:bg-slate-100"
+                                  className="shrink-0 rounded-md border border-slate-400 bg-white px-2 py-0.5 pto-t-sm font-semibold leading-tight text-slate-800 hover:bg-slate-100"
                                 >
                                   Удалить
                                 </button>
@@ -2257,7 +2300,7 @@ export function Workspace({
                           );
                         })}
                         {!loading && documents.length === 0 && uploads.length === 0 ? (
-                          <div className="px-1 py-2 text-center text-[11px] text-muted">
+                          <div className="px-1 py-2 text-center pto-t-md text-muted">
                             Нет файлов — загрузите PDF/DWG
                           </div>
                         ) : null}
@@ -2286,8 +2329,11 @@ export function Workspace({
 
         {focusMode || showReviews || projectsCollapsed ? null : (
           <ColumnResizer
-            className="hidden md:block"
-            onDelta={(dx) => setProjectsWidth((w) => clamp(w + dx, 192, 234))}
+            onDelta={(dx) =>
+              setProjectsWidth((w) =>
+                clamp(w + dx, PROJECTS_MIN_W, PROJECTS_MAX_W),
+              )
+            }
           />
         )}
 
@@ -2302,6 +2348,7 @@ export function Workspace({
               currentDocumentId={selectedId}
               currentDocumentName={selected?.originalName ?? null}
               onJumpToPage={jumpToPage}
+              onOpenTranscript={() => openStage("transcribe")}
               onStatsChange={setReviewStats}
               refreshToken={reviewsEpoch}
               onReviewsMutated={() => setReviewsEpoch((n) => n + 1)}

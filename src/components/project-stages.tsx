@@ -82,7 +82,12 @@ function buildStages(
     {
       id: "transcribe",
       label: "Расшифровка",
-      count: pagesTotal > 0 ? `${pagesReady}/${pagesTotal}` : "—",
+      count:
+        pagesTotal > 0
+          ? `${pagesReady}/${pagesTotal}`
+          : filesTotal === 0
+            ? "нет файлов"
+            : "режем на листы",
       percent: percent(pagesReady, pagesTotal),
       state:
         pagesTotal === 0
@@ -102,7 +107,7 @@ function buildStages(
       : {
           id: "reviews",
           label: "Таблица замечаний",
-          count: reviewsTotal > 0 ? `${reviewsDone}/${reviewsTotal}` : "—",
+          count: reviewsTotal > 0 ? `${reviewsDone}/${reviewsTotal}` : "ещё нет",
           percent: percent(reviewsDone, reviewsTotal),
           state:
             reviewsTotal === 0
@@ -160,7 +165,7 @@ export function ProjectStagesBar({
       }`}
     >
       <span
-        className="hidden max-w-[8rem] shrink-0 truncate text-[10px] font-medium uppercase tracking-wide text-muted xl:inline"
+        className="hidden max-w-[8rem] shrink-0 truncate pto-t-sm font-medium uppercase tracking-wide text-muted xl:inline"
         title={projectName}
       >
         {projectName}
@@ -185,11 +190,11 @@ export function ProjectStagesBar({
               }`}
             >
               <span className="flex items-baseline gap-1.5">
-                <span className="truncate text-[11px] font-semibold leading-tight">
+                <span className="truncate pto-t-md font-semibold leading-tight">
                   {stage.label}
                 </span>
                 <span
-                  className={`shrink-0 text-[10px] tabular-nums ${
+                  className={`truncate pto-t-sm tabular-nums ${
                     current ? "text-white/90" : "opacity-75"
                   }`}
                 >
@@ -212,7 +217,7 @@ export function ProjectStagesBar({
           type="button"
           onClick={onBackHome}
           title="Туда, откуда открыли эту страницу"
-          className="shrink-0 rounded-md border-2 border-amber-500 bg-amber-500 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm hover:bg-amber-600"
+          className="shrink-0 rounded-md border-2 border-amber-500 bg-amber-500 px-2 py-0.5 pto-t-sm font-bold text-white shadow-sm hover:bg-amber-600"
         >
           {backLabel}
         </button>
@@ -220,7 +225,7 @@ export function ProjectStagesBar({
 
       {docTitle ? (
         <span
-          className="hidden max-w-[8rem] shrink truncate rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[10px] font-medium text-slate-800 lg:inline"
+          className="hidden max-w-[8rem] shrink truncate rounded border border-slate-300 bg-white px-1.5 py-0.5 pto-t-sm font-medium text-slate-800 lg:inline"
           title={docTitle}
         >
           {docTitle}

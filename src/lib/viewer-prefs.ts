@@ -1,11 +1,10 @@
 /** Предпочтения вьюера — плотность, жесты, читаемость DWG. */
 
-export type ViewerDensity = "normal" | "compact";
+/** Размер текста интерфейса живёт в CSS и идёт за шириной окна — см. globals.css. */
 export type CadWheelMode = "zoom" | "pan";
 export type CadTextFilter = "all" | "hide" | "text";
 
 export type ViewerPrefs = {
-  density: ViewerDensity;
   cadWheel: CadWheelMode;
   largeLabels: boolean;
   thinStrokes: boolean;
@@ -20,7 +19,6 @@ export type ViewerPrefs = {
 const KEY = "pto-viewer-prefs";
 
 const DEFAULTS: ViewerPrefs = {
-  density: "normal",
   cadWheel: "pan",
   largeLabels: true,
   thinStrokes: false,

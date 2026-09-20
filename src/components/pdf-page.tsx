@@ -59,6 +59,20 @@ type TextHit = { x: number; y: number; w: number; h: number };
 
 const MIN_SIDE = 0.012;
 
+/**
+ * Лист рисуем с запасом x2 — так текст остаётся резким при зуме. Но на A0 это
+ * ~32 Мп: Safari отдаёт пустой canvas, слабые машины упираются в память.
+ * Держим потолок по площади, уменьшая масштаб только там, где он не влезает.
+ */
+const RENDER_SCALE = 2;
+const MAX_CANVAS_PX = 16e6;
+
+function renderScale(natural: { width: number; height: number }) {
+  const area = natural.width * natural.height;
+  if (!(area > 0)) return RENDER_SCALE;
+  return Math.max(0.5, Math.min(RENDER_SCALE, Math.sqrt(MAX_CANVAS_PX / area)));
+}
+
 export function PdfPage({
   url,
   pageNumber,
@@ -195,7 +209,9 @@ export function PdfPage({
         if (!pdf) throw new Error("pdf missing");
 
         const page = await pdf.getPage(pageNumber);
-        const pageViewport = page.getViewport({ scale: 2 });
+        const pageViewport = page.getViewport({
+          scale: renderScale(page.getViewport({ scale: 1 })),
+        });
 
         let canvas = canvasRef.current;
         for (let i = 0; i < 20 && !canvas; i += 1) {
@@ -608,7 +624,7 @@ export function PdfPage({
       {markMode || searchHits.length > 0 || legendOn || overlay ? (
         <div className="pointer-events-none absolute left-1/2 top-1.5 z-30 flex max-w-[calc(100%-13rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-1">
           {markMode ? (
-            <span className="rounded bg-red-600 px-2 py-0.5 text-[10px] font-medium leading-none text-white shadow-md">
+            <span className="rounded bg-red-600 px-2 py-0.5 pto-t-sm font-medium leading-none text-white shadow-md">
               Обведите место на чертеже · Esc — отмена
             </span>
           ) : null}

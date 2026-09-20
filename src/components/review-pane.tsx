@@ -17,7 +17,11 @@ import { PageStrip } from "@/components/page-strip";
 import { PdfPage } from "@/components/pdf-page";
 import { PaneToggle, SegmentedTabs } from "@/components/ui-chrome";
 import { modelIssueCount } from "@/components/model-check-panel";
-import { IconChevronLeft, IconChevronRight } from "@/components/tool-icons";
+import {
+  IconChevronLeft,
+  IconChevronRight,
+  IconSearch,
+} from "@/components/tool-icons";
 import type { ModelCheckInput } from "@/lib/model-check";
 import { KEYMAP, KEYMAP_GROUPS } from "@/lib/keymap";
 import { VoiceNoteButton } from "@/components/voice-note";
@@ -575,7 +579,7 @@ export function ReviewPane({
   // Один ряд плашек над листом: счётчик поиска, места, легенда цветов.
   const placeBar =
     siblingLocations.length > 1 && activeReview ? (
-      <span className="pointer-events-auto inline-flex max-w-full items-center gap-0.5 rounded border border-violet-300/30 bg-slate-900/55 px-1.5 py-[3px] text-[9px] font-medium leading-none text-violet-100 shadow-md backdrop-blur">
+      <span className="pointer-events-auto inline-flex max-w-full items-center gap-0.5 rounded border border-violet-300/30 bg-slate-900/55 px-1.5 py-[3px] pto-t-xs font-medium leading-none text-violet-100 shadow-md backdrop-blur">
         <button
           type="button"
           className="rounded px-1 font-semibold hover:bg-white/15"
@@ -1015,22 +1019,33 @@ export function ReviewPane({
   }
 
   const textToolBtn =
-    "rounded border px-2 py-0.5 text-[10px] font-semibold border-slate-300 bg-white text-slate-800 hover:bg-slate-50";
+    "rounded border px-2 py-0.5 pto-t-sm font-semibold border-slate-300 bg-white text-slate-800 hover:bg-slate-50";
   const textToolBtnActive =
-    "rounded border px-2 py-0.5 text-[10px] font-semibold border-accent/50 bg-accent/10 text-accent";
+    "rounded border px-2 py-0.5 pto-t-sm font-semibold border-accent/50 bg-accent/10 text-accent";
 
   const sheetToolButtons = (
     <>
       <button
         type="button"
         title={searchOpen ? "Закрыть поиск (Esc)" : "Поиск по файлу (/ или Ctrl+F)"}
+        aria-label={searchOpen ? "Закрыть поиск" : "Поиск по файлу"}
         onClick={() => (searchOpen ? closeSearch() : openSearch())}
-        className={searchOpen ? textToolBtnActive : textToolBtn}
+        className={`inline-flex items-center gap-1 ${
+          searchOpen ? textToolBtnActive : textToolBtn
+        }`}
       >
-        {searchOpen ? "Закрыть поиск" : "Поиск"}
+        <IconSearch className="h-3 w-3" />
+        {/* Подсказка клавиши на виду: иначе про «/» узнают только из инструкции. */}
+        <kbd
+          className={`rounded px-1 font-sans pto-t-xs font-semibold ${
+            searchOpen ? "bg-accent/15 text-accent" : "bg-slate-100 text-slate-500"
+          }`}
+        >
+          {searchOpen ? "Esc" : "/"}
+        </kbd>
       </button>
       {readOnly ? (
-        <span className="rounded border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-900">
+        <span className="rounded border border-amber-300 bg-amber-50 px-2 py-0.5 pto-t-sm font-semibold text-amber-900">
           Просмотр
         </span>
       ) : null}
@@ -1330,7 +1345,7 @@ export function ReviewPane({
     <div className="flex min-h-0 flex-1 flex-col">
       {pendingRect ? (
         <div className="shrink-0 border-b border-red-200 bg-red-50 px-3 py-2">
-          <div className="text-[11px] font-medium text-red-700">Новое замечание</div>
+          <div className="pto-t-md font-medium text-red-700">Новое замечание</div>
           <div className="mt-1 flex items-start gap-1.5">
             <textarea
               autoFocus
@@ -1363,7 +1378,7 @@ export function ReviewPane({
                     prev.trim() ? `${prev.trim()}. ${label}` : label,
                   )
                 }
-                className="rounded-full border border-red-200 bg-white px-2 py-0.5 text-[10px] text-red-800 hover:bg-red-100"
+                className="rounded-full border border-red-200 bg-white px-2 py-0.5 pto-t-sm text-red-800 hover:bg-red-100"
               >
                 {label}
               </button>
@@ -1377,7 +1392,7 @@ export function ReviewPane({
             className="mt-1 w-full resize-none rounded-md border border-border bg-white px-2 py-1.5 text-xs outline-none focus:border-accent"
           />
           {noteError ? (
-            <div className="mt-1 text-[11px] text-red-700">{noteError}</div>
+            <div className="mt-1 pto-t-md text-red-700">{noteError}</div>
           ) : null}
           <div className="mt-1.5 flex gap-2">
             <button
@@ -1399,7 +1414,7 @@ export function ReviewPane({
       ) : null}
       <div className="min-h-0 flex-1 space-y-1.5 overflow-auto p-3">
         {pageNotes.length === 0 ? (
-          <div className="rounded-md border border-dashed border-slate-300 bg-[#fafbfc] px-3 py-8 text-center text-[12px] leading-relaxed text-muted">
+          <div className="rounded-md border border-dashed border-slate-300 bg-[#fafbfc] px-3 py-8 text-center pto-t-lg leading-relaxed text-muted">
             Нажмите «Отметить ошибку» и обведите место на чертеже
           </div>
         ) : (
@@ -1408,7 +1423,7 @@ export function ReviewPane({
               key={note.id}
               onMouseEnter={() => setHoverNoteId(note.id)}
               onMouseLeave={() => setHoverNoteId(null)}
-              className={`rounded-md border px-2.5 py-2 text-[11px] ${
+              className={`rounded-md border px-2.5 py-2 pto-t-md ${
                 note.status === "open"
                   ? "border-red-200 bg-red-50"
                   : "border-emerald-200 bg-emerald-50"
@@ -1439,7 +1454,7 @@ export function ReviewPane({
               {note.expected ? (
                 <div className="mt-0.5 text-muted">Должно быть: {note.expected}</div>
               ) : null}
-              <div className="mt-0.5 text-[10px] text-muted">
+              <div className="mt-0.5 pto-t-sm text-muted">
                 {note.userName ? `${note.userName} · ` : ""}
                 {formatDate(note.createdAt)}
               </div>
@@ -1495,7 +1510,7 @@ export function ReviewPane({
               {quoteMiss ? (
                 <div className="pointer-events-none absolute inset-x-0 bottom-2 z-20 flex justify-center px-2">
                   <div
-                    className={`pointer-events-auto inline-flex max-w-full items-start gap-2 rounded-md border px-2.5 py-1 text-[11px] shadow-sm ${
+                    className={`pointer-events-auto inline-flex max-w-full items-start gap-2 rounded-md border px-2.5 py-1 pto-t-md shadow-sm ${
                       quoteMiss === "model-no-layer" || quoteMiss === "miss-both"
                         ? "border-amber-300 bg-amber-50 text-amber-950"
                         : quoteMiss === "miss-drawing"
@@ -1577,8 +1592,8 @@ export function ReviewPane({
                       }}
                       className={
                         markMode
-                          ? "rounded border border-slate-700 bg-slate-700 px-2 py-0.5 text-[10px] font-semibold text-white"
-                          : "rounded border border-slate-300 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-800 hover:bg-slate-50"
+                          ? "rounded border border-slate-700 bg-slate-700 px-2 py-0.5 pto-t-sm font-semibold text-white"
+                          : "rounded border border-accent bg-accent px-2 py-0.5 pto-t-sm font-semibold text-white shadow-sm hover:bg-[#1d4ed8]"
                       }
                     >
                       {markMode ? "Отменить" : "Отметить ошибку"}
@@ -1770,7 +1785,7 @@ export function ReviewPane({
                       ? `Вернуться к листу ${trailTop} расшифровки`
                       : "Вернуться на предыдущую страницу"
                 }
-                className="shrink-0 rounded border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-900 hover:bg-amber-100"
+                className="shrink-0 rounded border border-amber-300 bg-amber-50 px-2 py-0.5 pto-t-sm font-semibold text-amber-900 hover:bg-amber-100"
               >
                 ← Назад
               </button>
@@ -1778,10 +1793,10 @@ export function ReviewPane({
                 type="button"
                 title={markMode ? "Отменить разметку (Esc)" : "Обвести ошибку на чертеже"}
                 onClick={toggleMark}
-                className={`rounded border px-2 py-0.5 text-[10px] font-semibold ${
+                className={`rounded border px-2 py-0.5 pto-t-sm font-semibold ${
                   sidePanel === "notes" || markMode
                     ? "border-slate-700 bg-slate-700 text-white"
-                    : "border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
+                    : "border-accent bg-accent text-white shadow-sm hover:bg-[#1d4ed8]"
                 }`}
               >
                 {markMode ? "Отменить" : "Отметить ошибку"}
@@ -1792,14 +1807,6 @@ export function ReviewPane({
                 ) : null}
               </button>
               {sheetToolButtons}
-              {hasKitDrawing && sidePanel === "text" ? (
-                <span
-                  className="truncate text-[10px] text-muted"
-                  title="Единая расшифровка после сверки — в работе у бэкенда"
-                >
-                  PDF · DWG для сверки
-                </span>
-              ) : null}
               <span className="ml-auto flex shrink-0 items-center gap-1">
                 <PaneToggle
                   expanded
@@ -1830,7 +1837,7 @@ export function ReviewPane({
                     type="button"
                     onClick={closeSearch}
                     title="Закрыть поиск (Esc)"
-                    className="shrink-0 rounded border border-border px-2 py-1 text-[11px] text-muted hover:bg-bg hover:text-text"
+                    className="shrink-0 rounded border border-border px-2 py-1 pto-t-md text-muted hover:bg-bg hover:text-text"
                   >
                     Esc
                   </button>
@@ -1843,7 +1850,7 @@ export function ReviewPane({
                           key={`${hit.pageNumber}-${hit.snippet}`}
                           type="button"
                           onClick={() => void goToPage(hit.pageNumber)}
-                          className="block w-full rounded bg-bg px-2 py-1 text-left text-[11px] hover:bg-blue-50"
+                          className="block w-full rounded bg-bg px-2 py-1 text-left pto-t-md hover:bg-blue-50"
                         >
                           <span className="font-medium">Лист {hit.pageNumber}</span>
                           <span className="text-muted"> · {hit.snippet}</span>
@@ -1851,7 +1858,7 @@ export function ReviewPane({
                       ))}
                     </div>
                   ) : (
-                    <div className="mt-2 text-[11px] text-muted">
+                    <div className="mt-2 pto-t-md text-muted">
                       Совпадений в этом файле нет.
                     </div>
                   )
@@ -1860,7 +1867,7 @@ export function ReviewPane({
             ) : null}
 
             {pageReviews.length > 0 ? (
-              <div className="shrink-0 border-b border-rose-200 bg-rose-50 text-[10px] leading-snug text-rose-950">
+              <div className="shrink-0 border-b border-rose-200 bg-rose-50 pto-t-sm leading-snug text-rose-950">
                 <div className="flex items-center justify-between gap-2 px-2 py-1">
                   <button
                     type="button"
@@ -1897,7 +1904,7 @@ export function ReviewPane({
                     <button
                       type="button"
                       onClick={onOpenReviews}
-                      className="shrink-0 rounded border border-rose-300 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-rose-900 hover:bg-rose-100"
+                      className="shrink-0 rounded border border-rose-300 bg-white px-1.5 py-0.5 pto-t-sm font-semibold text-rose-900 hover:bg-rose-100"
                     >
                       В таблице
                     </button>
@@ -1976,12 +1983,12 @@ export function ReviewPane({
                   className={`markdown-body markdown-body--compact p-3 ${page.kind === "table" ? "markdown-body--table" : ""}`}
                 >
                   {pageError ? (
-                    <div className="mb-2 rounded-md border border-red-200 bg-red-50 px-2 py-1.5 text-[11px] text-red-800">
+                    <div className="mb-2 rounded-md border border-red-200 bg-red-50 px-2 py-1.5 pto-t-md text-red-800">
                       Ошибка листа: {pageError}
                     </div>
                   ) : null}
                   {showTech && isMockPage ? (
-                    <div className="mb-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-950">
+                    <div className="mb-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 pto-t-md text-amber-950">
                       Это ответ режима [MOCK], не работа модели.
                     </div>
                   ) : null}
@@ -2031,10 +2038,10 @@ export function ReviewPane({
             {KEYMAP_GROUPS.map((group) => (
               <section key={group.id} className="mb-3">
                 <div className="mb-1 text-xs font-medium text-text">{group.label}</div>
-                <ul className="space-y-1 text-[11px] text-muted">
+                <ul className="space-y-1 pto-t-md text-muted">
                   {KEYMAP.filter((item) => item.group === group.id).map((item) => (
                     <li key={item.keys} className="flex justify-between gap-3">
-                      <kbd className="shrink-0 rounded border border-border bg-bg px-1 font-mono text-[10px] text-text">
+                      <kbd className="shrink-0 rounded border border-border bg-bg px-1 font-mono pto-t-sm text-text">
                         {item.keys}
                       </kbd>
                       <span className="text-right">{item.action}</span>
@@ -2079,7 +2086,7 @@ export function ReviewPane({
                 pageLogs.map((entry) => (
                   <div
                     key={entry.id}
-                    className="rounded-md bg-surface-2 px-2 py-1.5 text-[11px] text-muted"
+                    className="rounded-md bg-surface-2 px-2 py-1.5 pto-t-md text-muted"
                   >
                     {formatDate(entry.createdAt)} · лист {entry.pageNumber}
                     {entry.userName ? ` · ${entry.userName}` : ""}

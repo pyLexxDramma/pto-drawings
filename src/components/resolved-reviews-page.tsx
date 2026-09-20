@@ -247,7 +247,7 @@ export function ResolvedReviewsPage() {
             <h1 className="truncate text-sm font-semibold">
               Разобранные замечания{projectName ? ` · ${projectName}` : ""}
             </h1>
-            <div className="text-[11px] text-muted tabular-nums">
+            <div className="pto-t-md text-muted tabular-nums">
               Разобрано {resolved} из {total} · показано {rows.length}
             </div>
           </div>
@@ -277,7 +277,7 @@ export function ResolvedReviewsPage() {
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Поиск по замечаниям"
-              className="w-44 rounded-md border border-border bg-white px-2 py-1 text-[12px] outline-none placeholder:text-muted focus:border-accent"
+              className="w-44 rounded-md border border-border bg-white px-2 py-1 pto-t-lg outline-none placeholder:text-muted focus:border-accent"
             />
             <input
               ref={importRef}
@@ -293,7 +293,7 @@ export function ResolvedReviewsPage() {
               type="button"
               disabled={importing}
               onClick={() => importRef.current?.click()}
-              className="whitespace-nowrap rounded-md border border-slate-300 bg-white px-2 py-1 text-[12px] font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+              className="whitespace-nowrap rounded-md border border-slate-300 bg-white px-2 py-1 pto-t-lg font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
               title="Загрузить свой список замечаний из файла Excel — строки уйдут в таблицу замечаний"
             >
               {importing ? "Загрузка…" : "Мои замечания из Excel"}
@@ -302,7 +302,7 @@ export function ResolvedReviewsPage() {
               type="button"
               onClick={() => void downloadXlsx()}
               disabled={exporting || rows.length === 0}
-              className="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-accent px-2 py-1 text-[12px] font-semibold text-white hover:bg-[#1d4ed8] disabled:opacity-50"
+              className="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-accent px-2 py-1 pto-t-lg font-semibold text-white hover:bg-[#1d4ed8] disabled:opacity-50"
               title={
                 only || query.trim()
                   ? `Скачать то, что видно: ${rows.length}`
@@ -315,7 +315,7 @@ export function ResolvedReviewsPage() {
             <button
               type="button"
               onClick={backToWork}
-              className="rounded-md border border-accent px-2 py-1 text-[12px] font-medium text-accent hover:bg-blue-50"
+              className="rounded-md border border-accent px-2 py-1 pto-t-lg font-medium text-accent hover:bg-blue-50"
               title="Вернуться в рабочую вкладку; если её закрыли — открыть проект здесь"
             >
               ← В рабочую вкладку
@@ -325,7 +325,7 @@ export function ResolvedReviewsPage() {
       </header>
 
       {stuck ? (
-        <div className="flex flex-wrap items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-[12px] text-amber-900">
+        <div className="flex flex-wrap items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 pto-t-lg text-amber-900">
           <span>
             Место открыто в рабочей вкладке — браузер не переключил её сам.
           </span>
@@ -350,7 +350,7 @@ export function ResolvedReviewsPage() {
       ) : null}
 
       {note ? (
-        <div className="flex items-start gap-2 border-b border-emerald-200 bg-emerald-50 px-4 py-2 text-[12px] text-emerald-900">
+        <div className="flex items-start gap-2 border-b border-emerald-200 bg-emerald-50 px-4 py-2 pto-t-lg text-emerald-900">
           <span className="min-w-0 flex-1">{note}</span>
           <button
             type="button"
@@ -363,7 +363,7 @@ export function ResolvedReviewsPage() {
       ) : null}
 
       {error ? (
-        <div className="border-b border-red-200 bg-red-50 px-4 py-2 text-[12px] text-red-900">
+        <div className="border-b border-red-200 bg-red-50 px-4 py-2 pto-t-lg text-red-900">
           {error}
         </div>
       ) : null}
@@ -377,8 +377,8 @@ export function ResolvedReviewsPage() {
         </div>
       ) : (
         <div className="px-4 py-3">
-          <table className="w-full border-separate border-spacing-0 text-[12px]">
-            <thead className="text-left text-[11px] text-muted">
+          <table className="w-full border-separate border-spacing-0 pto-t-lg">
+            <thead className="text-left pto-t-md text-muted">
               <tr>
                 <Th className="w-12">№</Th>
                 <Th className="w-28">Раздел</Th>
@@ -397,13 +397,13 @@ export function ResolvedReviewsPage() {
                     <span
                       className={`h-3 w-3 shrink-0 rounded-full ${VERDICT_DOT[group.verdict]}`}
                     />
-                    <span className="text-[12px] font-semibold text-text">
+                    <span className="pto-t-lg font-semibold text-text">
                       {REVIEW_VERDICT_LABEL[group.verdict]}
                     </span>
-                    <span className="text-[11px] text-muted tabular-nums">
+                    <span className="pto-t-md text-muted tabular-nums">
                       {group.items.length}
                     </span>
-                    <span className="text-[11px] text-muted">
+                    <span className="pto-t-md text-muted">
                       · {VERDICT_HINT[group.verdict]} · сверху самые важные
                     </span>
                   </div>
@@ -421,7 +421,7 @@ export function ResolvedReviewsPage() {
                       {review.text}
                     </div>
                     {review.aiFinding ? (
-                      <div className="mt-1 whitespace-pre-wrap border-l-2 border-violet-300 pl-2 text-[11px] leading-snug text-muted">
+                      <div className="mt-1 whitespace-pre-wrap border-l-2 border-violet-300 pl-2 pto-t-md leading-snug text-muted">
                         Нашла ИИ: {review.aiFinding}
                       </div>
                     ) : null}
@@ -447,14 +447,14 @@ export function ResolvedReviewsPage() {
                   <Td>
                     <VerdictBadge verdict={review.verdict} />
                     {review.wrongReason ? (
-                      <div className="mt-1 whitespace-pre-wrap text-[11px] leading-snug text-rose-800">
+                      <div className="mt-1 whitespace-pre-wrap pto-t-md leading-snug text-rose-800">
                         {review.wrongReason}
                       </div>
                     ) : null}
                   </Td>
                   <Td>
                     <span
-                      className={`inline-flex rounded border px-1.5 py-0.5 text-[11px] ${SEVERITY_CHIP[review.severity]}`}
+                      className={`inline-flex rounded border px-1.5 py-0.5 pto-t-md ${SEVERITY_CHIP[review.severity]}`}
                       title={`Важность: ${REVIEW_SEVERITY_LABEL[review.severity]}`}
                     >
                       {REVIEW_SEVERITY_LABEL[review.severity]}
@@ -469,7 +469,7 @@ export function ResolvedReviewsPage() {
             ))}
           </table>
 
-          <div className="mt-3 rounded-md border border-border bg-surface px-3 py-2 text-[11px] text-muted">
+          <div className="mt-3 rounded-md border border-border bg-surface px-3 py-2 pto-t-md text-muted">
             <div className="mb-1 font-medium text-text">Что значат кружки</div>
             <div className="flex flex-wrap gap-x-4 gap-y-1">
               {RESOLVED_ORDER.map((verdict) => (
@@ -510,7 +510,7 @@ function FilterChip({
       type="button"
       onClick={onClick}
       title={hint ?? "Показать все разобранные"}
-      className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] ${
+      className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 pto-t-md ${
         active
           ? "border-accent bg-blue-50 font-medium text-text"
           : "border-border bg-white text-muted hover:text-text"
@@ -559,11 +559,11 @@ function Td({
 function VerdictBadge({ verdict }: { verdict: ReviewVerdict }) {
   return (
     <span
-      className={`group/verdict relative inline-flex items-center gap-1.5 rounded border px-1.5 py-0.5 text-[11px] ${VERDICT_CHIP[verdict]}`}
+      className={`group/verdict relative inline-flex items-center gap-1.5 rounded border px-1.5 py-0.5 pto-t-md ${VERDICT_CHIP[verdict]}`}
     >
       <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${VERDICT_DOT[verdict]}`} />
       {REVIEW_VERDICT_LABEL[verdict]}
-      <span className="pointer-events-none absolute bottom-full left-0 z-30 mb-1 hidden w-56 rounded bg-slate-900 px-2 py-1 text-[11px] leading-snug text-white shadow-md group-hover/verdict:block">
+      <span className="pointer-events-none absolute bottom-full left-0 z-30 mb-1 hidden w-56 rounded bg-slate-900 px-2 py-1 pto-t-md leading-snug text-white shadow-md group-hover/verdict:block">
         {VERDICT_HINT[verdict]}
       </span>
     </span>
@@ -600,7 +600,7 @@ function PlaceLink({
 
   if (!jumpable) {
     return (
-      <div className="truncate text-[11px] leading-snug" title={title}>
+      <div className="truncate pto-t-md leading-snug" title={title}>
         <span className="font-medium">{head || "без места"}</span>
         {location.quote ? <span> · «{location.quote}»</span> : null}
       </div>
@@ -620,7 +620,7 @@ function PlaceLink({
           quote: location.quote || wording || undefined,
         })
       }
-      className="block max-w-full truncate rounded px-0.5 -mx-0.5 text-left text-[11px] leading-snug text-accent hover:bg-blue-50"
+      className="block max-w-full truncate rounded px-0.5 -mx-0.5 text-left pto-t-md leading-snug text-accent hover:bg-blue-50"
     >
       <span className="font-medium underline decoration-dotted">
         {head || "открыть лист"}

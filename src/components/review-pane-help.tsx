@@ -4,7 +4,7 @@ import { KEYMAP, KEYMAP_GROUPS } from "@/lib/keymap";
 
 function Kbd({ children }: { children: string }) {
   return (
-    <kbd className="rounded border border-border bg-bg px-1 py-0.5 font-mono text-[10px] text-text">
+    <kbd className="rounded border border-border bg-bg px-1 py-0.5 font-mono pto-t-sm text-text">
       {children}
     </kbd>
   );
@@ -13,7 +13,7 @@ function Kbd({ children }: { children: string }) {
 /** Инструкция в меню Админ / Инженер — как пользоваться, без внутренней кухни. */
 export function ControlsHelpContent() {
   return (
-    <div className="space-y-3 text-[11px] leading-relaxed text-muted">
+    <div className="space-y-3 pto-t-md leading-relaxed text-muted">
       <section>
         <div className="mb-1 font-medium text-text">Загрузка и обработка</div>
         <ul className="list-disc space-y-1 pl-4">
