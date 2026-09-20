@@ -766,7 +766,7 @@ export function ReviewsTable({
                     onApply={(next) => applyColFilter("text", next)}
                   />
                 </th>
-                <th className="w-44 border-b border-border px-2 py-1.5 font-medium normal-case tracking-normal xl:w-56 2xl:w-64 min-[1900px]:w-96">
+                <th className="w-44 border-b border-border px-2 py-1.5 font-medium normal-case tracking-normal xl:w-56 2xl:w-64 min-[1900px]:w-[34rem]">
                   <ExcelColFilter
                     label="Где в ПД"
                     values={filterValues.place}
@@ -1195,7 +1195,9 @@ function RemarkText({
   const showToggle = Boolean(aiFinding) || overflows;
 
   return (
-    <div className="min-w-0">
+    // Колонка гибкая, и на широком мониторе замечание растягивалось строкой на
+    // 1600px. Ограничиваем длину строки, как в расшифровке.
+    <div className="min-w-0 max-w-[78ch]">
       <div
         ref={clampRef}
         className={`whitespace-pre-wrap leading-snug text-text ${
