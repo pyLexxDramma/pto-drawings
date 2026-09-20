@@ -139,8 +139,11 @@ export function HighlightLegend({
   }[];
 
   return (
+    // Квадратики держат постоянный размер, подписи уходят в слой поверх. Если
+    // расширять саму плашку, центрированная строка съезжает из-под курсора —
+    // подписи гаснут, строка возвращается, и легенда дёргается без остановки.
     <span
-      className="pointer-events-auto inline-flex items-center gap-1.5 rounded border border-white/15 bg-slate-900/55 px-1.5 py-[3px] pto-t-xs font-medium leading-none text-white shadow-md backdrop-blur"
+      className="pointer-events-auto relative inline-flex items-center gap-1.5 rounded border border-white/15 bg-slate-900/55 px-1.5 py-[3px] pto-t-xs font-medium leading-none text-white shadow-md backdrop-blur"
       title={items.map((item) => item.hint).join("\n")}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -148,15 +151,21 @@ export function HighlightLegend({
       {items.map((item) => (
         <span
           key={item.key}
-          className="inline-flex items-center gap-1"
-          title={item.hint}
-        >
-          <span
-            className={`h-2 w-2 shrink-0 rounded-[2px] outline outline-1 ${item.swatch}`}
-          />
-          {open ? item.label : null}
-        </span>
+          className={`h-2 w-2 shrink-0 rounded-[2px] outline outline-1 ${item.swatch}`}
+        />
       ))}
+      {open ? (
+        <span className="pointer-events-none absolute right-0 top-full z-10 mt-1 flex w-max flex-col gap-1 rounded border border-white/15 bg-slate-900/85 px-2 py-1.5 text-left shadow-lg backdrop-blur">
+          {items.map((item) => (
+            <span key={item.key} className="flex items-center gap-1.5">
+              <span
+                className={`h-2 w-2 shrink-0 rounded-[2px] outline outline-1 ${item.swatch}`}
+              />
+              {item.label}
+            </span>
+          ))}
+        </span>
+      ) : null}
     </span>
   );
 }
