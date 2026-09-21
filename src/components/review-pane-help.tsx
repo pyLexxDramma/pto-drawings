@@ -113,7 +113,7 @@ export function ControlsHelpContent() {
             ещё в очереди
           </li>
           <li>
-            <Dot className="border border-slate-400 bg-transparent" />
+            <Dot className="border-2 border-amber-500 bg-amber-100" />
             готов, но вы его не открывали
           </li>
         </ul>

@@ -18,8 +18,8 @@ function StatusDot({
 }) {
   return (
     <span className="group/dot relative inline-flex" aria-label={label}>
-      <span className={`h-2.5 w-2.5 rounded-full ${className}`} />
-      <span className="pointer-events-none absolute bottom-full right-0 z-30 mb-1 hidden whitespace-nowrap rounded bg-slate-900 px-1.5 py-0.5 pto-t-sm leading-none text-white shadow-sm group-hover/dot:block">
+      <span className={`h-3 w-3 rounded-full ${className}`} />
+      <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-1 hidden w-max max-w-[11rem] -translate-x-1/2 text-balance rounded bg-slate-900 px-1.5 py-0.5 pto-t-sm leading-snug text-white shadow-sm group-hover/dot:block">
         {label}
       </span>
     </span>
@@ -91,7 +91,7 @@ export function PageStrip({
           />
         </div>
       ) : null}
-      <div className="min-h-0 flex-1 overflow-y-auto p-1">
+      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-visible p-1.5">
         {pages.length === 0 && emptyLabel ? (
           <div className="px-1 py-2 pto-t-sm leading-snug text-muted">
             {emptyLabel}
@@ -118,7 +118,7 @@ export function PageStrip({
               aria-current={current === pageNumber ? "page" : undefined}
               onClick={() => onSelect(pageNumber)}
               title={`${kindLabel} ${pageNumber}`}
-              className={`mb-0.5 flex w-full items-center gap-1 rounded px-1 py-0.5 text-left ${
+              className={`mb-0.5 flex w-full items-center gap-1.5 overflow-visible rounded px-1.5 py-1 text-left ${
                 current === pageNumber
                   ? "bg-white ring-1 ring-accent/50"
                   : isWorking
@@ -129,7 +129,7 @@ export function PageStrip({
               <span className="min-w-0 flex-1 truncate pto-t-sm font-medium leading-tight">
                 Лист {pageNumber}
               </span>
-              <span className="flex shrink-0 items-center gap-0.5 overflow-visible">
+              <span className="flex shrink-0 items-center gap-1.5 overflow-visible">
                 {isWorking ? (
                   <StatusDot
                     className="animate-pulse bg-sky-500 motion-reduce:animate-none"
@@ -142,18 +142,18 @@ export function PageStrip({
                 )}
                 {isUnseen ? (
                   <StatusDot
-                    className="border border-slate-400 bg-white"
-                    label="Лист не просмотрен"
+                    className="border-2 border-amber-500 bg-amber-100"
+                    label="Лист не открывали"
                   />
                 ) : null}
                 {dots ? (
                   <span
-                    className={`group/dot relative inline-flex min-w-[14px] items-center justify-center rounded-full px-1 pto-t-xs font-semibold leading-[14px] tabular-nums ${VERDICT_COUNT[dots.verdict]}`}
-                    aria-label={`Замечаний: ${dots.count} · разбор: ${REVIEW_VERDICT_LABEL[dots.verdict]}`}
+                    className={`group/dot relative inline-flex min-w-[1.125rem] items-center justify-center rounded-full px-1 pto-t-xs font-semibold leading-[1.125rem] tabular-nums ${VERDICT_COUNT[dots.verdict]}`}
+                    aria-label={`${dots.count} · ${REVIEW_VERDICT_LABEL[dots.verdict]}`}
                   >
                     {dots.count}
-                    <span className="pointer-events-none absolute bottom-full right-0 z-30 mb-1 hidden whitespace-nowrap rounded bg-slate-900 px-1.5 py-0.5 pto-t-sm font-normal leading-none text-white shadow-sm group-hover/dot:block">
-                      {`Замечаний: ${dots.count} · разбор: ${REVIEW_VERDICT_LABEL[dots.verdict]}`}
+                    <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-1 hidden w-max max-w-[11rem] -translate-x-1/2 text-balance rounded bg-slate-900 px-1.5 py-0.5 pto-t-sm font-normal leading-snug text-white shadow-sm group-hover/dot:block">
+                      {`${dots.count} · ${REVIEW_VERDICT_LABEL[dots.verdict].toLowerCase()}`}
                     </span>
                   </span>
                 ) : isFlagged ? (
