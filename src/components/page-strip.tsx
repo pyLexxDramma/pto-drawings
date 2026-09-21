@@ -19,7 +19,7 @@ function StatusDot({
   return (
     <span className="group/dot relative inline-flex" aria-label={label}>
       <span className={`h-3 w-3 rounded-full ${className}`} />
-      <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-1 hidden w-max max-w-[11rem] -translate-x-1/2 text-balance rounded bg-slate-900 px-1.5 py-0.5 pto-t-sm leading-snug text-white shadow-sm group-hover/dot:block">
+      <span className="pointer-events-none absolute left-1/2 top-full z-30 mt-1 hidden w-max max-w-[11rem] -translate-x-1/2 text-balance rounded bg-slate-900 px-1.5 py-0.5 pto-t-sm leading-snug text-white shadow-sm group-hover/dot:block">
         {label}
       </span>
     </span>
@@ -152,7 +152,7 @@ export function PageStrip({
                     aria-label={`${dots.count} · ${REVIEW_VERDICT_LABEL[dots.verdict]}`}
                   >
                     {dots.count}
-                    <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-1 hidden w-max max-w-[11rem] -translate-x-1/2 text-balance rounded bg-slate-900 px-1.5 py-0.5 pto-t-sm font-normal leading-snug text-white shadow-sm group-hover/dot:block">
+                    <span className="pointer-events-none absolute left-1/2 top-full z-30 mt-1 hidden w-max max-w-[11rem] -translate-x-1/2 text-balance rounded bg-slate-900 px-1.5 py-0.5 pto-t-sm font-normal leading-snug text-white shadow-sm group-hover/dot:block">
                       {`${dots.count} · ${REVIEW_VERDICT_LABEL[dots.verdict].toLowerCase()}`}
                     </span>
                   </span>
