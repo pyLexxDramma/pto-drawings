@@ -990,6 +990,31 @@ export function Workspace({
     return () => clearInterval(timer);
   }, [localBusy, loadDocuments, projectId]);
 
+  /**
+   * Замечания конвейер публикует по ходу обработки, а раньше их тянули только
+   * при смене проекта — счётчик и метки листов стояли на старых числах, пока
+   * инженер не откроет таблицу или файл заново (баг 0099). Опрашиваем, пока
+   * обработка идёт, и один раз добираем финальный набор, когда она кончилась.
+   */
+  useEffect(() => {
+    if (!projectId || !localBusy) return;
+    const timer = setInterval(() => {
+      void loadProjectReviews(projectId).catch(() => undefined);
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [loadProjectReviews, localBusy, projectId]);
+
+  const wasBusyRef = useRef(false);
+  useEffect(() => {
+    if (wasBusyRef.current && !localBusy && projectId) {
+      void loadProjectReviews(projectId).catch(() => undefined);
+      // Открытая таблица тоже перечитывается: иначе новые строки видны только
+      // в счётчике, а список остаётся прежним.
+      setReviewsEpoch((n) => n + 1);
+    }
+    wasBusyRef.current = localBusy;
+  }, [loadProjectReviews, localBusy, projectId]);
+
   // lite-опрос не несёт страницы — пока идёт обработка, тянем полный документ
   useEffect(() => {
     if (!selectedId || !localBusy) return;
@@ -1220,7 +1245,13 @@ export function Workspace({
     setNotesFilter("open");
     setProjectQuery("");
     setHits([]);
-    await Promise.all([loadDocuments(id), loadEdits(id), loadNotes(id)]);
+    // Замечания тоже: вход в тот же проект раньше не обновлял их совсем.
+    await Promise.all([
+      loadDocuments(id),
+      loadEdits(id),
+      loadNotes(id),
+      loadProjectReviews(id).catch(() => undefined),
+    ]);
   }
 
   async function handleCreateProject(event: FormEvent) {
@@ -1387,6 +1418,7 @@ export function Workspace({
             loadDocuments(targetProject),
             loadEdits(targetProject),
             loadNotes(targetProject),
+            loadProjectReviews(targetProject).catch(() => undefined),
           ]);
         }
 
@@ -1599,6 +1631,7 @@ export function Workspace({
         loadDocuments(targetProject),
         loadEdits(targetProject),
         loadNotes(targetProject),
+        loadProjectReviews(targetProject).catch(() => undefined),
       ]);
     }
     await openDocument(docId, page);

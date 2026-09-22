@@ -87,9 +87,11 @@ function buildStages(
     {
       id: "transcribe",
       label: "Расшифровка",
+      // «32/32» читалось как «нашли 32 из 32»: числа подписываем прямо в полосе,
+      // подсказку под курсором на демо никто не наводит (баг 0099).
       count:
         pagesTotal > 0
-          ? `${pagesReady}/${pagesTotal}`
+          ? `листов ${pagesReady} из ${pagesTotal}`
           : filesTotal === 0
             ? "нет файлов"
             : "режем на листы",
@@ -112,7 +114,12 @@ function buildStages(
       : {
           id: "reviews",
           label: "Таблица замечаний",
-          count: reviewsTotal > 0 ? `${reviewsDone}/${reviewsTotal}` : "ещё нет",
+          // «0/2» на демо прочли как «нашлось 0 замечаний из 2». Первым числом
+          // ставим сколько замечаний всего, вторым — сколько разобрано.
+          count:
+            reviewsTotal > 0
+              ? `${reviewsTotal} · разобрано ${reviewsDone}`
+              : "ещё нет",
           percent: percent(reviewsDone, reviewsTotal),
           state:
             reviewsTotal === 0
@@ -123,7 +130,7 @@ function buildStages(
           hint:
             reviewsTotal === 0
               ? "Замечаний пока нет — конвейер их ещё не присылал"
-              : `Разобрано с заказчиком: ${reviewsDone} из ${reviewsTotal}`,
+              : `Замечаний в проекте: ${reviewsTotal}, разобрано с заказчиком: ${reviewsDone}`,
         },
   ];
 }

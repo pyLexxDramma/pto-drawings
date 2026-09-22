@@ -34,9 +34,11 @@ const wanted = rows.filter({ hasText: PROJECT }).first();
 await ((await wanted.count()) ? wanted : rows.first()).locator("button").first().click();
 await page.waitForTimeout(1500);
 
+// Пока проект грузится, в полосе стоит «…» и кнопка выключена — ждём числа.
 const stage = page.getByRole("button", {
-  name: /^Таблица замечаний (\d+\/\d+|ещё нет)$/,
+  name: /^Таблица замечаний (\d+ · разобрано \d+|ещё нет)$/,
 });
+await stage.first().waitFor({ timeout: 30000 });
 console.log("этап «Таблица замечаний»:", await stage.count());
 await stage.first().click();
 await page.waitForTimeout(2500);
