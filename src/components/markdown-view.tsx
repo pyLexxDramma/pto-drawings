@@ -78,7 +78,12 @@ function BlockMarkdown({
         h3: ({ children: c }) => wrapText("h3", c, q, flagQuotes, focusState),
         p: ({ children: c }) => wrapText("p", c, q, flagQuotes, focusState),
         li: ({ children: c }) => wrapText("li", c, q, flagQuotes, focusState),
+        /*
+         * Таблица шире панели прокручивается сама, а не растягивает весь лист:
+         * иначе абзацы рядом с ведомостью уезжали за правый край (баг 0098).
+         */
         table: ({ children: c }) => (
+          <div className="pto-md-table">
           <table
             onMouseOver={(event) => {
               const cell = (event.target as HTMLElement).closest("td,th");
@@ -100,6 +105,7 @@ function BlockMarkdown({
           >
             {c}
           </table>
+          </div>
         ),
         td: ({ children: c }) => wrapText("td", c, q, flagQuotes, focusState),
         th: ({ children: c }) => wrapText("th", c, q, flagQuotes, focusState),

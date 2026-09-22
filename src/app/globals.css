@@ -112,6 +112,19 @@ body {
   }
 }
 
+/**
+ * 4K и широкие 2560: на таком экране 14px снова читаются мелко — расшифровке
+ * даём третью ступень (баг 0098, «она мелкая»).
+ */
+@media (min-width: 2200px) {
+  :root {
+    --md-measure: 100ch;
+    --md-size: 15px;
+    --md-leading: 1.62;
+    --md-cell: 48ch;
+  }
+}
+
 .pto-tool {
   height: var(--control-h);
   font-size: var(--ui-text);
@@ -277,6 +290,15 @@ body {
  * строку. Режем только текстовый поток: таблицы и pre остаются max-content,
  * иначе поломается горизонтальная прокрутка расшифровки.
  */
+/*
+ * Предел длины строки — только там, где ширину задаём мы (подсказки, справка).
+ * В расшифровке ширину выбирает инженер разделителем, и упор в 96ch оставлял
+ * справа пустое поле на широком экране (баг 0098).
+ */
+.markdown-body[data-sheet-body] {
+  --md-measure: none;
+}
+
 .markdown-body p,
 .markdown-body ul,
 .markdown-body ol,
@@ -310,8 +332,19 @@ body {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
+/*
+ * Лист-таблица тоже шириной в панель. Прокрутку широкой ведомости забирает
+ * .pto-md-table — иначе max-content растягивал весь лист, абзацы уезжали за
+ * правый край, а панель выглядела «нереспонсивной» (баг 0098).
+ */
 .markdown-body--table {
-  width: max-content;
+  width: auto;
+  overscroll-behavior-x: contain;
+}
+
+.pto-md-table {
+  max-width: 100%;
+  overflow-x: auto;
   overscroll-behavior-x: contain;
 }
 
@@ -320,9 +353,8 @@ body {
 }
 
 .markdown-body pre {
-  width: max-content;
-  max-width: none;
-  overflow: visible;
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 /**

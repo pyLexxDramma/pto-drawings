@@ -99,10 +99,17 @@ try {
         const scroller = t?.closest(".overflow-auto");
         if (!t || !scroller) return null;
         const remark = document.querySelector("tbody tr td:nth-child(4)");
+        const remarkText = remark?.querySelector(".max-w-\\[78ch\\]");
+        const place = document.querySelector("tbody tr td:nth-child(5)");
         return {
           overflow: scroller.scrollWidth - scroller.clientWidth,
           fixed: getComputedStyle(t).tableLayout,
           remarkW: remark ? Math.round(remark.getBoundingClientRect().width) : 0,
+          // Ширина самого текста, а не ячейки: колонка гибкая и на 2560 огромна.
+          textW: remarkText
+            ? Math.round(remarkText.getBoundingClientRect().width)
+            : 0,
+          placeW: place ? Math.round(place.getBoundingClientRect().width) : 0,
           rows: document.querySelectorAll("tbody tr").length,
         };
       });
@@ -117,6 +124,16 @@ try {
           `${size.tag}: колонка «Замечание» читаемая`,
           table.remarkW >= 200,
           `${table.remarkW}px`,
+        );
+        check(
+          `${size.tag}: строка замечания не тянется`,
+          table.textW > 0 && table.textW <= 900,
+          `текст ${table.textW}px в ячейке ${table.remarkW}px`,
+        );
+        check(
+          `${size.tag}: «Где в ПД» шире на большом экране`,
+          size.width >= 1840 ? table.placeW >= 500 : table.placeW >= 170,
+          `${table.placeW}px`,
         );
       } else {
         check(`${size.tag}: таблица найдена`, false);

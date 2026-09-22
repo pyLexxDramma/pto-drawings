@@ -40,6 +40,12 @@ import {
   remarkTermsInMarkdown,
 } from "@/lib/highlight-text";
 import { quoteBannerKind } from "@/lib/quote-banner";
+import {
+  SPLIT_MAX,
+  SPLIT_MIN,
+  loadViewerPrefs,
+  saveSplit,
+} from "@/lib/viewer-prefs";
 import { normalizeQuote } from "@/lib/remark-jump";
 import {
   cacheProgress,
@@ -181,7 +187,7 @@ export function ReviewPane({
     if (cached?.pageNumber && cached.pageNumber > 0) return cached.pageNumber;
     return loadCachedProgress(document.id).lastPage;
   });
-  const [split, setSplit] = useState(66);
+  const [split, setSplit] = useState(() => loadViewerPrefs().splitDrawing);
   const [query, setQuery] = useState("");
   const [showLog, setShowLog] = useState(false);
   const [filter, setFilter] = useState<KindFilter>("all");
@@ -876,9 +882,11 @@ export function ReviewPane({
   }, [document.id, pageNumber]);
 
   useEffect(() => {
-    // Таблицы читаются шире, чем чертёж: отдаём им больше правой панели.
+    // Таблицы читаются шире, чем чертёж: отдаём им больше правой панели. Обе
+    // доли берём из настроек — раздвинутую границу инженер теряет иначе.
+    const prefs = loadViewerPrefs();
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (page?.kind === "table") setSplit(42);
+    setSplit(page?.kind === "table" ? prefs.splitTable : prefs.splitDrawing);
   }, [page?.kind]);
 
   /**
@@ -1187,16 +1195,20 @@ export function ReviewPane({
     const prevSelect = window.document.body.style.userSelect;
     window.document.body.style.cursor = "col-resize";
     window.document.body.style.userSelect = "none";
+    let last = split;
     const move = (moveEvent: globalThis.MouseEvent) => {
       const rect = parent.getBoundingClientRect();
       const next = ((moveEvent.clientX - rect.left) / rect.width) * 100;
-      setSplit(clamp(next, 22, 82));
+      last = clamp(next, SPLIT_MIN, SPLIT_MAX);
+      setSplit(last);
     };
     const up = () => {
       window.document.body.style.cursor = prevCursor;
       window.document.body.style.userSelect = prevSelect;
       window.removeEventListener("mousemove", move);
       window.removeEventListener("mouseup", up);
+      // Помним по типу листа: у ведомости и чертежа удобная ширина разная.
+      saveSplit(page?.kind === "table" ? "table" : "drawing", last);
     };
     window.addEventListener("mousemove", move);
     window.addEventListener("mouseup", up);
@@ -1716,11 +1728,15 @@ export function ReviewPane({
           {paneSolo === null ? (
             <div
               role="separator"
-              title="Потяните, чтобы изменить ширину чертежа и расшифровки"
+              data-split-handle=""
+              title="Потяните, чтобы изменить ширину чертежа и расшифровки — ширина запомнится"
               onMouseDown={startSplit}
-              className="relative z-10 w-1 shrink-0 cursor-col-resize bg-border"
+              // Заметная на глаз полоса: раньше границу в 1px никто не находил
+              // и читал расшифровку в узкой колонке (баг 0098).
+              className="group/split relative z-10 w-1.5 shrink-0 cursor-col-resize bg-border hover:bg-accent/60"
             >
               <div className="absolute inset-y-0 -left-1.5 -right-1.5" />
+              <span className="pointer-events-none absolute left-1/2 top-1/2 h-8 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-slate-400 group-hover/split:bg-accent" />
             </div>
           ) : null}
 

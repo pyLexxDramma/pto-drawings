@@ -1,0 +1,15 @@
+﻿import { chromium } from 'playwright';
+const BASE='http://127.0.0.1:3100';
+const b=await chromium.launch();
+const c=await b.newContext({viewport:{width:1920,height:1080}});
+await c.request.post(BASE+'/api/auth/login',{data:{login:'admin',password:'admin123'}});
+const p=await c.newPage();
+await p.goto(BASE,{waitUntil:'domcontentloaded',timeout:90000});
+const rows=p.locator('[data-project-row]');
+await rows.first().waitFor({timeout:90000});
+await rows.filter({hasText:'UI-фикстура'}).first().locator('button').first().click();
+const tab=p.getByRole('button',{name:/^Таблица замечаний /}); await tab.first().waitFor({timeout:30000}); await tab.first().click();
+await p.waitForTimeout(3500);
+await p.screenshot({path:'samples/shots/palette-table.png'});
+console.log('строк:', await p.locator('[data-review-id]').count());
+await b.close();

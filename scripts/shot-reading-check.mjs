@@ -99,7 +99,8 @@ for (const size of SIZES) {
     if (textProbe && tableProbe) break;
   }
 
-  const expectedPx = size.width >= 1800 ? 14 : 13;
+  // Три ступени кегля: 13px до 1800, 14px до 2200, 15px на 4K (баг 0098).
+  const expectedPx = size.width >= 2200 ? 15 : size.width >= 1800 ? 14 : 13;
   console.log(`\n[${size.tag}] листов в полосе: ${total}`);
 
   for (const [kind, info] of [
