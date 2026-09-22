@@ -27,7 +27,7 @@ import {
   VERDICT_ROW,
 } from "@/lib/review-colors";
 import { formatDate } from "@/lib/format";
-import { sheetLabel, stripAddressPrefix } from "@/lib/sheet-label";
+import { remarkWording, sheetLabel } from "@/lib/sheet-label";
 import {
   REVIEW_EVENT_LABEL,
   REVIEW_ORIGIN_LABEL,
@@ -1221,9 +1221,7 @@ type JumpToPage = (
  * остаётся, иначе сломается сверка с тем, что прислал конвейер.
  */
 export function stripRemarkPlacePrefix(wording: string): string {
-  const cut = stripAddressPrefix(wording);
-  // Пустой остаток — значит вся формулировка и была префиксом: не режем.
-  return cut.trim() ? cut : wording;
+  return remarkWording(wording);
 }
 
 /** Формулировка в 3 строки; находка ИИ — за «ещё». «Неверно» всегда видно. */

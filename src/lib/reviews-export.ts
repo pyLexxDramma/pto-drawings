@@ -1,6 +1,6 @@
 import { buildXlsx, type Cell, type CellFill } from "@/lib/xlsx";
 import { sortReviews } from "@/lib/reviews";
-import { locationLabel, stripAddressPrefix } from "@/lib/sheet-label";
+import { locationLabel, remarkWording } from "@/lib/sheet-label";
 import {
   isExportableReview,
   type Review,
@@ -40,7 +40,7 @@ function whereInPd(review: Review): string {
  * «лист 6, стр. 1» рядом с «лист 28» проектировщики читают как ошибку (0097).
  */
 function wording(review: Review): string {
-  return stripAddressPrefix(review.text || review.aiFinding);
+  return remarkWording(review.text || review.aiFinding);
 }
 
 /**

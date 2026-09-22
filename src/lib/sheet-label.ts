@@ -40,3 +40,30 @@ export function stripAddressPrefix(text: string): string {
   const address = /^\s*(?:[^\n:]{1,120}?\.(?:pdf|dwg|dxf|docx?)\s*,\s*)?(?:(?:стр\.?|лист)\s*\d+\s*,?\s*){1,2}:\s*/iu;
   return text.replace(address, "");
 }
+
+/**
+ * Адреса внутри формулировки приводим к тому же формату. Конвейер пишет
+ * «(лист 6, стр. 1)» — два числа про один лист, и проектировщики в выгрузке
+ * читают это как ошибку. Порядок в томе — то, что конвейер называет «стр.»,
+ * номер из штампа уходит в пояснение.
+ */
+export function normalizeInlineAddresses(text: string): string {
+  return (
+    text
+      // «лист 6, стр. 1» → «лист 1, в штампе 6»
+      .replace(
+        /лист\s*(\d+)\s*,\s*стр\.?\s*(\d+)/giu,
+        (_full, stamp: string, page: string) =>
+          stamp === page ? `лист ${page}` : `лист ${page}, в штампе ${stamp}`,
+      )
+      // одиночная «стр. 2» — тот же лист тома, только под другим словом
+      .replace(/стр\.\s*(\d+)/giu, "лист $1")
+      .replace(/\bстр\s+(\d+)/giu, "лист $1")
+  );
+}
+
+/** Формулировка для таблицы и выгрузки: без адреса в начале, адреса внутри — в одном формате. */
+export function remarkWording(text: string): string {
+  const cut = stripAddressPrefix(text);
+  return normalizeInlineAddresses(cut.trim() ? cut : text);
+}

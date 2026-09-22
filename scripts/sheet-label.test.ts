@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   locationLabel,
+  normalizeInlineAddresses,
+  remarkWording,
   sheetLabel,
   stripAddressPrefix,
 } from "../src/lib/sheet-label.ts";
@@ -52,5 +54,26 @@ describe("адрес листа (0097)", () => {
   it("не трогает формулировку без адреса", () => {
     const text = "Температурный график задан по-разному: 95/70 и 90/70 °С.";
     assert.equal(stripAddressPrefix(text), text);
+    assert.equal(remarkWording(text), text);
+  });
+
+  it("приводит адреса внутри формулировки к одному формату", () => {
+    assert.equal(
+      normalizeInlineAddresses("118 кВт (лист 6, стр. 1) и 110.2 кВт (стр. 2)"),
+      "118 кВт (лист 1, в штампе 6) и 110.2 кВт (лист 2)",
+    );
+  });
+
+  it("совпадающие номера листа и штампа не удваивает", () => {
+    assert.equal(normalizeInlineAddresses("значение (лист 6, стр. 6)"), "значение (лист 6)");
+  });
+
+  it("формулировка для таблицы и выгрузки чистится целиком", () => {
+    assert.equal(
+      remarkWording(
+        "ИОС4-том.pdf, стр. 1: расход задан по-разному (лист 6, стр. 1) и (стр. 2).",
+      ),
+      "расход задан по-разному (лист 1, в штампе 6) и (лист 2).",
+    );
   });
 });
