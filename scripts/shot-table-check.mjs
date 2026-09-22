@@ -67,6 +67,12 @@ const info = await page.evaluate(() => {
     stripes: [
       ...new Set(rows.map((r) => getComputedStyle(r).borderLeftWidth)),
     ].sort(),
+    // Сколько разных важностей выбрано в проекте: меньше двух — сравнивать нечего.
+    severities: new Set(
+      rows
+        .map((r) => r.querySelector("select")?.value)
+        .filter((value) => value !== undefined),
+    ).size,
   };
 });
 
@@ -83,11 +89,18 @@ check(
   info.textareas === 0 && info.noteButtons === info.total,
   `textarea=${info.textareas} кнопок=${info.noteButtons} из ${info.total}`,
 );
-check(
-  "важность передана толщиной полосы, не одной на всех",
-  info.stripes.length >= 2,
-  info.stripes.join(" / "),
-);
+// Если в проекте одна важность на все замечания, толщин физически будет одна.
+if (info.severities <= 1) {
+  console.log(
+    `skip важность толщиной полосы — в проекте одна важность (${info.stripes.join(" / ")})`,
+  );
+} else {
+  check(
+    "важность передана толщиной полосы, не одной на всех",
+    info.stripes.length >= 2,
+    info.stripes.join(" / "),
+  );
+}
 await page.screenshot({ path: path.join(OUT_DIR, "table-1920.png") });
 
 // ------------------------------------------------------- раскрытие заметки
@@ -114,11 +127,15 @@ const groups = await page.evaluate(() => {
     );
   return { heads, unique: new Set(heads).size };
 });
-console.log(`     заголовки групп: ${groups.heads.join(" | ") || "нет"}`);
+console.log(
+  `     заголовки групп: ${groups.heads.join(" | ") || "нет — в проекте один файл"}`,
+);
 check(
   "каждая группа встречается один раз — файлы не чередуются",
   groups.heads.length === groups.unique,
-  `${groups.heads.length} заголовков, ${groups.unique} файлов`,
+  groups.heads.length
+    ? `${groups.heads.length} заголовков, ${groups.unique} файлов`
+    : "делить нечего: один файл",
 );
 check(
   "«Без привязки к файлу» — последняя группа",

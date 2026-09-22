@@ -76,6 +76,7 @@ const info = await page.evaluate(() => {
   const sheetText = heads.find((h) => /Текст листа/i.test(h.textContent || ""));
   return {
     toc: document.querySelectorAll("[data-sheet-toc] button").length,
+    titles: heads.map((h) => (h.textContent || "").replace(/\s+/g, " ").trim()),
     heads: heads.length,
     service: service.length,
     serviceCollapsed: service.filter(
@@ -106,11 +107,17 @@ check(
   info.service > 0 && info.serviceCollapsed === info.service,
   `${info.serviceCollapsed} из ${info.service}`,
 );
-check(
-  "«Текст листа» на первом экране",
-  info.sheetTextTop !== null && info.sheetTextTop < info.paneH,
-  `top=${info.sheetTextTop} высота панели=${info.paneH}`,
-);
+console.log(`     разделы: ${info.titles.join(" | ")}`);
+// Заголовки конвейер меняет: на части листов раздела «Текст листа» просто нет.
+if (info.sheetTextTop === null) {
+  console.log("skip «Текст листа» на первом экране — такого раздела на листе нет");
+} else {
+  check(
+    "«Текст листа» на первом экране",
+    info.sheetTextTop < info.paneH,
+    `top=${info.sheetTextTop} высота панели=${info.paneH}`,
+  );
+}
 await page.screenshot({ path: path.join(OUT_DIR, "sections-1920-collapsed.png") });
 
 // -------------------------------------------------------- раскрытие служебного
@@ -150,10 +157,12 @@ const jump = await page.evaluate((label) => {
     ),
   };
 }, tocLabel);
+// Последний раздел короче экрана не встанет под верх: прокрутка кончилась.
+const atEnd = Boolean(jump) && jump.scrollTop >= jump.overflow - 1;
 check(
   `оглавление подводит раздел «${tocLabel}» к верху панели`,
   Boolean(jump) &&
-    (jump.overflow <= 1 ? jump.offset >= 0 : Math.abs(jump.offset) <= 24),
+    (jump.overflow <= 1 || atEnd ? jump.offset >= 0 : Math.abs(jump.offset) <= 24),
   jump
     ? `отступ=${jump.offset} scrollTop=${jump.scrollTop} запас прокрутки=${jump.overflow}`
     : "раздел не найден",

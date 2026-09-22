@@ -113,6 +113,26 @@ describe("splitMarkdownSections", () => {
     );
   });
 
+  /** Формулировки с прода: там свои заголовки, а дословный текст должен остаться. */
+  it("recognises the headings the pipeline sends in production", () => {
+    const sections = splitMarkdownSections(
+      [
+        "## Описание чертежа (модель, по изображению)",
+        "тело",
+        "## Геометрия листа (из векторов PDF, точно)",
+        "тело",
+        "## Лист дословно (из PDF, в порядке исходника)",
+        "тело",
+        "## Информация о листе",
+        "size_pt: 842×1191 text_len: 1624",
+      ].join("\n\n"),
+    );
+    assert.deepEqual(
+      sections.map((section) => section.service),
+      [true, true, false, true],
+    );
+  });
+
   /**
    * Главный риск этапа: если секции рендерить по отдельности без смещения,
    * нумерация b-N перезапустится и два блока листа получат один id.
