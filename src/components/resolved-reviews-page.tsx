@@ -14,6 +14,7 @@ import {
   showPlaceInOpener,
   type PlacePayload,
 } from "@/lib/place-bridge";
+import { sheetLabel } from "@/lib/sheet-label";
 import { RESOLVED_ORDER, resolvedCounts } from "@/components/resolved-summary";
 import { IconDownload } from "@/components/tool-icons";
 import {
@@ -583,10 +584,7 @@ function PlaceLink({
   location: ReviewLocation;
   onShowPlace: (payload: PlacePayload) => void;
 }) {
-  const head = [
-    location.documentName || "без раздела",
-    location.pageNumber ? `стр. ${location.pageNumber}` : null,
-  ]
+  const head = [location.documentName || "без раздела", sheetLabel(location)]
     .filter(Boolean)
     .join(" · ");
   const jumpable = Boolean(location.documentId && location.pageNumber);

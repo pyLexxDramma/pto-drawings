@@ -56,9 +56,10 @@ const info = await page.evaluate(() => {
     withPrefix: rows.filter((r) => /\.pdf,\s*стр\.?\s*\d+\s*:/i.test(remarkCell(r)))
       .length,
     textareas: document.querySelectorAll("[data-review-id] textarea").length,
-    noteButtons: Array.from(
-      document.querySelectorAll("[data-review-id] button"),
-    ).filter((b) => /\+ заметка/.test(b.textContent || "")).length,
+    // Свёрнутая заметка: у пустой на кнопке «+ заметка», у заполненной — её
+    // текст, поэтому считаем по признаку кнопки, а не по подписи.
+    noteButtons: document.querySelectorAll("[data-review-id] [data-comment-toggle]")
+      .length,
     // Заливка строки — только от разбора: «не разобрано» без фона.
     tintedPending: rows.filter((r) => {
       const bg = getComputedStyle(r).backgroundColor;
@@ -67,6 +68,8 @@ const info = await page.evaluate(() => {
     stripes: [
       ...new Set(rows.map((r) => getComputedStyle(r).borderLeftWidth)),
     ].sort(),
+    // Адрес места: везде «лист N», «стр. N» быть не должно (0097).
+    places: rows.map((r) => (r.children[4]?.textContent || "").trim()).slice(0, 40),
     // Сколько разных важностей выбрано в проекте: меньше двух — сравнивать нечего.
     severities: new Set(
       rows
@@ -83,6 +86,14 @@ check(
   "префикс «файл.pdf, стр. N» срезан",
   info.withPrefix === 0,
   `осталось строк: ${info.withPrefix}`,
+);
+const placesWithPage = info.places.filter((text) => /стр\.?\s*\d/i.test(text));
+const placesWithSheet = info.places.filter((text) => /лист\s*\d/i.test(text));
+console.log(`     адрес места: ${JSON.stringify(info.places.slice(0, 3))}`);
+check(
+  "адрес места читается как «лист N», без «стр. N»",
+  placesWithPage.length === 0 && placesWithSheet.length > 0,
+  `«лист N»: ${placesWithSheet.length} · «стр. N»: ${placesWithPage.length}`,
 );
 check(
   "поле заметки свёрнуто в кнопку",

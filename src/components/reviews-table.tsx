@@ -27,6 +27,7 @@ import {
   VERDICT_ROW,
 } from "@/lib/review-colors";
 import { formatDate } from "@/lib/format";
+import { sheetLabel, stripAddressPrefix } from "@/lib/sheet-label";
 import {
   REVIEW_EVENT_LABEL,
   REVIEW_ORIGIN_LABEL,
@@ -1202,10 +1203,7 @@ function verdictish(field: ReviewEvent["field"], value: string): string {
 }
 
 function locationHead(location: ReviewLocation, omitFile: boolean): string {
-  return [
-    omitFile ? null : location.documentName || "без раздела",
-    location.pageNumber ? `стр. ${location.pageNumber}` : null,
-  ]
+  return [omitFile ? null : location.documentName || "без раздела", sheetLabel(location)]
     .filter(Boolean)
     .join(" · ");
 }
@@ -1217,15 +1215,13 @@ type JumpToPage = (
 ) => void;
 
 /**
- * Конвейер начинает формулировку с «файл.pdf, стр. N: » — это дубль колонки
- * «Где в ПД», и он съедал обе видимые строки, так что суть расхождения в
- * таблице не читалась. При рендере срезаем; в данных и в выгрузке Excel
- * префикс остаётся, иначе сломается сверка с тем, что прислал конвейер.
+ * Конвейер начинает формулировку с «файл.pdf, стр. N: » или «лист 6, стр. 1» —
+ * это дубль колонки «Где в ПД», и он съедал обе видимые строки, так что суть
+ * расхождения в таблице не читалась. При рендере срезаем; в данных префикс
+ * остаётся, иначе сломается сверка с тем, что прислал конвейер.
  */
-const REMARK_PLACE_PREFIX = /^\s*[^:\n]*?\.(?:pdf|dwg|dxf|docx?)\s*,\s*стр\.?\s*\d+\s*:\s*/i;
-
 export function stripRemarkPlacePrefix(wording: string): string {
-  const cut = wording.replace(REMARK_PLACE_PREFIX, "");
+  const cut = stripAddressPrefix(wording);
   // Пустой остаток — значит вся формулировка и была префиксом: не режем.
   return cut.trim() ? cut : wording;
 }
@@ -1651,6 +1647,7 @@ function ReviewRow({
               event.stopPropagation();
               setCommentOpen(true);
             }}
+            data-comment-toggle=""
             title={review.comment || "Добавить заметку проверяющего"}
             className={`w-full truncate rounded border border-dashed px-1.5 py-1 text-left pto-t-md ${
               review.comment

@@ -40,6 +40,7 @@ import {
   remarkTermsInMarkdown,
 } from "@/lib/highlight-text";
 import { quoteBannerKind } from "@/lib/quote-banner";
+import { sheetLabel } from "@/lib/sheet-label";
 import {
   SPLIT_MAX,
   SPLIT_MIN,
@@ -604,8 +605,10 @@ export function ReviewPane({
         </button>
         <span className="min-w-0 truncate tabular-nums">
           Место {Math.max(siblingIndex, 0) + 1} из {siblingLocations.length}
-          {siblingLocations[siblingIndex]?.pageNumber
-            ? ` · стр. ${siblingLocations[siblingIndex].pageNumber}`
+          {siblingLocations[siblingIndex]
+            ? ((label) => (label ? ` · ${label}` : ""))(
+                sheetLabel(siblingLocations[siblingIndex]),
+              )
             : ""}
         </span>
         <button
@@ -681,9 +684,9 @@ export function ReviewPane({
               key={`${place.documentId}-${place.pageNumber}-${index}`}
               type="button"
               onClick={() => focusLocation(place, review.id)}
-              title={`Место ${index + 1} из ${places.length} · стр. ${place.pageNumber}${
-                here ? "" : " · другой лист или файл"
-              }`}
+              title={`Место ${index + 1} из ${places.length} · ${
+                sheetLabel(place) ?? "лист не указан"
+              }${here ? "" : " · другой лист или файл"}`}
               // Текущее место — accent (это навигация), остальные — тише.
               className={`rounded border px-1 py-[1px] font-semibold tabular-nums ${
                 current

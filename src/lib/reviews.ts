@@ -149,12 +149,16 @@ function normalizeLocation(
       ? Math.max(1, Math.trunc(raw.pageNumber))
       : null;
   const rect = parseLocationRect(raw);
+  // Номер из штампа принимаем под любым из имён, которыми его может прислать
+  // конвейер: показываем справкой, номером тома остаётся страница PDF (0097).
+  const stamp = text(raw.stampSheet ?? raw.sheetNumber ?? raw.stampNumber);
   return {
     documentId: text(raw.documentId) || null,
     documentName: text(raw.documentName),
     pageNumber: page,
     quote: text(raw.quote),
     ...(rect ? { rect } : {}),
+    ...(stamp ? { stampSheet: stamp } : {}),
   };
 }
 

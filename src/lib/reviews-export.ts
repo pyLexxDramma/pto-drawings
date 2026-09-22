@@ -1,5 +1,6 @@
 import { buildXlsx, type Cell, type CellFill } from "@/lib/xlsx";
 import { sortReviews } from "@/lib/reviews";
+import { locationLabel, stripAddressPrefix } from "@/lib/sheet-label";
 import {
   isExportableReview,
   type Review,
@@ -20,9 +21,8 @@ const SEVERITY_FILL: Record<ReviewSeverity, CellFill> = {
 };
 
 function place(location: ReviewLocation): string {
-  const head = [location.documentName, location.pageNumber ? `стр. ${location.pageNumber}` : null]
-    .filter(Boolean)
-    .join(" · ");
+  // Формат адреса один на таблицу, подсветку и выгрузку — см. lib/sheet-label.
+  const head = locationLabel(location);
   return location.quote ? `${head}\n«${location.quote}»` : head;
 }
 
@@ -34,9 +34,13 @@ function whereInPd(review: Review): string {
   return places;
 }
 
-/** Формулировка инженера первична; для находок ИИ берём её обоснование. */
+/**
+ * Формулировка инженера первична; для находок ИИ берём её обоснование. Адрес
+ * листа из начала формулировки срезаем: он дублирует колонку «Где в ПД», а
+ * «лист 6, стр. 1» рядом с «лист 28» проектировщики читают как ошибку (0097).
+ */
 function wording(review: Review): string {
-  return review.text || review.aiFinding;
+  return stripAddressPrefix(review.text || review.aiFinding);
 }
 
 /**

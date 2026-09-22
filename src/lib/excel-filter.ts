@@ -3,6 +3,7 @@ import {
   REVIEW_VERDICT_LABEL,
   type Review,
 } from "@/types";
+import { sheetLabel } from "@/lib/sheet-label";
 
 export const EXCEL_EMPTY = "(Пустые)";
 
@@ -28,9 +29,7 @@ function placeValues(review: Review): string[] {
     return ["—"];
   }
   return review.locations.map((location) =>
-    [location.documentName || "без раздела", location.pageNumber ? `стр. ${location.pageNumber}` : null]
-      .filter(Boolean)
-      .join(" · "),
+    [location.documentName || "без раздела", sheetLabel(location)].filter(Boolean).join(" · "),
   );
 }
 

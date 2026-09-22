@@ -143,6 +143,11 @@ export type ReviewLocation = {
   quote: string;
   /** Рамка на листе 0..1 от конвейера (текстовый слой / координаты модели). */
   rect?: AnnotationRect;
+  /**
+   * Номер из графы «Лист» штампа, если конвейер его распознал: у листа 28 тома
+   * в штампе стоит 6. Показываем справкой в скобках — см. lib/sheet-label.
+   */
+  stampSheet?: string;
 };
 
 export type Review = {
