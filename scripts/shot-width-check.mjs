@@ -13,11 +13,15 @@ const PASSWORD = process.env.PTO_PASSWORD || "admin123";
 const OUT_DIR = path.resolve("samples/shots");
 fs.mkdirSync(OUT_DIR, { recursive: true });
 
-/** Ожидаемый кегль расшифровки по ширине окна — три ступени. */
+/**
+ * Ожидаемый кегль расшифровки по ширине окна — три ступени. Долю считаем от
+ * рабочей области (чертёж + расшифровка), а не от окна: список проектов слева
+ * занимает фиксированные пиксели и на ноутбуке съедает несколько процентов.
+ */
 const EXPECT = [
-  { width: 1440, font: 13, minShare: 38 },
-  { width: 1920, font: 14, minShare: 38 },
-  { width: 2560, font: 15, minShare: 38 },
+  { width: 1440, font: 13, minShare: 40 },
+  { width: 1920, font: 14, minShare: 40 },
+  { width: 2560, font: 15, minShare: 40 },
 ];
 
 let failures = 0;
@@ -75,11 +79,14 @@ function measure() {
     0,
   );
   const long = paras.find((el) => (el.textContent || "").length > 60) ?? body;
+  const handle = document.querySelector("[data-split-handle]");
+  const work = handle?.parentElement;
   return {
     paneW: Math.round(pane.clientWidth),
     widest,
     font: Math.round(parseFloat(getComputedStyle(long).fontSize)),
     windowW: window.innerWidth,
+    workW: Math.round(work?.clientWidth ?? window.innerWidth),
   };
 }
 
@@ -93,10 +100,10 @@ for (const step of EXPECT) {
     await page.close();
     continue;
   }
-  const share = Math.round((m.paneW / m.windowW) * 100);
+  const share = Math.round((m.paneW / m.workW) * 100);
   const fill = Math.round((m.widest / m.paneW) * 100);
   console.log(
-    `\n[${step.width}] панель ${m.paneW}px (${share}% окна) · текст ${m.widest}px (${fill}% панели) · кегль ${m.font}px`,
+    `\n[${step.width}] панель ${m.paneW}px (${share}% рабочей области, ${Math.round((m.paneW / m.windowW) * 100)}% окна) · текст ${m.widest}px (${fill}% панели) · кегль ${m.font}px`,
   );
   check(
     `${step.width}: кегль расшифровки ${step.font}px`,
@@ -104,7 +111,7 @@ for (const step of EXPECT) {
     `${m.font}px`,
   );
   check(
-    `${step.width}: панель занимает не меньше ${step.minShare}% окна`,
+    `${step.width}: панель занимает не меньше ${step.minShare}% рабочей области`,
     share >= step.minShare,
     `${share}%`,
   );
@@ -124,7 +131,9 @@ await page.setViewportSize({ width: 1920, height: 1000 });
 await openSheet(page);
 // Ширину помним раздельно для чертежа и ведомости, поэтому и тянем, и сверяем
 // на листах-чертежах: переход «ведомость → чертёж» меняет долю законно.
-const drawingSheets = page.locator('[data-page-strip] [data-page][aria-label*="Чертёж"]');
+const drawingSheets = page.locator(
+  '[data-page-strip] [data-page]:not([aria-label*="Таблица"])',
+);
 if ((await drawingSheets.count()) < 2) {
   console.log("skip память ширины — в комплекте меньше двух листов-чертежей");
   await page.close();
