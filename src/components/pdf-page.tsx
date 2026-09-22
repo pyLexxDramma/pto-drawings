@@ -8,9 +8,10 @@ import {
   type ReactNode,
 } from "react";
 import { HighlightLegend, SearchHitBadge } from "@/components/ui-chrome";
-import { ViewerHint } from "@/components/viewer-hint";
+import { VIEWER_MOUSE_HINT } from "@/components/viewer-hint";
+import { ViewerStatusBar } from "@/components/viewer-status-bar";
 import { ViewerToolbar } from "@/components/viewer-toolbar";
-import { usePageViewport } from "@/hooks/use-page-viewport";
+import { LEGIBLE_MIN_PX, usePageViewport } from "@/hooks/use-page-viewport";
 import { useSearchHitFocus } from "@/hooks/use-search-hit-focus";
 import {
   regionAtPoint,
@@ -52,6 +53,8 @@ type PdfPageProps = {
   fullscreenActive?: boolean;
   /** Плашки разбора («Место N из M») в общий ряд поверх листа. */
   overlay?: ReactNode;
+  /** Переключатель PDF / DWG — внутрь тулбара, а не отдельной плашкой. */
+  toolbarLeading?: ReactNode;
 };
 
 type DrawState = { x0: number; y0: number; x1: number; y1: number };
@@ -71,6 +74,29 @@ function renderScale(natural: { width: number; height: number }) {
   const area = natural.width * natural.height;
   if (!(area > 0)) return RENDER_SCALE;
   return Math.max(0.5, Math.min(RENDER_SCALE, Math.sqrt(MAX_CANVAS_PX / area)));
+}
+
+/**
+ * Медиана высоты подписей листа в его собственных единицах. По ней режим
+ * «Читаемо» считает масштаб: на А1 «по ширине» даёт 13%, и подписи в 2px
+ * не читаются — а средний размер шрифта заранее неизвестен.
+ */
+function medianTextHeight(
+  items: Array<{ str?: string; transform?: number[] }>,
+  vt: number[],
+): number {
+  const heights: number[] = [];
+  for (const item of items) {
+    if (!item.str?.trim() || !item.transform) continue;
+    const t = item.transform;
+    const c = vt[0] * t[2] + vt[2] * t[3];
+    const d = vt[1] * t[2] + vt[3] * t[3];
+    const h = Math.hypot(c, d);
+    if (h > 0.2) heights.push(h);
+  }
+  if (!heights.length) return 0;
+  heights.sort((a, b) => a - b);
+  return heights[Math.floor(heights.length / 2)];
 }
 
 export function PdfPage({
@@ -100,6 +126,7 @@ export function PdfPage({
   onToggleFullscreen,
   fullscreenActive = false,
   overlay,
+  toolbarLeading,
 }: PdfPageProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -109,6 +136,7 @@ export function PdfPage({
   const [draw, setDraw] = useState<DrawState | null>(null);
   const [zoomBox, setZoomBox] = useState<DrawState | null>(null);
   const [searchHits, setSearchHits] = useState<TextHit[]>([]);
+  const [legibleTextPx, setLegibleTextPx] = useState(0);
   const [hintOn, setHintOn] = useState(() => shouldShowViewerHint(loadViewerPrefs()));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const pdfDocRef = useRef<{ url: string; pdf: any } | null>(null);
@@ -127,6 +155,7 @@ export function PdfPage({
     pageNumber,
     ready,
     viewCacheKey,
+    legibleTextPx,
     highlightNonce,
     highlightRegion: focusRegion,
     panToHighlight: panToHighlight || remarkFocus,
@@ -151,6 +180,15 @@ export function PdfPage({
   // нет и объяснять нечего.
   const legendOn =
     remarkFocus && (Boolean(highlightRegion) || searchHits.length > 0);
+  // А1 «по ширине» — это 13% и подписи в 2px. Пока лист открыт мельче порога,
+  // предлагаем перейти на читаемый масштаб.
+  const legibleWarning =
+    ready &&
+    viewport.textOnScreenPx > 0 &&
+    viewport.textOnScreenPx < LEGIBLE_MIN_PX &&
+    viewport.legibleScale > viewport.scale * 1.15
+      ? `${Math.round(viewport.scale * 100)}% — подписи не читаются`
+      : null;
 
   useEffect(() => {
     let cancelled = false;
@@ -170,6 +208,7 @@ export function PdfPage({
       setLoading(true);
       setError(null);
       setSearchHits([]);
+      setLegibleTextPx(0);
       textContentRef.current = null;
       try {
         const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
@@ -231,10 +270,13 @@ export function PdfPage({
 
         const content = await page.getTextContent();
         if (cancelled) return;
-        textContentRef.current = {
-          items: content.items as Array<{ str?: string; transform?: number[]; width?: number }>,
-          viewport: pageViewport,
-        };
+        const items = content.items as Array<{
+          str?: string;
+          transform?: number[];
+          width?: number;
+        }>;
+        textContentRef.current = { items, viewport: pageViewport };
+        setLegibleTextPx(medianTextHeight(items, pageViewport.transform));
 
         if (!cancelled) setLoading(false);
       } catch (err) {
@@ -642,9 +684,17 @@ export function PdfPage({
             />
           ) : null}
         </div>
-      ) : (
-        <ViewerHint show={hintOn} wheelMode="pan" />
-      )}
+      ) : null}
+
+      <ViewerStatusBar
+        hint={hintOn ? VIEWER_MOUSE_HINT : null}
+        legibleWarning={legibleWarning}
+        onLegible={() => viewport.fit("legible")}
+        onDismissHint={() => {
+          saveViewerPrefs({ ...loadViewerPrefs(), hintDismissed: true });
+          setHintOn(false);
+        }}
+      />
 
       <ViewerToolbar
         scale={viewport.scale}
@@ -658,6 +708,8 @@ export function PdfPage({
         canNextPage={canNextPage}
         onToggleFullscreen={onToggleFullscreen}
         fullscreenActive={fullscreenActive}
+        hasLegible={viewport.legibleScale > 0}
+        leading={toolbarLeading}
       />
     </div>
   );

@@ -129,7 +129,7 @@ export function ProcessingProgressPanel({
           <div className="pto-t-md font-semibold tabular-nums text-sky-950">
             {formatProcessingPercent(overallPercent)}
           </div>
-          <ProgressTrack value={overallPercent} tone="sky" className="h-2" />
+          <ProgressTrack value={overallPercent} className="h-2" />
         </div>
       </div>
 
@@ -176,11 +176,7 @@ export function ProcessingProgressPanel({
                   {formatProcessingPercent(row.percent)}
                 </span>
               </div>
-              <ProgressTrack
-                value={row.percent}
-                tone={row.status === "active" ? "sky" : "accent"}
-                className="h-1.5"
-              />
+              <ProgressTrack value={row.percent} className="h-1.5" />
             </>
           );
           if (canOpen) {
@@ -432,7 +428,7 @@ export function LiveProgressDock({
         ) : null}
       </div>
       <div className="px-2.5 pb-1.5 pt-1">
-        <ProgressTrack value={percent} tone="sky" className="h-0.5" />
+        <ProgressTrack value={percent} className="h-0.5" />
       </div>
       {isActive && onCancel && !cancelPending ? (
         <div className="flex items-center justify-between gap-2 border-t border-sky-100 px-2 py-1">
@@ -567,7 +563,7 @@ export function ProcessingCompactBadge({
             </span>
           ) : null}
         </div>
-        <ProgressTrack value={percent} tone="sky" className="mt-2 h-1.5" />
+        <ProgressTrack value={percent} className="mt-2 h-1.5" />
       </button>
       {live && onGoToCurrent && currentPage != null ? (
         <button

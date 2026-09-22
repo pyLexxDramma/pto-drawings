@@ -110,11 +110,12 @@ const STATUS_LABEL: Record<DocumentStatus, string> = {
   error: "Ошибка",
 };
 
+/** Статус файла — те же три смысла, что у замечаний: ждёт, готово, ошибка. */
 const STATUS_CLASS: Record<DocumentStatus, string> = {
-  queued: "bg-amber-50 text-amber-800",
-  processing: "bg-sky-50 text-sky-800",
-  done: "bg-emerald-50 text-emerald-800",
-  error: "bg-red-50 text-red-800",
+  queued: "bg-sem-attn-soft text-sem-attn-text",
+  processing: "bg-accent/10 text-accent",
+  done: "bg-sem-ok-soft text-sem-ok-text",
+  error: "bg-sem-issue-soft text-sem-issue-text",
 };
 
 /**
@@ -150,10 +151,10 @@ function useNarrowDesktop() {
 }
 
 const STATUS_DOT: Record<DocumentStatus, string> = {
-  queued: "bg-amber-500",
-  processing: "bg-sky-500",
-  done: "bg-emerald-500",
-  error: "bg-red-500",
+  queued: "bg-sem-attn",
+  processing: "bg-accent",
+  done: "bg-sem-ok",
+  error: "bg-sem-issue",
 };
 
 function pickLiveJob(
@@ -1707,7 +1708,7 @@ export function Workspace({
     ].filter(Boolean);
     if (!parts.length) return null;
     return {
-      className: "border-sky-200 bg-sky-50 text-sky-950",
+      className: "border-accent/30 bg-accent/10 text-accent",
       text: parts.join(", "),
     };
   })();
@@ -1723,7 +1724,7 @@ export function Workspace({
       const source =
         pipelineHealth.modeSource ?? pipelineHealth.profile.modeSource;
       return {
-        className: "border-amber-200 bg-amber-50 text-amber-950",
+        className: "border-sem-attn-line bg-sem-attn-soft text-sem-attn-text",
         text: source
           ? `Конвейер: MOCK · модель не вызывается · ${source}`
           : "Конвейер: MOCK · модель не вызывается",
@@ -1859,7 +1860,8 @@ export function Workspace({
                 <button
                   type="button"
                   onClick={onHeaderBack}
-                  className="shrink-0 rounded-md border-2 border-amber-500 bg-amber-500 px-2.5 py-1 pto-t-md font-bold text-white shadow-sm hover:bg-amber-600"
+                  // Это навигация, а не предупреждение: amber держим под «внимание».
+                  className="shrink-0 rounded-md border-2 border-accent bg-accent px-2.5 py-1 pto-t-md font-bold text-white shadow-sm hover:brightness-110"
                 >
                   {backLabel}
                 </button>
@@ -1977,7 +1979,7 @@ export function Workspace({
       ) : null}
 
       {defaultPasswordWarning && !selected ? (
-        <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900">
+        <div className="shrink-0 border-b border-sem-attn-line bg-sem-attn-soft px-4 py-2 text-xs text-sem-attn-text">
           У аккаунта <span className="font-medium">admin</span> всё ещё стандартный
           пароль. Смените его в меню профиля («Пароль») до выдачи доступов команде.
         </div>
@@ -2221,7 +2223,7 @@ export function Workspace({
                                   </span>
                                 ) : null}
                                 {doc.status === "processing" || doc.status === "queued" ? (
-                                  <Spinner className="h-2.5 w-2.5 shrink-0 text-sky-700" />
+                                  <Spinner className="h-2.5 w-2.5 shrink-0 text-accent" />
                                 ) : null}
                               </span>
                               <span className="mt-0.5 block truncate pl-3 pto-t-xs font-normal tabular-nums text-muted">
@@ -2416,7 +2418,7 @@ export function Workspace({
               <button
                 type="button"
                 onClick={() => void openLiveJob()}
-                className="rounded-md border border-sky-300 bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-950 hover:bg-sky-100"
+                className="rounded-md border border-accent/40 bg-accent/10 px-4 py-2 text-sm font-semibold text-accent hover:bg-accent/15"
               >
                 К обработке · {liveJob.label}
               </button>

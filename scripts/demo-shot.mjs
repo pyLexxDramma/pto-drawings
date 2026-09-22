@@ -49,7 +49,15 @@ console.log("таблица:", OUT);
 // --- лист: в тулбаре должна остаться только «Ошибка» ---
 await page.getByRole("button", { name: /К проектам/ }).click();
 await page.waitForTimeout(1200);
-await page.locator("[data-project-files] button").filter({ hasText: ".pdf" }).first().click();
+// Список проектов после возврата свёрнут — раскрываем, иначе файлов не видно.
+const files = page.locator("[data-project-files] button").filter({ hasText: ".pdf" });
+if ((await files.count()) === 0) {
+  const back = page.locator("[data-project-row]");
+  const target = back.filter({ hasText: PROJECT }).first();
+  await ((await target.count()) ? target : back.first()).locator("button").first().click();
+  await page.waitForTimeout(1500);
+}
+await files.first().click();
 await page.waitForTimeout(4000);
 await page.screenshot({ path: SHEET_OUT });
 console.log("лист:", SHEET_OUT);

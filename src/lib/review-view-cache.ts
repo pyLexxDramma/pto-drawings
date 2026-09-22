@@ -3,7 +3,7 @@
 export type PageViewCache = {
   scale: number;
   pan: { x: number; y: number };
-  fitMode: "page" | "width";
+  fitMode: "page" | "width" | "legible";
 };
 
 export type DocumentViewCache = {

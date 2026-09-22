@@ -1,6 +1,7 @@
 "use client";
 
-import { VERDICT_DOT } from "@/lib/review-colors";
+import { Tooltip } from "@/components/tooltip";
+import { VerdictDot } from "@/components/ui-chrome";
 import {
   REVIEW_VERDICT_LABEL,
   type Review,
@@ -73,9 +74,7 @@ export function ResolvedSummary({
             title={`${REVIEW_VERDICT_LABEL[verdict]}: ${counts.get(verdict)}`}
             className="inline-flex items-center gap-0.5 text-muted"
           >
-            <span
-              className={`h-2 w-2 shrink-0 rounded-full ${VERDICT_DOT[verdict]}`}
-            />
+            <VerdictDot verdict={verdict} />
             <span className="tabular-nums">{counts.get(verdict)}</span>
           </span>
         ))}
@@ -102,19 +101,14 @@ export function ResolvedSummary({
       {shown.length > 0 ? (
         <div className="mt-0.5 flex flex-wrap items-center gap-1">
           {shown.map((verdict) => (
-            <span
+            <Tooltip
               key={verdict}
-              title={`${REVIEW_VERDICT_LABEL[verdict]}: ${counts.get(verdict)}`}
-              className="group/sum relative inline-flex items-center gap-0.5 pto-t-sm text-muted"
+              label={`${REVIEW_VERDICT_LABEL[verdict]}: ${counts.get(verdict)}`}
+              className="items-center gap-0.5 pto-t-sm text-muted"
             >
-              <span
-                className={`h-2 w-2 shrink-0 rounded-full ${VERDICT_DOT[verdict]}`}
-              />
+              <VerdictDot verdict={verdict} />
               <span className="tabular-nums">{counts.get(verdict)}</span>
-              <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-1 hidden -translate-x-1/2 whitespace-nowrap rounded bg-slate-900 px-1.5 py-0.5 pto-t-sm leading-none text-white shadow-sm group-hover/sum:block">
-                {REVIEW_VERDICT_LABEL[verdict]}
-              </span>
-            </span>
+            </Tooltip>
           ))}
         </div>
       ) : (

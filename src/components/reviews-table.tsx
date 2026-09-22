@@ -10,7 +10,8 @@ import {
 } from "react";
 import { ExcelColFilter } from "@/components/excel-col-filter";
 import { ResolvedSummary } from "@/components/resolved-summary";
-import { Spinner } from "@/components/ui-chrome";
+import { Tooltip } from "@/components/tooltip";
+import { Spinner, VerdictDot } from "@/components/ui-chrome";
 import { IconDoc, IconDownload } from "@/components/tool-icons";
 import {
   applyExcelFilters,
@@ -23,7 +24,6 @@ import {
   SEVERITY_CHIP,
   SEVERITY_ROW,
   VERDICT_CHIP,
-  VERDICT_DOT,
   VERDICT_ROW,
 } from "@/lib/review-colors";
 import { formatDate } from "@/lib/format";
@@ -64,11 +64,15 @@ const WRONG_TAGS = [
   "Не наша зона ответственности",
 ];
 
-/** Потоки не смешиваются: находки конвейера и замечания инженеров различимы. */
+/**
+ * Кто нашёл замечание — третья ось, и цвета она не получает: ИИ / Инженер /
+ * Совпало написано на чипе словами. Иначе на строку приходится три хюа и ни
+ * один не читается. Различаем заливкой по насыщенности нейтрали.
+ */
 const ORIGIN_CHIP: Record<ReviewOrigin, string> = {
-  ai: "border-violet-300 bg-violet-50 text-violet-900",
+  ai: "border-slate-300 bg-slate-100 text-slate-700",
   engineer: "border-slate-300 bg-white text-muted",
-  both: "border-sky-300 bg-sky-50 text-sky-900",
+  both: "border-accent/40 bg-accent/5 text-accent",
 };
 
 const ORIGIN_SHORT: Record<ReviewOrigin, string> = {
@@ -316,14 +320,51 @@ export function ReviewsTable({
     onStatsChange?.({ total: stats.total, pending: stats.pending });
   }, [onStatsChange, stats.pending, stats.total]);
 
+  /** Замечания без места идут последней группой, а не вперемешку с файлами. */
+  const NO_FILE = "Без привязки к файлу";
+  const fileOf = useCallback(
+    (review: Review) => review.locations[0]?.documentName ?? NO_FILE,
+    [],
+  );
+
   const sorted = useMemo(() => {
-    return [...visible].sort((a, b) => {
-      if (sortKey === "number") return (a.number - b.number) * sortDir;
-      const left = excelColValues(a, sortKey)[0] ?? "";
-      const right = excelColValues(b, sortKey)[0] ?? "";
-      return left.localeCompare(right, "ru", { numeric: true }) * sortDir;
-    });
-  }, [sortDir, sortKey, visible]);
+    const items = [...visible];
+    if (sortKey !== "number") {
+      return items.sort((a, b) => {
+        const left = excelColValues(a, sortKey)[0] ?? "";
+        const right = excelColValues(b, sortKey)[0] ?? "";
+        return left.localeCompare(right, "ru", { numeric: true }) * sortDir;
+      });
+    }
+    // В комплекте из нескольких файлов чистый порядок по номеру перемешивал их
+    // между собой: инженер проверяет файл целиком, а не прыгает между ними.
+    // Номер строки при этом остаётся исходным — он виден в колонке «№».
+    const files = [...new Set(items.map(fileOf))];
+    if (files.length < 2) return items.sort((a, b) => (a.number - b.number) * sortDir);
+    const rank = (review: Review) =>
+      fileOf(review) === NO_FILE ? files.length : files.indexOf(fileOf(review));
+    return items.sort(
+      (a, b) => rank(a) - rank(b) || (a.number - b.number) * sortDir,
+    );
+  }, [fileOf, sortDir, sortKey, visible]);
+
+  /**
+   * Разделитель при смене файла. Только при сортировке по номеру: при сортировке
+   * по колонке порядок задан не файлом, и группы получились бы рваными. Одного
+   * файла на весь список тоже не размечаем — делить нечего.
+   */
+  const groupHeads = useMemo(() => {
+    const heads = new Map<string, string>();
+    if (sortKey !== "number") return heads;
+    if (new Set(sorted.map(fileOf)).size < 2) return heads;
+    let prev: string | null = null;
+    for (const review of sorted) {
+      const name = fileOf(review);
+      if (name !== prev) heads.set(review.id, name);
+      prev = name;
+    }
+    return heads;
+  }, [fileOf, sortKey, sorted]);
 
   function sortBy(key: ExcelCol, dir: 1 | -1) {
     setSortKey(key);
@@ -518,7 +559,7 @@ export function ReviewsTable({
               {` · ${stats.total} всего · ${stats.pending} не разобрано · выс. ${stats.high} · выгрузка ${stats.exportable} · ИИ ${stats.ai} · инж. ${stats.engineer}`}
               {stats.both ? ` · оба ${stats.both}` : ""}
               {stats.wrong ? (
-                <span className="text-rose-700">{` · брак ${stats.wrong}`}</span>
+                <span className="text-sem-issue">{` · брак ${stats.wrong}`}</span>
               ) : null}
             </span>
           )}
@@ -838,9 +879,21 @@ export function ReviewsTable({
                   </td>
                 </tr>
               ) : null}
-              {sorted.map((review) => (
+              {sorted.map((review, index) => (
+                <Fragment key={review.id}>
+                  {groupHeads.get(review.id) ? (
+                    <tr>
+                      <td
+                        colSpan={9}
+                        className={`bg-surface-2 px-2 pb-1 pto-t-sm font-semibold text-muted ${
+                          index === 0 ? "pt-1" : "pt-2"
+                        }`}
+                      >
+                        {groupHeads.get(review.id)}
+                      </td>
+                    </tr>
+                  ) : null}
                     <ReviewRow
-                      key={review.id}
                       review={review}
                       needle={query.trim().toLowerCase()}
                       active={activeId === review.id}
@@ -861,6 +914,7 @@ export function ReviewsTable({
                       onDelete={() => void handleDelete(review.id)}
                       onJumpToPage={onJumpToPage}
                     />
+                </Fragment>
               ))}
             </tbody>
           </table>
@@ -1162,7 +1216,21 @@ type JumpToPage = (
   options?: { reviewId?: string; quote?: string; newTab?: boolean },
 ) => void;
 
-/** Формулировка в 2 строки; находка ИИ — за «ещё». «Неверно» всегда видно. */
+/**
+ * Конвейер начинает формулировку с «файл.pdf, стр. N: » — это дубль колонки
+ * «Где в ПД», и он съедал обе видимые строки, так что суть расхождения в
+ * таблице не читалась. При рендере срезаем; в данных и в выгрузке Excel
+ * префикс остаётся, иначе сломается сверка с тем, что прислал конвейер.
+ */
+const REMARK_PLACE_PREFIX = /^\s*[^:\n]*?\.(?:pdf|dwg|dxf|docx?)\s*,\s*стр\.?\s*\d+\s*:\s*/i;
+
+export function stripRemarkPlacePrefix(wording: string): string {
+  const cut = wording.replace(REMARK_PLACE_PREFIX, "");
+  // Пустой остаток — значит вся формулировка и была префиксом: не режем.
+  return cut.trim() ? cut : wording;
+}
+
+/** Формулировка в 3 строки; находка ИИ — за «ещё». «Неверно» всегда видно. */
 function RemarkText({
   wording,
   needle,
@@ -1193,6 +1261,8 @@ function RemarkText({
     Boolean(needle && aiFinding && aiFinding.toLowerCase().includes(needle));
   const expanded = open || needleHitsAi;
   const showToggle = Boolean(aiFinding) || overflows;
+  // Свёрнутым показываем формулировку без дубля места; раскрытым — как пришла.
+  const shown = expanded ? wording : stripRemarkPlacePrefix(wording);
 
   return (
     // Колонка гибкая, и на широком мониторе замечание растягивалось строкой на
@@ -1201,13 +1271,13 @@ function RemarkText({
       <div
         ref={clampRef}
         className={`whitespace-pre-wrap leading-snug text-text ${
-          expanded ? "" : "line-clamp-2"
+          expanded ? "" : "line-clamp-3"
         }`}
       >
-        {highlight(wording, needle)}
+        {highlight(shown, needle)}
       </div>
       {expanded && aiFinding ? (
-        <div className="mt-1 whitespace-pre-wrap border-l-2 border-violet-300 pl-2 pto-t-md leading-snug text-muted">
+        <div className="mt-1 whitespace-pre-wrap border-l-2 border-slate-300 pl-2 pto-t-md leading-snug text-muted">
           Нашла ИИ: {highlight(aiFinding, needle)}
         </div>
       ) : null}
@@ -1385,8 +1455,16 @@ function ReviewRow({
 }) {
   const [comment, setComment] = useState(review.comment);
   const commentRef = useRef(review.comment);
+  /** Поле заметки развёрнуто: у заполненных — сразу, у пустых — по клику. */
+  const [commentOpen, setCommentOpen] = useState(false);
+  const commentFieldRef = useRef<HTMLTextAreaElement>(null);
   /** Показываем «сохранено» пару секунд: иначе непонятно, ушла ли заметка. */
   const [savedFlash, setSavedFlash] = useState(false);
+
+  // Раскрыли по клику — ставим курсор в поле, иначе нужен второй клик.
+  useEffect(() => {
+    if (commentOpen) commentFieldRef.current?.focus();
+  }, [commentOpen]);
 
   // Правку с сервера подхватываем, набранный текст не сбрасываем.
   useEffect(() => {
@@ -1410,6 +1488,7 @@ function ReviewRow({
     commentRef.current = next;
     onPatch({ comment: next });
     setSavedFlash(true);
+    if (!next) setCommentOpen(false);
   }
 
   const wording = review.text || review.aiFinding;
@@ -1419,7 +1498,9 @@ function ReviewRow({
       onClick={onActivate}
       // Строка переезжает при смене важности и разбора — тестам нужна опора на id.
       data-review-id={review.id}
-      className={`border-b border-slate-200 border-l-4 align-top ${
+      // Толщина левой полосы — важность, заливка — разбор. Два разных смысла,
+      // и раньше они оба красили фон, перебивая друг друга.
+      className={`border-b border-slate-200 align-top ${
         SEVERITY_ROW[review.severity]
       } ${VERDICT_ROW[review.verdict] ?? ""} ${
         active
@@ -1440,17 +1521,9 @@ function ReviewRow({
         <span className="inline-flex items-center gap-1">
           {review.number}
           {review.verdict === "pending" ? null : (
-            <span
-              className="group/mark relative inline-flex"
-              title={`Разобрано: ${REVIEW_VERDICT_LABEL[review.verdict]}`}
-            >
-              <span
-                className={`h-2 w-2 rounded-full ${VERDICT_DOT[review.verdict]}`}
-              />
-              <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-1 hidden -translate-x-1/2 whitespace-nowrap rounded bg-slate-900 px-1.5 py-0.5 pto-t-sm leading-none text-white shadow-sm group-hover/mark:block">
-                {REVIEW_VERDICT_LABEL[review.verdict]}
-              </span>
-            </span>
+            <Tooltip label={`Разобрано: ${REVIEW_VERDICT_LABEL[review.verdict]}`}>
+              <VerdictDot verdict={review.verdict} />
+            </Tooltip>
           )}
         </span>
       </td>
@@ -1550,22 +1623,44 @@ function ReviewRow({
         ) : null}
       </td>
       <td className="px-2 py-1.5">
-        <textarea
-          value={comment}
-          rows={2}
-          onChange={(event) => setComment(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
-              event.preventDefault();
-              commitComment();
-            }
-          }}
-          onClick={(event) => event.stopPropagation()}
-          placeholder="Заметка проверяющего"
-          className={`w-full resize-y rounded border bg-white px-1.5 py-1 pto-t-md outline-none placeholder:text-muted focus:border-accent ${
-            commentDirty ? "border-accent" : "border-slate-300"
-          }`}
-        />
+        {/* Поле открывается по клику: пятнадцать пустых textarea в столбик
+            занимали половину строки и мешали читать сами замечания. */}
+        {commentOpen ? (
+          <textarea
+            ref={commentFieldRef}
+            value={comment}
+            rows={3}
+            onChange={(event) => setComment(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+                event.preventDefault();
+                commitComment();
+              }
+              if (event.key === "Escape" && !commentDirty) setCommentOpen(false);
+            }}
+            onClick={(event) => event.stopPropagation()}
+            placeholder="Заметка проверяющего"
+            className={`w-full resize-y rounded border bg-white px-1.5 py-1 pto-t-md outline-none placeholder:text-muted focus:border-accent ${
+              commentDirty ? "border-accent" : "border-slate-300"
+            }`}
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              setCommentOpen(true);
+            }}
+            title={review.comment || "Добавить заметку проверяющего"}
+            className={`w-full truncate rounded border border-dashed px-1.5 py-1 text-left pto-t-md ${
+              review.comment
+                ? "border-slate-300 bg-white text-text hover:border-accent"
+                : "border-slate-300 text-muted hover:border-accent hover:text-accent"
+            }`}
+          >
+            {review.comment || "+ заметка"}
+          </button>
+        )}
         {/* Заметка сохраняется только по кнопке: раньше она уходила молча по
             потере фокуса, и было непонятно, записалась ли. */}
         <div className="mt-0.5 flex min-h-[1.1rem] items-center gap-1.5">
@@ -1586,6 +1681,7 @@ function ReviewRow({
                 onClick={(event) => {
                   event.stopPropagation();
                   setComment(review.comment);
+                  setCommentOpen(Boolean(review.comment));
                 }}
                 className="rounded border border-slate-300 px-1.5 py-0.5 pto-t-sm text-muted hover:text-text"
               >

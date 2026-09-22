@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Tooltip } from "@/components/tooltip";
+import { VerdictDot } from "@/components/ui-chrome";
 import {
   SEVERITY_CHIP,
   VERDICT_CHIP,
-  VERDICT_DOT,
   VERDICT_ROW,
 } from "@/lib/review-colors";
 import {
@@ -394,9 +395,7 @@ export function ResolvedReviewsPage() {
               <tr>
                 <td colSpan={7} className="px-2 pb-1 pt-3">
                   <div className="flex items-center gap-2 border-b border-border pb-1">
-                    <span
-                      className={`h-3 w-3 shrink-0 rounded-full ${VERDICT_DOT[group.verdict]}`}
-                    />
+                    <VerdictDot verdict={group.verdict} className="h-3 w-3" />
                     <span className="pto-t-lg font-semibold text-text">
                       {REVIEW_VERDICT_LABEL[group.verdict]}
                     </span>
@@ -421,7 +420,7 @@ export function ResolvedReviewsPage() {
                       {review.text}
                     </div>
                     {review.aiFinding ? (
-                      <div className="mt-1 whitespace-pre-wrap border-l-2 border-violet-300 pl-2 pto-t-md leading-snug text-muted">
+                      <div className="mt-1 whitespace-pre-wrap border-l-2 border-slate-300 pl-2 pto-t-md leading-snug text-muted">
                         Нашла ИИ: {review.aiFinding}
                       </div>
                     ) : null}
@@ -474,9 +473,7 @@ export function ResolvedReviewsPage() {
             <div className="flex flex-wrap gap-x-4 gap-y-1">
               {RESOLVED_ORDER.map((verdict) => (
                 <span key={verdict} className="inline-flex items-center gap-1.5">
-                  <span
-                    className={`h-2.5 w-2.5 shrink-0 rounded-full ${VERDICT_DOT[verdict]}`}
-                  />
+                  <VerdictDot verdict={verdict} className="h-2.5 w-2.5" />
                   <span className="text-text">{REVIEW_VERDICT_LABEL[verdict]}</span>
                   <span>— {VERDICT_HINT[verdict]}</span>
                 </span>
@@ -517,7 +514,7 @@ function FilterChip({
       }`}
     >
       {verdict ? (
-        <span className={`h-2.5 w-2.5 rounded-full ${VERDICT_DOT[verdict]}`} />
+        <VerdictDot verdict={verdict} className="h-2.5 w-2.5" />
       ) : null}
       <span>{label}</span>
       <span className="tabular-nums">{count}</span>
@@ -558,15 +555,14 @@ function Td({
 /** Кружок с подписью: сам итог виден всегда, расшифровка — по наведению. */
 function VerdictBadge({ verdict }: { verdict: ReviewVerdict }) {
   return (
-    <span
-      className={`group/verdict relative inline-flex items-center gap-1.5 rounded border px-1.5 py-0.5 pto-t-md ${VERDICT_CHIP[verdict]}`}
-    >
-      <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${VERDICT_DOT[verdict]}`} />
-      {REVIEW_VERDICT_LABEL[verdict]}
-      <span className="pointer-events-none absolute bottom-full left-0 z-30 mb-1 hidden w-56 rounded bg-slate-900 px-2 py-1 pto-t-md leading-snug text-white shadow-md group-hover/verdict:block">
-        {VERDICT_HINT[verdict]}
+    <Tooltip label={VERDICT_HINT[verdict]}>
+      <span
+        className={`inline-flex items-center gap-1.5 rounded border px-1.5 py-0.5 pto-t-md ${VERDICT_CHIP[verdict]}`}
+      >
+        <VerdictDot verdict={verdict} className="h-2.5 w-2.5" />
+        {REVIEW_VERDICT_LABEL[verdict]}
       </span>
-    </span>
+    </Tooltip>
   );
 }
 

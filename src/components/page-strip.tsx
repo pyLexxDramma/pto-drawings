@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Tooltip } from "@/components/tooltip";
 import { PaneToggle } from "@/components/ui-chrome";
 import { VERDICT_COUNT } from "@/lib/review-colors";
 import {
@@ -13,23 +13,14 @@ import {
 function StatusDot({
   className,
   label,
-  onHint,
 }: {
   className: string;
   label: string;
-  onHint: (value: string | null) => void;
 }) {
   return (
-    <span
-      className="inline-flex"
-      aria-label={label}
-      onPointerEnter={(event) => {
-        if (event.pointerType !== "touch") onHint(label);
-      }}
-      onPointerLeave={() => onHint(null)}
-    >
-      <span className={`h-3 w-3 rounded-full ${className}`} />
-    </span>
+    <Tooltip label={label}>
+      <span className={`h-3 w-3 rounded-full ${className}`} aria-label={label} />
+    </Tooltip>
   );
 }
 
@@ -58,7 +49,6 @@ function SheetRow({
   dots,
   onSelect,
 }: SheetRowProps) {
-  const [hint, setHint] = useState<string | null>(null);
   const fallback = [
     isWorking ? "сейчас обрабатывается" : isReady ? "текст готов" : "ждёт текст",
     isUnseen ? "не открывали" : null,
@@ -72,7 +62,6 @@ function SheetRow({
   ]
     .filter(Boolean)
     .join(" · ");
-  const caption = hint ?? (current ? fallback : null);
 
   return (
     <button
@@ -96,63 +85,43 @@ function SheetRow({
         <span className="flex shrink-0 items-center gap-1.5">
           {isWorking ? (
             <StatusDot
-              className="animate-pulse bg-sky-500 motion-reduce:animate-none"
+              className="animate-pulse bg-accent motion-reduce:animate-none"
               label="Сейчас обрабатывается"
-              onHint={setHint}
             />
           ) : isReady ? (
-            <StatusDot
-              className="bg-emerald-500"
-              label="Текст готов"
-              onHint={setHint}
-            />
+            <StatusDot className="bg-sem-ok" label="Текст готов" />
           ) : (
-            <StatusDot
-              className="bg-slate-300"
-              label="Ждёт текст"
-              onHint={setHint}
-            />
+            <StatusDot className="bg-slate-300" label="Ждёт текст" />
           )}
           {isUnseen ? (
             <StatusDot
-              className="border-2 border-amber-500 bg-amber-100"
+              className="border-2 border-sem-attn bg-sem-attn-soft"
               label="Лист не открывали"
-              onHint={setHint}
             />
           ) : null}
           {dots ? (
-            <span
-              className={`inline-flex min-w-[1.125rem] items-center justify-center rounded-full px-1 pto-t-xs font-semibold leading-[1.125rem] tabular-nums ${VERDICT_COUNT[dots.verdict]}`}
-              aria-label={`${dots.count} · ${REVIEW_VERDICT_LABEL[dots.verdict]}`}
-              onPointerEnter={(event) => {
-                if (event.pointerType !== "touch") {
-                  setHint(
-                    `${dots.count} · ${REVIEW_VERDICT_LABEL[dots.verdict].toLowerCase()}`,
-                  );
-                }
-              }}
-              onPointerLeave={() => setHint(null)}
+            <Tooltip
+              label={`${dots.count} · ${REVIEW_VERDICT_LABEL[dots.verdict].toLowerCase()}`}
             >
-              {dots.count}
-            </span>
+              <span
+                className={`inline-flex min-w-[1.125rem] items-center justify-center rounded-full px-1 pto-t-xs font-semibold leading-[1.125rem] tabular-nums ${VERDICT_COUNT[dots.verdict]}`}
+                aria-label={`${dots.count} · ${REVIEW_VERDICT_LABEL[dots.verdict]}`}
+              >
+                {dots.count}
+              </span>
+            </Tooltip>
           ) : isFlagged ? (
-            <StatusDot
-              className="bg-red-500"
-              label="Есть отметка"
-              onHint={setHint}
-            />
+            <StatusDot className="bg-sem-issue" label="Есть отметка" />
           ) : isEdited ? (
-            <StatusDot
-              className="bg-amber-500"
-              label="Лист правили"
-              onHint={setHint}
-            />
+            <StatusDot className="bg-sem-attn" label="Лист правили" />
           ) : null}
         </span>
       </span>
-      {caption ? (
+      {/* Подпись только у текущего листа: у остальных состояние объясняет
+          тултип, а строка на каждый лист превращала полосу в простыню. */}
+      {current && fallback ? (
         <span className="w-full text-pretty pto-t-xs leading-snug text-muted">
-          {caption}
+          {fallback}
         </span>
       ) : null}
     </button>

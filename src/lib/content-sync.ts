@@ -70,8 +70,71 @@ function isBoilerplate(text: string): boolean {
   return false;
 }
 
-/** Разбивает markdown на блоки, совпадающие с тем, что рендерит MarkdownView. */
-export function parseMarkdownBlocks(markdown: string): MarkdownBlock[] {
+export type MarkdownSection = {
+  id: string;
+  /** Заголовок без решёток. Пустой — всё, что идёт до первого `##`. */
+  title: string;
+  /** Тело секции без строки заголовка. */
+  body: string;
+  /**
+   * Отладка конвейера: карта листа и состав по слоям. Инженеру на первом
+   * экране не нужна — сворачиваем, пока он сам не откроет.
+   */
+  service: boolean;
+};
+
+/** Служебные разделы конвейера. Ищем по образцу: формулировки он меняет. */
+const SERVICE_SECTION =
+  /(состав\s+лист|из\s+геометри|карта\s+лист|описание\s+лист|описание\s+чертеж|по\s+изображени|якор)/i;
+
+/** `## Страница N` — номер листа и так есть в интерфейсе, в тексте он мешает. */
+const PAGE_HEADING = /^##\s*страница\s+\d+\s*$/i;
+
+/**
+ * Режет лист на разделы по `##`. Нужно для сворачивания служебных блоков,
+ * липких заголовков и оглавления листа: до этого лист был одной простынёй, и
+ * в ведомости на 200 строк инженер терял, что именно он читает.
+ */
+export function splitMarkdownSections(markdown: string): MarkdownSection[] {
+  const sections: MarkdownSection[] = [];
+  let title = "";
+  let buf: string[] = [];
+
+  function flush() {
+    const body = buf.join("\n").trim();
+    buf = [];
+    if (!title && !body) return;
+    sections.push({
+      id: `s-${sections.length}`,
+      title,
+      body,
+      service: title ? SERVICE_SECTION.test(title) : false,
+    });
+  }
+
+  for (const line of markdown.split("\n")) {
+    if (PAGE_HEADING.test(line.trim())) continue;
+    const heading = /^##\s+(.*\S)\s*$/.exec(line);
+    if (heading) {
+      flush();
+      title = heading[1].trim();
+      continue;
+    }
+    buf.push(line);
+  }
+  flush();
+  return sections;
+}
+
+/**
+ * Разбивает markdown на блоки, совпадающие с тем, что рендерит MarkdownView.
+ * `idOffset` нужен, когда лист рендерится посекционно: без него нумерация
+ * `b-N` перезапускалась бы в каждой секции и два блока листа получали один id.
+ */
+export function parseMarkdownBlocks(
+  markdown: string,
+  idOffset = 0,
+): MarkdownBlock[] {
   const blocks: MarkdownBlock[] = [];
   const lines = markdown.split("\n");
   let i = 0;
@@ -81,7 +144,7 @@ export function parseMarkdownBlocks(markdown: string): MarkdownBlock[] {
     const { objId, source: clean } = extractObjectId(source);
     const text = normalizeForMatch(clean);
     if (text.length < 4 || isBoilerplate(text)) return;
-    const id = objId ?? `b-${blocks.length}`;
+    const id = objId ?? `b-${idOffset + blocks.length}`;
     blocks.push({ id, objId, text, source: clean });
   }
 

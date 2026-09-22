@@ -51,3 +51,8 @@ next-env.d.ts
 # generated agent files
 /AGENTS.md
 /CLAUDE.md
+
+# локальная обвязка проверок: снимки Playwright и логи dev-сервера
+/samples/shots/
+dev*.log
+.tmp-*

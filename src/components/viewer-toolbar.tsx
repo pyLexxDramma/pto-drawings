@@ -18,6 +18,8 @@ export function ViewerToolbar({
   canNextPage = false,
   onToggleFullscreen,
   fullscreenActive = false,
+  hasLegible = false,
+  leading,
   extra,
 }: {
   scale: number;
@@ -31,6 +33,10 @@ export function ViewerToolbar({
   canNextPage?: boolean;
   onToggleFullscreen?: () => void;
   fullscreenActive?: boolean;
+  /** Размер подписей листа известен — можно предложить «Читаемо». */
+  hasLegible?: boolean;
+  /** Переключатели источника листа (PDF / DWG) — в тот же блок, не отдельной плашкой. */
+  leading?: ReactNode;
   extra?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -61,6 +67,11 @@ export function ViewerToolbar({
       className="absolute right-1.5 top-1.5 z-30 flex items-center gap-0.5 rounded border border-white/15 bg-slate-900/55 px-0.5 py-[3px] text-white shadow-md backdrop-blur"
       data-viewer-toolbar=""
     >
+      {leading ? (
+        <div className="flex items-center border-r border-white/20 pr-1">
+          {leading}
+        </div>
+      ) : null}
       {onPrevPage || onNextPage ? (
         <div className="flex items-center overflow-hidden rounded border border-white/20 bg-white/10">
           <button
@@ -140,6 +151,22 @@ export function ViewerToolbar({
               >
                 По ширине
               </button>
+              {hasLegible ? (
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={fitMode === "legible"}
+                  title="Масштаб, при котором читаются подписи на листе"
+                  onClick={() => {
+                    onFit("legible");
+                    setOpen(false);
+                  }}
+                  className="flex w-full px-3 py-1.5 text-left hover:bg-bg"
+                  data-viewer-legible=""
+                >
+                  Читаемо
+                </button>
+              ) : null}
               <div className="my-1 border-t border-border" />
               {PERCENTS.map((percent) => (
                 <button

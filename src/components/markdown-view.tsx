@@ -23,6 +23,13 @@ type MarkdownViewProps = {
   focusFirst?: boolean;
   /** Лист-таблица: один Markdown без разбиения на блоки. */
   singlePass?: boolean;
+  /**
+   * Общий state якоря, когда лист рендерится посекционно: иначе в каждой
+   * секции «первым» совпадением станет своё, и мигать будет сразу несколько.
+   */
+  sharedFocusState?: FocusHighlightState | null;
+  /** Смещение нумерации блоков — см. parseMarkdownBlocks. */
+  blockIdOffset?: number;
 };
 
 function wrapText(
@@ -110,15 +117,18 @@ export function MarkdownView({
   flagQuotes = [],
   focusFirst = false,
   singlePass = false,
+  sharedFocusState = null,
+  blockIdOffset = 0,
 }: MarkdownViewProps) {
   const blocks = useMemo(
-    () => (singlePass ? [] : parseMarkdownBlocks(children)),
-    [children, singlePass],
+    () => (singlePass ? [] : parseMarkdownBlocks(children, blockIdOffset)),
+    [blockIdOffset, children, singlePass],
   );
   const q = highlightQuery.trim().length >= 2 ? highlightQuery : "";
   // Новый state на каждый render: highlightNodes сбрасывает anchor при обходе.
+  // Если лист режется на секции, state приходит сверху — один на весь лист.
   const focusState: FocusHighlightState | null =
-    focusFirst && q ? { focusStyle: true, anchorLeft: true } : null;
+    sharedFocusState ?? (focusFirst && q ? { focusStyle: true, anchorLeft: true } : null);
 
   if (!blocks.length) {
     return (

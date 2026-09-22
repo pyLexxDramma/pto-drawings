@@ -58,7 +58,8 @@ if (stagesVisible === 0) {
 }
 
 // --- полоса этапов ---
-const COUNT = String.raw`(\d+\/\d+|ещё нет|нет файлов|режем на листы)`;
+// Завершённый этап дописывает к счётчику галочку — она в имя кнопки тоже входит.
+const COUNT = String.raw`(\d+\/\d+|ещё нет|нет файлов|режем на листы)( ✓)?`;
 const transcribeStage = page.getByRole("button", {
   name: new RegExp(`^Расшифровка ${COUNT}$`),
 });
@@ -71,19 +72,9 @@ check(
   new RegExp(`Расшифровка ${COUNT}`).test(barText) &&
     new RegExp(`Таблица замечаний ${COUNT}`).test(barText),
 );
-check(
-  "этапы: открыты по умолчанию",
-  (await page.getByRole("button", { name: "Свернуть ▴" }).count()) === 1 &&
-    (await page.getByRole("button", { name: "Прогресс ▾" }).count()) === 0,
-);
-// Свернуть → развернуть: навигация по этапам должна жить в обоих видах.
-await page.getByRole("button", { name: "Свернуть ▴" }).click();
-check(
-  "этапы: сворачиваются кнопкой",
-  (await page.getByRole("button", { name: "Прогресс ▾" }).count()) === 1,
-);
-await page.getByRole("button", { name: "Прогресс ▾" }).click();
-await page.getByRole("button", { name: "Свернуть ▴" }).waitFor({ timeout: 10000 });
+// Кнопки «Свернуть ▴ / Прогресс ▾» в полосе этапов больше нет — этапы всегда на
+// виду, поэтому проверяем только то, что оба таба кликабельны.
+check("этапы: таб расшифровки доступен", await transcribeStage.isEnabled());
 
 // --- переход в таблицу из полосы этапов ---
 await page
@@ -149,10 +140,14 @@ check(
 const tableHeader = page.locator("header").filter({ hasText: "Замечания ·" });
 check(
   "«Неверно»: счётчик брака в шапке",
-  /брак ИИ \d+/.test(await tableHeader.innerText()),
+  /брак \d+/.test(await tableHeader.innerText()),
 );
 
 // --- комментарий сохраняется только по кнопке ---
+// Поле заметки свёрнуто в кнопку, пока его не открыли, — иначе в таблице было
+// пятнадцать пустых textarea подряд.
+const commentToggle = first.getByRole("button", { name: /заметка/ });
+if (await commentToggle.count()) await commentToggle.first().click();
 const commentBox = first.locator("textarea");
 await commentBox.fill(`проверить с ОВ на разборе ${Date.now()}`);
 check(
@@ -187,18 +182,23 @@ const placeLink = page
   .filter({ hasText: /стр\. \d+/ })
   .first();
 if (await placeLink.count()) {
+  // Обычный клик уводит на лист в этой же вкладке; новая — только с Ctrl.
   const [popup] = await Promise.all([
     context.waitForEvent("page", { timeout: 30000 }),
-    placeLink.click(),
+    placeLink.click({ modifiers: ["Control"] }),
   ]);
   await popup.waitForLoadState("domcontentloaded");
   // Deep-link: ждём, пока workspace снимет «Загрузка…» и откроет лист.
   await popup.getByText("Загрузка…").waitFor({ state: "hidden", timeout: 60000 });
-  await popup.getByRole("button", { name: "На главную" }).waitFor({ timeout: 30000 });
+  // Возврат из листа называется «← К проектам»: отдельной «На главную» нет.
+  await popup
+    .getByRole("button", { name: /К проектам/ })
+    .first()
+    .waitFor({ timeout: 30000 });
   const popupText = (await popup.locator("body").innerText()).replace(/\s+/g, " ");
   check(
     "лист открылся в новой вкладке",
-    /лист \d+ из|На главную/.test(popupText) && !/^Загрузка/.test(popupText.trim()),
+    /лист \d+ из|К проектам/.test(popupText) && !/^Загрузка/.test(popupText.trim()),
     popupText.slice(0, 160),
   );
   check(
@@ -210,9 +210,16 @@ if (await placeLink.count()) {
     (await popup.getByTitle(/Предыдущий лист/).count()) > 0 &&
       (await popup.getByTitle(/Поиск по файлу|Закрыть поиск/).count()) > 0,
   );
+  // Табов «Оба/Чертёж/Текст» больше нет: панели скрываются шевронами, а масштаб
+  // живёт в тулбаре вьюера.
   check(
-    "шапка: режимы вида Оба/Чертёж/Текст",
-    (await popup.getByRole("tab", { name: "Оба" }).count()) > 0,
+    "лист: расшифровка скрывается шевроном",
+    (await popup.getByLabel(/Скрыть расшифровку/).count()) > 0,
+  );
+  check(
+    "лист: масштаб и шаги листа в тулбаре вьюера",
+    (await popup.getByRole("button", { name: /^\d+%$/ }).count()) > 0 &&
+      (await popup.getByLabel("Следующий лист").count()) > 0,
   );
   await popup.close();
   check(

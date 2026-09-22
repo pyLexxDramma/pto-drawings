@@ -106,9 +106,13 @@ const REPO_LABEL: Record<Repo, string> = {
   pipeline: "Конвейер",
 };
 
+/**
+ * Подсистема — ось админского журнала, и хюа она не получает: название на чипе
+ * написано словом. Иначе amber на «Агенте ИИ» спорил бы со смыслом «внимание».
+ */
 const REPO_CHIP: Record<Repo, string> = {
-  front: "border-sky-200 bg-sky-50 text-sky-900",
-  pipeline: "border-violet-200 bg-violet-50 text-violet-900",
+  front: "border-slate-300 bg-white text-slate-700",
+  pipeline: "border-slate-400 bg-slate-100 text-slate-800",
 };
 
 function RepoChip({ repo }: { repo: Repo }) {
@@ -132,10 +136,10 @@ const LOG_LAYER_LABEL: Record<LogLayer, string> = {
 };
 
 const LAYER_CHIP: Record<LogLayer, string> = {
-  front: "border-sky-200 bg-sky-50 text-sky-900",
+  front: "border-slate-300 bg-white text-slate-700",
   back: "border-slate-300 bg-slate-50 text-slate-800",
-  pipeline: "border-violet-200 bg-violet-50 text-violet-900",
-  agent: "border-amber-200 bg-amber-50 text-amber-900",
+  pipeline: "border-slate-400 bg-slate-100 text-slate-800",
+  agent: "border-accent/40 bg-accent/5 text-accent",
 };
 
 const LAYER_FILTERS: { id: LogLayer | "all"; label: string }[] = [

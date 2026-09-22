@@ -12,15 +12,16 @@ import {
 import { createPortal } from "react-dom";
 import { ColumnResizer, clamp } from "@/components/column-resizer";
 import { CadPage } from "@/components/cad-page";
-import { MarkdownView } from "@/components/markdown-view";
+import { PageReviewsBar } from "@/components/page-reviews-bar";
 import { PageStrip } from "@/components/page-strip";
 import { PdfPage } from "@/components/pdf-page";
+import { SheetTextPane } from "@/components/sheet-text-pane";
+import { SheetToolbar } from "@/components/sheet-toolbar";
 import { PaneToggle, SegmentedTabs } from "@/components/ui-chrome";
 import { modelIssueCount } from "@/components/model-check-panel";
 import {
   IconChevronLeft,
   IconChevronRight,
-  IconSearch,
 } from "@/components/tool-icons";
 import type { ModelCheckInput } from "@/lib/model-check";
 import { KEYMAP, KEYMAP_GROUPS } from "@/lib/keymap";
@@ -579,7 +580,7 @@ export function ReviewPane({
   // Один ряд плашек над листом: счётчик поиска, места, легенда цветов.
   const placeBar =
     siblingLocations.length > 1 && activeReview ? (
-      <span className="pointer-events-auto inline-flex max-w-full items-center gap-0.5 rounded border border-violet-300/30 bg-slate-900/55 px-1.5 py-[3px] pto-t-xs font-medium leading-none text-violet-100 shadow-md backdrop-blur">
+      <span className="pointer-events-auto inline-flex max-w-full items-center gap-0.5 rounded border border-white/25 bg-slate-900/70 px-1.5 py-[3px] pto-t-xs font-medium leading-none text-white shadow-md backdrop-blur">
         <button
           type="button"
           className="rounded px-1 font-semibold hover:bg-white/15"
@@ -615,6 +616,21 @@ export function ReviewPane({
         </button>
       </span>
     ) : null;
+
+  // Переключатель источника листа едет внутрь тулбара вьюера: отдельной плашкой
+  // он был четвёртым независимым слоем поверх чертежа.
+  const kitSwitch = hasKitDrawing ? (
+    <SegmentedTabs
+      size="xs"
+      tone="onDark"
+      value={kitDrawingView}
+      onChange={(value) => setKitDrawingView(value as "pdf" | "cad")}
+      options={[
+        { id: "pdf", label: "PDF" },
+        { id: "cad", label: "DWG" },
+      ]}
+    />
+  ) : null;
 
   function focusLocation(
     location: (typeof siblingLocations)[number],
@@ -662,10 +678,11 @@ export function ReviewPane({
               title={`Место ${index + 1} из ${places.length} · стр. ${place.pageNumber}${
                 here ? "" : " · другой лист или файл"
               }`}
+              // Текущее место — accent (это навигация), остальные — тише.
               className={`rounded border px-1 py-[1px] font-semibold tabular-nums ${
                 current
-                  ? "border-violet-500 bg-violet-200 text-violet-950"
-                  : "border-rose-300 bg-white text-rose-900 hover:bg-rose-100"
+                  ? "border-accent bg-accent text-white"
+                  : "border-border bg-white text-muted hover:border-accent hover:text-accent"
               }`}
             >
               {index + 1}
@@ -1018,38 +1035,13 @@ export function ReviewPane({
     }
   }
 
-  const textToolBtn =
-    "rounded border px-2 py-0.5 pto-t-sm font-semibold border-slate-300 bg-white text-slate-800 hover:bg-slate-50";
-  const textToolBtnActive =
-    "rounded border px-2 py-0.5 pto-t-sm font-semibold border-accent/50 bg-accent/10 text-accent";
-
   const sheetToolButtons = (
-    <>
-      <button
-        type="button"
-        title={searchOpen ? "Закрыть поиск (Esc)" : "Поиск по файлу (/ или Ctrl+F)"}
-        aria-label={searchOpen ? "Закрыть поиск" : "Поиск по файлу"}
-        onClick={() => (searchOpen ? closeSearch() : openSearch())}
-        className={`inline-flex items-center gap-1 ${
-          searchOpen ? textToolBtnActive : textToolBtn
-        }`}
-      >
-        <IconSearch className="h-3 w-3" />
-        {/* Подсказка клавиши на виду: иначе про «/» узнают только из инструкции. */}
-        <kbd
-          className={`rounded px-1 font-sans pto-t-xs font-semibold ${
-            searchOpen ? "bg-accent/15 text-accent" : "bg-slate-100 text-slate-500"
-          }`}
-        >
-          {searchOpen ? "Esc" : "/"}
-        </kbd>
-      </button>
-      {readOnly ? (
-        <span className="rounded border border-amber-300 bg-amber-50 px-2 py-0.5 pto-t-sm font-semibold text-amber-900">
-          Просмотр
-        </span>
-      ) : null}
-    </>
+    <SheetToolbar
+      searchOpen={searchOpen}
+      readOnly={readOnly}
+      onOpenSearch={openSearch}
+      onCloseSearch={closeSearch}
+    />
   );
 
   const pageNav = {
@@ -1512,10 +1504,10 @@ export function ReviewPane({
                   <div
                     className={`pointer-events-auto inline-flex max-w-full items-start gap-2 rounded-md border px-2.5 py-1 pto-t-md shadow-sm ${
                       quoteMiss === "model-no-layer" || quoteMiss === "miss-both"
-                        ? "border-amber-300 bg-amber-50 text-amber-950"
+                        ? "border-sem-attn-line bg-sem-attn-soft text-amber-950"
                         : quoteMiss === "miss-drawing"
-                          ? "border-rose-300 bg-rose-50 text-rose-950"
-                          : "border-sky-300 bg-sky-50 text-sky-950"
+                          ? "border-sem-issue-line bg-sem-issue-soft text-rose-950"
+                          : "border-border bg-surface-2 text-text"
                     }`}
                   >
                     <span className="min-w-0">
@@ -1601,19 +1593,6 @@ export function ReviewPane({
                   ) : null}
                 </div>
               ) : null}
-              {hasKitDrawing ? (
-                <div className="absolute left-2 top-2 z-20">
-                  <SegmentedTabs
-                    size="xs"
-                    value={kitDrawingView}
-                    onChange={(value) => setKitDrawingView(value as "pdf" | "cad")}
-                    options={[
-                      { id: "pdf", label: "PDF" },
-                      { id: "cad", label: "DWG" },
-                    ]}
-                  />
-                </div>
-              ) : null}
               {hasKitDrawing && kitDrawingView === "cad" && kitCadDoc ? (
                 <CadPage
                   documentId={kitCadDoc.id}
@@ -1629,6 +1608,7 @@ export function ReviewPane({
                   highlightNonce={focusNonce}
                   onHighlightHits={handleHighlightHits}
                   overlay={placeBar}
+                  toolbarLeading={kitSwitch}
                   {...pageNav}
                   onMarkRect={(rect) => setPendingRect(rect)}
                   onSelectAnnotation={(id) => setHoverNoteId(id)}
@@ -1653,6 +1633,7 @@ export function ReviewPane({
                   highlightNonce={focusNonce}
                   onHighlightHits={handleHighlightHits}
                   overlay={placeBar}
+                  toolbarLeading={kitSwitch}
                   {...pageNav}
                   onMarkRect={(rect) => setPendingRect(rect)}
                   onSelectAnnotation={(id) => setHoverNoteId(id)}
@@ -1785,7 +1766,9 @@ export function ReviewPane({
                       ? `Вернуться к листу ${trailTop} расшифровки`
                       : "Вернуться на предыдущую страницу"
                 }
-                className="shrink-0 rounded border border-amber-300 bg-amber-50 px-2 py-0.5 pto-t-sm font-semibold text-amber-900 hover:bg-amber-100"
+                // Нейтральная, а не amber: это навигация, а не предупреждение —
+                // amber оставлен ровно за смыслом «внимание».
+                className="shrink-0 rounded border border-border bg-white px-2 py-0.5 pto-t-sm font-semibold text-text hover:border-accent hover:text-accent"
               >
                 ← Назад
               </button>
@@ -1823,186 +1806,47 @@ export function ReviewPane({
             ) : (
               <>
 
-            {searchOpen ? (
-              <div className="border-b border-border px-3 py-2">
-                <div className="flex items-center gap-2">
-                  <input
-                    ref={searchRef}
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
-                    placeholder="Поиск по этому файлу: PSV, 210 кг, позиция…"
-                    className="min-w-0 flex-1 rounded-md border border-border bg-bg px-2 py-1.5 text-sm outline-none focus:border-accent"
-                  />
-                  <button
-                    type="button"
-                    onClick={closeSearch}
-                    title="Закрыть поиск (Esc)"
-                    className="shrink-0 rounded border border-border px-2 py-1 pto-t-md text-muted hover:bg-bg hover:text-text"
-                  >
-                    Esc
-                  </button>
-                </div>
-                {query.trim().length >= 2 ? (
-                  hits.length > 0 ? (
-                    <div className="mt-2 max-h-32 space-y-1 overflow-auto">
-                      {hits.map((hit) => (
-                        <button
-                          key={`${hit.pageNumber}-${hit.snippet}`}
-                          type="button"
-                          onClick={() => void goToPage(hit.pageNumber)}
-                          className="block w-full rounded bg-bg px-2 py-1 text-left pto-t-md hover:bg-blue-50"
-                        >
-                          <span className="font-medium">Лист {hit.pageNumber}</span>
-                          <span className="text-muted"> · {hit.snippet}</span>
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="mt-2 pto-t-md text-muted">
-                      Совпадений в этом файле нет.
-                    </div>
-                  )
-                ) : null}
-              </div>
-            ) : null}
-
-            {pageReviews.length > 0 ? (
-              <div className="shrink-0 border-b border-rose-200 bg-rose-50 pto-t-sm leading-snug text-rose-950">
-                <div className="flex items-center justify-between gap-2 px-2 py-1">
-                  <button
-                    type="button"
-                    onClick={() => setPageReviewsOpen((prev) => !prev)}
-                    className="flex min-w-0 flex-1 items-center gap-1 text-left font-medium hover:text-rose-700"
-                    title={
-                      pageReviewsOpen
-                        ? "Свернуть список замечаний"
-                        : "Показать замечания листа"
-                    }
-                  >
-                    <span className="shrink-0">
-                      {pageReviewsOpen ? "▾" : "▸"}
-                    </span>
-                    <span className="shrink-0">
-                      Замечаний по листу: {pageReviews.length}
-                    </span>
-                    <span className="min-w-0 truncate font-normal text-rose-800/70">
-                      {pageReviewsOpen
-                        ? "· клик по строке подсветит место"
-                        : activePageReview
-                          ? `· № ${activePageReview.number} ${
-                              activePageReview.text ||
-                              activePageReview.aiFinding ||
-                              ""
-                            }`
-                          : "· нажмите, чтобы раскрыть список"}
-                    </span>
-                  </button>
-                  {!pageReviewsOpen && activePageReview
-                    ? renderPlaceChips(activePageReview)
-                    : null}
-                  {onOpenReviews ? (
-                    <button
-                      type="button"
-                      onClick={onOpenReviews}
-                      className="shrink-0 rounded border border-rose-300 bg-white px-1.5 py-0.5 pto-t-sm font-semibold text-rose-900 hover:bg-rose-100"
-                    >
-                      В таблице
-                    </button>
-                  ) : null}
-                </div>
-                {pageReviewsOpen ? (
-                <ul className="max-h-40 overflow-auto border-t border-rose-200/80">
-                  {pageReviews.map((review) => {
-                    const active =
-                      focusQuote.length >= 2 &&
-                      (
-                        review.locations.some(
-                          (loc) =>
-                            loc.quote &&
-                            normalizeQuote(loc.quote) ===
-                              normalizeQuote(focusQuote),
-                        ) ||
-                        normalizeQuote(review.text || "") ===
-                          normalizeQuote(focusQuote) ||
-                        normalizeQuote(review.aiFinding || "") ===
-                          normalizeQuote(focusQuote)
-                      );
-                    return (
-                      <li
-                        key={review.id}
-                        className={`flex w-full items-start gap-1 px-2 py-1 ${
-                          active
-                            ? "bg-rose-200 outline outline-1 outline-rose-500"
-                            : "hover:bg-rose-100"
-                        }`}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => focusReviewOnSheet(review)}
-                          className="min-w-0 flex-1 text-left"
-                          title="Подсветить место на чертеже и в расшифровке"
-                        >
-                          <span className="font-semibold tabular-nums">
-                            № {review.number}
-                          </span>
-                          {` · ${REVIEW_SEVERITY_LABEL[
-                            review.severity
-                          ].toLowerCase()} · ${
-                            review.text || review.aiFinding
-                          }`}
-                        </button>
-                        {renderPlaceChips(review)}
-                      </li>
-                    );
-                  })}
-                </ul>
-                ) : null}
-              </div>
-            ) : null}
-
-            <div
-              ref={textPaneRef}
-              className="pto-pane-scroll min-h-0 flex-1 overflow-x-scroll overflow-y-auto overscroll-x-contain [scrollbar-gutter:stable]"
-            >
-              {filterEmpty ? (
-                <div className="p-4 text-xs text-muted">
-                  {filter === "flagged"
-                    ? "Отметьте ошибку на чертеже — лист появится в этом списке."
-                    : `Нет листов типа «${filterLabel}» в этом комплекте. Выберите «Все» или вкладку с ненулевым счётчиком.`}
-                </div>
-              ) : !page ? (
-                <div className="p-4 text-xs text-muted">
-                  {processing
-                    ? `Текст появится по мере обработки. Готово ${readyCount} из ${total}.`
-                    : pageError
-                      ? `Лист не обработан: ${pageError}`
-                      : "Для этого листа ещё нет текста."}
-                </div>
-              ) : (
-                <div
-                  className={`markdown-body markdown-body--compact p-3 ${page.kind === "table" ? "markdown-body--table" : ""}`}
-                >
-                  {pageError ? (
-                    <div className="mb-2 rounded-md border border-red-200 bg-red-50 px-2 py-1.5 pto-t-md text-red-800">
-                      Ошибка листа: {pageError}
-                    </div>
-                  ) : null}
-                  {showTech && isMockPage ? (
-                    <div className="mb-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 pto-t-md text-amber-950">
-                      Это ответ режима [MOCK], не работа модели.
-                    </div>
-                  ) : null}
-                  <MarkdownView
-                    singlePass={page.kind === "table"}
-                    highlightQuery={textHighlightQuery}
-                    focusFirst={focusDrawing}
-                    flagQuotes={pageReviewQuotes}
-                  >
-                    {page.markdown}
-                  </MarkdownView>
-                </div>
-              )}
-            </div>
+            <SheetTextPane
+              paneRef={textPaneRef}
+              searchRef={searchRef}
+              searchOpen={searchOpen}
+              query={query}
+              hits={hits}
+              onQueryChange={setQuery}
+              onCloseSearch={closeSearch}
+              onGoToPage={(target) => void goToPage(target)}
+              page={page}
+              pageError={pageError}
+              filterEmpty={filterEmpty}
+              filterEmptyText={
+                filter === "flagged"
+                  ? "Отметьте ошибку на чертеже — лист появится в этом списке."
+                  : `Нет листов типа «${filterLabel}» в этом комплекте. Выберите «Все» или вкладку с ненулевым счётчиком.`
+              }
+              emptyPageText={
+                processing
+                  ? `Текст появится по мере обработки. Готово ${readyCount} из ${total}.`
+                  : pageError
+                    ? `Лист не обработан: ${pageError}`
+                    : "Для этого листа ещё нет текста."
+              }
+              mockNotice={Boolean(showTech && isMockPage)}
+              highlightQuery={textHighlightQuery}
+              focusFirst={focusDrawing}
+              flagQuotes={pageReviewQuotes}
+              reviewsBar={
+                <PageReviewsBar
+                  reviews={pageReviews}
+                  open={pageReviewsOpen}
+                  focusQuote={focusQuote}
+                  activeReview={activePageReview}
+                  renderPlaceChips={renderPlaceChips}
+                  onToggle={() => setPageReviewsOpen((prev) => !prev)}
+                  onFocusReview={focusReviewOnSheet}
+                  onOpenReviews={onOpenReviews}
+                />
+              }
+            />
 
               </>
             )}

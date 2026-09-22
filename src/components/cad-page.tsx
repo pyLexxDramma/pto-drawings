@@ -13,9 +13,10 @@ import {
   SearchHitBadge,
   Spinner,
 } from "@/components/ui-chrome";
-import { ViewerHint } from "@/components/viewer-hint";
+import { VIEWER_MOUSE_HINT } from "@/components/viewer-hint";
+import { ViewerStatusBar } from "@/components/viewer-status-bar";
 import { ViewerToolbar } from "@/components/viewer-toolbar";
-import { usePageViewport } from "@/hooks/use-page-viewport";
+import { LEGIBLE_MIN_PX, usePageViewport } from "@/hooks/use-page-viewport";
 import { useSearchHitFocus } from "@/hooks/use-search-hit-focus";
 import {
   bboxSize,
@@ -71,6 +72,8 @@ type CadPageProps = {
   fullscreenActive?: boolean;
   /** Плашки разбора («Место N из M») в общий ряд поверх листа. */
   overlay?: ReactNode;
+  /** Переключатель PDF / DWG — внутрь тулбара, а не отдельной плашкой. */
+  toolbarLeading?: ReactNode;
 };
 
 type DrawState = { x0: number; y0: number; x1: number; y1: number };
@@ -125,6 +128,7 @@ export function CadPage({
   onToggleFullscreen,
   fullscreenActive = false,
   overlay,
+  toolbarLeading,
 }: CadPageProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [geometry, setGeometry] = useState<CadGeometry | null>(null);
@@ -174,6 +178,15 @@ export function CadPage({
     () => hitsInsideRegion(pageHits, remarkFocus ? highlightRegion : null),
     [pageHits, remarkFocus, highlightRegion],
   );
+  /** Медиана высоты подписей листа в px чертежа — по ней считается «Читаемо». */
+  const legibleTextPx = useMemo(() => {
+    const sizes = texts
+      .map((t) => t.size ?? 0)
+      .filter((size) => size > 0)
+      .sort((a, b) => a - b);
+    if (!sizes.length) return 0;
+    return sizes[Math.floor(sizes.length / 2)] * PX_PER_MM;
+  }, [texts]);
   const focusRegion =
     highlightRegion ??
     (remarkFocus && searchHits[0] ? searchHits[0] : null);
@@ -182,6 +195,7 @@ export function CadPage({
     natural,
     pageNumber,
     ready,
+    legibleTextPx,
     highlightNonce,
     highlightRegion: focusRegion,
     panToHighlight: panToHighlight || remarkFocus,
@@ -206,6 +220,15 @@ export function CadPage({
   // нет и объяснять нечего.
   const legendOn =
     remarkFocus && (Boolean(highlightRegion) || searchHits.length > 0);
+  // Лист А1 «по ширине» даёт 13%: подписи в 2px не читаются. Пока масштаб ниже
+  // порога, предлагаем перейти на читаемый.
+  const legibleWarning =
+    ready &&
+    viewport.textOnScreenPx > 0 &&
+    viewport.textOnScreenPx < LEGIBLE_MIN_PX &&
+    viewport.legibleScale > viewport.scale * 1.15
+      ? `${Math.round(viewport.scale * 100)}% — подписи не читаются`
+      : null;
 
   useEffect(() => {
     let cancelled = false;
@@ -721,25 +744,34 @@ export function CadPage({
             />
           ) : null}
         </div>
-      ) : (
-        <ViewerHint show={hintOn} wheelMode="pan" />
-      )}
-
-      {geometry && ready ? (
-        <div
-          className="pointer-events-none absolute bottom-2 left-2 z-20 flex items-end gap-2 rounded border border-border bg-white/90 px-2 py-1 pto-t-sm text-muted shadow-sm"
-          data-viewer-scalebar=""
-        >
-          <span
-            className="block border-b-2 border-text"
-            style={{ width: Math.max(24, Math.min(120, scaleBarPx)) }}
-          />
-          <span className="tabular-nums">
-            {scaleBarLabel}
-            {geometry.scale ? ` · ${geometry.scale}` : ""}
-          </span>
-        </div>
       ) : null}
+
+      <ViewerStatusBar
+        scaleBar={
+          geometry && ready ? (
+            <span
+              className="inline-flex items-end gap-2"
+              data-viewer-scalebar=""
+            >
+              <span
+                className="block border-b-2 border-text"
+                style={{ width: Math.max(24, Math.min(120, scaleBarPx)) }}
+              />
+              <span className="tabular-nums">
+                {scaleBarLabel}
+                {geometry.scale ? ` · ${geometry.scale}` : ""}
+              </span>
+            </span>
+          ) : null
+        }
+        hint={hintOn ? VIEWER_MOUSE_HINT : null}
+        legibleWarning={legibleWarning}
+        onLegible={() => viewport.fit("legible")}
+        onDismissHint={() => {
+          saveViewerPrefs({ ...loadViewerPrefs(), hintDismissed: true });
+          setHintOn(false);
+        }}
+      />
 
       <ViewerToolbar
         scale={viewport.scale}
@@ -753,6 +785,8 @@ export function CadPage({
         canNextPage={canNextPage}
         onToggleFullscreen={onToggleFullscreen}
         fullscreenActive={fullscreenActive}
+        hasLegible={viewport.legibleScale > 0}
+        leading={toolbarLeading}
       />
     </div>
   );

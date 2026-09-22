@@ -5,6 +5,7 @@ import {
   linkBlocksToRegions,
   parseMarkdownBlocks,
   regionsFromCadTexts,
+  splitMarkdownSections,
 } from "../src/lib/content-sync.ts";
 
 describe("extractObjectId", () => {
@@ -26,6 +27,121 @@ describe("parseMarkdownBlocks", () => {
     assert.equal(blocks[0].id, "H1");
     assert.equal(blocks[0].objId, "H1");
     assert.equal(blocks[1].objId, "H2");
+  });
+
+  it("shifts generated ids by offset", () => {
+    const blocks = parseMarkdownBlocks("Первый абзац\n\nВторой абзац", 5);
+    assert.deepEqual(
+      blocks.map((block) => block.id),
+      ["b-5", "b-6"],
+    );
+  });
+
+  it("keeps obj ids untouched when offset is set", () => {
+    const blocks = parseMarkdownBlocks("<!-- obj:H9 -->\nКолодец К-4", 3);
+    assert.equal(blocks[0].id, "H9");
+  });
+});
+
+describe("splitMarkdownSections", () => {
+  const SHEET = [
+    "## Страница 14",
+    "",
+    "# План сетей",
+    "",
+    "## Описание чертежа (модель, по изображению)",
+    "",
+    "Что где лежит на листе.",
+    "",
+    "## Состав листа (из геометрии)",
+    "",
+    "| Слой | Объектов |",
+    "| --- | --- |",
+    "| WALL | 495 |",
+    "",
+    "## Текст листа (из чертежа, дословно)",
+    "",
+    "Колодец К-4 — сливной колодец",
+    "",
+    "## Штамп",
+    "",
+    "| Поле | Значение |",
+    "| --- | --- |",
+    "| Лист | 14 |",
+  ].join("\n");
+
+  it("splits by h2 and keeps sheet title in the preamble", () => {
+    const sections = splitMarkdownSections(SHEET);
+    assert.deepEqual(
+      sections.map((section) => section.title),
+      [
+        "",
+        "Описание чертежа (модель, по изображению)",
+        "Состав листа (из геометрии)",
+        "Текст листа (из чертежа, дословно)",
+        "Штамп",
+      ],
+    );
+    assert.equal(sections[0].body, "# План сетей");
+  });
+
+  it("marks pipeline debug sections as service", () => {
+    const service = splitMarkdownSections(SHEET)
+      .filter((section) => section.service)
+      .map((section) => section.title);
+    assert.deepEqual(service, [
+      "Описание чертежа (модель, по изображению)",
+      "Состав листа (из геометрии)",
+    ]);
+  });
+
+  it("does not mark the sheet text and the stamp as service", () => {
+    const sections = splitMarkdownSections(SHEET);
+    const text = sections.find((s) => s.title.startsWith("Текст листа"));
+    const stamp = sections.find((s) => s.title === "Штамп");
+    assert.equal(text?.service, false);
+    assert.equal(stamp?.service, false);
+  });
+
+  it("recognises reworded pipeline headings", () => {
+    const sections = splitMarkdownSections(
+      "## Карта листа\n\nтело\n\n## Состав листа по слоям\n\nтело",
+    );
+    assert.deepEqual(
+      sections.map((section) => section.service),
+      [true, true],
+    );
+  });
+
+  /**
+   * Главный риск этапа: если секции рендерить по отдельности без смещения,
+   * нумерация b-N перезапустится и два блока листа получат один id.
+   */
+  it("gives every block of the sheet a unique id when rendered per section", () => {
+    const sections = splitMarkdownSections(SHEET);
+    const ids: string[] = [];
+    let offset = 0;
+    for (const section of sections) {
+      const blocks = parseMarkdownBlocks(section.body, offset);
+      for (const block of blocks) ids.push(block.id);
+      offset += blocks.length;
+    }
+    assert.equal(new Set(ids).size, ids.length, `дубли в id: ${ids.join(",")}`);
+  });
+
+  it("collides without the offset — offset is what fixes it", () => {
+    const sections = splitMarkdownSections(SHEET);
+    const ids = sections.flatMap((section) =>
+      parseMarkdownBlocks(section.body).map((block) => block.id),
+    );
+    assert.ok(new Set(ids).size < ids.length);
+  });
+
+  it("keeps the whole sheet when there are no h2 at all", () => {
+    const sections = splitMarkdownSections("# Лист\n\nПросто текст");
+    assert.equal(sections.length, 1);
+    assert.equal(sections[0].title, "");
+    assert.equal(sections[0].body, "# Лист\n\nПросто текст");
   });
 });
 

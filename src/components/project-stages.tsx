@@ -27,22 +27,27 @@ const ACTION: Record<StageId, string> = {
   reviews: "открыть таблицу замечаний",
 };
 
+/**
+ * Оба этапа на одном accent: sky и violet раньше выглядели как два разных
+ * статуса, хотя это просто две страницы — какая открыта, говорит заливка, а
+ * какой это этап, говорит подпись. Освободившиеся цвета ушли под смыслы.
+ */
 const STAGE_TAB: Record<
   StageId,
-  { idle: string; current: string; track: "sky" | "accent" | "emerald" }
+  { idle: string; current: string; track: "accent" | "emerald" }
 > = {
   transcribe: {
     idle:
-      "border-2 border-sky-400 bg-sky-50 text-sky-950 hover:border-sky-500 hover:bg-sky-100",
+      "border-2 border-accent/40 bg-white text-text hover:border-accent hover:bg-accent/5",
     current:
-      "border-2 border-sky-700 bg-sky-700 text-white shadow-sm hover:bg-sky-800",
-    track: "sky",
+      "border-2 border-accent bg-accent text-white shadow-sm hover:bg-[#1d4ed8]",
+    track: "accent",
   },
   reviews: {
     idle:
-      "border-2 border-violet-400 bg-violet-50 text-violet-950 hover:border-violet-500 hover:bg-violet-100",
+      "border-2 border-accent/40 bg-white text-text hover:border-accent hover:bg-accent/5",
     current:
-      "border-2 border-violet-700 bg-violet-700 text-white shadow-sm hover:bg-violet-800",
+      "border-2 border-accent bg-accent text-white shadow-sm hover:bg-[#1d4ed8]",
     track: "accent",
   },
 };

@@ -3,6 +3,8 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { IconChevronLeft, IconChevronRight } from "@/components/tool-icons";
+import { VERDICT_DOT, VERDICT_DOT_INNER } from "@/lib/review-colors";
+import type { ReviewVerdict } from "@/types";
 
 export function Spinner({ className = "h-3 w-3" }: { className?: string }) {
   return (
@@ -19,15 +21,11 @@ export function ProgressTrack({
   className = "h-1.5",
 }: {
   value: number;
-  tone?: "accent" | "sky" | "emerald";
+  /** emerald — «готово», всё остальное — обычный ход работы на accent. */
+  tone?: "accent" | "emerald";
   className?: string;
 }) {
-  const bar =
-    tone === "sky"
-      ? "bg-sky-500"
-      : tone === "emerald"
-        ? "bg-emerald-500"
-        : "bg-accent";
+  const bar = tone === "emerald" ? "bg-sem-ok" : "bg-accent";
   return (
     <div className={`pto-progress overflow-hidden rounded-full bg-white/80 ${className}`}>
       <div
@@ -38,6 +36,30 @@ export function ProgressTrack({
         }}
       />
     </div>
+  );
+}
+
+/**
+ * Кружок разбора. «Частично верно» и «Обсудить» теперь одного цвета — их
+ * различает форма: у «Обсудить» кружок с прорезью внутри.
+ */
+export function VerdictDot({
+  verdict,
+  className = "h-2 w-2",
+}: {
+  verdict: ReviewVerdict;
+  className?: string;
+}) {
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center justify-center rounded-full ${className} ${VERDICT_DOT[verdict]}`}
+      data-verdict={verdict}
+      aria-hidden
+    >
+      {VERDICT_DOT_INNER[verdict] ? (
+        <span className="block h-[40%] w-[40%] rounded-full bg-white" />
+      ) : null}
+    </span>
   );
 }
 
@@ -207,22 +229,27 @@ export function SegmentedTabs<T extends string>({
   options: SegmentOption<T>[];
   onChange: (id: T) => void;
   size?: "sm" | "xs";
-  tone?: "light" | "dark";
+  /** onDark — уже внутри тёмной панели: своей подложки и рамки не рисуем. */
+  tone?: "light" | "dark" | "onDark";
   className?: string;
 }) {
   const pad = size === "xs" ? "px-2 py-0.5 pto-t-md" : "px-2.5 py-1 text-xs";
   const shell =
     tone === "dark"
       ? "border-[#3a4454] bg-[#12161c]"
-      : "border-slate-300 bg-slate-100";
+      : tone === "onDark"
+        ? "border-transparent"
+        : "border-slate-300 bg-slate-100";
   const idle =
-    tone === "dark"
-      ? "text-[#8b93a3] hover:bg-[#252b36] hover:text-[#e8eaef]"
-      : "text-muted hover:bg-white hover:text-text";
+    tone === "light"
+      ? "text-muted hover:bg-white hover:text-text"
+      : "text-white/65 hover:bg-white/20 hover:text-white";
   const active =
     tone === "dark"
       ? "bg-[#2a3342] text-white shadow-sm ring-1 ring-sky-400/50"
-      : "bg-white text-text font-semibold shadow-sm ring-1 ring-accent/50";
+      : tone === "onDark"
+        ? "bg-white/20 font-semibold text-white ring-1 ring-white/30"
+        : "bg-white text-text font-semibold shadow-sm ring-1 ring-accent/50";
 
   return (
     <div

@@ -11,10 +11,36 @@
   --state-error: #dc2626;
   --state-warn: #d97706;
   --state-ok: #059669;
+  /**
+   * Три смысла статуса замечания — и всё. До этого в таблице и чипах жили
+   * red / orange / sky / amber / violet / rose / emerald: orange значил и
+   * «средняя важность», и подсветку значения на чертеже, sky — и «низкую
+   * важность», и таб этапа. Оси цвета зафиксированы в docs/page-contract.md.
+   */
+  --sem-issue: #e11d48;
+  --sem-issue-soft: #fff1f3;
+  --sem-issue-line: #fb7185;
+  --sem-issue-text: #4c0519;
+  --sem-ok: #059669;
+  --sem-ok-soft: #ecfdf5;
+  --sem-ok-line: #34d399;
+  --sem-ok-text: #022c22;
+  --sem-attn: #d97706;
+  --sem-attn-soft: #fffbeb;
+  --sem-attn-line: #fbbf24;
+  --sem-attn-text: #451a03;
   --control-h: 1.75rem;
   --ui-text: 12px;
   /** Комфортная длина строки расшифровки. */
   --md-measure: 92ch;
+  /**
+   * Кегль расшифровки. Панель всегда рендерится в «компактном» режиме, и до
+   * этого он был зашит в 12px/1.45 — ведомость на 200 строк так не читается.
+   */
+  --md-size: 13px;
+  --md-leading: 1.55;
+  /** Потолок ширины колонки таблицы листа: дальше наименование переносится. */
+  --md-cell: 44ch;
   /**
    * Шкала мелкого текста интерфейса. Раньше размеры были зашиты в классы
    * (text-[9px] и родня) и не зависели ни от монитора, ни от настроек —
@@ -42,6 +68,18 @@
   --color-text: var(--text);
   --color-muted: var(--muted);
   --color-accent: var(--accent);
+  --color-sem-issue: var(--sem-issue);
+  --color-sem-issue-soft: var(--sem-issue-soft);
+  --color-sem-issue-line: var(--sem-issue-line);
+  --color-sem-issue-text: var(--sem-issue-text);
+  --color-sem-ok: var(--sem-ok);
+  --color-sem-ok-soft: var(--sem-ok-soft);
+  --color-sem-ok-line: var(--sem-ok-line);
+  --color-sem-ok-text: var(--sem-ok-text);
+  --color-sem-attn: var(--sem-attn);
+  --color-sem-attn-soft: var(--sem-attn-soft);
+  --color-sem-attn-line: var(--sem-attn-line);
+  --color-sem-attn-text: var(--sem-attn-text);
   --font-sans: var(--font-inter);
 }
 
@@ -69,6 +107,8 @@ body {
     --ui-t-md: 13px;
     --ui-t-lg: 14px;
     --md-measure: 96ch;
+    --md-size: 14px;
+    --md-leading: 1.6;
   }
 }
 
@@ -93,9 +133,12 @@ body {
   font-size: var(--ui-t-lg);
 }
 
-/** Кнопки поверх чертежа: вдвое ниже обычных, чтобы не закрывать лист. */
+/**
+ * Кнопки поверх чертежа ниже обычных, чтобы не закрывать лист, но не ниже
+ * 24px: в 20px курсор на 4K уже промахивается.
+ */
 .pto-tool--slim {
-  height: 1.25rem;
+  height: 1.5rem;
   font-size: 11px;
 }
 
@@ -139,23 +182,31 @@ body {
   color: var(--text);
   font-size: 14px;
   line-height: 1.65;
-  /* Ширину задаёт контент — крутит родительская панель, полоса всегда внизу окна. */
-  width: max-content;
+  /*
+   * Ширину по контенту берёт только лист-таблица (--table): у текстового листа
+   * max-content включал горизонтальную полосу, которой нечего прокручивать.
+   */
+  width: auto;
   min-width: 100%;
   overflow-x: visible;
 }
 
 .markdown-body--compact {
-  font-size: 12px;
-  line-height: 1.45;
+  font-size: var(--md-size);
+  line-height: var(--md-leading);
 }
 
-.markdown-body--compact h1 {
-  font-size: 1.05rem;
+/*
+ * em, а не rem: заголовки идут за кеглем расшифровки, а не за корневым.
+ * Двойной класс — чтобы перебить .markdown-body h1/h2 ниже: у них та же
+ * специфичность, и без этого выигрывало бы правило по порядку в файле.
+ */
+.markdown-body.markdown-body--compact h1 {
+  font-size: 1.35em;
 }
 
-.markdown-body--compact h2 {
-  font-size: 0.92rem;
+.markdown-body.markdown-body--compact h2 {
+  font-size: 1.15em;
 }
 
 .markdown-body h1,
@@ -186,6 +237,33 @@ body {
 
 .markdown-body h2 {
   font-size: 1rem;
+}
+
+/**
+ * Заголовок раздела листа. Липкий: в ведомости на 200 строк заголовок уезжал
+ * первым, и инженер уже не знал, какую таблицу читает. Подложка непрозрачная и
+ * шире колонки текста, иначе строки просвечивают сквозь заголовок.
+ */
+.markdown-body .sheet-section-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  max-width: none;
+  margin: 1.2em -0.75rem 0.3em;
+  padding: 0.25rem 0.75rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.markdown-body .sheet-section-head:first-child,
+.markdown-body [data-sheet-toc] + section .sheet-section-head {
+  margin-top: 0;
+}
+
+/** Служебный раздел конвейера — тише по тону, чем разделы с содержимым. */
+.markdown-body .sheet-section-head[data-sheet-section="service"] {
+  color: var(--muted);
+  font-weight: 550;
 }
 
 .markdown-body p,
@@ -228,12 +306,12 @@ body {
   border-collapse: separate;
   border-spacing: 0;
   margin: 0.8em 0;
-  font-size: 13px;
+  font-size: var(--md-size);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 .markdown-body--table {
-  overflow-x: auto;
+  width: max-content;
   overscroll-behavior-x: contain;
 }
 
@@ -247,6 +325,11 @@ body {
   overflow: visible;
 }
 
+/**
+ * Раньше стоял nowrap на всех ячейках — ведомость с длинными наименованиями
+ * уезжала на три экрана вправо. Потолок ширины колонки переносит только длинный
+ * текст: числа и шифры в 44ch не упираются и остаются в одну строку.
+ */
 .markdown-body th,
 .markdown-body td {
   border: 1px solid #94a3b8;
@@ -254,7 +337,9 @@ body {
   border-left: none;
   padding: 7px 10px;
   text-align: left;
-  white-space: nowrap;
+  max-width: var(--md-cell);
+  white-space: normal;
+  overflow-wrap: break-word;
 }
 
 .markdown-body tr > :first-child {
