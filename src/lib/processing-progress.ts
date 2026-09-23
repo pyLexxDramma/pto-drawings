@@ -150,7 +150,7 @@ export function pageProgressRows(
         status: "active",
         elapsedSec: Math.round(spentOnCurrent),
         etaSec,
-        label: stepShortLabel(doc.processingStep),
+        label: processingStepLabel(doc.processingStep),
       });
       continue;
     }
@@ -180,7 +180,7 @@ export function pageProgressRows(
   return rows;
 }
 
-function stepShortLabel(step: ProcessingStep | null | undefined) {
+export function processingStepLabel(step: ProcessingStep | null | undefined) {
   if (step === "text") return "текст";
   if (step === "drawings") return "чертёж";
   if (step === "queued") return "очередь";

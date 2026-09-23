@@ -53,6 +53,7 @@ import {
   siteAnswered,
 } from "@/lib/site-watchdog";
 import { LiveProgressDock } from "@/components/processing-progress-panel";
+import { processingStepLabel } from "@/lib/processing-progress";
 import {
   collectProcessingAlerts,
   isCancelMessage,
@@ -1698,8 +1699,10 @@ export function Workspace({
     notes,
     showPipelineTech,
   );
+  const readingSheet = Boolean(selected);
   const showLiveDock = Boolean(
     liveJobDoc &&
+      !readingSheet &&
       !fullProgressVisible &&
       (liveJobDoc.status === "queued" ||
         liveJobDoc.status === "processing" ||
@@ -1723,6 +1726,10 @@ export function Workspace({
       liveJobDoc &&
       (liveJobDoc.status === "queued" || liveJobDoc.status === "processing")
         ? `${liveJobDoc.originalName}${
+            liveJobDoc.processingStep
+              ? `, ${processingStepLabel(liveJobDoc.processingStep)}`
+              : ""
+          }${
             liveJobDoc.pageCount > 0
               ? `, лист ${liveJobDoc.processingPage ?? "…"} из ${liveJobDoc.pageCount}`
               : ""
@@ -2481,7 +2488,16 @@ export function Workspace({
             onUndoRemark={() => void undoRemark()}
             canUndoRemark={Boolean(remarkUndo)}
             undoBusy={undoBusy}
-            onAnnotationsChanged={() => {
+            onAnnotationsChanged={(added) => {
+              if (added) {
+                setProjectReviews((prev) =>
+                  prev.some((item) => item.id === added.id) ? prev : [added, ...prev],
+                );
+                setReviewStats((prev) => ({
+                  total: (prev?.total ?? 0) + 1,
+                  pending: (prev?.pending ?? 0) + (added.verdict === "pending" ? 1 : 0),
+                }));
+              }
               setReviewsEpoch((n) => n + 1);
               if (projectId) {
                 void loadNotes(projectId);

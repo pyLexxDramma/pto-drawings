@@ -107,7 +107,7 @@ type ReviewPaneProps = {
   /** Вернуть true, если «Назад» закрыл поиск/пометку и не должен уходить с листа. */
   onConsumeBack?: (fn: (() => boolean) | null) => void;
   onSheetBackHint?: (label: string | null) => void;
-  onAnnotationsChanged?: () => void;
+  onAnnotationsChanged?: (added?: Review) => void;
   /** Запомнить последнее добавление или удаление замечания для «Отменить». */
   onRemarkRecorded?: (action: RemarkUndo) => void;
   onUndoRemark?: () => void;
@@ -1012,10 +1012,10 @@ export function ReviewPane({
     }
   }
 
-  const backLabel = searchOpen
-    ? "← Закрыть поиск"
-    : markMode || pendingRect
-      ? "← Отменить пометку"
+  const backLabel = markMode || pendingRect
+    ? "← Отменить пометку"
+    : searchOpen
+      ? "← Закрыть поиск"
       : "← Назад";
   const sheetToolButtons = (
     <SheetToolbar
@@ -1212,6 +1212,7 @@ export function ReviewPane({
     });
     const payload = (await response.json()) as {
       annotation?: PageAnnotation;
+      review?: Review;
       error?: string;
     };
     if (!payload.annotation) {
@@ -1232,7 +1233,7 @@ export function ReviewPane({
     setMarkMode(false);
     setNoteComment("");
     setNoteExpected("");
-    onAnnotationsChanged?.();
+    onAnnotationsChanged?.(payload.review);
   }
 
   async function toggleNoteStatus(note: PageAnnotation) {
@@ -1600,7 +1601,7 @@ export function ReviewPane({
                           : "rounded border border-accent bg-accent px-2 py-0.5 pto-t-sm font-semibold text-white shadow-sm hover:bg-[#1d4ed8]"
                       }
                     >
-                      {markMode ? "Отменить" : "Отметить ошибку"}
+                      Отметить ошибку
                     </button>
                   ) : null}
                 </div>
@@ -1781,7 +1782,7 @@ export function ReviewPane({
                     : "border-accent bg-accent text-white shadow-sm hover:bg-[#1d4ed8]"
                 }`}
               >
-                {markMode ? "Отменить" : "Отметить ошибку"}
+                Отметить ошибку
                 {!markMode && pageNotes.length ? (
                   <span className="ml-1 tabular-nums opacity-80">
                     {pageNotes.length}

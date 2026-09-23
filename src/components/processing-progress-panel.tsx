@@ -7,6 +7,7 @@ import {
   formatProcessingPercent,
   pageProgressRows,
   processingPercent,
+  processingStepLabel,
   type ProgressInput,
 } from "@/lib/processing-progress";
 
@@ -127,7 +128,14 @@ export function ProcessingProgressPanel({
 
         <div className="mt-3 space-y-1.5">
           <div className="pto-t-md font-semibold tabular-nums text-sky-950">
-            {formatProcessingPercent(overallPercent)}
+            {[
+              document.status === "processing" || document.status === "queued"
+                ? processingStepLabel(document.processingStep)
+                : null,
+              formatProcessingPercent(overallPercent),
+            ]
+              .filter(Boolean)
+              .join(" · ")}
           </div>
           <ProgressTrack value={overallPercent} className="h-2" />
         </div>
@@ -283,7 +291,8 @@ function processingBottomLine(
       .join(" · ");
   }
 
-  return [formatProcessingPercent(percent), pages].join(" · ");
+  const step = processingStepLabel(document.processingStep);
+  return [step, formatProcessingPercent(percent), pages].filter(Boolean).join(" · ");
 }
 
 /** Полоска прогресса внизу справа — одна на весь экран. */

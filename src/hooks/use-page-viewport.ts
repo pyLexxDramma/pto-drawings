@@ -290,7 +290,7 @@ export function usePageViewport({
   );
 
   const zoomToRect = useCallback(
-    (rect: PageRegion, opts?: { highlight?: boolean }) => {
+    (rect: PageRegion, opts?: { highlight?: boolean; gentle?: boolean }) => {
       const wrap = wrapRef.current;
       if (!wrap) return;
       const n = naturalRef.current;
@@ -298,9 +298,14 @@ export function usePageViewport({
       const tw = Math.max(0.008, rect.w) * n.w;
       const th = Math.max(0.008, rect.h) * n.h;
       const pageFit = computeFitScale(wrap, n, "page", minScale);
+      const widthFit = computeFitScale(wrap, n, "width", minScale);
       const raw = Math.min((wrap.clientWidth - pad) / tw, (wrap.clientHeight - pad) / th);
       const fitted = opts?.highlight ? highlightZoomScale(raw) : raw;
-      const nextScale = Math.min(pageFit * maxZoomFactor, Math.max(minScale, fitted));
+      let nextScale = Math.min(pageFit * maxZoomFactor, Math.max(minScale, fitted));
+      // Поиск по слову иначе уводит лист на 260% и рамку ошибки не поставить.
+      if (opts?.gentle) {
+        nextScale = Math.min(nextScale, Math.max(scaleRef.current, widthFit * 1.35));
+      }
       const cx = (rect.x + rect.w / 2) * n.w * nextScale;
       const cy = (rect.y + rect.h / 2) * n.h * nextScale;
       applyView(

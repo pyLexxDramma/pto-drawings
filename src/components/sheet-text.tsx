@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { MarkdownView } from "@/components/markdown-view";
 import {
+  omitEmptyPlacement,
   parseMarkdownBlocks,
   splitMarkdownSections,
   tidyVerbatim,
@@ -32,11 +33,12 @@ export function SheetText({
 }: SheetTextProps) {
   const sections = useMemo(
     () =>
-      splitMarkdownSections(markdown).map((section) =>
-        /дословно/i.test(section.title)
-          ? { ...section, body: tidyVerbatim(section.body) }
-          : section,
-      ),
+      splitMarkdownSections(markdown).map((section) => {
+        const body = omitEmptyPlacement(section.body);
+        return /дословно/i.test(section.title)
+          ? { ...section, body: tidyVerbatim(body) }
+          : { ...section, body };
+      }),
     [markdown],
   );
 

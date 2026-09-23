@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   extractObjectId,
   linkBlocksToRegions,
+  omitEmptyPlacement,
   parseMarkdownBlocks,
   regionsFromCadTexts,
   splitMarkdownSections,
@@ -91,7 +92,6 @@ describe("splitMarkdownSections", () => {
       .filter((section) => section.service)
       .map((section) => section.title);
     assert.deepEqual(service, [
-      "Описание чертежа (модель, по изображению)",
       "Состав листа (из геометрии)",
     ]);
   });
@@ -101,6 +101,18 @@ describe("splitMarkdownSections", () => {
       "## Таблицы листа (прочитаны моделью по изображению)\n\nтело",
     );
     assert.equal(sections[0]?.service, false);
+  });
+
+  it("drops an empty placement table and keeps a filled one", () => {
+    const empty = omitEmptyPlacement(
+      "**Что где на листе**\n\n| Блок | Где |\n|---|---|\n\nдальше",
+    );
+    assert.equal(empty.includes("Что где"), false);
+    assert.equal(empty.includes("дальше"), true);
+    const filled = omitEmptyPlacement(
+      "**Что где на листе**\n\n| Блок | Где |\n|---|---|\n| штамп | справа |\n",
+    );
+    assert.equal(filled.includes("штамп"), true);
   });
 
   it("does not mark the sheet text and the stamp as service", () => {
@@ -137,7 +149,7 @@ describe("splitMarkdownSections", () => {
     );
     assert.deepEqual(
       sections.map((section) => section.service),
-      [true, true, false, true],
+      [false, true, false, true],
     );
   });
 

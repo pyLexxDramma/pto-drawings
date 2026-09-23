@@ -21,7 +21,7 @@ export function useSearchHitFocus({
   ready: boolean;
   /** Выключено, когда кадр уже ведёт «Где в ПД» — иначе два зума спорят. */
   auto?: boolean;
-  zoomToRect: (rect: PageRegion, opts?: { highlight?: boolean }) => void;
+  zoomToRect: (rect: PageRegion, opts?: { highlight?: boolean; gentle?: boolean }) => void;
 }) {
   const key = `${query.trim()}#${pageNumber}`;
   // Новая цитата или лист — курсор считаем с нуля, без сброса через эффект.
@@ -44,7 +44,7 @@ export function useSearchHitFocus({
     const applied = `${key}#${index}`;
     if (appliedRef.current === applied) return;
     appliedRef.current = applied;
-    zoomRef.current(hit, { highlight: true });
+    zoomRef.current(hit, { highlight: true, gentle: true });
   }, [auto, hit, index, key, live.stepped, ready]);
 
   return {
