@@ -262,8 +262,8 @@ body {
   top: 0;
   z-index: 1;
   max-width: none;
-  margin: 1.2em -0.75rem 0.3em;
-  padding: 0.25rem 0.75rem;
+  margin: 0.35em -0.75rem 0.15em;
+  padding: 0.15rem 0.75rem;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
 }
@@ -275,7 +275,7 @@ body {
 
 /** Служебный раздел конвейера — тише по тону, чем разделы с содержимым. */
 .markdown-body .sheet-section-head[data-sheet-section="service"] {
-  color: var(--muted);
+  color: var(--text);
   font-weight: 700;
 }
 

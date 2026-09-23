@@ -70,7 +70,7 @@ function SheetRow({
       aria-current={current ? "page" : undefined}
       aria-label={`Лист ${pageNumber}, ${kindLabel}${fallback ? `. ${fallback}` : ""}`}
       onClick={() => onSelect(pageNumber)}
-      className={`mb-1 flex w-full flex-col gap-0.5 rounded-md border-2 px-1.5 py-1 text-left [-webkit-tap-highlight-color:transparent] ${
+      className={`mb-0.5 flex w-full flex-col rounded-md border-2 px-1.5 py-0.5 text-left [-webkit-tap-highlight-color:transparent] ${
         current
           ? "border-emerald-700 bg-white"
           : isWorking
@@ -117,13 +117,6 @@ function SheetRow({
           ) : null}
         </span>
       </span>
-      {/* Подпись только у текущего листа: у остальных состояние объясняет
-          тултип, а строка на каждый лист превращала полосу в простыню. */}
-      {current && fallback ? (
-        <span className="w-full text-pretty pto-t-xs leading-snug text-muted">
-          {fallback}
-        </span>
-      ) : null}
     </button>
   );
 }

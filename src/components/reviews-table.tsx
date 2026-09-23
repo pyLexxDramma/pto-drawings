@@ -684,17 +684,7 @@ export function ReviewsTable({
           <span className="font-semibold text-text">
             Замечания · {projectName}
           </span>
-          {loading ? (
-            <span className="text-muted"> · загрузка…</span>
-          ) : (
-            <span className="text-muted">
-              {` · ${stats.total} всего · ${stats.pending} не разобрано · выс. ${stats.high} · выгрузка ${stats.exportable} · ИИ ${stats.ai} · инж. ${stats.engineer}`}
-              {stats.both ? ` · оба ${stats.both}` : ""}
-              {stats.wrong ? (
-                <span className="text-sem-issue">{` · брак ${stats.wrong}`}</span>
-              ) : null}
-            </span>
-          )}
+          {loading ? <span className="text-muted"> · загрузка…</span> : null}
         </div>
 
         <div className="ml-auto flex shrink-0 items-center gap-1.5">

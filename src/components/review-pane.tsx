@@ -495,8 +495,6 @@ export function ReviewPane({
     setSidePanel("text");
     setDrawingHitCount(null);
     setTextHitFound(null);
-    // Замечание выбрано — список больше не нужен, отдаём место расшифровке.
-    setPageReviewsOpen(false);
   }
   function selectFileReview(review: Review) {
     const location =
