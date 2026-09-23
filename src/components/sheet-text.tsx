@@ -118,12 +118,12 @@ export function SheetText({
                 onClick={() =>
                   setOpen((prev) => ({ ...prev, [section.id]: !expanded }))
                 }
-                className="flex min-w-0 items-center gap-1.5 text-left hover:text-accent"
+                className="flex min-w-0 items-center gap-2 text-left hover:text-accent"
               >
-                <span className="shrink-0 pto-t-sm text-muted">
+                <span className="shrink-0 text-lg font-bold leading-none">
                   {expanded ? "▾" : "▸"}
                 </span>
-                <span className="min-w-0">{section.title}</span>
+                <span className="min-w-0 text-base font-bold">{section.title}</span>
                 {!expanded ? (
                   <span className="shrink-0 rounded border border-border px-1 pto-t-xs font-normal text-muted">
                     свёрнуто

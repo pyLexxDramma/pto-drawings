@@ -93,6 +93,8 @@ const SERVICE_SECTION =
 
 /** `## Страница N` — номер листа и так есть в интерфейсе, в тексте он мешает. */
 const PAGE_HEADING = /^##\s*страница\s+\d+\s*$/i;
+/** «Лист 1» уже стоит в полоске слева. «Лист дословно» — это ## , его не трогаем. */
+const SHEET_NUMBER_HEADING = /^#\s+Лист\s+\d+\s*$/i;
 
 /**
  * Режет лист на разделы по `##`. Нужно для сворачивания служебных блоков,
@@ -118,6 +120,7 @@ export function splitMarkdownSections(markdown: string): MarkdownSection[] {
 
   for (const line of markdown.split("\n")) {
     if (PAGE_HEADING.test(line.trim())) continue;
+    if (SHEET_NUMBER_HEADING.test(line.trim())) continue;
     const heading = /^##\s+(.*\S)\s*$/.exec(line);
     if (heading) {
       flush();

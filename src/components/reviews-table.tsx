@@ -7,6 +7,8 @@ import {
   useMemo,
   useRef,
   useState,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
 } from "react";
 import { ExcelColFilter } from "@/components/excel-col-filter";
 import { ResolvedSummary } from "@/components/resolved-summary";
@@ -22,12 +24,11 @@ import {
 } from "@/lib/excel-filter";
 import {
   SEVERITY_CHIP,
-  SEVERITY_ROW,
   VERDICT_CHIP,
-  VERDICT_ROW,
 } from "@/lib/review-colors";
 import { formatDate } from "@/lib/format";
 import { remarkWording, sheetLabel } from "@/lib/sheet-label";
+import { isCrossSection, knownSectionRank } from "@/lib/sections";
 import {
   REVIEW_EVENT_LABEL,
   REVIEW_ORIGIN_LABEL,
@@ -117,6 +118,78 @@ function fileNameKey(name: string | null | undefined): string {
   return name.trim().toLowerCase().replace(/\.(pdf|dwg|dxf|zip)$/i, "");
 }
 
+/**
+ * Колонка «Раздел» — заголовок расшифровки (Описание, Геометрия).
+ * Имя файла, марка тома и «прочее» сюда не пишем: файл уже в шапке группы.
+ */
+function transcriptSection(section: string, fileName: string): string | null {
+  const value = section.trim();
+  if (!value) return null;
+  const lower = value.toLowerCase();
+  if (lower === "прочее" || lower === "без раздела") return null;
+  if (fileNameKey(fileName) && fileNameKey(value) === fileNameKey(fileName)) return null;
+  if (/\.(pdf|dxf|dwg|xlsx|zip)$/i.test(value)) return null;
+  if (knownSectionRank(value) !== null || isCrossSection(value)) return null;
+  return value;
+}
+
+type ColId = "num" | "section" | "place" | "severity" | "verdict" | "comment";
+
+const COL_WIDTH_KEY = "pto-review-col-widths";
+const COL_DEFAULT: Record<ColId, number> = {
+  num: 56,
+  section: 140,
+  place: 220,
+  severity: 112,
+  verdict: 128,
+  comment: 180,
+};
+
+function loadColWidths(): Record<ColId, number> {
+  if (typeof window === "undefined") return { ...COL_DEFAULT };
+  try {
+    const raw = localStorage.getItem(COL_WIDTH_KEY);
+    if (!raw) return { ...COL_DEFAULT };
+    const parsed = JSON.parse(raw) as Partial<Record<ColId, number>>;
+    const next = { ...COL_DEFAULT };
+    for (const key of Object.keys(COL_DEFAULT) as ColId[]) {
+      const value = parsed[key];
+      if (typeof value === "number" && value >= 48 && value <= 520) next[key] = value;
+    }
+    return next;
+  } catch {
+    return { ...COL_DEFAULT };
+  }
+}
+
+function ColHead({
+  width,
+  onDrag,
+  children,
+}: {
+  width?: number;
+  onDrag?: (event: ReactPointerEvent) => void;
+  children: ReactNode;
+}) {
+  return (
+    <th
+      style={width ? { width, minWidth: width } : undefined}
+      className="relative border-b border-border px-2 py-1.5 font-medium normal-case tracking-normal"
+    >
+      {children}
+      {onDrag ? (
+        <span
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Ширина колонки"
+          onPointerDown={onDrag}
+          className="absolute -right-px top-0 z-20 h-full w-1.5 cursor-col-resize touch-none hover:bg-accent/40"
+        />
+      ) : null}
+    </th>
+  );
+}
+
 export function ReviewsTable({
   projectId,
   projectName,
@@ -160,6 +233,7 @@ export function ReviewsTable({
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<ExcelCol>("number");
   const [sortDir, setSortDir] = useState<1 | -1>(1);
+  const [colW, setColW] = useState(loadColWidths);
   const [picked, setPicked] = useState<string[]>([]);
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -327,6 +401,38 @@ export function ReviewsTable({
     (review: Review) => review.locations[0]?.documentName ?? NO_FILE,
     [],
   );
+
+  const showSectionCol = useMemo(
+    () => visible.some((review) => transcriptSection(review.section, fileOf(review))),
+    [visible, fileOf],
+  );
+  const colCount = showSectionCol ? 9 : 8;
+
+  function dragCol(id: ColId, event: ReactPointerEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    const startX = event.clientX;
+    const th = event.currentTarget.parentElement;
+    const start = th?.getBoundingClientRect().width ?? COL_DEFAULT[id];
+    function move(ev: PointerEvent) {
+      const next = Math.max(48, Math.min(520, Math.round(start + ev.clientX - startX)));
+      setColW((prev) => {
+        const merged = { ...prev, [id]: next };
+        try {
+          localStorage.setItem(COL_WIDTH_KEY, JSON.stringify(merged));
+        } catch {
+          // quota / private
+        }
+        return merged;
+      });
+    }
+    function up() {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    }
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  }
 
   const sorted = useMemo(() => {
     const items = [...visible];
@@ -776,7 +882,7 @@ export function ReviewsTable({
                     }}
                   />
                 </th>
-                <th className="w-14 border-b border-border px-2 py-1.5 font-medium normal-case tracking-normal">
+                <ColHead width={colW.num} onDrag={(event) => dragCol("num", event)}>
                   <ExcelColFilter
                     label="№"
                     values={filterValues.number}
@@ -785,20 +891,23 @@ export function ReviewsTable({
                     onSort={(dir) => sortBy("number", dir)}
                     onApply={(next) => applyColFilter("number", next)}
                   />
-                </th>
-                {/* На узком окне колонки поджимаются, чтобы текст замечания не
-                    превращался в столбик по три слова. */}
-                <th className="w-24 border-b border-border px-2 py-1.5 font-medium normal-case tracking-normal xl:w-28">
-                  <ExcelColFilter
-                    label="Раздел"
-                    values={filterValues.section}
-                    selected={colFilters.section ?? null}
-                    sortDir={sortKey === "section" ? sortDir : null}
-                    onSort={(dir) => sortBy("section", dir)}
-                    onApply={(next) => applyColFilter("section", next)}
-                  />
-                </th>
-                <th className="border-b border-border px-2 py-1.5 font-medium normal-case tracking-normal">
+                </ColHead>
+                {showSectionCol ? (
+                  <ColHead
+                    width={colW.section}
+                    onDrag={(event) => dragCol("section", event)}
+                  >
+                    <ExcelColFilter
+                      label="Раздел"
+                      values={filterValues.section}
+                      selected={colFilters.section ?? null}
+                      sortDir={sortKey === "section" ? sortDir : null}
+                      onSort={(dir) => sortBy("section", dir)}
+                      onApply={(next) => applyColFilter("section", next)}
+                    />
+                  </ColHead>
+                ) : null}
+                <ColHead>
                   <ExcelColFilter
                     label="Замечание"
                     values={filterValues.text}
@@ -807,8 +916,8 @@ export function ReviewsTable({
                     onSort={(dir) => sortBy("text", dir)}
                     onApply={(next) => applyColFilter("text", next)}
                   />
-                </th>
-                <th className="w-44 border-b border-border px-2 py-1.5 font-medium normal-case tracking-normal xl:w-56 2xl:w-64 3xl:w-[34rem]">
+                </ColHead>
+                <ColHead width={colW.place} onDrag={(event) => dragCol("place", event)}>
                   <ExcelColFilter
                     label="Где в ПД"
                     values={filterValues.place}
@@ -817,8 +926,11 @@ export function ReviewsTable({
                     onSort={(dir) => sortBy("place", dir)}
                     onApply={(next) => applyColFilter("place", next)}
                   />
-                </th>
-                <th className="w-28 border-b border-border px-2 py-1.5 font-medium normal-case tracking-normal xl:w-32">
+                </ColHead>
+                <ColHead
+                  width={colW.severity}
+                  onDrag={(event) => dragCol("severity", event)}
+                >
                   <ExcelColFilter
                     label="Важность"
                     values={filterValues.severity}
@@ -827,8 +939,11 @@ export function ReviewsTable({
                     onSort={(dir) => sortBy("severity", dir)}
                     onApply={(next) => applyColFilter("severity", next)}
                   />
-                </th>
-                <th className="w-32 border-b border-border px-2 py-1.5 font-medium normal-case tracking-normal xl:w-36">
+                </ColHead>
+                <ColHead
+                  width={colW.verdict}
+                  onDrag={(event) => dragCol("verdict", event)}
+                >
                   <ExcelColFilter
                     label="Статус"
                     values={filterValues.verdict}
@@ -837,8 +952,11 @@ export function ReviewsTable({
                     onSort={(dir) => sortBy("verdict", dir)}
                     onApply={(next) => applyColFilter("verdict", next)}
                   />
-                </th>
-                <th className="w-32 border-b border-border px-2 py-1.5 font-medium normal-case tracking-normal xl:w-40 2xl:w-48 3xl:w-64">
+                </ColHead>
+                <ColHead
+                  width={colW.comment}
+                  onDrag={(event) => dragCol("comment", event)}
+                >
                   <ExcelColFilter
                     label="Комментарий"
                     values={filterValues.comment}
@@ -847,14 +965,14 @@ export function ReviewsTable({
                     onSort={(dir) => sortBy("comment", dir)}
                     onApply={(next) => applyColFilter("comment", next)}
                   />
-                </th>
+                </ColHead>
                 <th className="w-8 border-b border-border px-1 py-1.5" />
               </tr>
             </thead>
             <tbody>
               {visible.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-3 py-12">
+                  <td colSpan={colCount} className="px-3 py-12">
                     <EmptyReviews
                       kind={
                         filtersOn
@@ -885,7 +1003,7 @@ export function ReviewsTable({
                   {groupHeads.get(review.id) ? (
                     <tr>
                       <td
-                        colSpan={9}
+                        colSpan={colCount}
                         className={`bg-surface-2 px-2 pb-1 pto-t-sm font-semibold text-muted ${
                           index === 0 ? "pt-1" : "pt-2"
                         }`}
@@ -901,6 +1019,8 @@ export function ReviewsTable({
                       selected={picked.includes(review.id)}
                       saving={savingId === review.id}
                       lastEvent={lastEventByReview.get(review.id) ?? null}
+                      showSection={showSectionCol}
+                      sectionLabel={transcriptSection(review.section, fileOf(review))}
                       onActivate={() => setActiveId(review.id)}
                       onToggleSelect={() =>
                         setPicked((prev) =>
@@ -1381,7 +1501,6 @@ function ReviewLocations({
   wording: string;
   onJumpToPage: JumpToPage;
 }) {
-  const firstName = review.locations[0]?.documentName;
   const many = review.locations.length > 1;
 
   return (
@@ -1393,13 +1512,13 @@ function ReviewLocations({
         >
           {many ? (
             <span className="shrink-0 tabular-nums pto-t-sm text-muted">
-              {index + 1}/{review.locations.length}
+              место {index + 1} из {review.locations.length}
             </span>
           ) : null}
           <div className="min-w-0 flex-1">
             <LocationLine
               location={location}
-              omitFile={index > 0 && location.documentName === firstName}
+              omitFile
               needle={needle}
               wording={wording}
               reviewId={review.id}
@@ -1419,6 +1538,8 @@ function ReviewRow({
   selected,
   saving,
   lastEvent,
+  showSection,
+  sectionLabel,
   onActivate,
   onToggleSelect,
   onPatch,
@@ -1435,6 +1556,8 @@ function ReviewRow({
   saving: boolean;
   /** Последняя правка строки — подпись «кто и когда». */
   lastEvent: ReviewEvent | null;
+  showSection: boolean;
+  sectionLabel: string | null;
   onActivate: () => void;
   onToggleSelect: () => void;
   onPatch: (body: Partial<Review>) => void;
@@ -1495,10 +1618,10 @@ function ReviewRow({
       // Толщина левой полосы — важность, заливка — разбор. Два разных смысла,
       // и раньше они оба красили фон, перебивая друг друга.
       className={`border-b border-slate-200 align-top ${
-        SEVERITY_ROW[review.severity]
-      } ${VERDICT_ROW[review.verdict] ?? ""} ${
+        review.severity === "high" ? "bg-sem-issue-soft" : "bg-white"
+      } ${review.severity === "skip" ? "opacity-60" : ""} ${
         active
-          ? "outline outline-2 -outline-offset-2 outline-accent ring-1 ring-inset ring-accent/20"
+          ? "outline outline-2 -outline-offset-2 outline-accent ring-1 ring-inset ring-accent/30"
           : ""
       }`}
     >
@@ -1521,11 +1644,15 @@ function ReviewRow({
           )}
         </span>
       </td>
-      <td className="px-2 py-1.5">
-        <span className="rounded border border-slate-300 bg-white px-1.5 py-0.5 pto-t-sm font-medium text-text">
-          {review.section}
-        </span>
-      </td>
+      {showSection ? (
+        <td className="px-2 py-1.5">
+          {sectionLabel ? (
+            <span className="rounded border border-slate-300 bg-white px-1.5 py-0.5 pto-t-sm font-medium text-text">
+              {sectionLabel}
+            </span>
+          ) : null}
+        </td>
+      ) : null}
       <td className="px-2 py-1.5">
         <div className="flex items-start gap-1.5">
           <span

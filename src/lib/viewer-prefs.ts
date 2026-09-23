@@ -45,6 +45,33 @@ const DEFAULTS: ViewerPrefs = {
 export const SPLIT_MIN = 22;
 export const SPLIT_MAX = 82;
 
+/** Ниже этой ширины окна расшифровка стартует уже, чем сохранённые 56%. */
+const NARROW_VIEWPORT = 1600;
+/** Доля чертежа на узком окне: расшифровке остаётся около трети. */
+const NARROW_DRAWING_SPLIT = 68;
+
+/**
+ * Доля под чертёж. Текст не шире половины окна. На экране до 1600px
+ * сохранённую широкую расшифровку поджимаем ещё сильнее.
+ */
+export function clampPaneSplit(
+  saved: number,
+  viewportWidth: number,
+  kind: "drawing" | "table" = "drawing",
+): number {
+  let next = saved;
+  if (next < 50) next = 50;
+  if (
+    kind === "drawing" &&
+    viewportWidth > 0 &&
+    viewportWidth <= NARROW_VIEWPORT &&
+    next < NARROW_DRAWING_SPLIT
+  ) {
+    next = NARROW_DRAWING_SPLIT;
+  }
+  return Math.round(Math.min(SPLIT_MAX, Math.max(SPLIT_MIN, next)));
+}
+
 /** Границу двигают мышью, поэтому значение приводим к допустимому диапазону. */
 export function saveSplit(kind: "drawing" | "table", percent: number) {
   const value = Math.round(Math.min(SPLIT_MAX, Math.max(SPLIT_MIN, percent)));

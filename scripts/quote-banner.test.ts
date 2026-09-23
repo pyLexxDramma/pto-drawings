@@ -27,7 +27,7 @@ describe("quoteBannerKind", () => {
     );
   });
 
-  it("shows drawing-miss only after an explicit zero from the viewer", () => {
+  it("hides when the text was found even if the drawing count is zero", () => {
     assert.equal(
       quoteBannerKind({
         bannerOn: true,
@@ -35,7 +35,44 @@ describe("quoteBannerKind", () => {
         textHitFound: true,
         drawingHitCount: 0,
       }),
-      "miss-drawing",
+      null,
+    );
+  });
+
+  it("hides while either side has not answered", () => {
+    assert.equal(
+      quoteBannerKind({
+        bannerOn: true,
+        focusDrawing: true,
+        textHitFound: null,
+        drawingHitCount: 0,
+      }),
+      null,
+    );
+  });
+
+  it("shows only when both drawing and text said no", () => {
+    assert.equal(
+      quoteBannerKind({
+        bannerOn: true,
+        focusDrawing: true,
+        textHitFound: false,
+        drawingHitCount: 0,
+      }),
+      "miss-both",
+    );
+  });
+
+  it("hides when a highlight rect is already on the sheet", () => {
+    assert.equal(
+      quoteBannerKind({
+        bannerOn: true,
+        focusDrawing: true,
+        textHitFound: false,
+        drawingHitCount: 0,
+        highlighted: true,
+      }),
+      null,
     );
   });
 });

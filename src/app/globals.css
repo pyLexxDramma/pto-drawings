@@ -276,7 +276,7 @@ body {
 /** Служебный раздел конвейера — тише по тону, чем разделы с содержимым. */
 .markdown-body .sheet-section-head[data-sheet-section="service"] {
   color: var(--muted);
-  font-weight: 550;
+  font-weight: 700;
 }
 
 .markdown-body p,

@@ -6,7 +6,11 @@ import type { FitMode } from "@/hooks/use-page-viewport";
 
 const PERCENTS = [50, 100, 200, 400];
 
-export function ViewerToolbar({
+/**
+ * Листы и масштаб — в нижней полосе, как в обычном просмотрщике.
+ * Верхняя панель остаётся под PDF/DWG и «весь экран».
+ */
+export function ViewerSheetControls({
   scale,
   fitMode,
   onFit,
@@ -16,11 +20,8 @@ export function ViewerToolbar({
   onNextPage,
   canPrevPage = false,
   canNextPage = false,
-  onToggleFullscreen,
-  fullscreenActive = false,
   hasLegible = false,
-  leading,
-  extra,
+  menuUp = false,
 }: {
   scale: number;
   fitMode: FitMode;
@@ -31,13 +32,9 @@ export function ViewerToolbar({
   onNextPage?: () => void;
   canPrevPage?: boolean;
   canNextPage?: boolean;
-  onToggleFullscreen?: () => void;
-  fullscreenActive?: boolean;
-  /** Размер подписей листа известен — можно предложить «Читаемо». */
   hasLegible?: boolean;
-  /** Переключатели источника листа (PDF / DWG) — в тот же блок, не отдельной плашкой. */
-  leading?: ReactNode;
-  extra?: ReactNode;
+  /** Меню масштаба открывается вверх — контролы стоят у нижнего края. */
+  menuUp?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -58,29 +55,22 @@ export function ViewerToolbar({
     };
   }, [open]);
 
-  // Тёмный полупрозрачный фон: кнопки читаются на любом чертеже, но лист
-  // сквозь них виден (созвон 18.09).
   return (
     <div
       ref={rootRef}
       onMouseDown={(event) => event.stopPropagation()}
-      className="absolute right-1.5 top-1.5 z-30 flex items-center gap-0.5 rounded border border-white/15 bg-slate-900/55 px-0.5 py-[3px] text-white shadow-md backdrop-blur"
-      data-viewer-toolbar=""
+      className="inline-flex items-center gap-0.5 text-text"
+      data-viewer-nav=""
     >
-      {leading ? (
-        <div className="flex items-center border-r border-white/20 pr-1">
-          {leading}
-        </div>
-      ) : null}
       {onPrevPage || onNextPage ? (
-        <div className="flex items-center overflow-hidden rounded border border-white/20 bg-white/10">
+        <div className="flex items-center overflow-hidden rounded border border-border bg-white">
           <button
             type="button"
             title="Предыдущий лист (K / PageUp)"
             aria-label="Предыдущий лист"
             onClick={() => onPrevPage?.()}
             disabled={!canPrevPage}
-            className="pto-tool pto-tool--slim inline-flex w-6 items-center justify-center text-xs font-bold text-white hover:bg-white/20 disabled:cursor-default disabled:opacity-40"
+            className="pto-tool pto-tool--slim inline-flex w-6 items-center justify-center text-xs font-bold hover:bg-black/5 disabled:cursor-default disabled:opacity-40"
           >
             ←
           </button>
@@ -90,23 +80,19 @@ export function ViewerToolbar({
             aria-label="Следующий лист"
             onClick={() => onNextPage?.()}
             disabled={!canNextPage}
-            className="pto-tool pto-tool--slim inline-flex w-6 items-center justify-center border-l border-white/20 text-xs font-bold text-white hover:bg-white/20 disabled:cursor-default disabled:opacity-40"
+            className="pto-tool pto-tool--slim inline-flex w-6 items-center justify-center border-l border-border text-xs font-bold hover:bg-black/5 disabled:cursor-default disabled:opacity-40"
           >
             →
           </button>
         </div>
       ) : null}
-      <div
-        className={`flex items-center gap-0.5 ${
-          onPrevPage || onNextPage ? "border-l border-white/20 pl-1" : ""
-        }`}
-      >
+      <div className="flex items-center gap-0.5">
         <button
           type="button"
           title="Отдалить"
           aria-label="Отдалить"
           onClick={() => onZoomBy(1 / 1.25)}
-          className="pto-tool pto-tool--slim flex w-6 items-center justify-center rounded text-sm leading-none text-white hover:bg-white/20"
+          className="pto-tool pto-tool--slim flex w-6 items-center justify-center rounded text-sm leading-none hover:bg-black/5"
         >
           −
         </button>
@@ -117,7 +103,7 @@ export function ViewerToolbar({
             aria-expanded={open}
             aria-haspopup="listbox"
             onClick={() => setOpen((value) => !value)}
-            className="pto-tool pto-tool--slim min-w-[2.5rem] rounded px-0.5 text-center pto-t-md font-medium tabular-nums text-white hover:bg-white/20"
+            className="pto-tool pto-tool--slim min-w-[2.5rem] rounded px-0.5 text-center pto-t-md font-medium tabular-nums hover:bg-black/5"
             data-viewer-scale=""
           >
             {Math.round(scale * 100)}%
@@ -125,7 +111,9 @@ export function ViewerToolbar({
           {open ? (
             <div
               role="listbox"
-              className="absolute right-0 top-full z-40 mt-1 min-w-[8.5rem] rounded-md border border-border bg-white py-1 text-xs shadow-md"
+              className={`absolute right-0 z-40 min-w-[8.5rem] rounded-md border border-border bg-white py-1 text-xs text-text shadow-md ${
+                menuUp ? "bottom-full mb-1" : "top-full mt-1"
+              }`}
             >
               <button
                 type="button"
@@ -178,6 +166,7 @@ export function ViewerToolbar({
                     setOpen(false);
                   }}
                   className="flex w-full px-3 py-1.5 text-left tabular-nums hover:bg-bg"
+                  aria-selected={false}
                 >
                   {percent}%
                 </button>
@@ -190,11 +179,39 @@ export function ViewerToolbar({
           title="Приблизить"
           aria-label="Приблизить"
           onClick={() => onZoomBy(1.25)}
-          className="pto-tool pto-tool--slim flex w-6 items-center justify-center rounded text-sm leading-none text-white hover:bg-white/20"
+          className="pto-tool pto-tool--slim flex w-6 items-center justify-center rounded text-sm leading-none hover:bg-black/5"
         >
           +
         </button>
       </div>
+    </div>
+  );
+}
+
+export function ViewerToolbar({
+  onToggleFullscreen,
+  fullscreenActive = false,
+  leading,
+  extra,
+}: {
+  onToggleFullscreen?: () => void;
+  fullscreenActive?: boolean;
+  /** Переключатели источника листа (PDF / DWG). */
+  leading?: ReactNode;
+  extra?: ReactNode;
+}) {
+  if (!leading && !onToggleFullscreen && !extra) return null;
+  return (
+    <div
+      onMouseDown={(event) => event.stopPropagation()}
+      className="absolute right-1.5 top-1.5 z-30 flex items-center gap-0.5 rounded border border-white/15 bg-slate-900/55 px-0.5 py-[3px] text-white shadow-md backdrop-blur"
+      data-viewer-toolbar=""
+    >
+      {leading ? (
+        <div className="flex items-center border-r border-white/20 pr-1">
+          {leading}
+        </div>
+      ) : null}
       {onToggleFullscreen ? (
         <button
           type="button"

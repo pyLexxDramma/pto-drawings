@@ -171,6 +171,20 @@ describe("splitMarkdownSections", () => {
     assert.equal(sections[0].title, "");
     assert.equal(sections[0].body, "# Лист\n\nПросто текст");
   });
+
+  it("drops the sheet-number heading, keeps verbatim", () => {
+    const sections = splitMarkdownSections(
+      ["# Лист 1", "", "## Лист дословно", "", "текст штампа"].join("\n"),
+    );
+    assert.equal(
+      sections.some((section) => section.body.includes("Лист 1")),
+      false,
+    );
+    assert.equal(
+      sections.some((section) => section.title.startsWith("Лист дословно")),
+      true,
+    );
+  });
 });
 
 describe("linkBlocksToRegions", () => {

@@ -38,26 +38,19 @@ export const VERDICT_CHIP: Record<ReviewVerdict, string> = {
 };
 
 /**
- * Левая полоса строки — только важность, и только толщиной. Заливку строки
- * даёт разбор (VERDICT_ROW): раньше фон красили оба, и разбор перекрывал
- * важность — выходило, что цвет строки не значил ничего определённого.
+ * Строка белая. Цвет — только у важности «высокий». Статус остаётся словом
+ * в колонке: «обсудить» и «частично верно» больше не заливают всю строку.
  */
 export const SEVERITY_ROW: Record<ReviewSeverity, string> = {
-  unset: "border-l-2 border-l-slate-200",
-  high: "border-l-4 border-l-sem-issue",
-  medium: "border-l-4 border-l-sem-issue-line",
-  low: "border-l-2 border-l-slate-300",
-  skip: "border-l-2 border-l-slate-200 opacity-60",
+  unset: "",
+  high: "bg-sem-issue-soft",
+  medium: "",
+  low: "",
+  skip: "opacity-60",
 };
 
-/** Заливка строки: единственный источник — разбор. «Не разобрано» без заливки. */
-export const VERDICT_ROW: Partial<Record<ReviewVerdict, string>> = {
-  confirmed: "bg-sem-ok-soft",
-  partial: "bg-sem-attn-soft",
-  discuss: "bg-sem-attn-soft",
-  outdated: "bg-slate-100 opacity-60",
-  wrong: "bg-sem-issue-soft",
-};
+/** Заливку по статусу не даём: статус читается подписью, не фоном строки. */
+export const VERDICT_ROW: Partial<Record<ReviewVerdict, string>> = {};
 
 /** Счётчик замечаний на миниатюре листа: цвет — по разбору. */
 export const VERDICT_COUNT: Record<ReviewVerdict, string> = {

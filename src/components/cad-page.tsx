@@ -15,7 +15,7 @@ import {
 } from "@/components/ui-chrome";
 import { VIEWER_MOUSE_HINT } from "@/components/viewer-hint";
 import { ViewerStatusBar } from "@/components/viewer-status-bar";
-import { ViewerToolbar } from "@/components/viewer-toolbar";
+import { ViewerSheetControls, ViewerToolbar } from "@/components/viewer-toolbar";
 import { LEGIBLE_MIN_PX, usePageViewport } from "@/hooks/use-page-viewport";
 import { useSearchHitFocus } from "@/hooks/use-search-hit-focus";
 import {
@@ -771,21 +771,26 @@ export function CadPage({
           saveViewerPrefs({ ...loadViewerPrefs(), hintDismissed: true });
           setHintOn(false);
         }}
+        nav={
+          <ViewerSheetControls
+            scale={viewport.scale}
+            fitMode={viewport.fitMode}
+            onFit={viewport.fit}
+            onZoomBy={viewport.zoomBy}
+            onSetPercent={viewport.setScalePercent}
+            onPrevPage={onPrevPage}
+            onNextPage={onNextPage}
+            canPrevPage={canPrevPage}
+            canNextPage={canNextPage}
+            hasLegible={viewport.legibleScale > 0}
+            menuUp
+          />
+        }
       />
 
       <ViewerToolbar
-        scale={viewport.scale}
-        fitMode={viewport.fitMode}
-        onFit={viewport.fit}
-        onZoomBy={viewport.zoomBy}
-        onSetPercent={viewport.setScalePercent}
-        onPrevPage={onPrevPage}
-        onNextPage={onNextPage}
-        canPrevPage={canPrevPage}
-        canNextPage={canNextPage}
         onToggleFullscreen={onToggleFullscreen}
         fullscreenActive={fullscreenActive}
-        hasLegible={viewport.legibleScale > 0}
         leading={toolbarLeading}
       />
     </div>

@@ -6,8 +6,8 @@ import { Tooltip } from "@/components/tooltip";
 import { VerdictDot } from "@/components/ui-chrome";
 import {
   SEVERITY_CHIP,
+  SEVERITY_ROW,
   VERDICT_CHIP,
-  VERDICT_ROW,
 } from "@/lib/review-colors";
 import {
   placeDeepLink,
@@ -412,7 +412,9 @@ export function ResolvedReviewsPage() {
               {group.items.map((review) => (
                 <tr
                   key={review.id}
-                  className={`align-top ${VERDICT_ROW[review.verdict] ?? ""}`}
+                  className={`align-top ${
+                    review.severity === "high" ? SEVERITY_ROW.high : "bg-white"
+                  } ${review.severity === "skip" ? "opacity-60" : ""}`}
                 >
                   <Td className="tabular-nums text-muted">{review.number}</Td>
                   <Td className="text-muted">{review.section || "—"}</Td>

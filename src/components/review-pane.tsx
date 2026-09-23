@@ -45,6 +45,7 @@ import { sheetLabel } from "@/lib/sheet-label";
 import {
   SPLIT_MAX,
   SPLIT_MIN,
+  clampPaneSplit,
   loadViewerPrefs,
   saveSplit,
 } from "@/lib/viewer-prefs";
@@ -189,7 +190,12 @@ export function ReviewPane({
     if (cached?.pageNumber && cached.pageNumber > 0) return cached.pageNumber;
     return loadCachedProgress(document.id).lastPage;
   });
-  const [split, setSplit] = useState(() => loadViewerPrefs().splitDrawing);
+  const [split, setSplit] = useState(() =>
+    clampPaneSplit(
+      loadViewerPrefs().splitDrawing,
+      typeof window === "undefined" ? 1920 : window.innerWidth,
+    ),
+  );
   const [query, setQuery] = useState("");
   const [showLog, setShowLog] = useState(false);
   const [filter, setFilter] = useState<KindFilter>("all");
@@ -215,9 +221,6 @@ export function ReviewPane({
   const [sheetPeek, setSheetPeek] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const pageRef = useRef(rawPage);
-  /** След переходов по листам: куда вернёт «Назад» над расшифровкой. */
-  const pageTrailRef = useRef<number[]>([]);
-  const [trailTop, setTrailTop] = useState<number | null>(null);
   const navigatedRef = useRef(false);
   const textPaneRef = useRef<HTMLDivElement>(null);
   const deferredQuery = useDeferredValue(query);
@@ -708,7 +711,7 @@ export function ReviewPane({
                   : "border-border bg-white text-muted hover:border-accent hover:text-accent"
               }`}
             >
-              {sheetLabel(place) ?? `лист ${place.pageNumber}`}
+              {`место ${index + 1} из ${places.length}`}
             </button>
           );
         })}
@@ -775,8 +778,6 @@ export function ReviewPane({
     if (!openPage || openPage.documentId !== document.id) return;
     navigatedRef.current = true;
     // Переход из фида проекта: внешнее событие, поэтому состояние двигаем здесь.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    pushPageTrail(openPage.page);
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setRawPage(openPage.page);
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -902,79 +903,23 @@ export function ReviewPane({
     // Таблицы читаются шире, чем чертёж: отдаём им больше правой панели. Обе
     // доли берём из настроек — раздвинутую границу инженер теряет иначе.
     const prefs = loadViewerPrefs();
+    const width = window.innerWidth;
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setSplit(page?.kind === "table" ? prefs.splitTable : prefs.splitDrawing);
+    setSplit(
+      clampPaneSplit(
+        page?.kind === "table" ? prefs.splitTable : prefs.splitDrawing,
+        width,
+        page?.kind === "table" ? "table" : "drawing",
+      ),
+    );
   }, [page?.kind]);
-
-  /**
-   * Текст расшифровки не правится руками (решение Дархана 09.09): исправления
-   * идут только через «Ошибка» — тогда у конвейера остаётся, чему учиться.
-   */
-  function pushPageTrail(next: number) {
-    const from = pageRef.current;
-    if (!from || from === next) return;
-    pageTrailRef.current = [...pageTrailRef.current.slice(-19), from];
-    setTrailTop(from);
-  }
 
   function goToPage(next: number) {
     navigatedRef.current = true;
-    pushPageTrail(next);
     setRawPage(next);
     setSheetPeek(true);
     setProgressExpanded(false);
     setPaneSolo(null);
-  }
-
-  /** Разбираем выбранное замечание — «Назад» сначала снимает выбор. */
-  const backStep: "remark" | "page" | "screen" =
-    focusQuote.trim().length >= 2 || activeReviewId
-      ? "remark"
-      : trailTop
-        ? "page"
-        : "screen";
-
-  function popTrail(): number | null {
-    const trail = pageTrailRef.current;
-    const previous = trail[trail.length - 1];
-    if (previous === undefined) return null;
-    pageTrailRef.current = trail.slice(0, -1);
-    setTrailTop(pageTrailRef.current[pageTrailRef.current.length - 1] ?? null);
-    return previous;
-  }
-
-  /**
-   * Возврат над расшифровкой, по шагам: снять выбранное замечание → вернуться
-   * на лист, с которого пришли → уйти на предыдущий экран. Так «Назад» не
-   * выбрасывает к проектам сразу после разбора замечания.
-   */
-  function goBackInTrail() {
-    if (backStep === "remark") {
-      const previous = popTrail();
-      if (previous !== null) {
-        navigatedRef.current = true;
-        setRawPage(previous);
-        setSheetPeek(true);
-        setProgressExpanded(false);
-      }
-      setFocusQuote("");
-      setFocusRect(null);
-      setActiveReviewId(null);
-      setDrawingHitCount(null);
-      setTextHitFound(null);
-      // Список замечаний листа остаётся свёрнутым — открыть можно кликом.
-      setPageReviewsOpen(false);
-      return;
-    }
-    const previous = popTrail();
-    if (previous === null) {
-      onBackToProjects();
-      return;
-    }
-    navigatedRef.current = true;
-    setRawPage(previous);
-    setSheetPeek(true);
-    setProgressExpanded(false);
   }
 
   function stepVisible(delta: number) {
@@ -1494,6 +1439,7 @@ export function ReviewPane({
     pageSource: page?.source,
     textHitFound,
     drawingHitCount,
+    highlighted: Boolean(focusRect) || (drawingHitCount ?? 0) > 0,
   });
 
   return (
@@ -1792,23 +1738,6 @@ export function ReviewPane({
             ) : (
               <>
             <div className="flex flex-wrap items-center gap-1 border-b border-border px-1.5 py-0.5">
-              {/* Слева — возврат туда, откуда пришли; свернуть текст ушло вправо. */}
-              <button
-                type="button"
-                onClick={goBackInTrail}
-                title={
-                  backStep === "remark"
-                    ? "Снять выбранное замечание и вернуться к списку замечаний листа"
-                    : backStep === "page"
-                      ? `Вернуться к листу ${trailTop} расшифровки`
-                      : "Вернуться на предыдущую страницу"
-                }
-                // Нейтральная, а не amber: это навигация, а не предупреждение —
-                // amber оставлен ровно за смыслом «внимание».
-                className="shrink-0 rounded border border-border bg-white px-2 py-0.5 pto-t-sm font-semibold text-text hover:border-accent hover:text-accent"
-              >
-                ← Назад
-              </button>
               <button
                 type="button"
                 title={markMode ? "Отменить разметку (Esc)" : "Обвести ошибку на чертеже"}
