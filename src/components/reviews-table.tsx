@@ -27,7 +27,7 @@ import {
   VERDICT_CHIP,
 } from "@/lib/review-colors";
 import { formatDate } from "@/lib/format";
-import { remarkWording, sheetLabel } from "@/lib/sheet-label";
+import { placeOrdinal, remarkWording, sheetLabel } from "@/lib/sheet-label";
 import { isCrossSection, knownSectionRank } from "@/lib/sections";
 import {
   REVIEW_EVENT_LABEL,
@@ -1512,7 +1512,7 @@ function ReviewLocations({
         >
           {many ? (
             <span className="shrink-0 tabular-nums pto-t-sm text-muted">
-              место {index + 1} из {review.locations.length}
+              {placeOrdinal(index)}
             </span>
           ) : null}
           <div className="min-w-0 flex-1">

@@ -33,6 +33,11 @@ export function sheetLabel(location: {
   return `${base} (в штампе ${stamp})`;
 }
 
+/** Подпись места на листе: «Ошибка 1», без «из 2». */
+export function placeOrdinal(index: number): string {
+  return `Ошибка ${index + 1}`;
+}
+
 /** Полный адрес: «том.pdf · лист 28 (в штампе 6)». */
 export function locationLabel(location: ReviewLocation): string {
   return [location.documentName, sheetLabel(location)].filter(Boolean).join(" · ");

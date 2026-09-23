@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { MarkdownView } from "@/components/markdown-view";
 import {
   parseMarkdownBlocks,
@@ -81,11 +81,8 @@ export function SheetText({
   // документе, поэтому секциям нечего делить между собой.
   const focusState: FocusHighlightState | null = focusFirst && q ? { focusStyle: true } : null;
 
-  const titled = sections.filter((section) => section.title);
-
   return (
     <>
-      {titled.length > 1 ? <SheetToc sections={titled} /> : null}
       {sections.map((section, index) => {
         if (!section.title) {
           return (
@@ -124,11 +121,6 @@ export function SheetText({
                   {expanded ? "▾" : "▸"}
                 </span>
                 <span className="min-w-0 text-base font-bold">{section.title}</span>
-                {!expanded ? (
-                  <span className="shrink-0 rounded border border-border px-1 pto-t-xs font-normal text-muted">
-                    свёрнуто
-                  </span>
-                ) : null}
               </button>
             </h2>
             {expanded ? (
@@ -146,43 +138,5 @@ export function SheetText({
         );
       })}
     </>
-  );
-}
-
-/** Оглавление листа: куда прыгать, не прокручивая ведомость целиком. */
-function SheetToc({
-  sections,
-}: {
-  sections: Array<{ id: string; title: string; service: boolean }>;
-}) {
-  const hostRef = useRef<HTMLDivElement>(null);
-  return (
-    <div
-      ref={hostRef}
-      className="mb-2 flex flex-wrap items-center gap-1 border-b border-border pb-2"
-      data-sheet-toc=""
-    >
-      <span className="pto-t-sm text-muted">На листе:</span>
-      {sections.map((section) => (
-        <button
-          key={section.id}
-          type="button"
-          onClick={() => {
-            const target = hostRef.current
-              ?.closest("[data-sheet-body]")
-              ?.querySelector(`#${section.id}`);
-            target?.scrollIntoView({ block: "start", behavior: "smooth" });
-          }}
-          className={`max-w-[18rem] truncate rounded border px-1.5 py-0.5 pto-t-sm ${
-            section.service
-              ? "border-dashed border-slate-300 text-muted hover:bg-bg"
-              : "border-border bg-white text-text hover:border-accent hover:text-accent"
-          }`}
-          title={section.title}
-        >
-          {section.title}
-        </button>
-      ))}
-    </div>
   );
 }

@@ -41,7 +41,7 @@ import {
   remarkTermsInMarkdown,
 } from "@/lib/highlight-text";
 import { quoteBannerKind } from "@/lib/quote-banner";
-import { sheetLabel } from "@/lib/sheet-label";
+import { placeOrdinal, sheetLabel } from "@/lib/sheet-label";
 import {
   SPLIT_MAX,
   SPLIT_MIN,
@@ -691,27 +691,26 @@ export function ReviewPane({
     if (places.length < 2) return null;
     return (
       <span className="inline-flex shrink-0 items-center gap-0.5">
-        <span className="text-rose-800/70">места:</span>
         {places.map((place, index) => {
           const here =
             place.documentId === document.id && place.pageNumber === pageNumber;
           const current = activeReviewId === review.id && index === siblingIndex;
+          const label = placeOrdinal(index);
           return (
             <button
               key={`${place.documentId}-${place.pageNumber}-${index}`}
               type="button"
               onClick={() => focusLocation(place, review.id)}
-              title={`Место ${index + 1} из ${places.length} · ${
+              title={`${label} · ${
                 sheetLabel(place) ?? "лист не указан"
               }${here ? "" : " · другой лист или файл"}`}
-              // Текущее место — accent (это навигация), остальные — тише.
-              className={`whitespace-nowrap rounded border px-1 py-[1px] font-semibold tabular-nums ${
+              className={`whitespace-nowrap rounded border px-1 py-[1px] font-semibold ${
                 current
                   ? "border-accent bg-accent text-white"
                   : "border-border bg-white text-muted hover:border-accent hover:text-accent"
               }`}
             >
-              {`место ${index + 1} из ${places.length}`}
+              {label}
             </button>
           );
         })}
