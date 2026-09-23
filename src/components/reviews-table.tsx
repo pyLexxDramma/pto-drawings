@@ -24,6 +24,7 @@ import {
 } from "@/lib/excel-filter";
 import {
   SEVERITY_CHIP,
+  SEVERITY_ROW,
   VERDICT_CHIP,
 } from "@/lib/review-colors";
 import { formatDate } from "@/lib/format";
@@ -149,7 +150,6 @@ const COL_DEFAULT: Record<ColId, number> = {
   author: 120,
 };
 const COL_CHECK = 32;
-const COL_ACTIONS = 32;
 
 const CELL = "border border-[#a6a6a6] px-1.5 py-1";
 
@@ -172,18 +172,26 @@ function loadColWidths(): Record<ColId, number> {
 
 function ColHead({
   width,
+  minWidth,
   onDrag,
   colId,
   children,
 }: {
   width?: number;
+  minWidth?: number;
   onDrag?: (event: ReactPointerEvent) => void;
   colId?: string;
   children: ReactNode;
 }) {
+  const style =
+    width != null
+      ? { width, minWidth: width, maxWidth: width }
+      : minWidth != null
+        ? { minWidth }
+        : undefined;
   return (
     <th
-      style={width ? { width, minWidth: width, maxWidth: width } : undefined}
+      style={style}
       className={`relative ${CELL} bg-[#d6dce4] font-semibold text-slate-900`}
     >
       {children}
@@ -210,7 +218,6 @@ export function ReviewsTable({
   onOpenTranscript,
   onStatsChange,
   refreshToken = 0,
-  onReviewsMutated,
 }: {
   projectId: string;
   projectName: string;
@@ -419,7 +426,7 @@ export function ReviewsTable({
     () => visible.some((review) => transcriptSection(review.section, fileOf(review))),
     [visible, fileOf],
   );
-  const colCount = showSectionCol ? 10 : 9;
+  const colCount = showSectionCol ? 9 : 8;
 
   function dragCol(id: ColId, event: ReactPointerEvent) {
     event.preventDefault();
@@ -461,8 +468,7 @@ export function ReviewsTable({
     colW.severity +
     colW.verdict +
     colW.comment +
-    colW.author +
-    COL_ACTIONS;
+    colW.author;
 
   const sorted = useMemo(() => {
     const items = [...visible];
@@ -560,25 +566,6 @@ export function ReviewsTable({
     },
     [load, projectId, refreshEvents],
   );
-
-  async function handleDelete(reviewId: string) {
-    if (!confirm("Удалить замечание?")) return;
-    setSavingId(reviewId);
-    try {
-      const response = await fetch(
-        `/api/projects/${projectId}/reviews/${reviewId}`,
-        { method: "DELETE" },
-      );
-      if (!response.ok) throw new Error("Не удалось удалить");
-      setReviews((prev) => prev.filter((item) => item.id !== reviewId));
-      void refreshEvents();
-      onReviewsMutated?.();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Ошибка удаления");
-    } finally {
-      setSavingId(null);
-    }
-  }
 
   async function handleImport(file: File) {
     setImporting(true);
@@ -710,6 +697,16 @@ export function ReviewsTable({
             placeholder="Поиск"
             className="w-32 rounded-md border border-border bg-white px-1.5 py-0.5 pto-t-md outline-none placeholder:text-muted focus:border-accent"
           />
+          {currentDocumentId && fileScopeOff ? (
+            <button
+              type="button"
+              onClick={() => setFileScopeOff(false)}
+              className="whitespace-nowrap rounded-md border border-slate-300 bg-white px-2 py-0.5 pto-t-md font-semibold leading-none text-slate-800 hover:bg-slate-50"
+              title="Снова только замечания открытого файла"
+            >
+              Снова этот файл
+            </button>
+          ) : null}
           <input
             ref={importRef}
             type="file"
@@ -784,38 +781,6 @@ export function ReviewsTable({
           ) : null}
         </div>
       </header>
-
-      <div className="flex flex-wrap items-center gap-2 border-b border-border bg-surface-2 px-3 py-1">
-        <span className="pto-t-md text-muted">
-          Фильтры — стрелка на колонке, как в Excel
-        </span>
-        {filtersOn ? (
-          <button
-            type="button"
-            onClick={() => {
-              setColFilters({});
-              setQuery("");
-            }}
-            className="rounded-md border border-border bg-white px-2 py-1 pto-t-md text-muted hover:text-text"
-            title="Показать все замечания"
-          >
-            Сбросить фильтры
-          </button>
-        ) : null}
-        <span className="pto-t-md tabular-nums text-muted">
-          показано {visible.length}
-        </span>
-        {currentDocumentId && fileScopeOff ? (
-          <button
-            type="button"
-            onClick={() => setFileScopeOff(false)}
-            className="rounded-md border border-border bg-white px-2 py-1 pto-t-md text-muted hover:text-text"
-            title="Снова только замечания открытого файла"
-          >
-            Снова этот файл
-          </button>
-        ) : null}
-      </div>
 
       {error ? (
         <div className="border-b border-red-200 bg-red-50 px-3 py-1.5 pto-t-md text-red-700">
@@ -895,8 +860,8 @@ export function ReviewsTable({
           // table-fixed: без него длинные ссылки в «Где в ПД» задавали
           // min-content колонки и выдавливали текст замечания в столбик.
           <table
-            style={{ width: tableWidth }}
-            className="table-fixed border-collapse border border-[#7f7f7f] text-xs"
+            style={{ minWidth: tableWidth }}
+            className="w-full table-fixed border-collapse border border-[#7f7f7f] text-xs"
           >
             <colgroup>
               <col style={{ width: COL_CHECK }} />
@@ -906,9 +871,8 @@ export function ReviewsTable({
               <col style={{ width: colW.place }} />
               <col style={{ width: colW.severity }} />
               <col style={{ width: colW.verdict }} />
-              <col style={{ width: colW.comment }} />
+              <col />
               <col style={{ width: colW.author }} />
-              <col style={{ width: COL_ACTIONS }} />
             </colgroup>
             <thead className="sticky top-0 z-10 text-left pto-t-sm">
               <tr>
@@ -1003,7 +967,7 @@ export function ReviewsTable({
                 </ColHead>
                 <ColHead
                   colId="comment"
-                  width={colW.comment}
+                  minWidth={colW.comment}
                   onDrag={(event) => dragCol("comment", event)}
                 >
                   <ExcelColFilter
@@ -1029,7 +993,6 @@ export function ReviewsTable({
                     onApply={(next) => applyColFilter("author", next)}
                   />
                 </ColHead>
-                <th style={{ width: COL_ACTIONS }} className={CELL + " bg-[#d6dce4]"} />
               </tr>
             </thead>
             <tbody>
@@ -1093,7 +1056,6 @@ export function ReviewsTable({
                       onPatch={(body) => void patch(review.id, body)}
                       onMarkWrong={() => setWrongFor(review)}
                       onShowLog={() => setLogFor(review)}
-                      onDelete={() => void handleDelete(review.id)}
                       onJumpToPage={onJumpToPage}
                     />
                 </Fragment>
@@ -1592,6 +1554,124 @@ function ReviewLocations({
   );
 }
 
+/**
+ * Нативный select красит все пункты цветом выбранного. Список рисуем сами:
+ * у каждого значения свой чип, «высокий» не заливает «средний» и «низкий».
+ */
+function StatusPicker<T extends string>({
+  value,
+  options,
+  labels,
+  chips,
+  field,
+  ariaLabel,
+  onChange,
+}: {
+  value: T;
+  options: readonly T[];
+  labels: Record<T, string>;
+  chips: Record<T, string>;
+  field: string;
+  ariaLabel: string;
+  onChange: (next: T) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [menu, setMenu] = useState<{
+    top: number;
+    left: number;
+    width: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDoc(event: MouseEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    window.addEventListener("mousedown", onDoc);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousedown", onDoc);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  function placeMenu(el: HTMLElement) {
+    const box = el.getBoundingClientRect();
+    const width = Math.max(box.width, 148);
+    const below = box.bottom + 4;
+    const approxH = options.length * 30 + 8;
+    const top =
+      below + approxH > window.innerHeight - 8
+        ? Math.max(8, box.top - approxH - 4)
+        : below;
+    setMenu({ top, left: box.left, width });
+    setOpen(true);
+  }
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        aria-label={ariaLabel}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        data-status-field={field}
+        data-status-value={value}
+        onClick={(event) => {
+          event.stopPropagation();
+          if (open) setOpen(false);
+          else placeMenu(event.currentTarget);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowDown" || event.key === "Enter" || event.key === " ") {
+            if (!open) {
+              event.preventDefault();
+              placeMenu(event.currentTarget);
+            }
+          }
+        }}
+        className={`w-full rounded border px-1.5 py-1 text-left pto-t-md font-medium outline-none focus-visible:ring-2 focus-visible:ring-accent ${chips[value]}`}
+      >
+        {labels[value]}
+      </button>
+      {open && menu ? (
+        <div
+          role="listbox"
+          aria-label={ariaLabel}
+          style={{
+            position: "fixed",
+            top: menu.top,
+            left: menu.left,
+            width: menu.width,
+          }}
+          className="z-50 rounded border border-slate-300 bg-white p-0.5 shadow-md"
+        >
+          {options.map((item) => (
+            <button
+              key={item}
+              type="button"
+              role="option"
+              aria-selected={item === value}
+              onClick={(event) => {
+                event.stopPropagation();
+                setOpen(false);
+                if (item !== value) onChange(item);
+              }}
+              className={`mb-0.5 block w-full rounded border px-1.5 py-1 text-left pto-t-md font-medium last:mb-0 ${chips[item]}`}
+            >
+              {labels[item]}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function ReviewRow({
   review,
   needle,
@@ -1606,7 +1686,6 @@ function ReviewRow({
   onPatch,
   onMarkWrong,
   onShowLog,
-  onDelete,
   onJumpToPage,
 }: {
   review: Review;
@@ -1624,7 +1703,6 @@ function ReviewRow({
   onPatch: (body: Partial<Review>) => void;
   onMarkWrong: () => void;
   onShowLog: () => void;
-  onDelete: () => void;
   onJumpToPage: (
     documentId: string,
     pageNumber: number,
@@ -1678,9 +1756,7 @@ function ReviewRow({
       data-review-id={review.id}
       // Толщина левой полосы — важность, заливка — разбор. Два разных смысла,
       // и раньше они оба красили фон, перебивая друг друга.
-      className={`align-top ${
-        review.severity === "high" ? "bg-sem-issue-soft" : "bg-white"
-      } ${review.severity === "skip" ? "opacity-60" : ""} ${
+      className={`align-top ${SEVERITY_ROW[review.severity] || "bg-white"} ${
         active
           ? "outline outline-2 -outline-offset-2 outline-accent ring-1 ring-inset ring-accent/30"
           : ""
@@ -1744,43 +1820,29 @@ function ReviewRow({
         )}
       </td>
       <td className={CELL}>
-        <select
+        <StatusPicker
+          field="severity"
+          ariaLabel={`Важность замечания ${review.number}`}
           value={review.severity}
-          onChange={(event) =>
-            onPatch({ severity: event.target.value as ReviewSeverity })
-          }
-          onClick={(event) => event.stopPropagation()}
-          className={`w-full rounded border px-1.5 py-1 pto-t-md font-medium outline-none ${
-            SEVERITY_CHIP[review.severity]
-          }`}
-        >
-          {REVIEW_SEVERITY_ORDER.map((item) => (
-            <option key={item} value={item}>
-              {REVIEW_SEVERITY_LABEL[item]}
-            </option>
-          ))}
-        </select>
+          options={REVIEW_SEVERITY_ORDER}
+          labels={REVIEW_SEVERITY_LABEL}
+          chips={SEVERITY_CHIP}
+          onChange={(next) => onPatch({ severity: next })}
+        />
       </td>
       <td className={CELL}>
-        <select
+        <StatusPicker
+          field="verdict"
+          ariaLabel={`Статус замечания ${review.number}`}
           value={review.verdict}
-          onChange={(event) => {
-            const next = event.target.value as ReviewVerdict;
-            // «Неверно» ставится только через окно с причиной.
+          options={VERDICTS}
+          labels={REVIEW_VERDICT_LABEL}
+          chips={VERDICT_CHIP}
+          onChange={(next) => {
             if (next === "wrong") onMarkWrong();
             else onPatch({ verdict: next });
           }}
-          onClick={(event) => event.stopPropagation()}
-          className={`w-full rounded border px-1.5 py-1 pto-t-md font-medium outline-none ${
-            VERDICT_CHIP[review.verdict]
-          }`}
-        >
-          {VERDICTS.map((item) => (
-            <option key={item} value={item}>
-              {REVIEW_VERDICT_LABEL[item]}
-            </option>
-          ))}
-        </select>
+        />
         {review.verdict === "wrong" ? (
           <button
             type="button"
@@ -1881,30 +1943,16 @@ function ReviewRow({
         </div>
       </td>
       <td className={CELL}>
-        <span
-          className={`inline-block rounded border px-1.5 py-0.5 pto-t-sm font-medium ${
-            ORIGIN_CHIP[review.origin]
-          }`}
-        >
-          {reviewAuthor(review)}
-        </span>
-      </td>
-      <td className={`${CELL} text-center`}>
-        {saving ? (
-          <Spinner className="h-3 w-3 text-accent" />
-        ) : (
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              onDelete();
-            }}
-            title="Удалить замечание"
-            className="rounded px-1 pto-t-md leading-none text-muted hover:bg-red-50 hover:text-red-600"
+        <span className="inline-flex items-center gap-1">
+          <span
+            className={`inline-block rounded border px-1.5 py-0.5 pto-t-sm font-medium ${
+              ORIGIN_CHIP[review.origin]
+            }`}
           >
-            ×
-          </button>
-        )}
+            {reviewAuthor(review)}
+          </span>
+          {saving ? <Spinner className="h-3 w-3 text-accent" /> : null}
+        </span>
       </td>
     </tr>
   );

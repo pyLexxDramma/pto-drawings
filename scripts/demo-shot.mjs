@@ -43,7 +43,7 @@ console.log("этап «Таблица замечаний»:", await stage.count
 await stage.first().click();
 await page.waitForTimeout(2500);
 
-const tableRows = page.locator("tbody tr").filter({ has: page.locator("select") });
+const tableRows = page.locator("tbody tr").filter({ has: page.locator("[data-status-field]") });
 console.log("строк в таблице:", await tableRows.count());
 await page.screenshot({ path: OUT });
 console.log("таблица:", OUT);

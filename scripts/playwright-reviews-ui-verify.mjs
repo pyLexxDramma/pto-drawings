@@ -84,7 +84,7 @@ await page
 await page.getByRole("button", { name: /К проектам/ }).waitFor({ timeout: 20000 });
 check("таблица открылась из этапа", true);
 
-const rows = page.locator("tbody tr").filter({ has: page.locator("select") });
+const rows = page.locator("tbody tr").filter({ has: page.locator("[data-status-field]") });
 await rows.first().waitFor({ timeout: 20000 }).catch(() => undefined);
 const rowCount = await rows.count();
 // Прод до публикации конвейера пустой — тогда проверяем только каркас.
@@ -114,14 +114,15 @@ check("таблица: строки есть", rowCount > 0, `${rowCount}`);
 let target = await rows.first().getAttribute("data-review-id");
 for (let index = 0; index < rowCount; index += 1) {
   const candidate = rows.nth(index);
-  if ((await candidate.locator("select").nth(1).inputValue()) === "pending") {
+  if ((await candidate.locator('[data-status-field="verdict"]').getAttribute("data-status-value")) === "pending") {
     target = await candidate.getAttribute("data-review-id");
     break;
   }
 }
 // От правок строка меняет порядок в таблице, поэтому держимся за id, не за индекс.
 const first = page.locator(`tbody tr[data-review-id="${target}"]`);
-await first.locator("select").nth(1).selectOption("wrong");
+await first.locator('[data-status-field="verdict"]').click();
+await page.getByRole("option", { name: "Неверно" }).click();
 const dialog = page.getByRole("dialog", { name: "Что неверно в замечании" });
 await dialog.waitFor({ timeout: 10000 });
 check("«Неверно»: окно причины", true);
