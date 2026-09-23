@@ -428,8 +428,11 @@ export function ReviewsTable({
     handle.setPointerCapture?.(event.pointerId);
     const startX = event.clientX;
     const start = colW[id];
-    function move(ev: PointerEvent) {
-      const next = Math.max(48, Math.min(720, Math.round(start + ev.clientX - startX)));
+    function move(ev: Event) {
+      const next = Math.max(
+        48,
+        Math.min(720, Math.round(start + (ev as PointerEvent).clientX - startX)),
+      );
       setColW((prev) => {
         const merged = { ...prev, [id]: next };
         try {
@@ -442,11 +445,11 @@ export function ReviewsTable({
     }
     function up() {
       handle.releasePointerCapture?.(event.pointerId);
-      handle.removeEventListener("pointermove", move);
-      handle.removeEventListener("pointerup", up);
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
     }
-    handle.addEventListener("pointermove", move);
-    handle.addEventListener("pointerup", up);
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
   }
 
   const tableWidth =
