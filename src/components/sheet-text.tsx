@@ -10,6 +10,9 @@ import {
 } from "@/lib/content-sync";
 import { findQuoteRanges, type FocusHighlightState } from "@/lib/highlight-text";
 
+/** Какие разделы инженер сам открыл. Ключ — текст листа, чтобы возврат на него не сбрасывал. */
+const openedBySheet = new Map<string, Record<string, boolean>>();
+
 type SheetTextProps = {
   markdown: string;
   /** Лист-таблица: режем на секции, но тело секции рендерим одним куском. */
@@ -56,10 +59,12 @@ export function SheetText({
     return out;
   }, [sections]);
 
-  const [open, setOpen] = useState<Record<string, boolean>>({});
-  // Новый лист — сворачиваем служебное заново, иначе состояние течёт между листами.
+  const [open, setOpen] = useState<Record<string, boolean>>(
+    () => openedBySheet.get(markdown) ?? {},
+  );
+  // Другой лист подставляет свой набор. Пустой набор — все разделы свёрнуты.
   useEffect(() => {
-    setOpen({});
+    setOpen(openedBySheet.get(markdown) ?? {});
   }, [markdown]);
 
   /**
@@ -101,10 +106,9 @@ export function SheetText({
           );
         }
 
-        // Служебное свёрнуто, пока инженер сам не откроет: это отладка конвейера,
-        // и роль тут не при чём — админ читает лист так же, как остальные.
-        const expanded =
-          open[section.id] ?? (!section.service || focusSections.has(section.id));
+        // До первого раскрытия все разделы свёрнуты. Поиск цитаты открывает
+        // нужный сам и это не запоминаем: уход с листа вернёт как инженер оставил.
+        const expanded = open[section.id] ?? focusSections.has(section.id);
         return (
           <section key={section.id} id={section.id} className="scroll-mt-10">
             <h2
@@ -115,7 +119,11 @@ export function SheetText({
                 type="button"
                 aria-expanded={expanded}
                 onClick={() =>
-                  setOpen((prev) => ({ ...prev, [section.id]: !expanded }))
+                  setOpen((prev) => {
+                    const next = { ...prev, [section.id]: !expanded };
+                    openedBySheet.set(markdown, next);
+                    return next;
+                  })
                 }
                 className="flex min-w-0 items-center gap-2 text-left hover:text-accent"
               >
