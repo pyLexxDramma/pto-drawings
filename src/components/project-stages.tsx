@@ -181,7 +181,7 @@ export function ProjectStagesBar({
 
   return (
     <div
-      className={`flex min-w-0 flex-1 items-center gap-2 overflow-hidden ${
+      className={`flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5 ${
         embedded ? "" : "shrink-0 border-b border-border bg-white px-2 py-0.5 sm:px-3"
       }`}
     >
@@ -246,7 +246,7 @@ export function ProjectStagesBar({
 
       {docTitle ? (
         <span
-          className="hidden max-w-[32rem] shrink-0 whitespace-normal break-all rounded border border-slate-300 bg-white px-1.5 py-0.5 pto-t-sm font-medium leading-tight text-slate-800 lg:inline"
+          className="hidden w-full whitespace-normal break-all rounded border border-slate-300 bg-white px-1.5 py-0.5 pto-t-sm font-medium leading-tight text-slate-800 lg:block"
           title={docTitle}
         >
           {docTitle}
