@@ -17,6 +17,7 @@ import { PageStrip } from "@/components/page-strip";
 import { PdfPage } from "@/components/pdf-page";
 import { SheetTextPane } from "@/components/sheet-text-pane";
 import { SheetToolbar } from "@/components/sheet-toolbar";
+import type { RemarkUndo } from "@/lib/remark-undo";
 import { PaneToggle, SegmentedTabs } from "@/components/ui-chrome";
 import { modelIssueCount } from "@/components/model-check-panel";
 import {
@@ -107,6 +108,11 @@ type ReviewPaneProps = {
   onConsumeBack?: (fn: (() => boolean) | null) => void;
   onSheetBackHint?: (label: string | null) => void;
   onAnnotationsChanged?: () => void;
+  /** Запомнить последнее добавление или удаление замечания для «Отменить». */
+  onRemarkRecorded?: (action: RemarkUndo) => void;
+  onUndoRemark?: () => void;
+  canUndoRemark?: boolean;
+  undoBusy?: boolean;
   notesRefreshToken?: number;
   /** Те же строки, что в «Замечаний по листу» — открыть таблицу по этому файлу. */
   onOpenReviews?: () => void;
@@ -180,6 +186,10 @@ export function ReviewPane({
   onConsumeBack,
   onSheetBackHint,
   onAnnotationsChanged,
+  onRemarkRecorded,
+  onUndoRemark,
+  canUndoRemark = false,
+  undoBusy = false,
   notesRefreshToken = 0,
   onOpenReviews,
   onJumpToPage,
@@ -1004,12 +1014,21 @@ export function ReviewPane({
     }
   }
 
+  const backLabel = searchOpen
+    ? "← Закрыть поиск"
+    : markMode || pendingRect
+      ? "← Отменить пометку"
+      : "← Назад";
   const sheetToolButtons = (
     <SheetToolbar
       searchOpen={searchOpen}
       readOnly={readOnly}
       onOpenSearch={openSearch}
       onCloseSearch={closeSearch}
+      onBack={onBackToProjects}
+      backLabel={backLabel}
+      onUndo={canUndoRemark ? onUndoRemark : undefined}
+      undoBusy={undoBusy}
     />
   );
 
@@ -1201,6 +1220,15 @@ export function ReviewPane({
       setNoteError(payload.error ?? "Не удалось сохранить замечание");
       return;
     }
+    onRemarkRecorded?.({
+      kind: "add",
+      documentId: document.id,
+      annotationId: payload.annotation.id,
+      pageNumber,
+      rect: pendingRect,
+      comment,
+      expected: noteExpected.trim(),
+    });
     setNotes((prev) => [payload.annotation!, ...prev]);
     setPendingRect(null);
     setMarkMode(false);
@@ -1245,6 +1273,14 @@ export function ReviewPane({
     }
     setNotes((prev) => prev.filter((item) => item.id !== note.id));
     if (hoverNoteId === note.id) setHoverNoteId(null);
+    onRemarkRecorded?.({
+      kind: "delete",
+      documentId: document.id,
+      pageNumber: note.pageNumber,
+      rect: note.rect,
+      comment: note.comment,
+      expected: note.expected,
+    });
     onAnnotationsChanged?.();
   }
 

@@ -16,14 +16,32 @@ export function SheetToolbar({
   readOnly,
   onOpenSearch,
   onCloseSearch,
+  onBack,
+  backLabel = "← Назад",
+  onUndo,
+  undoBusy = false,
 }: {
   searchOpen: boolean;
   readOnly: boolean;
   onOpenSearch: () => void;
   onCloseSearch: () => void;
+  onBack?: () => void;
+  backLabel?: string;
+  onUndo?: () => void;
+  undoBusy?: boolean;
 }) {
   return (
     <>
+      {onBack ? (
+        <button
+          type="button"
+          onClick={onBack}
+          title="Туда, откуда открыли этот экран"
+          className={BTN}
+        >
+          {backLabel}
+        </button>
+      ) : null}
       <button
         type="button"
         title={searchOpen ? "Закрыть поиск (Esc)" : "Поиск по файлу (/ или Ctrl+F)"}
@@ -41,6 +59,17 @@ export function SheetToolbar({
           {searchOpen ? "Esc" : "/"}
         </kbd>
       </button>
+      {onUndo ? (
+        <button
+          type="button"
+          onClick={onUndo}
+          disabled={undoBusy}
+          title="Отменить последнее добавление или удаление замечания"
+          className={`${BTN} disabled:opacity-50`}
+        >
+          Отменить
+        </button>
+      ) : null}
       {readOnly ? (
         <span className="rounded border border-sem-attn-line bg-sem-attn-soft px-2 py-0.5 pto-t-sm font-semibold text-sem-attn-text">
           Просмотр

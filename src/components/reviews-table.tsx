@@ -218,6 +218,9 @@ export function ReviewsTable({
   onOpenTranscript,
   onStatsChange,
   refreshToken = 0,
+  onBack,
+  onUndo,
+  undoBusy = false,
 }: {
   projectId: string;
   projectName: string;
@@ -228,6 +231,11 @@ export function ReviewsTable({
   /** Перезагрузить таблицу, когда пометки на листе изменились. */
   refreshToken?: number;
   onReviewsMutated?: () => void;
+  /** Один шаг туда, откуда открыли таблицу. Стоит рядом с поиском. */
+  onBack?: () => void;
+  /** Отмена последнего добавления или удаления замечания. */
+  onUndo?: () => void;
+  undoBusy?: boolean;
   /** Открыть место в ПД в просмотрщике (новая вкладка + подсветка). */
   onJumpToPage: (
     documentId: string,
@@ -691,12 +699,33 @@ export function ReviewsTable({
 
         <div className="ml-auto flex shrink-0 items-center gap-1.5">
           <ResolvedSummary reviews={reviews} projectId={projectId} compact />
+          {onBack ? (
+            <button
+              type="button"
+              onClick={onBack}
+              title="Туда, откуда открыли таблицу"
+              className="whitespace-nowrap rounded-md border border-slate-300 bg-white px-2 py-0.5 pto-t-md font-semibold leading-none text-slate-800 hover:bg-slate-50"
+            >
+              ← Назад
+            </button>
+          ) : null}
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Поиск"
             className="w-32 rounded-md border border-border bg-white px-1.5 py-0.5 pto-t-md outline-none placeholder:text-muted focus:border-accent"
           />
+          {onUndo ? (
+            <button
+              type="button"
+              onClick={onUndo}
+              disabled={undoBusy}
+              title="Отменить последнее добавление или удаление замечания"
+              className="whitespace-nowrap rounded-md border border-slate-300 bg-white px-2 py-0.5 pto-t-md font-semibold leading-none text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+            >
+              Отменить
+            </button>
+          ) : null}
           {currentDocumentId && fileScopeOff ? (
             <button
               type="button"

@@ -84,6 +84,7 @@ import {
 } from "@/lib/drawing-kit";
 import { loadCachedProgress } from "@/lib/review-state";
 import { bumpViewerSession } from "@/lib/viewer-prefs";
+import type { RemarkUndo } from "@/lib/remark-undo";
 import {
   KIND_LABEL,
   type DocumentRecord,
@@ -405,10 +406,12 @@ export function Workspace({
   const [peekOpen, setPeekOpen] = useState(false);
   const [reviewStats, setReviewStats] = useState<ReviewStats | null>(null);
   /** Лист открыт из таблицы замечаний (в т.ч. новая вкладка) — «Назад» ведёт туда. */
-  const [navFromReviews, setNavFromReviews] = useState(false);
+  const [, setNavFromReviews] = useState(false);
   const [projectReviews, setProjectReviews] = useState<Review[]>([]);
   const [reviewsEpoch, setReviewsEpoch] = useState(0);
-  const [sheetBackHint, setSheetBackHint] = useState<string | null>(null);
+  const [, setSheetBackHint] = useState<string | null>(null);
+  const [remarkUndo, setRemarkUndo] = useState<RemarkUndo | null>(null);
+  const [undoBusy, setUndoBusy] = useState(false);
   const consumeSheetBackRef = useRef<(() => boolean) | null>(null);
   type BackView =
     | { kind: "files" }
@@ -690,6 +693,7 @@ export function Workspace({
     const controller = new AbortController();
     setReviewStats(null);
     setProjectReviews([]);
+    setRemarkUndo(null);
     void loadProjectReviews(projectId, controller.signal).catch(() => undefined);
     return () => controller.abort();
   }, [loadProjectReviews, projectId]);
@@ -1812,13 +1816,66 @@ export function Workspace({
     }
   }, []);
 
-  const onHeaderBack = goBack;
-
-  const backLabel = sheetBackHint
-    ? sheetBackHint
-    : peekOpen || (selectedId && navFromReviews) || selectedId || showReviews
-      ? "← На предыдущую страницу"
-      : null;
+  const undoRemark = useCallback(async () => {
+    if (!remarkUndo || undoBusy) return;
+    setUndoBusy(true);
+    try {
+      if (remarkUndo.kind === "add") {
+        const response = await fetch(
+          `/api/documents/${remarkUndo.documentId}/annotations/${remarkUndo.annotationId}`,
+          { method: "DELETE" },
+        );
+        if (!response.ok) {
+          const payload = (await response.json().catch(() => ({}))) as { error?: string };
+          throw new Error(payload.error || "Не удалось отменить замечание");
+        }
+        setRemarkUndo({
+          kind: "delete",
+          documentId: remarkUndo.documentId,
+          pageNumber: remarkUndo.pageNumber,
+          rect: remarkUndo.rect,
+          comment: remarkUndo.comment,
+          expected: remarkUndo.expected,
+        });
+      } else {
+        const response = await fetch(
+          `/api/documents/${remarkUndo.documentId}/annotations`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              pageNumber: remarkUndo.pageNumber,
+              rect: remarkUndo.rect,
+              comment: remarkUndo.comment,
+              expected: remarkUndo.expected,
+            }),
+          },
+        );
+        const payload = (await response.json().catch(() => ({}))) as {
+          annotation?: { id: string };
+          error?: string;
+        };
+        if (!response.ok || !payload.annotation) {
+          throw new Error(payload.error || "Не удалось вернуть замечание");
+        }
+        setRemarkUndo({
+          kind: "add",
+          documentId: remarkUndo.documentId,
+          annotationId: payload.annotation.id,
+          pageNumber: remarkUndo.pageNumber,
+          rect: remarkUndo.rect,
+          comment: remarkUndo.comment,
+          expected: remarkUndo.expected,
+        });
+      }
+      setReviewsEpoch((n) => n + 1);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось отменить");
+    } finally {
+      setUndoBusy(false);
+    }
+  }, [remarkUndo, undoBusy]);
 
   return (
     <div
@@ -1854,23 +1911,13 @@ export function Workspace({
             onClick={openProjectsList}
             className="flex shrink-0 items-center gap-1.5 text-left"
             title="Ко всем проектам"
+            aria-label="К проектам"
           >
             <PtoLogo className="h-5 w-5 shrink-0" title="PTO — проверка чертежей" />
             <div className="hidden min-w-0 sm:block">
               <div className="text-xs font-semibold leading-none tracking-tight">PTO</div>
             </div>
           </button>
-          {projectId ? (
-            <button
-              type="button"
-              onClick={openProjectsList}
-              title="Главная: все проекты, список слева"
-              className="shrink-0 rounded-md bg-accent px-2 py-0.5 pto-t-sm font-bold text-white shadow-sm hover:bg-[#1d4ed8]"
-            >
-              ← К проектам
-            </button>
-          ) : null}
-
           {currentProject ? (
             <ProjectStagesBar
               embedded
@@ -1889,22 +1936,9 @@ export function Workspace({
                   ? { ready: selected.readyPages, total: selected.pageCount }
                   : null
               }
-              onBackHome={onHeaderBack}
-              backLabel={backLabel}
             />
           ) : (
-            <div className="flex min-w-0 flex-1 items-center gap-2">
-              {backLabel ? (
-                <button
-                  type="button"
-                  onClick={onHeaderBack}
-                  // Это навигация, а не предупреждение: amber держим под «внимание».
-                  className="shrink-0 rounded-md border-2 border-accent bg-accent px-2.5 py-1 pto-t-md font-bold text-white shadow-sm hover:brightness-110"
-                >
-                  {backLabel}
-                </button>
-              ) : null}
-            </div>
+            <div className="min-w-0 flex-1" />
           )}
 
           <div className="flex shrink-0 items-center gap-2">
@@ -2392,6 +2426,9 @@ export function Workspace({
               onStatsChange={setReviewStats}
               refreshToken={reviewsEpoch}
               onReviewsMutated={() => setReviewsEpoch((n) => n + 1)}
+              onBack={goBack}
+              onUndo={remarkUndo ? () => void undoRemark() : undefined}
+              undoBusy={undoBusy}
             />
           </div>
         ) : null}
@@ -2440,6 +2477,10 @@ export function Workspace({
             }}
             onSheetBackHint={setSheetBackHint}
             notesRefreshToken={reviewsEpoch}
+            onRemarkRecorded={setRemarkUndo}
+            onUndoRemark={() => void undoRemark()}
+            canUndoRemark={Boolean(remarkUndo)}
+            undoBusy={undoBusy}
             onAnnotationsChanged={() => {
               setReviewsEpoch((n) => n + 1);
               if (projectId) {
