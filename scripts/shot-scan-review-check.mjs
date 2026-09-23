@@ -103,11 +103,26 @@ if (await placeLink.count()) {
   const marks = await page.evaluate(() => {
     const body = document.querySelector("[data-sheet-body]");
     const hits = Array.from(body?.querySelectorAll("mark") ?? []);
+    const withQuote = Array.from(body?.querySelectorAll("section") ?? []).find((s) =>
+      s.querySelector("mark"),
+    );
     return {
       count: hits.length,
       first: (hits[0]?.textContent || "").slice(0, 60),
+      anchors: body?.querySelectorAll("mark[data-focus-quote]").length ?? 0,
+      section: (withQuote?.querySelector("h2")?.textContent || "").trim(),
     };
   });
+  check(
+    "служебный раздел с цитатой раскрыт сам — цитата модели видна",
+    /Описание чертежа/i.test(marks.section),
+    marks.section || "раздела с подсветкой нет",
+  );
+  check(
+    "цитата годится целью прокрутки",
+    marks.anchors > 0,
+    `якорей ${marks.anchors}`,
+  );
   check(
     "цитата из описания модели подсвечена в расшифровке",
     marks.count > 0,

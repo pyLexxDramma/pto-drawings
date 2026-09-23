@@ -6,7 +6,7 @@ import {
   parseMarkdownBlocks,
   splitMarkdownSections,
 } from "@/lib/content-sync";
-import type { FocusHighlightState } from "@/lib/highlight-text";
+import { findQuoteRanges, type FocusHighlightState } from "@/lib/highlight-text";
 
 type SheetTextProps = {
   markdown: string;
@@ -51,6 +51,22 @@ export function SheetText({
     setOpen({});
   }, [markdown]);
 
+  /**
+   * Раздел с искомой цитатой разворачиваем сам, даже служебный. У находок со
+   * сканов цитата живёт в «Описании чертежа (модель, по изображению)» — оно
+   * служебное и свёрнуто, и инженер видел «в расшифровке совпадения нет» при
+   * том, что текст на листе есть (0094).
+   */
+  const focusSections = useMemo(() => {
+    const needle = highlightQuery.trim();
+    if (needle.length < 2) return new Set<string>();
+    const hit = new Set<string>();
+    for (const section of sections) {
+      if (findQuoteRanges(section.body, needle).length > 0) hit.add(section.id);
+    }
+    return hit;
+  }, [sections, highlightQuery]);
+
   const q = highlightQuery.trim().length >= 2 ? highlightQuery : "";
   // Стиль замечания на весь лист: цель прокрутки — первое совпадение в
   // документе, поэтому секциям нечего делить между собой.
@@ -79,7 +95,8 @@ export function SheetText({
 
         // Служебное свёрнуто, пока инженер сам не откроет: это отладка конвейера,
         // и роль тут не при чём — админ читает лист так же, как остальные.
-        const expanded = open[section.id] ?? !section.service;
+        const expanded =
+          open[section.id] ?? (!section.service || focusSections.has(section.id));
         return (
           <section key={section.id} id={section.id} className="scroll-mt-10">
             <h2
