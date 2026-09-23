@@ -237,7 +237,7 @@ export function ProjectStagesBar({
 
       {docTitle ? (
         <span
-          className="hidden max-w-[8rem] shrink truncate rounded border border-slate-300 bg-white px-1.5 py-0.5 pto-t-sm font-medium text-slate-800 lg:inline"
+          className="hidden max-w-[20rem] shrink truncate rounded border border-slate-300 bg-white px-1.5 py-0.5 pto-t-sm font-medium text-slate-800 lg:inline"
           title={docTitle}
         >
           {docTitle}

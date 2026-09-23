@@ -6,7 +6,13 @@ import {
   highlightZoomScale,
   padHighlightRect,
 } from "@/lib/page-viewport";
-import { getPageView, setPageView, type PageViewCache } from "@/lib/review-view-cache";
+import {
+  getDocumentView,
+  getPageView,
+  patchDocumentView,
+  setPageView,
+  type PageViewCache,
+} from "@/lib/review-view-cache";
 
 export type FitMode = "page" | "width" | "legible";
 export type WheelMode = "pan" | "zoom";
@@ -74,6 +80,11 @@ export function usePageViewport({
   const naturalRef = useRef(natural);
   const legibleRef = useRef(legibleTextPx);
   const fitModeRef = useRef<FitMode>("page");
+  /** Лист открыт из сохранённого вида — авто-«Читаемо» его не перебивает. */
+  const restoredRef = useRef(false);
+  const preferredFitRef = useRef<FitMode | null>(
+    viewCacheKey ? (getDocumentView(viewCacheKey)?.preferredFit ?? null) : null,
+  );
   const pageRef = useRef(pageNumber);
   const viewCacheRef = useRef(new Map<number, Snap>());
   const dragRef = useRef<{
@@ -194,7 +205,7 @@ export function usePageViewport({
   );
 
   const fit = useCallback(
-    (mode: FitMode) => {
+    (mode: FitMode, opts?: { remember?: boolean }) => {
       const wrap = wrapRef.current;
       if (!wrap) return;
       const n = naturalRef.current;
@@ -227,8 +238,12 @@ export function usePageViewport({
           : 0,
       );
       applyView(s, nextPan, mode);
+      if (opts?.remember !== false) {
+        preferredFitRef.current = mode;
+        if (viewCacheKey) patchDocumentView(viewCacheKey, { preferredFit: mode });
+      }
     },
-    [applyView, minScale, wrapRef],
+    [applyView, minScale, viewCacheKey, wrapRef],
   );
 
   const setScalePercent = useCallback(
@@ -318,6 +333,7 @@ export function usePageViewport({
       (viewCacheKey ? getPageView(viewCacheKey, pageNumber) : undefined);
     if (panToHighlight && highlightNonce && highlightRegion) return;
     if (cached) {
+      restoredRef.current = true;
       viewCacheRef.current.set(pageNumber, cached);
       const wrap = wrapRef.current;
       const clamped = wrap
@@ -332,7 +348,13 @@ export function usePageViewport({
       if (wrap) setFitScale(computeFitScale(wrap, natural, "page", minScale));
       return;
     }
-    fit("width");
+    restoredRef.current = false;
+    const preferred =
+      (viewCacheKey ? getDocumentView(viewCacheKey)?.preferredFit : undefined) ??
+      preferredFitRef.current;
+    // Без своего вида — последний выбранный масштаб. Иначе каждый лист
+    // открывался «по ширине»: на А1 это 20%, и подписи не читаются.
+    fit(preferred ?? "width", { remember: false });
   }, [
     applyView,
     fit,
@@ -348,17 +370,38 @@ export function usePageViewport({
     wrapRef,
   ]);
 
+  // Первый заход на лист: «по ширине» на крупном формате мельче порога
+  // читаемости. Поднимаем «Читаемо» сами и запоминаем для следующих листов.
+  useEffect(() => {
+    if (!ready || restoredRef.current || legibleTextPx <= 0) return;
+    const preferred =
+      (viewCacheKey ? getDocumentView(viewCacheKey)?.preferredFit : undefined) ??
+      preferredFitRef.current;
+    if (preferred) return;
+    const wrap = wrapRef.current;
+    if (!wrap || wrap.clientWidth < 8) return;
+    const widthScale = computeFitScale(wrap, natural, "width", minScale);
+    const legible = computeFitScale(wrap, natural, "legible", minScale, legibleTextPx);
+    if (legible <= widthScale * 1.15) return;
+    fit("legible");
+  }, [fit, legibleTextPx, minScale, natural, pageNumber, ready, viewCacheKey, wrapRef]);
+
   // Размер подписей приходит после первой отрисовки листа (текстовый слой PDF,
   // геометрия DWG) — «читаемый» масштаб пересчитываем, когда он появился.
   useEffect(() => {
     const wrap = wrapRef.current;
     if (!wrap || !ready || wrap.clientWidth < 8) return;
-    setLegibleScale(
+    const next =
       legibleTextPx > 0
         ? computeFitScale(wrap, natural, "legible", minScale, legibleTextPx)
-        : 0,
-    );
-  }, [legibleTextPx, minScale, natural, pageNumber, ready, wrapRef]);
+        : 0;
+    setLegibleScale(next);
+    // До замера подписи «Читаемо» совпадает с «по ширине». Когда высота
+    // букв пришла — подтягиваем масштаб, иначе следующий лист снова 20%.
+    if (next > 0 && fitModeRef.current === "legible" && !restoredRef.current) {
+      fit("legible", { remember: false });
+    }
+  }, [fit, legibleTextPx, minScale, natural, pageNumber, ready, wrapRef]);
 
   useEffect(() => {
     const wrap = wrapRef.current;
@@ -372,7 +415,7 @@ export function usePageViewport({
       if (Math.abs(w - prevW) < 2 && Math.abs(h - prevH) < 2) return;
       prevW = w;
       prevH = h;
-      fit(fitModeRef.current);
+      fit(fitModeRef.current, { remember: false });
     });
     ro.observe(wrap);
     return () => ro.disconnect();

@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { normalizeQuote } from "@/lib/remark-jump";
+import { remarkWording } from "@/lib/sheet-label";
 import { REVIEW_SEVERITY_LABEL, type Review } from "@/types";
 
 /**
@@ -59,9 +60,9 @@ export function PageReviewsBar({
             {open
               ? "· клик по строке подсветит место"
               : activeReview
-                ? `· № ${activeReview.number} ${
-                    activeReview.text || activeReview.aiFinding || ""
-                  }`
+                ? `· № ${activeReview.number} ${remarkWording(
+                    activeReview.text || activeReview.aiFinding || "",
+                  )}`
                 : "· нажмите, чтобы раскрыть список"}
           </span>
         </button>
@@ -96,9 +97,9 @@ export function PageReviewsBar({
                 <span className="font-semibold tabular-nums">
                   № {review.number}
                 </span>
-                {` · ${REVIEW_SEVERITY_LABEL[review.severity].toLowerCase()} · ${
-                  review.text || review.aiFinding
-                }`}
+                {` · ${REVIEW_SEVERITY_LABEL[review.severity].toLowerCase()} · ${remarkWording(
+                  review.text || review.aiFinding || "",
+                )}`}
               </button>
               {renderPlaceChips(review)}
             </li>

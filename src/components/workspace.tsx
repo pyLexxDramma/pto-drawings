@@ -2212,9 +2212,9 @@ export function Workspace({
                                 .filter(Boolean)
                                 .join(" · ")}
                             >
-                              <span className="flex items-center gap-1.5">
+                              <span className="flex items-start gap-1.5">
                                 <span
-                                  className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                                  className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${
                                     failed
                                       ? "bg-red-500"
                                       : canceled
@@ -2230,7 +2230,7 @@ export function Workspace({
                                   }
                                   aria-hidden
                                 />
-                                <span className="min-w-0 flex-1 truncate">{doc.originalName}</span>
+                                <span className="min-w-0 flex-1 line-clamp-2 break-words">{doc.originalName}</span>
                                 {failed ? (
                                   <span
                                     className="shrink-0 rounded bg-red-600 px-1 pto-t-xs font-bold uppercase tracking-wide text-white"

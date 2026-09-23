@@ -10,6 +10,11 @@ export type DocumentViewCache = {
   pageNumber?: number;
   paneSolo?: "pdf" | "md" | null;
   pages?: Record<number, PageViewCache>;
+  /**
+   * Как вписывать лист, у которого ещё нет своего вида. «Читаемо» иначе
+   * сбрасывалось на «по ширине» при переходе на следующий лист (20% на А1).
+   */
+  preferredFit?: PageViewCache["fitMode"];
 };
 
 const byDoc = new Map<string, DocumentViewCache>();

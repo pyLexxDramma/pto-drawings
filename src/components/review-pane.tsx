@@ -702,13 +702,13 @@ export function ReviewPane({
                 sheetLabel(place) ?? "лист не указан"
               }${here ? "" : " · другой лист или файл"}`}
               // Текущее место — accent (это навигация), остальные — тише.
-              className={`rounded border px-1 py-[1px] font-semibold tabular-nums ${
+              className={`whitespace-nowrap rounded border px-1 py-[1px] font-semibold tabular-nums ${
                 current
                   ? "border-accent bg-accent text-white"
                   : "border-border bg-white text-muted hover:border-accent hover:text-accent"
               }`}
             >
-              {index + 1}
+              {sheetLabel(place) ?? `лист ${place.pageNumber}`}
             </button>
           );
         })}
@@ -1435,9 +1435,11 @@ export function ReviewPane({
       ) : null}
       <div className="min-h-0 flex-1 space-y-1.5 overflow-auto p-3">
         {pageNotes.length === 0 ? (
+          pendingRect ? null : (
           <div className="rounded-md border border-dashed border-slate-300 bg-[#fafbfc] px-3 py-8 text-center pto-t-lg leading-relaxed text-muted">
             Нажмите «Отметить ошибку» и обведите место на чертеже
           </div>
+          )
         ) : (
           pageNotes.map((note, index) => (
             <div
