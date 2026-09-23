@@ -10,6 +10,15 @@
  */
 import type { ReviewLocation } from "@/types";
 
+/**
+ * Цитату со скана конвейер берёт прямо из markdown расшифровки, а числа там
+ * выделены разметкой модели: «принята **250 кВт**». Инженеру эти знаки видеть
+ * незачем, и сравнивать цитату с текстом листа тоже надо без них (0094).
+ */
+export function stripMarkdownMarks(text: string): string {
+  return text.replace(/[*_`~]+/g, "").replace(/\s+/g, " ").trim();
+}
+
 /** Адрес листа без имени файла: «лист 28 (в штампе 6)». */
 export function sheetLabel(location: {
   pageNumber: number | null;

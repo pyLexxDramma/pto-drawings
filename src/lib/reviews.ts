@@ -5,6 +5,7 @@ import {
   withDataLock,
   writeReviewsText,
 } from "@/lib/persist";
+import { stripMarkdownMarks } from "@/lib/sheet-label";
 import {
   CROSS_RANK,
   UNKNOWN_RANK,
@@ -156,7 +157,9 @@ function normalizeLocation(
     documentId: text(raw.documentId) || null,
     documentName: text(raw.documentName),
     pageNumber: page,
-    quote: text(raw.quote),
+    // Со сканов цитата приезжает прямо из markdown расшифровки — со звёздочками
+    // модели. Инженеру их видеть незачем, а подсветка их и так не замечает.
+    quote: stripMarkdownMarks(text(raw.quote)),
     ...(rect ? { rect } : {}),
     ...(stamp ? { stampSheet: stamp } : {}),
   };

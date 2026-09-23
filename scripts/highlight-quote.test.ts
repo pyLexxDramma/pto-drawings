@@ -4,8 +4,8 @@ import {
   findQuoteRanges,
   preferHighlightQuery,
   remarkTermsInMarkdown,
-  stripMarkdownMarks,
 } from "../src/lib/highlight-text.tsx";
+import { stripMarkdownMarks } from "../src/lib/sheet-label.ts";
 
 /**
  * Баг 0094: на листе без текстового слоя конвейер берёт цитату из расшифровки,
@@ -28,6 +28,21 @@ describe("цитата с разметкой расшифровки", () => {
   it("находит чистую цитату там, где разметка стоит внутри фразы", () => {
     assert.ok(findQuoteRanges(markdown, "принята 250 кВт, а по расчёту нагрузок 180 кВт").length > 0);
     assert.ok(findQuoteRanges(markdown, "ЧТО ЭТО: Схема узла подключения").length > 0);
+  });
+
+  it("находит цитату с длинным тире и кавычками, как в описании модели", () => {
+    const list =
+      "- **Таблица условных обозначений** — слева, занимает левую треть листа.";
+    assert.ok(
+      findQuoteRanges(list, "**Таблица условных обозначений** — слева, занимает левую треть листа")
+        .length > 0,
+    );
+    assert.ok(
+      findQuoteRanges(list, "Таблица условных обозначений - слева").length > 0,
+    );
+    assert.ok(
+      findQuoteRanges('Штамп «Лист 6» заполнен', "Штамп Лист 6 заполнен").length > 0,
+    );
   });
 
   it("не выдумывает совпадений там, где фразы нет", () => {

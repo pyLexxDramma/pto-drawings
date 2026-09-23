@@ -6,6 +6,7 @@ import {
   type ReactNode,
 } from "react";
 import { normalizeQuote } from "@/lib/remark-jump";
+import { stripMarkdownMarks } from "@/lib/sheet-label";
 
 /** Шифры и числа из формулировки: К1, ВСХ-20, 42.5, Ду100. */
 export function extractCiphers(query: string): string[] {
@@ -261,14 +262,10 @@ export function findLayerHits(
   return [];
 }
 
-/**
- * Цитату со скана конвейер берёт из расшифровки, а она размечена: в строке
- * приезжают `**` и `_`. Ни в тексте листа на экране, ни в цитате эти знаки
- * смысла не несут — сравниваем без них.
- */
-export function stripMarkdownMarks(text: string): string {
-  return text.replace(/[*_`~]+/g, "").replace(/\s+/g, " ").trim();
-}
+/** Знаки, которые normalizeQuote срезает из цитаты, а в тексте листа они есть. */
+const NOISE = "*_`~«»„“”\"'′";
+const NOISE_CLASS = `[${NOISE.replace(/[\]\\^-]/g, "\\$&")}]`;
+const DASH_CLASS = "[-\u2013\u2014\u2212]";
 
 /** Находит вхождения needle в text с гибкими пробелами; индексы — в исходном text. */
 export function findQuoteRanges(
@@ -277,14 +274,15 @@ export function findQuoteRanges(
 ): { index: number; length: number }[] {
   const needle = stripMarkdownMarks(normalizeQuote(query));
   if (needle.length < 2 || !text) return [];
-  // Знаки разметки в расшифровке рвут фразу в любом месте: «**250 кВт**, а по»
-  // — поэтому между любыми двумя символами цитаты допускаем разметку.
+  // Разметка и кавычки рвут фразу в любом месте: «**250 кВт**, а по» — поэтому
+  // между любыми двумя символами цитаты они допускаются. Тире в цитате уже
+  // сведено к дефису, в тексте листа остаётся длинным — равняем и его.
   const pattern = [...needle]
-    .map((char) =>
-      /\s/.test(char)
-        ? "[\\s*_`~]+"
-        : char.replace(/[.*+?^${}()|[\]\\]/, "\\$&") + "[*_`~]*",
-    )
+    .map((char) => {
+      if (/\s/.test(char)) return `[\\s${NOISE.replace(/[\]\\^-]/g, "\\$&")}]+`;
+      const one = char === "-" ? DASH_CLASS : char.replace(/[.*+?^${}()|[\]\\]/, "\\$&");
+      return `${one}${NOISE_CLASS}*`;
+    })
     .join("");
   const re = new RegExp(pattern, "gi");
   const ranges: { index: number; length: number }[] = [];
