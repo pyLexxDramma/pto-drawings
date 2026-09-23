@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } fro
 import {
   clampPan,
   highlightZoomScale,
+  legibleFitScale,
   padHighlightRect,
 } from "@/lib/page-viewport";
 import {
@@ -14,16 +15,13 @@ import {
   type PageViewCache,
 } from "@/lib/review-view-cache";
 
+export { LEGIBLE_MIN_PX } from "@/lib/page-viewport";
+
 export type FitMode = "page" | "width" | "legible";
 export type WheelMode = "pan" | "zoom";
 export type PageRegion = { x: number; y: number; w: number; h: number };
 
 type Snap = PageViewCache;
-
-/** Ниже этого подписи на чертеже перестают читаться (замер на А1 при 13%). */
-export const LEGIBLE_MIN_PX = 7;
-/** Целевая высота подписи в режиме «Читаемо». */
-const LEGIBLE_TARGET_PX = 11;
 
 function computeFitScale(
   wrap: { clientWidth: number; clientHeight: number },
@@ -35,12 +33,7 @@ function computeFitScale(
   const pad = 16;
   const scaleW = (wrap.clientWidth - pad) / Math.max(1, natural.w);
   const scaleH = (wrap.clientHeight - pad) / Math.max(1, natural.h);
-  if (mode === "legible") {
-    // Медианной подписи листа даём целевую высоту на экране. Мельче «по ширине»
-    // не уходим: иначе на мелком листе режим «Читаемо» отдалял бы картинку.
-    const wanted = legibleTextPx > 0 ? LEGIBLE_TARGET_PX / legibleTextPx : scaleW;
-    return Math.max(minScale, Math.max(scaleW, wanted));
-  }
+  if (mode === "legible") return legibleFitScale(scaleW, legibleTextPx, minScale);
   const next = mode === "width" ? scaleW : Math.min(scaleW, scaleH);
   return Math.max(minScale, next);
 }

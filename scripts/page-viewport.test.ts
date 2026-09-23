@@ -5,6 +5,7 @@ import {
   HIGHLIGHT_CONTEXT,
   HIGHLIGHT_MAX_SCALE,
   highlightZoomScale,
+  legibleFitScale,
   padHighlightRect,
 } from "../src/lib/page-viewport.ts";
 
@@ -15,6 +16,18 @@ describe("padHighlightRect", () => {
     assert.ok(next.h >= 0.12);
     assert.ok(next.x + next.w <= 1.0001);
     assert.ok(next.y + next.h <= 1.0001);
+  });
+});
+
+describe("legibleFitScale", () => {
+  it("не увеличивает лист, если по ширине подпись уже читается", () => {
+    assert.equal(legibleFitScale(1.07, 7.2), 1.07);
+  });
+
+  it("на А1 поднимает мелкую подпись до читаемой", () => {
+    const scale = legibleFitScale(0.2, 2);
+    assert.ok(scale > 0.2);
+    assert.equal(scale, 11 / 2);
   });
 });
 

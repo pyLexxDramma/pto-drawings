@@ -5,6 +5,27 @@ export const HIGHLIGHT_PAD_H = 0.12;
 export const HIGHLIGHT_CONTEXT = 1.4;
 /** Жёсткий потолок абсолютного масштаба при клике на замечание. */
 export const HIGHLIGHT_MAX_SCALE = 2.6;
+/** Ниже этого подписи на чертеже перестают читаться (замер на А1 при 13%). */
+export const LEGIBLE_MIN_PX = 7;
+/** Целевая высота подписи в режиме «Читаемо». */
+export const LEGIBLE_TARGET_PX = 11;
+
+/**
+ * Масштаб «Читаемо». Если по ширине листа подпись уже читается, не увеличиваем:
+ * иначе строка на всю ширину (заголовок текстового листа) обрезается справа.
+ * На А1 «по ширине» подпись мельче порога — тогда поднимаем до целевой высоты.
+ */
+export function legibleFitScale(
+  widthScale: number,
+  textPx: number,
+  minScale = 0,
+): number {
+  const width = Math.max(minScale, widthScale);
+  if (!(textPx > 0)) return width;
+  if (textPx * widthScale >= LEGIBLE_MIN_PX) return width;
+  const wanted = LEGIBLE_TARGET_PX / textPx;
+  return Math.max(minScale, Math.max(widthScale, wanted));
+}
 
 export function padHighlightRect(
   rect: { x: number; y: number; w: number; h: number },

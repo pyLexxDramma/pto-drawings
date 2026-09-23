@@ -130,6 +130,82 @@ export function splitMarkdownSections(markdown: string): MarkdownSection[] {
   return sections;
 }
 
+const VERBATIM_SHORT = 12;
+
+function repeatWord(count: number): string {
+  const n10 = count % 10;
+  const n100 = count % 100;
+  if (n10 === 1 && n100 !== 11) return "раз";
+  if (n10 >= 2 && n10 <= 4 && (n100 < 12 || n100 > 14)) return "раза";
+  return "раз";
+}
+
+/** Короткие строки подряд — ячейки таблицы, вынутые по одной. Склеиваем в фразу. */
+function collapseShortPeriod(paragraph: string): string {
+  const lines = paragraph
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+  if (lines.length < 2) return paragraph;
+  if (
+    lines.some(
+      (line) =>
+        line.length > VERBATIM_SHORT ||
+        /^[#|>*-]/.test(line) ||
+        line.startsWith("|"),
+    )
+  ) {
+    return paragraph;
+  }
+  const count = lines.length;
+  let period = count;
+  for (let size = 1; size <= count / 2; size++) {
+    if (count % size !== 0) continue;
+    let same = true;
+    for (let index = size; index < count; index++) {
+      if (lines[index] !== lines[index - size]) {
+        same = false;
+        break;
+      }
+    }
+    if (same) {
+      period = size;
+      break;
+    }
+  }
+  const times = count / period;
+  const text = lines.slice(0, period).join(" ");
+  if (times <= 1) return text;
+  return `${text}\n\n_тот же фрагмент ещё ${times - 1} ${repeatWord(times - 1)}_`;
+}
+
+/**
+ * Дословный текст PDF иногда кладёт одну и ту же короткую строку пачкой:
+ * на листе она одна, в панели — семь раз по слову. Склеиваем и говорим, сколько раз.
+ */
+export function tidyVerbatim(body: string): string {
+  const folded = body.split(/\n{2,}/).map(collapseShortPeriod);
+  const out: string[] = [];
+  for (let index = 0; index < folded.length; ) {
+    const key = folded[index].trim();
+    let times = 1;
+    while (
+      index + times < folded.length &&
+      folded[index + times].trim() === key &&
+      key
+    ) {
+      times += 1;
+    }
+    out.push(
+      times > 1
+        ? `${key}\n\n_тот же фрагмент ещё ${times - 1} ${repeatWord(times - 1)}_`
+        : folded[index],
+    );
+    index += times;
+  }
+  return out.join("\n\n");
+}
+
 /**
  * Разбивает markdown на блоки, совпадающие с тем, что рендерит MarkdownView.
  * `idOffset` нужен, когда лист рендерится посекционно: без него нумерация

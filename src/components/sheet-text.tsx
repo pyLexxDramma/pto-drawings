@@ -5,6 +5,7 @@ import { MarkdownView } from "@/components/markdown-view";
 import {
   parseMarkdownBlocks,
   splitMarkdownSections,
+  tidyVerbatim,
 } from "@/lib/content-sync";
 import { findQuoteRanges, type FocusHighlightState } from "@/lib/highlight-text";
 
@@ -29,7 +30,15 @@ export function SheetText({
   flagQuotes = [],
   focusFirst = false,
 }: SheetTextProps) {
-  const sections = useMemo(() => splitMarkdownSections(markdown), [markdown]);
+  const sections = useMemo(
+    () =>
+      splitMarkdownSections(markdown).map((section) =>
+        /дословно/i.test(section.title)
+          ? { ...section, body: tidyVerbatim(section.body) }
+          : section,
+      ),
+    [markdown],
+  );
 
   /**
    * Смещения нумерации блоков: id должны быть уникальны на весь лист, а

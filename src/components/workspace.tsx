@@ -1884,6 +1884,11 @@ export function Workspace({
               docTitle={
                 selected && !showReviews ? selected.originalName : null
               }
+              filePages={
+                selected && !showReviews
+                  ? { ready: selected.readyPages, total: selected.pageCount }
+                  : null
+              }
               onBackHome={onHeaderBack}
               backLabel={backLabel}
             />
@@ -2230,7 +2235,7 @@ export function Workspace({
                                   }
                                   aria-hidden
                                 />
-                                <span className="min-w-0 flex-1 line-clamp-2 break-words">{doc.originalName}</span>
+                                <span className="min-w-0 flex-1 break-words">{doc.originalName}</span>
                                 {failed ? (
                                   <span
                                     className="shrink-0 rounded bg-red-600 px-1 pto-t-xs font-bold uppercase tracking-wide text-white"

@@ -6,6 +6,7 @@ import {
   parseMarkdownBlocks,
   regionsFromCadTexts,
   splitMarkdownSections,
+  tidyVerbatim,
 } from "../src/lib/content-sync.ts";
 
 describe("extractObjectId", () => {
@@ -205,5 +206,23 @@ describe("linkBlocksToRegions", () => {
     );
     const links = linkBlocksToRegions(blocks, regions);
     assert.equal(links.byBlock.size, 0);
+  });
+});
+
+describe("tidyVerbatim", () => {
+  it("склеивает повтор коротких строк и говорит, сколько раз", () => {
+    const row = ["ПСВ", "ОП-5", "АПС", "Ду15", "220В", "Св.", "ИПР", "Кран"].join(
+      "\n",
+    );
+    const body = [row, row, row].join("\n\n");
+    const next = tidyVerbatim(body);
+    assert.match(next, /^ПСВ ОП-5 АПС Ду15 220В Св\. ИПР Кран/);
+    assert.match(next, /ещё 2 раза/);
+    assert.equal(next.split("ПСВ").length - 1, 1);
+  });
+
+  it("не трогает обычный абзац", () => {
+    const body = "площадь квартиры 105 равна 38.4 м2 по обмеру квартира 105 равна 42.1 м2";
+    assert.equal(tidyVerbatim(body), body);
   });
 });

@@ -724,7 +724,7 @@ export function CadPage({
       </div>
 
       {markMode || searchHits.length > 0 || legendOn || overlay ? (
-        <div className="pointer-events-none absolute left-1/2 top-1.5 z-30 flex max-w-[calc(100%-13rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-1">
+        <div className="pointer-events-none absolute left-2 top-11 z-20 flex max-w-[calc(100%-0.75rem)] flex-wrap items-center gap-1">
           {markMode ? (
             <span className="rounded bg-red-600 px-2 py-0.5 pto-t-sm font-medium leading-none text-white shadow-md">
               Обведите место на чертеже · Esc — отмена

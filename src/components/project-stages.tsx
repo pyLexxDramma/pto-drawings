@@ -68,6 +68,7 @@ function buildStages(
   documents: DocumentRecord[],
   documentsReady: boolean,
   reviews: ReviewStats | null,
+  filePages: { ready: number; total: number } | null,
 ): Stage[] {
   if (!documentsReady) {
     return [
@@ -80,6 +81,9 @@ function buildStages(
   const filesSliced = documents.filter((doc) => doc.pageCount > 0).length;
   const pagesTotal = documents.reduce((sum, doc) => sum + doc.pageCount, 0);
   const pagesReady = documents.reduce((sum, doc) => sum + doc.readyPages, 0);
+  const fileOpen = Boolean(filePages && filePages.total > 0);
+  const shownReady = fileOpen && filePages ? filePages.ready : pagesReady;
+  const shownTotal = fileOpen && filePages ? filePages.total : pagesTotal;
   const reviewsTotal = reviews?.total ?? 0;
   const reviewsDone = reviews ? reviews.total - reviews.pending : 0;
 
@@ -90,24 +94,26 @@ function buildStages(
       // «32/32» читалось как «нашли 32 из 32»: числа подписываем прямо в полосе,
       // подсказку под курсором на демо никто не наводит (баг 0099).
       count:
-        pagesTotal > 0
-          ? `листов ${pagesReady} из ${pagesTotal}`
+        shownTotal > 0
+          ? `листов ${shownReady} из ${shownTotal}`
           : filesTotal === 0
             ? "нет файлов"
             : "режем на листы",
-      percent: percent(pagesReady, pagesTotal),
+      percent: percent(shownReady, shownTotal),
       state:
-        pagesTotal === 0
+        shownTotal === 0
           ? "waiting"
-          : pagesReady >= pagesTotal
+          : shownReady >= shownTotal
             ? "done"
             : "active",
       hint:
         filesTotal === 0
           ? "Загрузите файлы проекта"
-          : filesSliced < filesTotal
-            ? `Файлы режем на листы: ${filesSliced} из ${filesTotal}`
-            : `Листов расшифровано: ${pagesReady} из ${pagesTotal}`,
+          : fileOpen && filePages
+            ? `В этом файле листов: ${filePages.ready} из ${filePages.total}. Во всём проекте: ${pagesReady} из ${pagesTotal}`
+            : filesSliced < filesTotal
+              ? `Файлы режем на листы: ${filesSliced} из ${filesTotal}`
+              : `Листов расшифровано: ${pagesReady} из ${pagesTotal}`,
     },
     reviews === null
       ? { id: "reviews", label: "Таблица замечаний", ...PENDING }
@@ -147,6 +153,7 @@ export function ProjectStagesBar({
   onOpenStage,
   docOpen,
   docTitle,
+  filePages = null,
   onBackHome,
   backLabel,
   embedded = false,
@@ -159,11 +166,13 @@ export function ProjectStagesBar({
   onOpenStage: (stage: StageId) => void;
   docOpen?: boolean;
   docTitle?: string | null;
+  /** Листы открытого файла. Без этого полоса суммирует весь проект. */
+  filePages?: { ready: number; total: number } | null;
   onBackHome?: () => void;
   backLabel?: string | null;
   embedded?: boolean;
 }) {
-  const stages = buildStages(documents, documentsReady, reviews);
+  const stages = buildStages(documents, documentsReady, reviews, filePages);
   const busy =
     documentsReady &&
     documents.some(
