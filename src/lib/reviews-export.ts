@@ -3,14 +3,15 @@ import { sortReviews } from "@/lib/reviews";
 import { locationLabel, remarkWording } from "@/lib/sheet-label";
 import {
   isExportableReview,
+  reviewAuthor,
   type Review,
   type ReviewLocation,
   type ReviewSeverity,
 } from "@/types";
 
-/** Формат официальной отправки проектировщикам: № · Раздел · Замечание · Где в ПД. */
-const HEADERS = ["№", "Раздел", "Замечание", "Где в ПД"];
-const WIDTHS = [6, 12, 70, 46];
+/** Как в таблице на экране: № · Раздел · Замечание · Где в ПД · Автор. */
+const HEADERS = ["№", "Раздел", "Замечание", "Где в ПД", "Автор"];
+const WIDTHS = [6, 12, 70, 46, 16];
 
 const SEVERITY_FILL: Record<ReviewSeverity, CellFill> = {
   unset: "none",
@@ -65,6 +66,7 @@ export function buildReviewsXlsx(input: {
       { value: review.section, fill, wrap: true },
       { value: wording(review), fill, wrap: true },
       { value: whereInPd(review), fill, wrap: true },
+      { value: reviewAuthor(review), fill, wrap: true },
     ]);
   });
 

@@ -69,4 +69,12 @@ describe("excelUniqueValues", () => {
     const values = excelUniqueValues(rows, "severity", { section: ["ПЗ"] });
     assert.deepEqual(values, ["Высокий"]);
   });
+
+  it("автор — ИИ или инженер", () => {
+    const rows = [
+      review({ id: "a", origin: "ai" }),
+      review({ id: "b", origin: "engineer", authorName: "Иванов" }),
+    ];
+    assert.deepEqual(excelUniqueValues(rows, "author", {}), ["Иванов", "ИИ"]);
+  });
 });

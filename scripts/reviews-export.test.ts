@@ -141,12 +141,12 @@ describe("exportableReviews", () => {
     assert.match(sheet, /первое/);
     assert.match(sheet, /второе/);
     assert.ok(!sheet.includes('r="A4"'));
-    assert.match(sheet, /<autoFilter ref="A1:D3"\/>/);
+    assert.match(sheet, /<autoFilter ref="A1:E3"\/>/);
   });
 });
 
 describe("buildReviewsXlsx", () => {
-  it("отдаёт официальные 4 колонки и место в ПД с цитатой", () => {
+  it("отдаёт колонки как в таблице, с автором и местом в ПД", () => {
     const file = buildReviewsXlsx({
       projectName: "Жуковский 1",
       reviews: [
@@ -175,7 +175,9 @@ describe("buildReviewsXlsx", () => {
 
     const sheet = parts(file)["xl/worksheets/sheet1.xml"];
     assert.match(sheet, /Где в ПД/);
-    assert.ok(!sheet.includes('r="E1"'), "лишних колонок быть не должно");
+    assert.match(sheet, /Автор/);
+    assert.match(sheet, /ИИ/);
+    assert.ok(!sheet.includes('r="F1"'), "лишних колонок быть не должно");
     // Формулировки инженера нет — берём обоснование ИИ.
     assert.match(sheet, /Объём резервуара расходится/);
     // Адрес листа один во всей выгрузке: «лист N» — номер листа тома (0097).

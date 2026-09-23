@@ -31,7 +31,7 @@ import { placeOrdinal, remarkWording, sheetLabel } from "@/lib/sheet-label";
 import { isCrossSection, knownSectionRank } from "@/lib/sections";
 import {
   REVIEW_EVENT_LABEL,
-  REVIEW_ORIGIN_LABEL,
+  reviewAuthor,
   REVIEW_SEVERITY_LABEL,
   REVIEW_SEVERITY_ORDER,
   REVIEW_VERDICT_LABEL,
@@ -75,12 +75,6 @@ const ORIGIN_CHIP: Record<ReviewOrigin, string> = {
   ai: "border-slate-300 bg-slate-100 text-slate-700",
   engineer: "border-slate-300 bg-white text-muted",
   both: "border-accent/40 bg-accent/5 text-accent",
-};
-
-const ORIGIN_SHORT: Record<ReviewOrigin, string> = {
-  ai: "ИИ",
-  engineer: "Инженер",
-  both: "Совпало",
 };
 
 /**
@@ -133,17 +127,31 @@ function transcriptSection(section: string, fileName: string): string | null {
   return value;
 }
 
-type ColId = "num" | "section" | "place" | "severity" | "verdict" | "comment";
+type ColId =
+  | "num"
+  | "section"
+  | "text"
+  | "place"
+  | "severity"
+  | "verdict"
+  | "comment"
+  | "author";
 
 const COL_WIDTH_KEY = "pto-review-col-widths";
 const COL_DEFAULT: Record<ColId, number> = {
   num: 56,
   section: 140,
+  text: 280,
   place: 220,
   severity: 112,
   verdict: 128,
   comment: 180,
+  author: 120,
 };
+const COL_CHECK = 32;
+const COL_ACTIONS = 32;
+
+const CELL = "border border-[#a6a6a6] px-1.5 py-1";
 
 function loadColWidths(): Record<ColId, number> {
   if (typeof window === "undefined") return { ...COL_DEFAULT };
@@ -154,7 +162,7 @@ function loadColWidths(): Record<ColId, number> {
     const next = { ...COL_DEFAULT };
     for (const key of Object.keys(COL_DEFAULT) as ColId[]) {
       const value = parsed[key];
-      if (typeof value === "number" && value >= 48 && value <= 520) next[key] = value;
+      if (typeof value === "number" && value >= 48 && value <= 720) next[key] = value;
     }
     return next;
   } catch {
@@ -165,16 +173,18 @@ function loadColWidths(): Record<ColId, number> {
 function ColHead({
   width,
   onDrag,
+  colId,
   children,
 }: {
   width?: number;
   onDrag?: (event: ReactPointerEvent) => void;
+  colId?: string;
   children: ReactNode;
 }) {
   return (
     <th
-      style={width ? { width, minWidth: width } : undefined}
-      className="relative border-b border-border px-2 py-1.5 font-medium normal-case tracking-normal"
+      style={width ? { width, minWidth: width, maxWidth: width } : undefined}
+      className={`relative ${CELL} bg-[#d6dce4] font-semibold text-slate-900`}
     >
       {children}
       {onDrag ? (
@@ -182,6 +192,7 @@ function ColHead({
           role="separator"
           aria-orientation="vertical"
           aria-label="Ширина колонки"
+          data-col-resize={colId ?? ""}
           onPointerDown={onDrag}
           className="absolute -right-px top-0 z-20 h-full w-1.5 cursor-col-resize touch-none hover:bg-accent/40"
         />
@@ -338,6 +349,7 @@ export function ReviewsTable({
         item.aiFinding,
         item.comment,
         item.section,
+        reviewAuthor(item),
         ...item.locations.map((loc) => `${loc.documentName} ${loc.quote}`),
       ]
         .join(" ")
@@ -355,6 +367,7 @@ export function ReviewsTable({
       "severity",
       "verdict",
       "comment",
+      "author",
     ];
     return Object.fromEntries(
       cols.map((col) => [col, excelUniqueValues(scoped, col, colFilters)]),
@@ -406,16 +419,17 @@ export function ReviewsTable({
     () => visible.some((review) => transcriptSection(review.section, fileOf(review))),
     [visible, fileOf],
   );
-  const colCount = showSectionCol ? 9 : 8;
+  const colCount = showSectionCol ? 10 : 9;
 
   function dragCol(id: ColId, event: ReactPointerEvent) {
     event.preventDefault();
     event.stopPropagation();
+    const handle = event.currentTarget;
+    handle.setPointerCapture?.(event.pointerId);
     const startX = event.clientX;
-    const th = event.currentTarget.parentElement;
-    const start = th?.getBoundingClientRect().width ?? COL_DEFAULT[id];
+    const start = colW[id];
     function move(ev: PointerEvent) {
-      const next = Math.max(48, Math.min(520, Math.round(start + ev.clientX - startX)));
+      const next = Math.max(48, Math.min(720, Math.round(start + ev.clientX - startX)));
       setColW((prev) => {
         const merged = { ...prev, [id]: next };
         try {
@@ -427,12 +441,25 @@ export function ReviewsTable({
       });
     }
     function up() {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
+      handle.releasePointerCapture?.(event.pointerId);
+      handle.removeEventListener("pointermove", move);
+      handle.removeEventListener("pointerup", up);
     }
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
+    handle.addEventListener("pointermove", move);
+    handle.addEventListener("pointerup", up);
   }
+
+  const tableWidth =
+    COL_CHECK +
+    colW.num +
+    (showSectionCol ? colW.section : 0) +
+    colW.text +
+    colW.place +
+    colW.severity +
+    colW.verdict +
+    colW.comment +
+    colW.author +
+    COL_ACTIONS;
 
   const sorted = useMemo(() => {
     const items = [...visible];
@@ -644,7 +671,7 @@ export function ReviewsTable({
   }, [activeId, scoped, visible]);
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-[#f4f6f9]">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-white">
       {/* «К проектам» живёт в шапке приложения — вторая кнопка тут дублировала. */}
       {/* Панель в одну строку: высота нужна чертежу и таблице, не кнопкам. */}
       <header className="flex items-center gap-2 border-b border-border bg-surface px-2 py-0.5">
@@ -864,10 +891,25 @@ export function ReviewsTable({
         ) : (
           // table-fixed: без него длинные ссылки в «Где в ПД» задавали
           // min-content колонки и выдавливали текст замечания в столбик.
-          <table className="w-full table-fixed border-collapse text-xs">
-            <thead className="sticky top-0 z-10 bg-slate-100 text-left pto-t-sm uppercase tracking-wider text-muted">
+          <table
+            style={{ width: tableWidth }}
+            className="table-fixed border-collapse border border-[#7f7f7f] text-xs"
+          >
+            <colgroup>
+              <col style={{ width: COL_CHECK }} />
+              <col style={{ width: colW.num }} />
+              {showSectionCol ? <col style={{ width: colW.section }} /> : null}
+              <col style={{ width: colW.text }} />
+              <col style={{ width: colW.place }} />
+              <col style={{ width: colW.severity }} />
+              <col style={{ width: colW.verdict }} />
+              <col style={{ width: colW.comment }} />
+              <col style={{ width: colW.author }} />
+              <col style={{ width: COL_ACTIONS }} />
+            </colgroup>
+            <thead className="sticky top-0 z-10 text-left pto-t-sm">
               <tr>
-                <th className="w-8 border-b border-border px-1 py-1.5">
+                <th style={{ width: COL_CHECK }} className={CELL + " bg-[#d6dce4]"}>
                   <input
                     type="checkbox"
                     aria-label="Выбрать все видимые"
@@ -882,7 +924,7 @@ export function ReviewsTable({
                     }}
                   />
                 </th>
-                <ColHead width={colW.num} onDrag={(event) => dragCol("num", event)}>
+                <ColHead colId="num" width={colW.num} onDrag={(event) => dragCol("num", event)}>
                   <ExcelColFilter
                     label="№"
                     values={filterValues.number}
@@ -894,6 +936,7 @@ export function ReviewsTable({
                 </ColHead>
                 {showSectionCol ? (
                   <ColHead
+                    colId="section"
                     width={colW.section}
                     onDrag={(event) => dragCol("section", event)}
                   >
@@ -907,7 +950,7 @@ export function ReviewsTable({
                     />
                   </ColHead>
                 ) : null}
-                <ColHead>
+                <ColHead colId="text" width={colW.text} onDrag={(event) => dragCol("text", event)}>
                   <ExcelColFilter
                     label="Замечание"
                     values={filterValues.text}
@@ -917,7 +960,7 @@ export function ReviewsTable({
                     onApply={(next) => applyColFilter("text", next)}
                   />
                 </ColHead>
-                <ColHead width={colW.place} onDrag={(event) => dragCol("place", event)}>
+                <ColHead colId="place" width={colW.place} onDrag={(event) => dragCol("place", event)}>
                   <ExcelColFilter
                     label="Где в ПД"
                     values={filterValues.place}
@@ -928,6 +971,7 @@ export function ReviewsTable({
                   />
                 </ColHead>
                 <ColHead
+                  colId="severity"
                   width={colW.severity}
                   onDrag={(event) => dragCol("severity", event)}
                 >
@@ -941,6 +985,7 @@ export function ReviewsTable({
                   />
                 </ColHead>
                 <ColHead
+                  colId="verdict"
                   width={colW.verdict}
                   onDrag={(event) => dragCol("verdict", event)}
                 >
@@ -954,6 +999,7 @@ export function ReviewsTable({
                   />
                 </ColHead>
                 <ColHead
+                  colId="comment"
                   width={colW.comment}
                   onDrag={(event) => dragCol("comment", event)}
                 >
@@ -966,7 +1012,21 @@ export function ReviewsTable({
                     onApply={(next) => applyColFilter("comment", next)}
                   />
                 </ColHead>
-                <th className="w-8 border-b border-border px-1 py-1.5" />
+                <ColHead
+                  colId="author"
+                  width={colW.author}
+                  onDrag={(event) => dragCol("author", event)}
+                >
+                  <ExcelColFilter
+                    label="Автор"
+                    values={filterValues.author}
+                    selected={colFilters.author ?? null}
+                    sortDir={sortKey === "author" ? sortDir : null}
+                    onSort={(dir) => sortBy("author", dir)}
+                    onApply={(next) => applyColFilter("author", next)}
+                  />
+                </ColHead>
+                <th style={{ width: COL_ACTIONS }} className={CELL + " bg-[#d6dce4]"} />
               </tr>
             </thead>
             <tbody>
@@ -998,15 +1058,13 @@ export function ReviewsTable({
                   </td>
                 </tr>
               ) : null}
-              {sorted.map((review, index) => (
+              {sorted.map((review) => (
                 <Fragment key={review.id}>
                   {groupHeads.get(review.id) ? (
                     <tr>
                       <td
                         colSpan={colCount}
-                        className={`bg-surface-2 px-2 pb-1 pto-t-sm font-semibold text-muted ${
-                          index === 0 ? "pt-1" : "pt-2"
-                        }`}
+                        className={`${CELL} bg-[#e7e6e6] pto-t-sm font-semibold text-slate-800`}
                       >
                         {groupHeads.get(review.id)}
                       </td>
@@ -1617,7 +1675,7 @@ function ReviewRow({
       data-review-id={review.id}
       // Толщина левой полосы — важность, заливка — разбор. Два разных смысла,
       // и раньше они оба красили фон, перебивая друг друга.
-      className={`border-b border-slate-200 align-top ${
+      className={`align-top ${
         review.severity === "high" ? "bg-sem-issue-soft" : "bg-white"
       } ${review.severity === "skip" ? "opacity-60" : ""} ${
         active
@@ -1625,7 +1683,7 @@ function ReviewRow({
           : ""
       }`}
     >
-      <td className="px-1 py-1.5">
+      <td className={`${CELL} px-1`}>
         <input
           type="checkbox"
           checked={selected}
@@ -1634,7 +1692,7 @@ function ReviewRow({
           aria-label={`Выбрать замечание ${review.number}`}
         />
       </td>
-      <td className="px-2 py-1.5 tabular-nums text-muted">
+      <td className={`${CELL} tabular-nums text-muted`}>
         <span className="inline-flex items-center gap-1">
           {review.number}
           {review.verdict === "pending" ? null : (
@@ -1645,7 +1703,7 @@ function ReviewRow({
         </span>
       </td>
       {showSection ? (
-        <td className="px-2 py-1.5">
+        <td className={CELL}>
           {sectionLabel ? (
             <span className="rounded border border-slate-300 bg-white px-1.5 py-0.5 pto-t-sm font-medium text-text">
               {sectionLabel}
@@ -1653,25 +1711,15 @@ function ReviewRow({
           ) : null}
         </td>
       ) : null}
-      <td className="px-2 py-1.5">
-        <div className="flex items-start gap-1.5">
-          <span
-            className={`mt-0.5 shrink-0 rounded border px-1.5 py-0.5 pto-t-xs font-medium uppercase tracking-wide ${
-              ORIGIN_CHIP[review.origin]
-            }`}
-            title={REVIEW_ORIGIN_LABEL[review.origin]}
-          >
-            {ORIGIN_SHORT[review.origin]}
-          </span>
-          <RemarkText
-            wording={wording}
-            needle={needle}
-            aiFinding={review.text && review.aiFinding ? review.aiFinding : ""}
-            wrongReason={review.wrongReason}
-          />
-        </div>
+      <td className={CELL}>
+        <RemarkText
+          wording={wording}
+          needle={needle}
+          aiFinding={review.text && review.aiFinding ? review.aiFinding : ""}
+          wrongReason={review.wrongReason}
+        />
       </td>
-      <td className="px-2 py-1.5">
+      <td className={CELL}>
         {review.needsRecheck ? (
           <div className="mb-1 pto-t-sm font-medium text-amber-800">
             нужно перепроверить
@@ -1692,7 +1740,7 @@ function ReviewRow({
           />
         )}
       </td>
-      <td className="px-2 py-1.5">
+      <td className={CELL}>
         <select
           value={review.severity}
           onChange={(event) =>
@@ -1710,7 +1758,7 @@ function ReviewRow({
           ))}
         </select>
       </td>
-      <td className="px-2 py-1.5">
+      <td className={CELL}>
         <select
           value={review.verdict}
           onChange={(event) => {
@@ -1743,7 +1791,7 @@ function ReviewRow({
           </button>
         ) : null}
       </td>
-      <td className="px-2 py-1.5">
+      <td className={CELL}>
         {/* Поле открывается по клику: пятнадцать пустых textarea в столбик
             занимали половину строки и мешали читать сами замечания. */}
         {commentOpen ? (
@@ -1829,7 +1877,16 @@ function ReviewRow({
           ) : null}
         </div>
       </td>
-      <td className="px-1 py-1.5 text-center">
+      <td className={CELL}>
+        <span
+          className={`inline-block rounded border px-1.5 py-0.5 pto-t-sm font-medium ${
+            ORIGIN_CHIP[review.origin]
+          }`}
+        >
+          {reviewAuthor(review)}
+        </span>
+      </td>
+      <td className={`${CELL} text-center`}>
         {saving ? (
           <Spinner className="h-3 w-3 text-accent" />
         ) : (

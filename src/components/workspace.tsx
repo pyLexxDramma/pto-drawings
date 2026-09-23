@@ -2042,7 +2042,7 @@ export function Workspace({
             className="flex min-h-0 shrink-0 flex-col bg-surface"
             style={{ width: projectsWidth, maxWidth: "100%" }}
           >
-            <div className="flex items-start gap-1 border-b border-border px-2 py-1.5">
+            <div className="flex items-start gap-1 border-b-2 border-sky-500 bg-sky-100 px-2 py-1.5">
               <div className="min-w-0 flex-1">
               {showNewProject || projects.length === 0 ? (
                 <form onSubmit={handleCreateProject} className="space-y-1">
@@ -2082,7 +2082,7 @@ export function Workspace({
                 onToggle={() => setProjectsCollapsed(true)}
               />
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto p-1.5" data-projects-tree>
+            <div className="min-h-0 flex-1 overflow-y-auto bg-sky-50 p-1.5" data-projects-tree>
               {projects.map((project) =>
                 renameId === project.id ? (
                   <input
@@ -2100,10 +2100,10 @@ export function Workspace({
                 ) : (
                   <div
                     key={project.id}
-                    className={`mb-1 rounded-md border ${
+                    className={`mb-1.5 rounded-md border-2 ${
                       project.id === projectId
-                        ? "border-slate-500 bg-blue-50/80"
-                        : "border-slate-300 bg-white hover:border-slate-400 hover:bg-surface-2"
+                        ? "border-slate-500 bg-blue-50"
+                        : "border-slate-400 bg-white hover:border-slate-500 hover:bg-slate-50"
                     }`}
                     data-project-row={project.id}
                   >
@@ -2154,7 +2154,7 @@ export function Workspace({
                       </div>
                     </div>
                     {project.id === projectId ? (
-                      <div className="border-t border-border/70 px-1 pb-1.5 pt-1" data-project-files>
+                      <div className="mx-1 mb-1 rounded-md border-2 border-slate-300 bg-white px-1 pb-1.5 pt-1" data-project-files>
                         <label
                           htmlFor="pto-drawing-upload"
                           title={UPLOAD_BUTTON_LABEL}
@@ -2351,7 +2351,7 @@ export function Workspace({
               )}
             </div>
             {currentProject ? (
-              <div className="border-t border-border px-1.5 py-1">
+              <div className="shrink-0 border-t-2 border-amber-500 bg-amber-100 px-1.5 py-1.5">
                 <ResolvedSummary
                   reviews={projectReviews}
                   projectId={currentProject.id}
@@ -2361,7 +2361,7 @@ export function Workspace({
             {selected ? (
               <div
                 ref={setStripHost}
-                className="min-h-[6rem] flex-1 overflow-hidden border-t border-border"
+                className="mt-2 min-h-[6rem] flex-1 overflow-hidden border-t-2 border-emerald-600 bg-emerald-50 p-1.5"
               />
             ) : null}
           </aside>

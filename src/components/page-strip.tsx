@@ -70,12 +70,12 @@ function SheetRow({
       aria-current={current ? "page" : undefined}
       aria-label={`Лист ${pageNumber}, ${kindLabel}${fallback ? `. ${fallback}` : ""}`}
       onClick={() => onSelect(pageNumber)}
-      className={`mb-0.5 flex w-full flex-col gap-0.5 rounded px-1.5 py-1 text-left [-webkit-tap-highlight-color:transparent] ${
+      className={`mb-1 flex w-full flex-col gap-0.5 rounded-md border-2 px-1.5 py-1 text-left [-webkit-tap-highlight-color:transparent] ${
         current
-          ? "bg-white ring-1 ring-accent/50"
+          ? "border-emerald-700 bg-white"
           : isWorking
-            ? "pto-page-working bg-sky-50"
-            : "hover:bg-white"
+            ? "pto-page-working border-sky-400 bg-sky-50"
+            : "border-emerald-400 bg-white hover:border-emerald-600 hover:bg-emerald-100"
       }`}
     >
       <span className="flex w-full items-center gap-1.5">
@@ -172,14 +172,14 @@ export function PageStrip({
     <div
       className={
         embedded
-          ? "flex h-full min-h-0 min-w-0 flex-1 flex-col bg-surface-2"
-          : "flex h-full min-h-0 shrink-0 flex-col border-r border-border bg-surface-2"
+          ? "flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-md border-2 border-emerald-600 bg-emerald-50"
+          : "flex h-full min-h-0 shrink-0 flex-col border-r-2 border-emerald-600 bg-emerald-50"
       }
       style={embedded ? undefined : { width }}
       data-page-strip
     >
       {embedded ? (
-        <div className="shrink-0 border-b border-border px-2 py-1 pto-t-sm font-semibold text-muted">
+        <div className="shrink-0 border-b-2 border-emerald-600 bg-emerald-100 px-2 py-1 pto-t-sm font-semibold text-emerald-950">
           Листы
         </div>
       ) : onCollapse ? (

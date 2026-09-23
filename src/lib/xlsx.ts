@@ -104,8 +104,8 @@ function stylesXml(): string {
     "</fonts>" +
     `<fills count="${fills.length}">${fills.join("")}</fills>` +
     '<borders count="2"><border/>' +
-    '<border><left style="thin"><color rgb="FFBFBFBF"/></left><right style="thin"><color rgb="FFBFBFBF"/></right>' +
-    '<top style="thin"><color rgb="FFBFBFBF"/></top><bottom style="thin"><color rgb="FFBFBFBF"/></bottom></border>' +
+    '<border><left style="thin"><color rgb="FF7F7F7F"/></left><right style="thin"><color rgb="FF7F7F7F"/></right>' +
+    '<top style="thin"><color rgb="FF7F7F7F"/></top><bottom style="thin"><color rgb="FF7F7F7F"/></bottom></border>' +
     "</borders>" +
     '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
     `<cellXfs count="${xfs.length}">${xfs.join("")}</cellXfs>` +

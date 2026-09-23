@@ -262,10 +262,23 @@ export const REVIEW_EVENT_LABEL: Record<ReviewEventField, string> = {
 };
 
 export const REVIEW_ORIGIN_LABEL: Record<ReviewOrigin, string> = {
-  ai: "Нашла ИИ",
+  ai: "ИИ",
   engineer: "Инженер",
   both: "ИИ и инженер",
 };
+
+/** Кто написал замечание: ИИ, инженер или оба. Имя — если оно есть. */
+export function reviewAuthor(review: {
+  origin: ReviewOrigin;
+  authorName?: string | null;
+}): string {
+  if (review.origin === "ai") return REVIEW_ORIGIN_LABEL.ai;
+  const name = review.authorName?.trim();
+  if (review.origin === "both") {
+    return name ? `ИИ и ${name}` : REVIEW_ORIGIN_LABEL.both;
+  }
+  return name || REVIEW_ORIGIN_LABEL.engineer;
+}
 
 /** Порядок в таблице: сначала без важности (надо проставить), затем по силе. */
 export const REVIEW_SEVERITY_ORDER: ReviewSeverity[] = [

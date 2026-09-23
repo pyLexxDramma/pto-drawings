@@ -1,6 +1,7 @@
 import {
   REVIEW_SEVERITY_LABEL,
   REVIEW_VERDICT_LABEL,
+  reviewAuthor,
   type Review,
 } from "@/types";
 import { sheetLabel } from "@/lib/sheet-label";
@@ -14,7 +15,8 @@ export type ExcelCol =
   | "place"
   | "severity"
   | "verdict"
-  | "comment";
+  | "comment"
+  | "author";
 
 export type ExcelColFilters = Partial<Record<ExcelCol, string[]>>;
 
@@ -50,6 +52,8 @@ export function excelColValues(review: Review, col: ExcelCol): string[] {
       return [REVIEW_VERDICT_LABEL[review.verdict]];
     case "comment":
       return [review.comment.trim() || EXCEL_EMPTY];
+    case "author":
+      return [reviewAuthor(review)];
   }
 }
 
