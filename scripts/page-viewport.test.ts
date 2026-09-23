@@ -29,6 +29,14 @@ describe("legibleFitScale", () => {
     assert.ok(scale > 0.2);
     assert.equal(scale, 11 / 2);
   });
+
+  it("длинная строка держит масштаб, чтобы заголовок не обрезался", () => {
+    assert.equal(legibleFitScale(0.2, 7.2, 0, 0.4), 0.4);
+  });
+
+  it("короткая подпись не ограничивает зум шириной строки", () => {
+    assert.equal(legibleFitScale(0.2, 2, 0, 8), 11 / 2);
+  });
 });
 
 describe("highlightZoomScale", () => {

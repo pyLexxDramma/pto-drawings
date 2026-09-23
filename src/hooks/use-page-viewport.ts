@@ -29,11 +29,15 @@ function computeFitScale(
   mode: FitMode,
   minScale: number,
   legibleTextPx = 0,
+  widestLinePx = 0,
 ) {
   const pad = 16;
   const scaleW = (wrap.clientWidth - pad) / Math.max(1, natural.w);
   const scaleH = (wrap.clientHeight - pad) / Math.max(1, natural.h);
-  if (mode === "legible") return legibleFitScale(scaleW, legibleTextPx, minScale);
+  if (mode === "legible") {
+    const lineScale = widestLinePx > 0 ? (wrap.clientWidth - pad) / widestLinePx : Number.POSITIVE_INFINITY;
+    return legibleFitScale(scaleW, legibleTextPx, minScale, lineScale);
+  }
   const next = mode === "width" ? scaleW : Math.min(scaleW, scaleH);
   return Math.max(minScale, next);
 }
@@ -51,6 +55,7 @@ export function usePageViewport({
   panToHighlight = false,
   wheelMode = "pan",
   legibleTextPx = 0,
+  widestLinePx = 0,
   onUserZoom,
 }: {
   wrapRef: RefObject<HTMLDivElement | null>;
@@ -60,6 +65,8 @@ export function usePageViewport({
   viewCacheKey?: string;
   /** Медианная высота подписи листа в его собственных единицах — для «Читаемо». */
   legibleTextPx?: number;
+  /** Ширина самой длинной строки в тех же единицах. «Читаемо» не шире неё. */
+  widestLinePx?: number;
   minScale?: number;
   maxZoomFactor?: number;
   highlightNonce?: number;
@@ -72,6 +79,7 @@ export function usePageViewport({
   const scaleRef = useRef(1);
   const naturalRef = useRef(natural);
   const legibleRef = useRef(legibleTextPx);
+  const widestRef = useRef(widestLinePx);
   const fitModeRef = useRef<FitMode>("page");
   /** Лист открыт из сохранённого вида — авто-«Читаемо» его не перебивает. */
   const restoredRef = useRef(false);
@@ -110,6 +118,9 @@ export function usePageViewport({
   useEffect(() => {
     legibleRef.current = legibleTextPx;
   }, [legibleTextPx]);
+  useEffect(() => {
+    widestRef.current = widestLinePx;
+  }, [widestLinePx]);
   useEffect(() => {
     fitModeRef.current = fitMode;
   }, [fitMode]);
@@ -202,7 +213,14 @@ export function usePageViewport({
       const wrap = wrapRef.current;
       if (!wrap) return;
       const n = naturalRef.current;
-      const s = computeFitScale(wrap, n, mode, minScale, legibleRef.current);
+      const s = computeFitScale(
+        wrap,
+        n,
+        mode,
+        minScale,
+        legibleRef.current,
+        widestRef.current,
+      );
       const contentW = n.w * s;
       const contentH = n.h * s;
       // «Читаемо» показывает начало листа: по центру лист обрезан с обеих сторон,
@@ -227,7 +245,14 @@ export function usePageViewport({
       setFitScale(computeFitScale(wrap, n, "page", minScale));
       setLegibleScale(
         legibleRef.current > 0
-          ? computeFitScale(wrap, n, "legible", minScale, legibleRef.current)
+          ? computeFitScale(
+              wrap,
+              n,
+              "legible",
+              minScale,
+              legibleRef.current,
+              widestRef.current,
+            )
           : 0,
       );
       applyView(s, nextPan, mode);
@@ -374,10 +399,17 @@ export function usePageViewport({
     const wrap = wrapRef.current;
     if (!wrap || wrap.clientWidth < 8) return;
     const widthScale = computeFitScale(wrap, natural, "width", minScale);
-    const legible = computeFitScale(wrap, natural, "legible", minScale, legibleTextPx);
+    const legible = computeFitScale(
+      wrap,
+      natural,
+      "legible",
+      minScale,
+      legibleTextPx,
+      widestLinePx,
+    );
     if (legible <= widthScale * 1.15) return;
     fit("legible");
-  }, [fit, legibleTextPx, minScale, natural, pageNumber, ready, viewCacheKey, wrapRef]);
+  }, [fit, legibleTextPx, widestLinePx, minScale, natural, pageNumber, ready, viewCacheKey, wrapRef]);
 
   // Размер подписей приходит после первой отрисовки листа (текстовый слой PDF,
   // геометрия DWG) — «читаемый» масштаб пересчитываем, когда он появился.
@@ -386,7 +418,7 @@ export function usePageViewport({
     if (!wrap || !ready || wrap.clientWidth < 8) return;
     const next =
       legibleTextPx > 0
-        ? computeFitScale(wrap, natural, "legible", minScale, legibleTextPx)
+        ? computeFitScale(wrap, natural, "legible", minScale, legibleTextPx, widestLinePx)
         : 0;
     setLegibleScale(next);
     // До замера подписи «Читаемо» совпадает с «по ширине». Когда высота
@@ -394,7 +426,7 @@ export function usePageViewport({
     if (next > 0 && fitModeRef.current === "legible" && !restoredRef.current) {
       fit("legible", { remember: false });
     }
-  }, [fit, legibleTextPx, minScale, natural, pageNumber, ready, wrapRef]);
+  }, [fit, legibleTextPx, widestLinePx, minScale, natural, pageNumber, ready, wrapRef]);
 
   useEffect(() => {
     const wrap = wrapRef.current;

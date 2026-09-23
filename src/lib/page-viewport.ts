@@ -19,12 +19,18 @@ export function legibleFitScale(
   widthScale: number,
   textPx: number,
   minScale = 0,
+  lineScale = Number.POSITIVE_INFINITY,
 ): number {
   const width = Math.max(minScale, widthScale);
   if (!(textPx > 0)) return width;
-  if (textPx * widthScale >= LEGIBLE_MIN_PX) return width;
-  const wanted = LEGIBLE_TARGET_PX / textPx;
-  return Math.max(minScale, Math.max(widthScale, wanted));
+  const wanted =
+    textPx * widthScale >= LEGIBLE_MIN_PX
+      ? width
+      : Math.max(minScale, Math.max(widthScale, LEGIBLE_TARGET_PX / textPx));
+  // Самая длинная строка не должна уезжать за край: на текстовом листе цель 11px
+  // увеличивает лист так, что заголовок обрезан. Уже «по ширине» не отдаляем.
+  if (!(lineScale > 0) || !Number.isFinite(lineScale)) return wanted;
+  return Math.max(minScale, Math.min(wanted, Math.max(widthScale, lineScale)));
 }
 
 export function padHighlightRect(

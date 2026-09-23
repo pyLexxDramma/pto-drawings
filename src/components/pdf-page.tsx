@@ -77,11 +77,11 @@ function renderScale(natural: { width: number; height: number }) {
 }
 
 /**
- * Медиана высоты подписей листа в его собственных единицах. По ней режим
- * «Читаемо» считает масштаб: на А1 «по ширине» даёт 13%, и подписи в 2px
- * не читаются — а средний размер шрифта заранее неизвестен.
+ * Высота подписи для «Читаемо»: верхняя половина размеров, не медиана всех
+ * глифов. Мелкие крошки (буква в ячейке) иначе задирают масштаб, и длинная
+ * строка заголовка обрезается.
  */
-function medianTextHeight(
+function legibleTextHeight(
   items: Array<{ str?: string; transform?: number[] }>,
   vt: number[],
 ): number {
@@ -96,7 +96,32 @@ function medianTextHeight(
   }
   if (!heights.length) return 0;
   heights.sort((a, b) => a - b);
-  return heights[Math.floor(heights.length / 2)];
+  const upper = heights.slice(Math.floor(heights.length / 2));
+  return upper[Math.floor(upper.length / 2)] ?? 0;
+}
+
+/** Ширина самой длинной строки в единицах вьюпорта страницы. */
+function widestLinePx(
+  items: Array<{ str?: string; transform?: number[]; width?: number }>,
+  vt: number[],
+): number {
+  const lines = new Map<number, { min: number; max: number }>();
+  for (const item of items) {
+    if (!item.str?.trim() || !item.transform) continue;
+    const t = item.transform;
+    const x = vt[0] * t[4] + vt[2] * t[5] + vt[4];
+    const y = vt[1] * t[4] + vt[3] * t[5] + vt[5];
+    const wScale = Math.hypot(vt[0] * t[0] + vt[2] * t[1], vt[1] * t[0] + vt[3] * t[1]);
+    const w = (item.width || item.str.length * 4) * (wScale || 1);
+    const key = Math.round(y / 2);
+    const span = lines.get(key) ?? { min: Number.POSITIVE_INFINITY, max: 0 };
+    span.min = Math.min(span.min, x);
+    span.max = Math.max(span.max, x + w);
+    lines.set(key, span);
+  }
+  let widest = 0;
+  for (const span of lines.values()) widest = Math.max(widest, span.max - span.min);
+  return widest;
 }
 
 export function PdfPage({
@@ -137,6 +162,7 @@ export function PdfPage({
   const [zoomBox, setZoomBox] = useState<DrawState | null>(null);
   const [searchHits, setSearchHits] = useState<TextHit[]>([]);
   const [legibleTextPx, setLegibleTextPx] = useState(0);
+  const [widestLine, setWidestLine] = useState(0);
   const [hintOn, setHintOn] = useState(() => shouldShowViewerHint(loadViewerPrefs()));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const pdfDocRef = useRef<{ url: string; pdf: any } | null>(null);
@@ -156,6 +182,7 @@ export function PdfPage({
     ready,
     viewCacheKey,
     legibleTextPx,
+    widestLinePx: widestLine,
     highlightNonce,
     highlightRegion: focusRegion,
     panToHighlight: panToHighlight || remarkFocus,
@@ -209,6 +236,7 @@ export function PdfPage({
       setError(null);
       setSearchHits([]);
       setLegibleTextPx(0);
+      setWidestLine(0);
       textContentRef.current = null;
       try {
         const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
@@ -276,7 +304,8 @@ export function PdfPage({
           width?: number;
         }>;
         textContentRef.current = { items, viewport: pageViewport };
-        setLegibleTextPx(medianTextHeight(items, pageViewport.transform));
+        setLegibleTextPx(legibleTextHeight(items, pageViewport.transform));
+        setWidestLine(widestLinePx(items, pageViewport.transform));
 
         if (!cancelled) setLoading(false);
       } catch (err) {
