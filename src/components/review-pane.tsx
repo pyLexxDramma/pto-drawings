@@ -36,6 +36,7 @@ import {
   patchDocumentView,
 } from "@/lib/review-view-cache";
 import {
+  findQuoteRanges,
   preferHighlightQuery,
   remarkTermsInMarkdown,
 } from "@/lib/highlight-text";
@@ -529,7 +530,20 @@ export function ReviewPane({
       focusQuote.trim().length >= 2 ? focusQuote.trim() : deferredQuery.trim();
     return preferHighlightQuery(raw, page?.markdown ?? "");
   })();
-  const textHighlightQuery = drawingHighlightQuery;
+  /**
+   * В расшифровке подсвечиваем фразу целиком, если она там есть. На чертеже
+   * цитату приходится сужать до шифра — текстовый слой разбит на куски, — а в
+   * тексте у находок со сканов цитата и есть предложение из описания модели,
+   * и подсветка одного числа из него ничего инженеру не говорит (0094).
+   */
+  const textHighlightQuery = (() => {
+    const raw =
+      focusQuote.trim().length >= 2 ? focusQuote.trim() : deferredQuery.trim();
+    if (raw.length >= 2 && findQuoteRanges(page?.markdown ?? "", raw).length > 0) {
+      return raw;
+    }
+    return drawingHighlightQuery;
+  })();
   const focusDrawing = focusQuote.trim().length >= 2 || Boolean(focusRect);
   // Ссылка должна быть стабильной: зритель фильтрует по ней совпадения поиска.
   const focusHighlightRegion = useMemo(
@@ -1515,7 +1529,9 @@ export function ReviewPane({
               style={{ width: paneSolo === "pdf" ? "100%" : `${split}%` }}
             >
               {quoteMiss ? (
-                <div className="pointer-events-none absolute inset-x-0 bottom-2 z-20 flex justify-center px-2">
+                // Выше строки состояния: на её уровне плашка обрезалась, и
+                // кнопка «Показать в тексте» уезжала под подсказку про мышь.
+                <div className="pointer-events-none absolute inset-x-0 bottom-11 z-20 flex justify-center px-2">
                   <div
                     className={`pointer-events-auto inline-flex max-w-full items-start gap-2 rounded-md border px-2.5 py-1 pto-t-md shadow-sm ${
                       quoteMiss === "model-no-layer" || quoteMiss === "miss-both"

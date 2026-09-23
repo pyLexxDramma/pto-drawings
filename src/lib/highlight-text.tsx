@@ -296,7 +296,7 @@ export function findQuoteRanges(
 type HighlightOpts = {
   /** Все совпадения — стиль замечания (мигание). */
   focusStyle?: boolean;
-  /** Первое совпадение в этом фрагменте — якорь scroll. */
+  /** Совпадения годятся как цель прокрутки: data-focus-quote. */
   placeAnchor?: boolean;
 };
 
@@ -311,11 +311,9 @@ export function highlightPlain(
   const parts: ReactNode[] = [];
   let start = 0;
   let key = 0;
-  let anchorPlaced = false;
   for (const range of ranges) {
     if (range.index > start) parts.push(text.slice(start, range.index));
-    const isAnchor = Boolean(opts?.placeAnchor && !anchorPlaced);
-    if (isAnchor) anchorPlaced = true;
+    const isAnchor = Boolean(opts?.placeAnchor);
     parts.push(
       <mark
         key={`h-${key++}`}
@@ -413,11 +411,16 @@ function flagNodesInner(children: ReactNode, terms: string[]): ReactNode {
   return children;
 }
 
+/**
+ * Режим «Где в ПД»: все совпадения мигают красным и каждое годится как цель
+ * прокрутки. Раньше здесь жил флаг «якорь ещё не поставлен», и его мутировали
+ * по ходу обхода. Перерисовка одной секции листа этот флаг уже не возвращала —
+ * якоря на листе не оставалось, и вьюер честно писал «в расшифровке точного
+ * совпадения нет», хотя цитата была на экране (0094). Теперь якорем помечаются
+ * все совпадения, а первым в документе всё равно будет первое.
+ */
 export type FocusHighlightState = {
-  /** Режим «Где в ПД» — все совпадения мигают красным. */
   focusStyle: boolean;
-  /** Ещё не поставили data-focus-quote. */
-  anchorLeft: boolean;
 };
 
 /** Рекурсивно подсвечивает текстовые узлы в children react-markdown. */
@@ -428,10 +431,7 @@ export function highlightNodes(
 ): ReactNode {
   const needle = query.trim();
   if (needle.length < 2) return children;
-  const state: FocusHighlightState = {
-    focusStyle: Boolean(opts?.focusFirst),
-    anchorLeft: Boolean(opts?.focusFirst),
-  };
+  const state: FocusHighlightState = { focusStyle: Boolean(opts?.focusFirst) };
   return highlightNodesInner(children, needle, state);
 }
 
@@ -452,14 +452,9 @@ function highlightNodesInner(
   state: FocusHighlightState,
 ): ReactNode {
   if (typeof children === "string" || typeof children === "number") {
-    const text = String(children);
-    const placeAnchor = state.anchorLeft;
-    if (placeAnchor && findQuoteRanges(text, needle).length > 0) {
-      state.anchorLeft = false;
-    }
-    return highlightPlain(text, needle, {
+    return highlightPlain(String(children), needle, {
       focusStyle: state.focusStyle,
-      placeAnchor,
+      placeAnchor: state.focusStyle,
     });
   }
   if (Array.isArray(children)) {

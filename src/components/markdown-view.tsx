@@ -45,10 +45,7 @@ function wrapText(
     highlightQuery && focusState
       ? highlightNodesShared(children, highlightQuery, focusState)
       : highlightQuery
-        ? highlightNodesShared(children, highlightQuery, {
-            focusStyle: false,
-            anchorLeft: false,
-          })
+        ? highlightNodesShared(children, highlightQuery, { focusStyle: false })
         : children;
   const body = flagQuotes.length
     ? flagNodes(highlighted, flagQuotes)
@@ -134,7 +131,7 @@ export function MarkdownView({
   // Новый state на каждый render: highlightNodes сбрасывает anchor при обходе.
   // Если лист режется на секции, state приходит сверху — один на весь лист.
   const focusState: FocusHighlightState | null =
-    sharedFocusState ?? (focusFirst && q ? { focusStyle: true, anchorLeft: true } : null);
+    sharedFocusState ?? (focusFirst && q ? { focusStyle: true } : null);
 
   if (!blocks.length) {
     return (

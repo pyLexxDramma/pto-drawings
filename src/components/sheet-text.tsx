@@ -52,10 +52,9 @@ export function SheetText({
   }, [markdown]);
 
   const q = highlightQuery.trim().length >= 2 ? highlightQuery : "";
-  // Один state якоря на весь лист: иначе в каждой секции замигает своё «первое»
-  // совпадение и инженер не поймёт, куда смотреть.
-  const focusState: FocusHighlightState | null =
-    focusFirst && q ? { focusStyle: true, anchorLeft: true } : null;
+  // Стиль замечания на весь лист: цель прокрутки — первое совпадение в
+  // документе, поэтому секциям нечего делить между собой.
+  const focusState: FocusHighlightState | null = focusFirst && q ? { focusStyle: true } : null;
 
   const titled = sections.filter((section) => section.title);
 

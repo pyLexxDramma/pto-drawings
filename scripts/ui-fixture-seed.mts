@@ -172,6 +172,43 @@ function textMarkdown(page: number): string {
   ].join("\n");
 }
 
+// ------------------------------------------------- лист-скан (только модель, 0094)
+
+/**
+ * Лист без текстового слоя: расшифровка целиком от модели по картинке. Здесь
+ * заложена пара «X, а по Y» — на таком листе её должна найти искалка конвейера
+ * (коммит 18ba4d5), а замечание приходит без рамки и с низкой важностью.
+ */
+function scanMarkdown(page: number): string {
+  return [
+    `## Страница ${page}`,
+    "",
+    "# Схема электроснабжения (скан, текстового слоя нет)",
+    "",
+    "## Описание чертежа (модель, по изображению)",
+    "",
+    "Лист прочитан по изображению: текстового слоя в PDF нет, координат для рамки тоже.",
+    "",
+    "## Текст листа (из чертежа, дословно)",
+    "",
+    "Расчётная мощность трансформатора принята 250 кВт, а по расчёту нагрузок 180 кВт.",
+    "",
+    "Кабель ВВГнг-LS 4х95, длина трассы 62 м, прокладка в лотке по стене.",
+    "",
+    "Количество вводов 2, категория надёжности электроснабжения I.",
+    "",
+    "---",
+    "",
+    "## Информация о листе",
+    "",
+    "| Поле | Значение |",
+    "| --- | --- |",
+    "| Источник текста | модель по изображению |",
+    "| Текстовый слой | отсутствует |",
+    "",
+  ].join("\n");
+}
+
 // --------------------------------------------------------------------- сборка
 
 const existing = (await storage.listProjects()).find(
@@ -197,14 +234,24 @@ const doc = await storage.saveDocument({
 console.log(`файл: ${doc.pageCount} листов`);
 
 /** Лист 1 — ведомость (kind=table), 2 — чертёж со служебными блоками, дальше текст. */
-const PLAN: Array<{ kind: "table" | "drawing" | "text"; body: (page: number) => string }> = [
+const PLAN: Array<{
+  kind: "table" | "drawing" | "text";
+  body: (page: number) => string;
+  warnings?: string[];
+}> = [
   { kind: "table", body: () => vedomostMarkdown() },
   { kind: "drawing", body: drawingMarkdown },
   { kind: "text", body: textMarkdown },
-  { kind: "table", body: () => vedomostMarkdown() },
+  {
+    kind: "drawing",
+    body: scanMarkdown,
+    warnings: ["Текстового слоя нет: лист прочитан моделью по изображению"],
+  },
   { kind: "drawing", body: drawingMarkdown },
-  { kind: "text", body: textMarkdown },
 ];
+
+/** Лист-скан из PLAN — на нём проверяем поведение по 0094. */
+const SCAN_PAGE = PLAN.findIndex((slot) => slot.body === scanMarkdown) + 1;
 
 const last = Math.min(PLAN.length, doc.pageCount);
 for (let page = 1; page <= last; page += 1) {
@@ -215,6 +262,7 @@ for (let page = 1; page <= last; page += 1) {
     markdown: slot.body(page),
     kind: slot.kind,
     source: "model",
+    ...(slot.warnings ? { warnings: slot.warnings } : {}),
   });
 }
 await storage.updateDocument(doc.id, {
@@ -291,6 +339,14 @@ const FROM_PIPELINE: Array<{
     text: "Фикстура UI — ведомость, чертёж, текст.pdf, стр. 3: «Степень огнестойкости II» — в пояснительной записке указана III.",
     severity: "low",
     locations: [loc(3, "Степень огнестойкости")],
+  },
+  // Так замечание приходит со скана после 18ba4d5 (0094): низкая важность,
+  // пометка про изображение, места без рамки — координат у модели нет.
+  {
+    section: "ИОС1",
+    text: `Фикстура UI — ведомость, чертёж, текст.pdf, стр. ${SCAN_PAGE}: «принята 250 кВт, а по расчёту нагрузок 180 кВт» — два разных значения: 250 кВт и 180 кВт. Число прочитано моделью по изображению, рамки нет — сверьте по расшифровке.`,
+    severity: "low",
+    locations: [loc(SCAN_PAGE, "принята 250 кВт, а по расчёту нагрузок 180 кВт")],
   },
 ];
 
