@@ -23,14 +23,17 @@ export function legibleFitScale(
 ): number {
   const width = Math.max(minScale, widthScale);
   if (!(textPx > 0)) return width;
-  const wanted =
-    textPx * widthScale >= LEGIBLE_MIN_PX
-      ? width
-      : Math.max(minScale, Math.max(widthScale, LEGIBLE_TARGET_PX / textPx));
-  // Самая длинная строка не должна уезжать за край: на текстовом листе цель 11px
-  // увеличивает лист так, что заголовок обрезан. Уже «по ширине» не отдаляем.
-  if (!(lineScale > 0) || !Number.isFinite(lineScale)) return wanted;
-  return Math.max(minScale, Math.min(wanted, Math.max(widthScale, lineScale)));
+  if (textPx * widthScale >= LEGIBLE_MIN_PX) return width;
+  const wanted = Math.max(minScale, Math.max(widthScale, LEGIBLE_TARGET_PX / textPx));
+  const readable = Math.max(minScale, LEGIBLE_MIN_PX / textPx);
+  let next = wanted;
+  // Длинная строка не даёт прыгнуть к 11px: заголовок текстового листа обрезался.
+  if (lineScale > 0 && Number.isFinite(lineScale)) {
+    next = Math.min(wanted, Math.max(widthScale, lineScale));
+  }
+  // Но и не оставляем подпись мельче порога. Иначе схема снова открывается на 20%.
+  if (textPx * next < LEGIBLE_MIN_PX) next = Math.max(next, readable);
+  return Math.max(minScale, next);
 }
 
 export function padHighlightRect(

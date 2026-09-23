@@ -96,6 +96,13 @@ describe("splitMarkdownSections", () => {
     ]);
   });
 
+  it("не сворачивает таблицы листа, даже если в заголовке «по изображению»", () => {
+    const sections = splitMarkdownSections(
+      "## Таблицы листа (прочитаны моделью по изображению)\n\nтело",
+    );
+    assert.equal(sections[0]?.service, false);
+  });
+
   it("does not mark the sheet text and the stamp as service", () => {
     const sections = splitMarkdownSections(SHEET);
     const text = sections.find((s) => s.title.startsWith("Текст листа"));
