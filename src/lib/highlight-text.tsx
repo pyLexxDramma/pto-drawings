@@ -22,7 +22,7 @@ export function extractCiphers(query: string): string[] {
 
 /** Варианты строки для поиска на чертеже (длинная цитата → короче). */
 export function highlightNeedles(query: string): string[] {
-  const raw = normalizeQuote(query);
+  const raw = stripMarkdownMarks(normalizeQuote(query));
   if (raw.length < 2) return [];
   const needles = [raw];
   if (raw.length > 48) {
@@ -46,13 +46,13 @@ export function highlightNeedles(query: string): string[] {
 export function preferHighlightQuery(query: string, haystack = ""): string {
   const raw = query.trim();
   if (raw.length < 2) return raw;
-  const hay = normalizeQuote(haystack);
+  const hay = stripMarkdownMarks(normalizeQuote(haystack));
   for (const cipher of extractCiphers(raw).sort((a, b) => b.length - a.length)) {
     if (/^\d{1,2}$/.test(cipher)) continue;
     if (!hay || hay.includes(normalizeQuote(cipher))) return cipher;
   }
   if (hay) {
-    if (hay.includes(normalizeQuote(raw))) return raw;
+    if (hay.includes(stripMarkdownMarks(normalizeQuote(raw)))) return raw;
     for (const needle of highlightNeedles(raw)) {
       if (hay.includes(needle)) return needle;
     }
@@ -102,17 +102,17 @@ export function remarkTermsInMarkdown(
   remarks: Array<{ text?: string; aiFinding?: string; quotes?: string[] }>,
   extra: string[] = [],
 ): string[] {
-  const hay = normalizeQuote(markdown);
+  const hay = stripMarkdownMarks(normalizeQuote(markdown));
   const out = new Set<string>();
   for (const item of extra) {
     const t = item.trim();
-    if (t && (!hay || hay.includes(normalizeQuote(t)))) out.add(t);
+    if (t && (!hay || hay.includes(stripMarkdownMarks(normalizeQuote(t))))) out.add(t);
   }
   if (!hay) return [...out];
   for (const remark of remarks) {
     for (const quote of remark.quotes ?? []) {
       const t = quote.trim();
-      if (t.length >= 2 && hay.includes(normalizeQuote(t))) out.add(t);
+      if (t.length >= 2 && hay.includes(stripMarkdownMarks(normalizeQuote(t)))) out.add(t);
     }
     const blob = `${remark.text ?? ""} ${remark.aiFinding ?? ""}`.trim();
     if (!blob) continue;
@@ -261,15 +261,31 @@ export function findLayerHits(
   return [];
 }
 
+/**
+ * Цитату со скана конвейер берёт из расшифровки, а она размечена: в строке
+ * приезжают `**` и `_`. Ни в тексте листа на экране, ни в цитате эти знаки
+ * смысла не несут — сравниваем без них.
+ */
+export function stripMarkdownMarks(text: string): string {
+  return text.replace(/[*_`~]+/g, "").replace(/\s+/g, " ").trim();
+}
+
 /** Находит вхождения needle в text с гибкими пробелами; индексы — в исходном text. */
 export function findQuoteRanges(
   text: string,
   query: string,
 ): { index: number; length: number }[] {
-  const needle = normalizeQuote(query);
+  const needle = stripMarkdownMarks(normalizeQuote(query));
   if (needle.length < 2 || !text) return [];
-  const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const pattern = escaped.replace(/\s+/g, "\\s+");
+  // Знаки разметки в расшифровке рвут фразу в любом месте: «**250 кВт**, а по»
+  // — поэтому между любыми двумя символами цитаты допускаем разметку.
+  const pattern = [...needle]
+    .map((char) =>
+      /\s/.test(char)
+        ? "[\\s*_`~]+"
+        : char.replace(/[.*+?^${}()|[\]\\]/, "\\$&") + "[*_`~]*",
+    )
+    .join("");
   const re = new RegExp(pattern, "gi");
   const ranges: { index: number; length: number }[] = [];
   let match: RegExpExecArray | null;
@@ -280,7 +296,7 @@ export function findQuoteRanges(
   if (ranges.length > 0) return ranges;
   // fallback: прямое вхождение нормализованного куска в lower text
   const lower = text.toLowerCase();
-  const plain = query.trim().toLowerCase();
+  const plain = stripMarkdownMarks(query.trim().toLowerCase());
   if (plain.length >= 2) {
     let start = 0;
     let index = lower.indexOf(plain, start);
@@ -306,7 +322,15 @@ export function highlightPlain(
   query: string,
   opts?: HighlightOpts,
 ): ReactNode {
-  const ranges = findQuoteRanges(text, query);
+  return markRanges(text, findQuoteRanges(text, query), opts);
+}
+
+/** Оборачивает готовые отрезки текста в <mark>. */
+function markRanges(
+  text: string,
+  ranges: { index: number; length: number }[],
+  opts?: HighlightOpts,
+): ReactNode {
   if (ranges.length === 0) return text;
   const parts: ReactNode[] = [];
   let start = 0;
@@ -446,26 +470,62 @@ export function highlightNodesShared(
   return highlightNodesInner(children, needle, state);
 }
 
+/** Плоский текст поддерева — в том же порядке, в каком его обходит подсветка. */
+function flattenNodes(children: ReactNode): string {
+  if (typeof children === "string" || typeof children === "number") return String(children);
+  if (Array.isArray(children)) return children.map(flattenNodes).join("");
+  if (isValidElement(children)) {
+    const props = (children as ReactElement<{ children?: ReactNode }>).props;
+    return props.children === undefined ? "" : flattenNodes(props.children);
+  }
+  return "";
+}
+
+/** Курсор обхода: сколько символов абзаца уже пройдено. */
+type HighlightWalk = {
+  state: FocusHighlightState;
+  ranges: { index: number; length: number }[];
+  at: number;
+};
+
 function highlightNodesInner(
   children: ReactNode,
   needle: string,
   state: FocusHighlightState,
 ): ReactNode {
+  // Цитату ищем по тексту всего абзаца: модель выделяет числа разметкой, и
+  // «принята **250 кВт**, а по расчёту 180 кВт» приезжает в браузер тремя
+  // узлами. Поузловой поиск такую фразу не находил вовсе (0094).
+  const ranges = findQuoteRanges(flattenNodes(children), needle);
+  if (ranges.length === 0) return children;
+  return highlightWalk(children, { state, ranges, at: 0 });
+}
+
+function highlightWalk(children: ReactNode, walk: HighlightWalk): ReactNode {
   if (typeof children === "string" || typeof children === "number") {
-    return highlightPlain(String(children), needle, {
-      focusStyle: state.focusStyle,
-      placeAnchor: state.focusStyle,
+    const text = String(children);
+    const start = walk.at;
+    walk.at += text.length;
+    const local: { index: number; length: number }[] = [];
+    for (const range of walk.ranges) {
+      const from = Math.max(range.index, start);
+      const to = Math.min(range.index + range.length, start + text.length);
+      if (to > from) local.push({ index: from - start, length: to - from });
+    }
+    return markRanges(text, local, {
+      focusStyle: walk.state.focusStyle,
+      placeAnchor: walk.state.focusStyle,
     });
   }
   if (Array.isArray(children)) {
     return children.map((child, index) => (
-      <Fragment key={index}>{highlightNodesInner(child, needle, state)}</Fragment>
+      <Fragment key={index}>{highlightWalk(child, walk)}</Fragment>
     ));
   }
   if (isValidElement(children)) {
     return mapElementChildren(
       children as ReactElement<{ children?: ReactNode }>,
-      (inner) => highlightNodesInner(inner, needle, state),
+      (inner) => highlightWalk(inner, walk),
     );
   }
   return children;
