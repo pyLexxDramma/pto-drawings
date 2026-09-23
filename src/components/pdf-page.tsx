@@ -100,15 +100,19 @@ function legibleTextHeight(
   return upper[Math.floor(upper.length / 2)] ?? 0;
 }
 
-/** Ширина самой длинной строки в единицах вьюпорта страницы. */
+/** Ширина самой длинной крупной строки. Мелкие размеры на всю ширину листа не берём. */
 function widestLinePx(
   items: Array<{ str?: string; transform?: number[]; width?: number }>,
   vt: number[],
+  minHeight: number,
+  pageWidth: number,
 ): number {
   const lines = new Map<number, { min: number; max: number }>();
   for (const item of items) {
     if (!item.str?.trim() || !item.transform) continue;
     const t = item.transform;
+    const glyph = Math.hypot(vt[0] * t[2] + vt[2] * t[3], vt[1] * t[2] + vt[3] * t[3]);
+    if (glyph < minHeight) continue;
     const x = vt[0] * t[4] + vt[2] * t[5] + vt[4];
     const y = vt[1] * t[4] + vt[3] * t[5] + vt[5];
     const wScale = Math.hypot(vt[0] * t[0] + vt[2] * t[1], vt[1] * t[0] + vt[3] * t[1]);
@@ -120,7 +124,12 @@ function widestLinePx(
     lines.set(key, span);
   }
   let widest = 0;
-  for (const span of lines.values()) widest = Math.max(widest, span.max - span.min);
+  const limit = pageWidth * 0.82;
+  for (const span of lines.values()) {
+    const width = span.max - span.min;
+    if (width >= limit) continue;
+    widest = Math.max(widest, width);
+  }
   return widest;
 }
 
@@ -304,8 +313,11 @@ export function PdfPage({
           width?: number;
         }>;
         textContentRef.current = { items, viewport: pageViewport };
-        setLegibleTextPx(legibleTextHeight(items, pageViewport.transform));
-        setWidestLine(widestLinePx(items, pageViewport.transform));
+        const height = legibleTextHeight(items, pageViewport.transform);
+        setLegibleTextPx(height);
+        setWidestLine(
+          widestLinePx(items, pageViewport.transform, height * 0.85, pageViewport.width),
+        );
 
         if (!cancelled) setLoading(false);
       } catch (err) {
