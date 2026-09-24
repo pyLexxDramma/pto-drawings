@@ -8,6 +8,7 @@ import {
   SEVERITY_CHIP,
   SEVERITY_ROW,
   VERDICT_CHIP,
+  severityCellFrame,
 } from "@/lib/review-colors";
 import {
   placeDeepLink,
@@ -433,13 +434,21 @@ export function ResolvedReviewsPage() {
               {group.items.map((review) => (
                 <tr
                   key={review.id}
-                  className={`align-top ${
-                    review.severity === "high" ? SEVERITY_ROW.high : "bg-white"
-                  } ${review.severity === "skip" ? "opacity-60" : ""}`}
+                  className={`align-top ${SEVERITY_ROW[review.severity] || "bg-white"}`}
                 >
-                  <Td className="tabular-nums text-muted">{review.number}</Td>
-                  <Td className="text-muted">{review.section || "—"}</Td>
-                  <Td>
+                  <Td
+                    className="tabular-nums text-muted"
+                    frame={severityCellFrame(review.severity, "first")}
+                  >
+                    {review.number}
+                  </Td>
+                  <Td
+                    className="text-muted"
+                    frame={severityCellFrame(review.severity, "mid")}
+                  >
+                    {review.section || "—"}
+                  </Td>
+                  <Td frame={severityCellFrame(review.severity, "mid")}>
                     <div className="whitespace-pre-wrap leading-snug">
                       {review.text}
                     </div>
@@ -449,7 +458,7 @@ export function ResolvedReviewsPage() {
                       </div>
                     ) : null}
                   </Td>
-                  <Td>
+                  <Td frame={severityCellFrame(review.severity, "mid")}>
                     <div className="space-y-0.5">
                       {review.locations.length === 0 ? (
                         <span className="text-muted">—</span>
@@ -467,7 +476,7 @@ export function ResolvedReviewsPage() {
                       )}
                     </div>
                   </Td>
-                  <Td>
+                  <Td frame={severityCellFrame(review.severity, "mid")}>
                     <VerdictBadge verdict={review.verdict} />
                     {review.wrongReason ? (
                       <div className="mt-1 whitespace-pre-wrap pto-t-md leading-snug text-rose-800">
@@ -475,7 +484,7 @@ export function ResolvedReviewsPage() {
                       </div>
                     ) : null}
                   </Td>
-                  <Td>
+                  <Td frame={severityCellFrame(review.severity, "mid")}>
                     <span
                       className={`inline-flex rounded border px-1.5 py-0.5 pto-t-md ${SEVERITY_CHIP[review.severity]}`}
                       title={`Важность: ${REVIEW_SEVERITY_LABEL[review.severity]}`}
@@ -483,7 +492,10 @@ export function ResolvedReviewsPage() {
                       {REVIEW_SEVERITY_LABEL[review.severity]}
                     </span>
                   </Td>
-                  <Td className="whitespace-pre-wrap leading-snug text-muted">
+                  <Td
+                    className="whitespace-pre-wrap leading-snug text-muted"
+                    frame={severityCellFrame(review.severity, "last")}
+                  >
                     {review.comment || "—"}
                   </Td>
                 </tr>
@@ -565,12 +577,16 @@ function Th({
 function Td({
   children,
   className = "",
+  frame = "",
 }: {
   children: React.ReactNode;
   className?: string;
+  frame?: string;
 }) {
   return (
-    <td className={`border-b border-border px-2 py-1.5 ${className}`}>
+    <td
+      className={`px-2 py-1.5 ${frame || "border-b border-border"} ${className}`}
+    >
       {children}
     </td>
   );
