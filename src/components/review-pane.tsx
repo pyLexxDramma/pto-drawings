@@ -1566,8 +1566,8 @@ export function ReviewPane({
                       }}
                       className={
                         markMode
-                          ? "rounded border border-slate-700 bg-slate-700 px-2 py-0.5 pto-t-sm font-semibold text-white"
-                          : "rounded border border-accent bg-accent px-2 py-0.5 pto-t-sm font-semibold text-white shadow-sm hover:bg-[#1d4ed8]"
+                          ? "rounded border border-rose-800 bg-rose-800 px-2 py-0.5 pto-t-sm font-semibold text-white"
+                          : "rounded border border-rose-600 bg-rose-600 px-2 py-0.5 pto-t-sm font-semibold text-white shadow-sm hover:bg-rose-700"
                       }
                     >
                       Отметить ошибку
@@ -1743,8 +1743,8 @@ export function ReviewPane({
                 onClick={toggleMark}
                 className={`rounded border px-2 py-0.5 pto-t-sm font-semibold ${
                   sidePanel === "notes" || markMode
-                    ? "border-slate-700 bg-slate-700 text-white"
-                    : "border-accent bg-accent text-white shadow-sm hover:bg-[#1d4ed8]"
+                    ? "border-rose-800 bg-rose-800 text-white"
+                    : "border-rose-600 bg-rose-600 text-white shadow-sm hover:bg-rose-700"
                 }`}
               >
                 Отметить ошибку

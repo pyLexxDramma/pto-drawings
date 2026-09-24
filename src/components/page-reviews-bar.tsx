@@ -63,15 +63,15 @@ export function PageReviewsBar({
             )}
           </span>
           <span className="shrink-0">Замечаний по листу: {reviews.length}</span>
-          <span className="min-w-0 truncate font-normal opacity-70">
-            {open
-              ? "· клик по строке подсветит место"
-              : activeReview
-                ? `· № ${activeReview.number} ${remarkWording(
-                    activeReview.text || activeReview.aiFinding || "",
-                  )}`
-                : "· нажмите, чтобы раскрыть список"}
-          </span>
+          {open || activeReview ? (
+            <span className="min-w-0 truncate font-normal opacity-70">
+              {open
+                ? "· клик по строке подсветит место"
+                : `· № ${activeReview?.number} ${remarkWording(
+                    activeReview?.text || activeReview?.aiFinding || "",
+                  )}`}
+            </span>
+          ) : null}
         </button>
         {!open && activeReview ? renderPlaceChips(activeReview) : null}
         {onOpenReviews ? (
