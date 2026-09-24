@@ -210,11 +210,16 @@ export function ViewerToolbar({
   return (
     <div
       onMouseDown={(event) => event.stopPropagation()}
-      className="absolute right-1.5 top-1.5 z-30 flex items-center gap-0.5 rounded border border-white/15 bg-slate-900/55 px-0.5 py-[3px] text-white shadow-md backdrop-blur"
+      /**
+       * Тот же вид, что у полосы под чертежом (ViewerStatusBar): раньше сверху
+       * висела тёмная плашка, снизу светлые — и обе видны на каждом листе
+       * одновременно. Чертёж теперь обрамлён одним хромом.
+       */
+      className="absolute right-1.5 top-1.5 z-30 flex items-center gap-0.5 rounded border border-border bg-white/92 px-0.5 py-[3px] text-text shadow-sm backdrop-blur"
       data-viewer-toolbar=""
     >
       {leading ? (
-        <div className="flex items-center border-r border-white/20 pr-1">
+        <div className="flex items-center border-r border-border pr-1">
           {leading}
         </div>
       ) : null}
@@ -231,7 +236,7 @@ export function ViewerToolbar({
           className={`pto-tool pto-tool--slim inline-flex w-6 items-center justify-center rounded border ${
             fullscreenActive
               ? "border-accent bg-accent text-white"
-              : "border-white/20 bg-white/10 text-white hover:bg-white/20"
+              : "border-border bg-white text-text hover:bg-black/5"
           }`}
         >
           <IconExpand className="h-3 w-3" />

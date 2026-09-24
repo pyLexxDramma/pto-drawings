@@ -622,7 +622,7 @@ export function ReviewPane({
   const kitSwitch = hasKitDrawing ? (
     <SegmentedTabs
       size="xs"
-      tone="onDark"
+      tone="light"
       value={kitDrawingView}
       onChange={(value) => setKitDrawingView(value as "pdf" | "cad")}
       options={[
