@@ -2,7 +2,7 @@
 
 import { Tooltip } from "@/components/tooltip";
 import { PaneToggle } from "@/components/ui-chrome";
-import { VERDICT_COUNT } from "@/lib/review-colors";
+import { VERDICT_CHIP } from "@/lib/review-colors";
 import {
   KIND_LABEL,
   REVIEW_VERDICT_LABEL,
@@ -20,7 +20,7 @@ function StatusChip({
   return (
     <Tooltip label={label}>
       <span
-        className={`inline-flex h-4 min-w-[1.125rem] items-center justify-center rounded-md ${className}`}
+        className={`inline-block h-2 w-2 shrink-0 rounded-sm ${className}`}
         aria-label={label}
       />
     </Tooltip>
@@ -101,36 +101,39 @@ function SheetRow({
               className="animate-pulse bg-accent motion-reduce:animate-none"
               label="Сейчас обрабатывается"
             />
-          ) : isReady ? (
-            <StatusChip className="bg-sem-ok" label="Текст готов" />
-          ) : (
+          ) : dots || isReady ? null : (
             <StatusChip className="bg-slate-300" label="Ждёт текст" />
           )}
           {isUnseen ? (
             <StatusChip
-              className="border border-sem-attn bg-sem-attn-soft"
+              className="outline outline-1 outline-sky-500 bg-sky-100"
               label="Лист не открывали"
             />
           ) : null}
           {dots ? (
-            <Tooltip
-              label={
+            <span
+              className={`inline-flex max-w-full items-center gap-0.5 truncate rounded-md border px-1 py-px pto-t-xs font-semibold leading-4 ${
+                openIssues ? VERDICT_CHIP.pending : VERDICT_CHIP[dots.verdict]
+              }`}
+              title={
                 openIssues
                   ? `${dots.pending} не разобрано из ${dots.count}`
-                  : `${dots.count} · ${REVIEW_VERDICT_LABEL[dots.verdict].toLowerCase()}`
+                  : `${dots.count} · ${REVIEW_VERDICT_LABEL[dots.verdict]}`
               }
             >
-              <span
-                className={`inline-flex min-w-[1.25rem] items-center justify-center rounded-md px-1 pto-t-xs font-semibold leading-4 tabular-nums ${VERDICT_COUNT[dots.verdict]}`}
-                aria-label={`${dots.count} · ${REVIEW_VERDICT_LABEL[dots.verdict]}`}
-              >
-                {dots.count}
+              <span className="truncate">
+                {openIssues
+                  ? REVIEW_VERDICT_LABEL.pending
+                  : REVIEW_VERDICT_LABEL[dots.verdict]}
               </span>
-            </Tooltip>
+              <span className="tabular-nums">
+                {openIssues ? dots.pending : dots.count}
+              </span>
+            </span>
           ) : isFlagged ? (
             <StatusChip className="bg-sem-issue" label="Есть отметка" />
           ) : isEdited ? (
-            <StatusChip className="bg-sem-attn" label="Лист правили" />
+            <StatusChip className="outline outline-1 outline-slate-400 bg-slate-200" label="Лист правили" />
           ) : null}
         </span>
       </span>
