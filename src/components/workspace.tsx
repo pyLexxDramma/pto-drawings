@@ -2395,6 +2395,12 @@ export function Workspace({
                 ),
               )}
             </div>
+            {selected ? (
+              <div
+                ref={setStripHost}
+                className="mt-2 min-h-[6rem] flex-1 overflow-hidden border-t-2 border-emerald-600 bg-emerald-50 p-1.5"
+              />
+            ) : null}
             {currentProject ? (
               <div className="shrink-0 border-t-2 border-amber-500 bg-amber-100 px-1.5 py-1.5">
                 <ResolvedSummary
@@ -2402,12 +2408,6 @@ export function Workspace({
                   projectId={currentProject.id}
                 />
               </div>
-            ) : null}
-            {selected ? (
-              <div
-                ref={setStripHost}
-                className="mt-2 min-h-[6rem] flex-1 overflow-hidden border-t-2 border-emerald-600 bg-emerald-50 p-1.5"
-              />
             ) : null}
           </aside>
         )}

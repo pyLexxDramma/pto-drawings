@@ -1,7 +1,6 @@
 "use client";
 
-import { Tooltip } from "@/components/tooltip";
-import { VerdictDot } from "@/components/ui-chrome";
+import { VERDICT_CHIP } from "@/lib/review-colors";
 import {
   REVIEW_VERDICT_LABEL,
   type Review,
@@ -17,6 +16,9 @@ export const RESOLVED_ORDER: ReviewVerdict[] = [
   "wrong",
 ];
 
+/** В блоке слева «не разобрано» стоит первым — это то, что ещё ждут. */
+const SIDEBAR_ORDER: ReviewVerdict[] = ["pending", ...RESOLVED_ORDER];
+
 export function resolvedCounts(reviews: Review[]) {
   const counts = new Map<ReviewVerdict, number>();
   let resolved = 0;
@@ -29,13 +31,57 @@ export function resolvedCounts(reviews: Review[]) {
   return { counts, resolved, total };
 }
 
-export function reviewsPageUrl(projectId: string): string {
-  return `/reviews?project=${encodeURIComponent(projectId)}`;
+export function reviewsPageUrl(
+  projectId: string,
+  verdict?: ReviewVerdict | null,
+): string {
+  const params = new URLSearchParams({ project: projectId });
+  if (verdict) params.set("verdict", verdict);
+  return `/reviews?${params.toString()}`;
+}
+
+function openReviews(projectId: string, verdict?: ReviewVerdict | null) {
+  // Без noopener: из новой вкладки нужно вернуться в эту и показать место.
+  window.open(reviewsPageUrl(projectId, verdict), "_blank");
+}
+
+function VerdictChip({
+  verdict,
+  count,
+  onClick,
+}: {
+  verdict: ReviewVerdict;
+  count: number;
+  onClick?: () => void;
+}) {
+  const label = `${REVIEW_VERDICT_LABEL[verdict]}: ${count}`;
+  const className = `inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 pto-t-xs font-semibold tabular-nums leading-none ${VERDICT_CHIP[verdict]}`;
+  if (!onClick) {
+    return (
+      <span title={label} className={className}>
+        {count}
+      </span>
+    );
+  }
+  return (
+    <button
+      type="button"
+      title={`Открыть «${REVIEW_VERDICT_LABEL[verdict]}» в отдельной вкладке`}
+      aria-label={label}
+      onClick={(event) => {
+        event.stopPropagation();
+        onClick();
+      }}
+      className={`${className} hover:brightness-95`}
+    >
+      {count}
+    </button>
+  );
 }
 
 /**
- * Маленькое окно итогов разбора: кружки по статусам с числами, подписи — по
- * наведению. Клик открывает разобранные замечания в отдельной вкладке.
+ * Итоги разбора слева внизу. Заголовок открывает все разобранные, каждая
+ * кнопка статуса — ту же вкладку, уже отфильтрованную на этот итог.
  */
 export function ResolvedSummary({
   reviews,
@@ -51,17 +97,15 @@ export function ResolvedSummary({
 }) {
   const { counts, resolved, total } = resolvedCounts(reviews);
   if (total === 0) return null;
-  const shown = RESOLVED_ORDER.filter((verdict) => (counts.get(verdict) ?? 0) > 0);
-  const open = () => {
-    // Без noopener: из новой вкладки нужно вернуться в эту и показать место.
-    window.open(reviewsPageUrl(projectId), "_blank");
-  };
+  const shown = (compact ? RESOLVED_ORDER : SIDEBAR_ORDER).filter(
+    (verdict) => (counts.get(verdict) ?? 0) > 0,
+  );
 
   if (compact) {
     return (
       <button
         type="button"
-        onClick={open}
+        onClick={() => openReviews(projectId)}
         title="Открыть разобранные замечания в отдельной вкладке"
         className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-border bg-white px-1.5 py-0.5 pto-t-md leading-none hover:border-accent hover:bg-blue-50/60 ${className}`}
       >
@@ -69,14 +113,11 @@ export function ResolvedSummary({
           Разобрано {resolved} из {total}
         </span>
         {shown.map((verdict) => (
-          <span
+          <VerdictChip
             key={verdict}
-            title={`${REVIEW_VERDICT_LABEL[verdict]}: ${counts.get(verdict)}`}
-            className="inline-flex items-center gap-0.5 text-muted"
-          >
-            <VerdictDot verdict={verdict} />
-            <span className="tabular-nums">{counts.get(verdict)}</span>
-          </span>
+            verdict={verdict}
+            count={counts.get(verdict) ?? 0}
+          />
         ))}
         <span className="text-accent underline decoration-dotted">открыть</span>
       </button>
@@ -84,31 +125,31 @@ export function ResolvedSummary({
   }
 
   return (
-    <button
-      type="button"
-      onClick={open}
-      title="Открыть разобранные замечания в отдельной вкладке"
-      className={`w-full rounded-md border-2 border-amber-600 bg-amber-50 px-1.5 py-1 text-left hover:border-amber-700 hover:bg-amber-100 ${className}`}
+    <div
+      className={`w-full rounded-md border-2 border-amber-600 bg-amber-50 px-1.5 py-1 ${className}`}
     >
-      <div className="flex items-center justify-between gap-1 pto-t-sm font-medium text-text">
+      <button
+        type="button"
+        onClick={() => openReviews(projectId)}
+        title="Открыть разобранные замечания в отдельной вкладке"
+        className="flex w-full items-center justify-between gap-1 pto-t-sm font-medium text-text hover:text-accent"
+      >
         <span className="tabular-nums">
           Разобрано {resolved} из {total}
         </span>
         <span className="pto-t-xs text-accent underline decoration-dotted">
           открыть
         </span>
-      </div>
+      </button>
       {shown.length > 0 ? (
-        <div className="mt-0.5 flex flex-wrap items-center gap-1">
+        <div className="mt-1 flex flex-wrap items-center gap-1">
           {shown.map((verdict) => (
-            <Tooltip
+            <VerdictChip
               key={verdict}
-              label={`${REVIEW_VERDICT_LABEL[verdict]}: ${counts.get(verdict)}`}
-              className="items-center gap-0.5 pto-t-sm text-muted"
-            >
-              <VerdictDot verdict={verdict} />
-              <span className="tabular-nums">{counts.get(verdict)}</span>
-            </Tooltip>
+              verdict={verdict}
+              count={counts.get(verdict) ?? 0}
+              onClick={() => openReviews(projectId, verdict)}
+            />
           ))}
         </div>
       ) : (
@@ -116,6 +157,6 @@ export function ResolvedSummary({
           Поставьте статус в таблице — итоги появятся здесь
         </div>
       )}
-    </button>
+    </div>
   );
 }

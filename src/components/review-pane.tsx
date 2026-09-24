@@ -442,20 +442,24 @@ export function ReviewPane({
       "confirmed",
       "outdated",
     ];
-    const map = new Map<number, { count: number; verdict: Review["verdict"] }>();
+    const map = new Map<
+      number,
+      { count: number; verdict: Review["verdict"]; pending: number }
+    >();
     for (const review of fileReviews) {
       const pages = new Set<number>();
       for (const loc of review.locations) {
         if (loc.documentId !== document.id || !loc.pageNumber) continue;
         pages.add(loc.pageNumber);
       }
-      for (const pageNumber of pages) {
-        const prev = map.get(pageNumber);
+      for (const page of pages) {
+        const prev = map.get(page);
         const worse =
           !prev ||
           strength.indexOf(review.verdict) < strength.indexOf(prev.verdict);
-        map.set(pageNumber, {
+        map.set(page, {
           count: (prev?.count ?? 0) + 1,
+          pending: (prev?.pending ?? 0) + (review.verdict === "pending" ? 1 : 0),
           verdict: worse ? review.verdict : prev.verdict,
         });
       }
