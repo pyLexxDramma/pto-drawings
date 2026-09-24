@@ -116,7 +116,7 @@ async function goToTextSheet(page, doc) {
 
 async function menuText(page) {
   // Действия по листу переехали из «⋯» в меню пользователя (09.09).
-  await page.locator('button[aria-haspopup="menu"]').filter({ hasText: "▾" }).last().click();
+  await page.locator("[data-user-menu]").last().click();
   await page.waitForTimeout(300);
   const text = await page.locator('[role="menu"]').innerText().catch(() => "");
   await page.locator(".flex.h-12").click({ position: { x: 120, y: 24 } });

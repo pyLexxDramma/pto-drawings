@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { IconClose } from "@/components/tool-icons";
 import type { ProcessingAlert } from "@/lib/processing-alerts";
 
 const STORAGE_KEY = "pto-dismissed-processing-alerts";
@@ -141,12 +142,13 @@ export function ProcessingAlertsBar({
             </button>
             <button
               type="button"
-              className="shrink-0 px-1 text-red-800/50 hover:text-red-950"
-              aria-label="Скрыть"
-              onClick={() => dismiss(item.id)}
-            >
-              ×
-            </button>
+                className="inline-flex shrink-0 items-center px-1 text-red-800/50 hover:text-red-950"
+                aria-label="Скрыть"
+                title="Скрыть"
+                onClick={() => dismiss(item.id)}
+              >
+                <IconClose className="h-3 w-3" />
+              </button>
           </li>
         ))}
       </ul>

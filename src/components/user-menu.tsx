@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ControlsHelpDialog } from "@/components/review-pane-help";
+import { IconChevronDown } from "@/components/tool-icons";
 import { ROLE_LABEL, type PublicUser } from "@/types";
 
 type UserMenuProps = {
@@ -66,6 +67,7 @@ export function UserMenu({
         aria-label={`${role}: ${user.displayName}`}
         onClick={() => setOpen((value) => !value)}
         title={`${user.displayName} · ${role}`}
+        data-user-menu=""
         className={`flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md border-2 text-left ${
           compact ? "px-1.5 py-1" : "px-2 py-1"
         } ${
@@ -103,14 +105,13 @@ export function UserMenu({
           </span>
         )}
         <span
-          className={`pto-t-sm ${
+          className={`shrink-0 ${
             user.role === "admin" && !defaultPasswordWarning
               ? "text-white/80"
               : "text-slate-500"
           }`}
-          aria-hidden
         >
-          ▾
+          <IconChevronDown className="h-3 w-3" />
         </span>
       </button>
       {open ? (

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { IconClose } from "@/components/tool-icons";
 
 export type ToastTone = "ok" | "error" | "info";
 
@@ -64,13 +65,15 @@ export function ToastHost({
         >
           <div className="flex items-start justify-between gap-2">
             <span>{item.message}</span>
-            <button
-              type="button"
-              className="shrink-0 text-xs opacity-60 hover:opacity-100"
-              onClick={() => onDismiss(item.id)}
-            >
-              ×
-            </button>
+              <button
+                type="button"
+                className="inline-flex shrink-0 items-center opacity-60 hover:opacity-100"
+                aria-label="Закрыть"
+                title="Закрыть"
+                onClick={() => onDismiss(item.id)}
+              >
+                <IconClose className="h-3 w-3" />
+              </button>
           </div>
         </div>
       ))}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { IconChevronRight, IconClose } from "@/components/tool-icons";
 import { ProgressTrack, Spinner } from "@/components/ui-chrome";
 import { useSmoothProgress } from "@/hooks/use-smooth-progress";
 import {
@@ -382,7 +383,9 @@ export function LiveProgressDock({
           <Spinner className="h-2.5 w-2.5 shrink-0 text-sky-700" />
         ) : null}
         <span className="truncate">{formatProcessingPercent(percent)}</span>
-        <span className="text-sky-700/70">▸</span>
+          <span className="shrink-0 text-sky-700/70">
+            <IconChevronRight className="h-3 w-3" />
+          </span>
       </button>
     );
   }
@@ -430,10 +433,10 @@ export function LiveProgressDock({
                 ? "Закрыть"
                 : "Скрыть (обработка не остановится)"
             }
-            aria-label={isFinished ? "Закрыть" : "Скрыть прогресс"}
-          >
-            ×
-          </button>
+              aria-label={isFinished ? "Закрыть" : "Скрыть прогресс"}
+            >
+              <IconClose className="h-3 w-3" />
+            </button>
         ) : null}
       </div>
       <div className="px-2.5 pb-1.5 pt-1">
@@ -561,11 +564,11 @@ export function ProcessingCompactBadge({
                   setHidden(true);
                 }
               }}
-              className="shrink-0 rounded px-1.5 py-0.5 pto-t-md text-muted hover:bg-bg hover:text-text"
-              title="Скрыть"
-            >
-              ✕
-            </span>
+                className="inline-flex shrink-0 items-center rounded px-1.5 py-0.5 text-muted hover:bg-bg hover:text-text"
+                title="Скрыть"
+              >
+                <IconClose className="h-3 w-3" />
+              </span>
           ) : interactive ? (
             <span className="shrink-0 pto-t-sm font-medium text-sky-800">
               Развернуть

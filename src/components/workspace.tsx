@@ -33,7 +33,7 @@ import {
   Spinner,
   menuItemClass,
 } from "@/components/ui-chrome";
-import { IconChevronRight } from "@/components/tool-icons";
+import { IconChevronDown, IconChevronRight } from "@/components/tool-icons";
 import { UserMenu } from "@/components/user-menu";
 import { UsersPanel } from "@/components/users-panel";
 import {
@@ -2161,8 +2161,12 @@ export function Workspace({
                         aria-expanded={project.id === projectId}
                       >
                         <span className="flex items-center gap-1">
-                          <span className="pto-t-sm text-muted">
-                            {project.id === projectId ? "▾" : "▸"}
+                          <span className="shrink-0 text-muted">
+                            {project.id === projectId ? (
+                              <IconChevronDown className="h-3 w-3" />
+                            ) : (
+                              <IconChevronRight className="h-3 w-3" />
+                            )}
                           </span>
                           <span className="min-w-0 flex-1 truncate font-medium">{project.name}</span>
                         </span>
