@@ -8,7 +8,8 @@
  *     и смыслов у них ровно три: ждёт, готово, ошибка;
  *  2. важность замечания и итог разбора — две независимые шкалы, у значений
  *     внутри каждой свой цвет, иначе выпадашка сливается в одно пятно;
- *  3. строка таблицы белая, важность — рамка high/medium/low, статус фон не даёт;
+ *  3. важность красит только клетку «Замечание» (блеклая заливка + яркая рамка),
+ *     не всю строку; статус фон строки не даёт;
  *  4. табы этапов на accent, а не на sky или violet;
  *  5. цветные зоны левой колонки остаются разделёнными толстой рамкой — их
  *     сделали такими нарочно, чтобы инженер не кликнул не в ту зону.
@@ -100,24 +101,19 @@ check(
   inner ? "цветом и формой (прорезь внутри)" : `${hue(dots.partial)} против ${hue(dots.discuss)}`,
 );
 
-// -------------------------- 3. строка белая, важность — рамка, не заливка
+// --------------- 3. важность красит клетку «Замечание», не всю строку
 
-const severityRow = Object.fromEntries(entries("SEVERITY_ROW"));
-const washed = Object.entries(severityRow).filter(([, value]) =>
-  /\bbg-(?!white\b)[a-z]+-\d{2,3}\b/.test(value),
+const remark = Object.fromEntries(entries("SEVERITY_REMARK"));
+const remarkKeys = ["high", "medium", "low"];
+check(
+  "клетка замечания: блеклая заливка high/medium/low",
+  remarkKeys.every((key) => /\bbg-\w+-50\b/.test(remark[key] ?? "")),
+  remarkKeys.map((key) => `${key}: ${remark[key] ?? "нет"}`).join(", "),
 );
 check(
-  "важность не заливает фон строки",
-  washed.length === 0,
-  washed.map(([key, value]) => `${key}: ${value}`).join(", ") || "только рамка",
-);
-const framed = ["high", "medium", "low"].filter((key) =>
-  /ring-|outline-/.test(severityRow[key] ?? ""),
-);
-check(
-  "важность high/medium/low — яркая рамка строки",
-  framed.length === 3,
-  framed.join(", ") || "рамок нет",
+  "клетка замечания: яркая рамка high/medium/low",
+  remarkKeys.every((key) => /border-2/.test(remark[key] ?? "")),
+  remarkKeys.map((key) => `${key}: ${remark[key] ?? "нет"}`).join(", "),
 );
 check(
   "итог разбора фон строки не даёт",
@@ -156,6 +152,7 @@ check(
   /Оси цвета в интерфейсе/.test(doc) &&
     ["--sem-issue", "--sem-ok", "--sem-attn"].every((t) => doc.includes(t)) &&
     /SEVERITY_CHIP/.test(doc) &&
+    /SEVERITY_REMARK/.test(doc) &&
     /VERDICT_CHIP/.test(doc),
 );
 check(
