@@ -54,19 +54,26 @@ function VerdictChip({
   count: number;
   onClick?: () => void;
 }) {
-  const label = `${REVIEW_VERDICT_LABEL[verdict]}: ${count}`;
-  const className = `inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 pto-t-xs font-semibold tabular-nums leading-none ${VERDICT_CHIP[verdict]}`;
+  const name = REVIEW_VERDICT_LABEL[verdict];
+  const label = `${name}: ${count}`;
+  const className = `inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 pto-t-xs font-semibold leading-none ${VERDICT_CHIP[verdict]}`;
+  const body = (
+    <>
+      <span>{name}</span>
+      <span className="tabular-nums">{count}</span>
+    </>
+  );
   if (!onClick) {
     return (
       <span title={label} className={className}>
-        {count}
+        {body}
       </span>
     );
   }
   return (
     <button
       type="button"
-      title={`Открыть «${REVIEW_VERDICT_LABEL[verdict]}» в отдельной вкладке`}
+      title={`Открыть «${name}» в отдельной вкладке`}
       aria-label={label}
       onClick={(event) => {
         event.stopPropagation();
@@ -74,7 +81,7 @@ function VerdictChip({
       }}
       className={`${className} hover:brightness-95`}
     >
-      {count}
+      {body}
     </button>
   );
 }
