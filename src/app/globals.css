@@ -268,8 +268,7 @@ body {
   border-bottom: 1px solid var(--border);
 }
 
-.markdown-body .sheet-section-head:first-child,
-.markdown-body [data-sheet-toc] + section .sheet-section-head {
+.markdown-body .sheet-section-head:first-child {
   margin-top: 0;
 }
 
