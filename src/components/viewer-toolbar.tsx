@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { IconExpand } from "@/components/tool-icons";
+import {
+  IconChevronLeft,
+  IconChevronRight,
+  IconExpand,
+  IconMinus,
+  IconPlus,
+} from "@/components/tool-icons";
 import type { FitMode } from "@/hooks/use-page-viewport";
 
 const PERCENTS = [50, 100, 200, 400];
@@ -70,9 +76,9 @@ export function ViewerSheetControls({
             aria-label="Предыдущий лист"
             onClick={() => onPrevPage?.()}
             disabled={!canPrevPage}
-            className="pto-tool pto-tool--slim inline-flex w-6 items-center justify-center text-xs font-bold hover:bg-black/5 disabled:cursor-default disabled:opacity-40"
+            className="pto-tool pto-tool--slim inline-flex w-6 items-center justify-center hover:bg-black/5 disabled:cursor-default disabled:opacity-40"
           >
-            ←
+            <IconChevronLeft className="h-3 w-3" />
           </button>
           <button
             type="button"
@@ -80,9 +86,9 @@ export function ViewerSheetControls({
             aria-label="Следующий лист"
             onClick={() => onNextPage?.()}
             disabled={!canNextPage}
-            className="pto-tool pto-tool--slim inline-flex w-6 items-center justify-center border-l border-border text-xs font-bold hover:bg-black/5 disabled:cursor-default disabled:opacity-40"
+            className="pto-tool pto-tool--slim inline-flex w-6 items-center justify-center border-l border-border hover:bg-black/5 disabled:cursor-default disabled:opacity-40"
           >
-            →
+            <IconChevronRight className="h-3 w-3" />
           </button>
         </div>
       ) : null}
@@ -92,9 +98,9 @@ export function ViewerSheetControls({
           title="Отдалить"
           aria-label="Отдалить"
           onClick={() => onZoomBy(1 / 1.25)}
-          className="pto-tool pto-tool--slim flex w-6 items-center justify-center rounded text-sm leading-none hover:bg-black/5"
+          className="pto-tool pto-tool--slim flex w-6 items-center justify-center rounded hover:bg-black/5"
         >
-          −
+          <IconMinus className="h-3 w-3" />
         </button>
         <div className="relative">
           <button
@@ -179,9 +185,9 @@ export function ViewerSheetControls({
           title="Приблизить"
           aria-label="Приблизить"
           onClick={() => onZoomBy(1.25)}
-          className="pto-tool pto-tool--slim flex w-6 items-center justify-center rounded text-sm leading-none hover:bg-black/5"
+          className="pto-tool pto-tool--slim flex w-6 items-center justify-center rounded hover:bg-black/5"
         >
-          +
+          <IconPlus className="h-3 w-3" />
         </button>
       </div>
     </div>
@@ -204,11 +210,16 @@ export function ViewerToolbar({
   return (
     <div
       onMouseDown={(event) => event.stopPropagation()}
-      className="absolute right-1.5 top-1.5 z-30 flex items-center gap-0.5 rounded border border-white/15 bg-slate-900/55 px-0.5 py-[3px] text-white shadow-md backdrop-blur"
+      /**
+       * Тот же вид, что у полосы под чертежом (ViewerStatusBar): раньше сверху
+       * висела тёмная плашка, снизу светлые — и обе видны на каждом листе
+       * одновременно. Чертёж теперь обрамлён одним хромом.
+       */
+      className="absolute right-1.5 top-1.5 z-30 flex items-center gap-0.5 rounded border border-border bg-white/92 px-0.5 py-[3px] text-text shadow-sm backdrop-blur"
       data-viewer-toolbar=""
     >
       {leading ? (
-        <div className="flex items-center border-r border-white/20 pr-1">
+        <div className="flex items-center border-r border-border pr-1">
           {leading}
         </div>
       ) : null}
@@ -225,7 +236,7 @@ export function ViewerToolbar({
           className={`pto-tool pto-tool--slim inline-flex w-6 items-center justify-center rounded border ${
             fullscreenActive
               ? "border-accent bg-accent text-white"
-              : "border-white/20 bg-white/10 text-white hover:bg-white/20"
+              : "border-border bg-white text-text hover:bg-black/5"
           }`}
         >
           <IconExpand className="h-3 w-3" />

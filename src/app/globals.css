@@ -6,16 +6,24 @@
   --surface-2: #eef1f5;
   --border: #e2e7ee;
   --text: #1c2330;
-  --muted: #6b7380;
+  /**
+   * Было #6b7380 — на подложке --surface-2 это 4.2:1, и подписи в 10–11px
+   * (даты файлов, счётчики) читались на пределе. Стало 5.3:1 на ней и 6:1 на
+   * белом.
+   */
+  --muted: #5a6472;
   --accent: #2563eb;
   --state-error: #dc2626;
   --state-warn: #d97706;
   --state-ok: #059669;
   /**
-   * Три смысла статуса замечания — и всё. До этого в таблице и чипах жили
-   * red / orange / sky / amber / violet / rose / emerald: orange значил и
-   * «средняя важность», и подсветку значения на чертеже, sky — и «низкую
-   * важность», и таб этапа. Оси цвета зафиксированы в docs/page-contract.md.
+   * Состояние системы — как идёт обработка файла и листа плюс предупреждения
+   * конвейера. Ровно три смысла: ждёт, готово, ошибка. Прямые цвета Tailwind
+   * здесь запрещены, иначе «ошибка» разъезжается по red / rose / orange.
+   *
+   * Важность замечания и итог разбора — отдельные шкалы со своими цветами, они
+   * живут в lib/review-colors.ts. Все четыре оси цвета описаны в
+   * docs/page-contract.md и закреплены scripts/palette-check.mjs.
    */
   --sem-issue: #e11d48;
   --sem-issue-soft: #fff1f3;
@@ -92,6 +100,20 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-inter), Arial, Helvetica, sans-serif;
+}
+
+/**
+ * Кольцо фокуса на все органы управления сразу. До этого focus-visible был
+ * прописан руками в четырёх местах из тридцати восьми: инженер ходит по листам
+ * с клавиатуры (J/K, /, F), а где он находится — было не видно.
+ *
+ * Поля ввода сюда не входят: у них фокус уже показан рамкой focus:border-accent,
+ * и выделять их ещё и кольцом значило бы мигать рамкой на каждый клик мышью.
+ * Область чертежа тоже не входит — это не орган управления, у неё своя подсветка.
+ */
+:where(a, button, select, summary, [role="tab"], [role="menuitem"], [role="option"]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 /**
@@ -268,8 +290,7 @@ body {
   border-bottom: 1px solid var(--border);
 }
 
-.markdown-body .sheet-section-head:first-child,
-.markdown-body [data-sheet-toc] + section .sheet-section-head {
+.markdown-body .sheet-section-head:first-child {
   margin-top: 0;
 }
 
@@ -329,7 +350,13 @@ body {
   border-spacing: 0;
   margin: 0.8em 0;
   font-size: var(--md-size);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /*
+   * Моношрифта здесь больше нет. Основную площадь ведомости занимает
+   * «Наименование и техническая характеристика» — связный русский текст, а в
+   * Consolas он заметно шире, из-за чего каждая позиция переносилась на лишнюю
+   * строку. Выравнивать цифры по разрядам всё равно нечему: ячейки прижаты
+   * влево, а tabular-nums вдобавок раздвигал дефис в «ГОСТ 21.501-2018».
+   */
 }
 
 /*
@@ -392,8 +419,13 @@ body {
   background: #e8f1ff !important;
 }
 
+/**
+ * Зебра светлее шапки. Было #e8eef6 — ровно цвет thead, поэтому приклеенная
+ * при прокрутке шапка сливалась с каждой второй строкой и переставала читаться
+ * как шапка.
+ */
 .markdown-body tbody tr:nth-child(even) td {
-  background: #e8eef6;
+  background: #f1f5f9;
 }
 
 .markdown-body tbody tr:hover td {
@@ -466,7 +498,12 @@ body {
 .pto-remark-zone {
   outline-style: solid;
   outline-width: 1.5px;
-  animation: pto-remark-flash 1.6s ease-in-out 4;
+  /**
+   * Два цикла вместо четырёх: 6,4 секунды пульсации инженер досматривал уже
+   * после того, как нашёл место. Кадр 100% оставляет ту же яркую подсветку,
+   * что и раньше, — сигнал не слабее, только короче.
+   */
+  animation: pto-remark-flash 1.6s ease-in-out 2;
   animation-fill-mode: forwards;
   background-color: rgb(251 146 60 / 0.14);
   outline-color: rgb(234 88 12 / 0.45);

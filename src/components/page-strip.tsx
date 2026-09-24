@@ -70,9 +70,12 @@ function SheetRow({
       aria-current={current ? "page" : undefined}
       aria-label={`Лист ${pageNumber}, ${kindLabel}${fallback ? `. ${fallback}` : ""}`}
       onClick={() => onSelect(pageNumber)}
-      className={`mb-0.5 flex w-full flex-col rounded-md border-2 px-1.5 py-0.5 text-left [-webkit-tap-highlight-color:transparent] ${
+      className={`mb-0.5 flex w-full flex-col rounded-md border px-1.5 py-0.5 text-left [-webkit-tap-highlight-color:transparent] ${
         current
-          ? "border-emerald-700 bg-white"
+          ? // Открытый лист — заливкой, а не оттенком рамки: на тонкой рамке
+            // оттенок не читался, а толщина сдвигала бы весь список при
+            // листании с клавиатуры. Accent здесь значит «вы находитесь тут».
+            "border-accent bg-accent/10 font-semibold"
           : isWorking
             ? "pto-page-working border-sky-400 bg-sky-50"
             : "border-emerald-400 bg-white hover:border-emerald-600 hover:bg-emerald-100"

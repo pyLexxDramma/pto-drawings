@@ -23,6 +23,7 @@ import { modelIssueCount } from "@/components/model-check-panel";
 import {
   IconChevronLeft,
   IconChevronRight,
+  IconClose,
 } from "@/components/tool-icons";
 import type { ModelCheckInput } from "@/lib/model-check";
 import { KEYMAP, KEYMAP_GROUPS } from "@/lib/keymap";
@@ -621,7 +622,7 @@ export function ReviewPane({
   const kitSwitch = hasKitDrawing ? (
     <SegmentedTabs
       size="xs"
-      tone="onDark"
+      tone="light"
       value={kitDrawingView}
       onChange={(value) => setKitDrawingView(value as "pdf" | "cad")}
       options={[
@@ -1535,12 +1536,12 @@ export function ReviewPane({
                     <button
                       type="button"
                       onClick={() => setQuoteBannerOn(false)}
-                      className="shrink-0 rounded px-1 leading-none opacity-70 hover:bg-black/5 hover:opacity-100"
-                      title="Закрыть"
-                      aria-label="Закрыть"
-                    >
-                      ×
-                    </button>
+                        className="inline-flex shrink-0 items-center rounded px-1 opacity-70 hover:bg-black/5 hover:opacity-100"
+                        title="Закрыть"
+                        aria-label="Закрыть"
+                      >
+                        <IconClose className="h-3 w-3" />
+                      </button>
                   </div>
                 </div>
               ) : null}
@@ -1826,7 +1827,7 @@ export function ReviewPane({
           onClick={() => setKeymapOpen(false)}
         >
           <div
-            className="max-h-[80vh] w-full max-w-md overflow-y-auto rounded-lg border border-border bg-white p-4 shadow-xl"
+            className="max-h-[80vh] w-full max-w-md overflow-y-auto rounded-xl border border-border bg-white p-4 shadow-xl"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-3 flex items-center justify-between">
@@ -1867,7 +1868,7 @@ export function ReviewPane({
           onClick={() => setShowLog(false)}
         >
           <div
-            className="w-full max-w-sm rounded-lg border border-border bg-white p-4 shadow-xl"
+            className="w-full max-w-sm rounded-xl border border-border bg-white p-4 shadow-xl"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-3 flex items-center justify-between">

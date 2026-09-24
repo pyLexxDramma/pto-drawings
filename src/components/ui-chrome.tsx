@@ -2,7 +2,11 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { IconChevronLeft, IconChevronRight } from "@/components/tool-icons";
+import {
+  IconChevronLeft,
+  IconChevronRight,
+  IconDots,
+} from "@/components/tool-icons";
 import { VERDICT_DOT, VERDICT_DOT_INNER } from "@/lib/review-colors";
 import type { ReviewVerdict } from "@/types";
 
@@ -40,8 +44,9 @@ export function ProgressTrack({
 }
 
 /**
- * Кружок разбора. «Частично верно» и «Обсудить» теперь одного цвета — их
- * различает форма: у «Обсудить» кружок с прорезью внутри.
+ * Кружок разбора. «Частично верно» и «Обсудить» стоят в выпадашке рядом, поэтому
+ * их различает и оттенок (violet против amber), и форма: у «Обсудить» кружок с
+ * прорезью внутри.
  */
 export function VerdictDot({
   verdict,
@@ -137,7 +142,7 @@ export function SegmentedTabs<T extends string>({
             aria-selected={selected}
             title={option.title}
             onClick={() => onChange(option.id)}
-            className={`rounded-[5px] font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-sky-500 ${pad} ${
+            className={`rounded font-medium transition-colors ${pad} ${
               selected
                 ? option.accent && ACCENT_ACTIVE[option.accent]
                   ? ACCENT_ACTIVE[option.accent]
@@ -245,7 +250,11 @@ export function ActionMenu({
           "rounded border border-border px-1.5 py-0.5 pto-t-md leading-none text-muted hover:bg-bg hover:text-text"
         }
       >
-        {trigger ?? "⋯"}
+        {trigger ?? (
+          <span className="inline-flex items-center justify-center">
+            <IconDots className="h-3.5 w-3.5" />
+          </span>
+        )}
       </button>
       {open
         ? createPortal(

@@ -33,7 +33,7 @@ import {
   Spinner,
   menuItemClass,
 } from "@/components/ui-chrome";
-import { IconChevronRight } from "@/components/tool-icons";
+import { IconChevronDown, IconChevronRight } from "@/components/tool-icons";
 import { UserMenu } from "@/components/user-menu";
 import { UsersPanel } from "@/components/users-panel";
 import {
@@ -112,7 +112,7 @@ const STATUS_LABEL: Record<DocumentStatus, string> = {
   error: "Ошибка",
 };
 
-/** Статус файла — те же три смысла, что у замечаний: ждёт, готово, ошибка. */
+/** Состояние системы, три смысла: ждёт, готово, ошибка. Только токенами sem-*. */
 const STATUS_CLASS: Record<DocumentStatus, string> = {
   queued: "bg-sem-attn-soft text-sem-attn-text",
   processing: "bg-accent/10 text-accent",
@@ -2141,7 +2141,7 @@ export function Workspace({
                 ) : (
                   <div
                     key={project.id}
-                    className={`mb-1.5 rounded-md border-2 ${
+                    className={`mb-1.5 rounded-md border ${
                       project.id === projectId
                         ? "border-slate-500 bg-blue-50"
                         : "border-slate-400 bg-white hover:border-slate-500 hover:bg-slate-50"
@@ -2161,8 +2161,12 @@ export function Workspace({
                         aria-expanded={project.id === projectId}
                       >
                         <span className="flex items-center gap-1">
-                          <span className="pto-t-sm text-muted">
-                            {project.id === projectId ? "▾" : "▸"}
+                          <span className="shrink-0 text-muted">
+                            {project.id === projectId ? (
+                              <IconChevronDown className="h-3 w-3" />
+                            ) : (
+                              <IconChevronRight className="h-3 w-3" />
+                            )}
                           </span>
                           <span className="min-w-0 flex-1 truncate font-medium">{project.name}</span>
                         </span>
@@ -2195,7 +2199,7 @@ export function Workspace({
                       </div>
                     </div>
                     {project.id === projectId ? (
-                      <div className="mx-1 mb-1 rounded-md border-2 border-slate-300 bg-white px-1 pb-1.5 pt-1" data-project-files>
+                      <div className="mx-1 mb-1 rounded-md border border-slate-300 bg-white px-1 pb-1.5 pt-1" data-project-files>
                         <label
                           htmlFor="pto-drawing-upload"
                           title={UPLOAD_BUTTON_LABEL}

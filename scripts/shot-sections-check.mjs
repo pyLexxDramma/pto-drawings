@@ -1,6 +1,6 @@
 /**
- * Проверка этапа «структура листа»: оглавление, липкие заголовки разделов,
- * служебные блоки конвейера свёрнуты, «Текст листа» на первом экране.
+ * Проверка этапа «структура листа»: липкие заголовки разделов, служебные блоки
+ * конвейера свёрнуты, «Текст листа» на первом экране.
  * Скриншоты — samples/shots/sections-*.png.
  */
 import { chromium } from "playwright";
@@ -75,7 +75,6 @@ const info = await page.evaluate(() => {
   );
   const sheetText = heads.find((h) => /Текст листа/i.test(h.textContent || ""));
   return {
-    toc: document.querySelectorAll("[data-sheet-toc] button").length,
     titles: heads.map((h) => (h.textContent || "").replace(/\s+/g, " ").trim()),
     heads: heads.length,
     service: service.length,
@@ -98,9 +97,8 @@ const info = await page.evaluate(() => {
 });
 
 console.log(
-  `     разделов=${info.heads} служебных=${info.service} свёрнуто=${info.serviceCollapsed} оглавление=${info.toc} position=${info.sticky}`,
+  `     разделов=${info.heads} служебных=${info.service} свёрнуто=${info.serviceCollapsed} position=${info.sticky}`,
 );
-check("оглавление листа есть", info.toc >= 2, `кнопок: ${info.toc}`);
 check("заголовки разделов липкие", info.sticky === "sticky", info.sticky);
 check(
   "служебные разделы свёрнуты",
@@ -134,40 +132,6 @@ const expanded = await page.evaluate(
 );
 check(`служебный раздел раскрывается по клику`, expanded, title);
 await page.screenshot({ path: path.join(OUT_DIR, "sections-1920-expanded.png") });
-
-// ------------------------------------------------------------------ оглавление
-
-const tocLast = page.locator("[data-sheet-toc] button").last();
-const tocLabel = (await tocLast.innerText()).trim();
-await tocLast.click();
-// Плавная прокрутка идёт кадрами — ждём, пока панель остановится.
-await page.waitForTimeout(2000);
-const jump = await page.evaluate((label) => {
-  const pane = document.querySelector("[data-sheet-body]")?.parentElement;
-  const head = Array.from(document.querySelectorAll("[data-sheet-section]")).find(
-    (el) => (el.textContent || "").includes(label),
-  );
-  if (!pane || !head) return null;
-  return {
-    scrollTop: Math.round(pane.scrollTop),
-    overflow: pane.scrollHeight - pane.clientHeight,
-    // 0 — раздел ровно под верхом панели, значит прыжок сработал.
-    offset: Math.round(
-      head.getBoundingClientRect().top - pane.getBoundingClientRect().top,
-    ),
-  };
-}, tocLabel);
-// Последний раздел короче экрана не встанет под верх: прокрутка кончилась.
-const atEnd = Boolean(jump) && jump.scrollTop >= jump.overflow - 1;
-check(
-  `оглавление подводит раздел «${tocLabel}» к верху панели`,
-  Boolean(jump) &&
-    (jump.overflow <= 1 || atEnd ? jump.offset >= 0 : Math.abs(jump.offset) <= 24),
-  jump
-    ? `отступ=${jump.offset} scrollTop=${jump.scrollTop} запас прокрутки=${jump.overflow}`
-    : "раздел не найден",
-);
-await page.screenshot({ path: path.join(OUT_DIR, "sections-1920-toc.png") });
 
 await browser.close();
 console.log(failures ? `\nпровалов: ${failures}` : "\nвсё сошлось");

@@ -240,7 +240,7 @@ export function ControlsHelpDialog({ onClose }: { onClose: () => void }) {
       onClick={onClose}
     >
       <div
-        className="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-lg border border-border bg-white p-4 shadow-xl"
+        className="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-xl border border-border bg-white p-4 shadow-xl"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="mb-3 flex items-center justify-between gap-2">

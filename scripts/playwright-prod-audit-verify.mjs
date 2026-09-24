@@ -28,7 +28,7 @@ await page.waitForTimeout(2500);
 const chipInHeader = await page.getByText(/^Конвейер[:\s]/).count();
 check("шапка: чипа конвейера нет", chipInHeader === 0, `найдено ${chipInHeader}`);
 
-await page.getByRole("button", { name: /роль:|▾/ }).first().click();
+await page.locator("[data-user-menu]").first().click();
 await page.waitForTimeout(400);
 const menu = page.locator("[role=menu]").first();
 const menuText = (await menu.innerText()).replace(/\s+/g, " ");

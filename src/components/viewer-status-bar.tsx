@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { IconClose } from "@/components/tool-icons";
 
 /**
  * Одна строка состояния под чертежом вместо трёх плашек: раньше поверх листа
@@ -61,12 +62,12 @@ export function ViewerStatusBar({
             <button
               type="button"
               onClick={onDismissHint}
-              title="Больше не показывать"
-              aria-label="Скрыть подсказку"
-              className="rounded px-1 leading-none hover:bg-black/5 hover:text-text"
-            >
-              ×
-            </button>
+                title="Больше не показывать"
+                aria-label="Скрыть подсказку"
+                className="inline-flex items-center rounded px-1 hover:bg-black/5 hover:text-text"
+              >
+                <IconClose className="h-3 w-3" />
+              </button>
           ) : null}
         </span>
       ) : null}

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { MarkdownView } from "@/components/markdown-view";
+import { IconChevronDown, IconChevronRight } from "@/components/tool-icons";
 import {
   omitEmptyPlacement,
   parseMarkdownBlocks,
@@ -127,8 +128,12 @@ export function SheetText({
                 }
                 className="flex min-w-0 items-center gap-2 text-left hover:text-accent"
               >
-                <span className="shrink-0 text-lg font-bold leading-none">
-                  {expanded ? "▾" : "▸"}
+                <span className="shrink-0">
+                  {expanded ? (
+                    <IconChevronDown className="h-3.5 w-3.5" />
+                  ) : (
+                    <IconChevronRight className="h-3.5 w-3.5" />
+                  )}
                 </span>
                 <span className="min-w-0 text-base font-bold">{section.title}</span>
               </button>

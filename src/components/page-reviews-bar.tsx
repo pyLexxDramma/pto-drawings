@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { IconChevronDown, IconChevronRight } from "@/components/tool-icons";
 import { normalizeQuote } from "@/lib/remark-jump";
 import { remarkWording } from "@/lib/sheet-label";
 import { REVIEW_SEVERITY_LABEL, type Review } from "@/types";
@@ -54,7 +55,13 @@ export function PageReviewsBar({
           className="flex min-w-0 flex-1 items-center gap-1 text-left font-medium hover:text-sem-issue"
           title={open ? "Свернуть список замечаний" : "Показать замечания листа"}
         >
-          <span className="shrink-0">{open ? "▾" : "▸"}</span>
+          <span className="shrink-0">
+            {open ? (
+              <IconChevronDown className="h-3 w-3" />
+            ) : (
+              <IconChevronRight className="h-3 w-3" />
+            )}
+          </span>
           <span className="shrink-0">Замечаний по листу: {reviews.length}</span>
           <span className="min-w-0 truncate font-normal opacity-70">
             {open

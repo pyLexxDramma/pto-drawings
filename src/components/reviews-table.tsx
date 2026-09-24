@@ -1227,7 +1227,7 @@ function WrongDialog({
       onClick={onCancel}
     >
       <div
-        className="w-full max-w-md rounded-lg border border-rose-200 bg-white p-4 shadow-xl"
+        className="w-full max-w-md rounded-xl border border-rose-200 bg-white p-4 shadow-xl"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="text-sm font-semibold text-rose-900">
@@ -1308,7 +1308,7 @@ function ReviewLogDialog({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-lg border border-border bg-white p-4 shadow-xl"
+        className="w-full max-w-md rounded-xl border border-border bg-white p-4 shadow-xl"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="mb-2 flex items-center justify-between gap-2">
@@ -1660,7 +1660,7 @@ function StatusPicker<T extends string>({
             }
           }
         }}
-        className={`w-full rounded border px-1.5 py-1 text-left pto-t-md font-medium outline-none focus-visible:ring-2 focus-visible:ring-accent ${chips[value]}`}
+        className={`w-full rounded border px-1.5 py-1 text-left pto-t-md font-medium ${chips[value]}`}
       >
         {labels[value]}
       </button>

@@ -64,10 +64,7 @@ await page.waitForTimeout(4000);
 await page.screenshot({ path: SHEET_OUT });
 console.log("лист:", SHEET_OUT);
 
-const userButton = page
-  .locator('button[aria-haspopup="menu"]')
-  .filter({ hasText: "▾" })
-  .last();
+const userButton = page.locator("[data-user-menu]").last();
 await userButton.click();
 await page.waitForTimeout(700);
 await page.screenshot({ path: MENU_OUT });
