@@ -88,7 +88,7 @@ export function ResolvedSummary({
       type="button"
       onClick={open}
       title="Открыть разобранные замечания в отдельной вкладке"
-      className={`w-full rounded-md border border-amber-600 bg-amber-50 px-1.5 py-1 text-left hover:border-amber-700 hover:bg-amber-100 ${className}`}
+      className={`w-full rounded-md border-2 border-amber-600 bg-amber-50 px-1.5 py-1 text-left hover:border-amber-700 hover:bg-amber-100 ${className}`}
     >
       <div className="flex items-center justify-between gap-1 pto-t-sm font-medium text-text">
         <span className="tabular-nums">

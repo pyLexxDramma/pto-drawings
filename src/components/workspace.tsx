@@ -2083,7 +2083,7 @@ export function Workspace({
             className="flex min-h-0 shrink-0 flex-col bg-surface"
             style={{ width: projectsWidth, maxWidth: "100%" }}
           >
-            <div className="flex items-start gap-1 border-b border-sky-500 bg-sky-100 px-2 py-1.5">
+            <div className="flex items-start gap-1 border-b-2 border-sky-500 bg-sky-100 px-2 py-1.5">
               <div className="min-w-0 flex-1">
               {showNewProject || projects.length === 0 ? (
                 <form onSubmit={handleCreateProject} className="space-y-1">
@@ -2396,7 +2396,7 @@ export function Workspace({
               )}
             </div>
             {currentProject ? (
-              <div className="shrink-0 border-t border-amber-500 bg-amber-100 px-1.5 py-1.5">
+              <div className="shrink-0 border-t-2 border-amber-500 bg-amber-100 px-1.5 py-1.5">
                 <ResolvedSummary
                   reviews={projectReviews}
                   projectId={currentProject.id}
@@ -2406,7 +2406,7 @@ export function Workspace({
             {selected ? (
               <div
                 ref={setStripHost}
-                className="mt-2 min-h-[6rem] flex-1 overflow-hidden border-t border-emerald-600 bg-emerald-50 p-1.5"
+                className="mt-2 min-h-[6rem] flex-1 overflow-hidden border-t-2 border-emerald-600 bg-emerald-50 p-1.5"
               />
             ) : null}
           </aside>

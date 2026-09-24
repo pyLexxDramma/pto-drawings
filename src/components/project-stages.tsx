@@ -181,7 +181,7 @@ export function ProjectStagesBar({
     <div
       className={`flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5 ${
         embedded
-          ? "border-b border-slate-800 bg-slate-200 px-1 py-1"
+          ? "border-b-4 border-slate-800 bg-slate-200 px-1 py-1"
           : "shrink-0 border-b border-border bg-white px-2 py-0.5 sm:px-3"
       }`}
     >

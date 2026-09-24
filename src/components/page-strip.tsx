@@ -168,14 +168,14 @@ export function PageStrip({
     <div
       className={
         embedded
-          ? "flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-md border border-emerald-600 bg-emerald-50"
-          : "flex h-full min-h-0 shrink-0 flex-col border-r border-emerald-600 bg-emerald-50"
+          ? "flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-md border-2 border-emerald-600 bg-emerald-50"
+          : "flex h-full min-h-0 shrink-0 flex-col border-r-2 border-emerald-600 bg-emerald-50"
       }
       style={embedded ? undefined : { width }}
       data-page-strip
     >
       {embedded ? (
-        <div className="shrink-0 border-b border-emerald-600 bg-emerald-100 px-2 py-1 pto-t-sm font-semibold text-emerald-950">
+        <div className="shrink-0 border-b-2 border-emerald-600 bg-emerald-100 px-2 py-1 pto-t-sm font-semibold text-emerald-950">
           Листы
         </div>
       ) : onCollapse ? (
