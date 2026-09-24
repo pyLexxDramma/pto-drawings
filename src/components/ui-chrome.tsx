@@ -137,7 +137,7 @@ export function SegmentedTabs<T extends string>({
             aria-selected={selected}
             title={option.title}
             onClick={() => onChange(option.id)}
-            className={`rounded-[5px] font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-sky-500 ${pad} ${
+            className={`rounded-[5px] font-medium transition-colors ${pad} ${
               selected
                 ? option.accent && ACCENT_ACTIVE[option.accent]
                   ? ACCENT_ACTIVE[option.accent]

@@ -6,7 +6,12 @@
   --surface-2: #eef1f5;
   --border: #e2e7ee;
   --text: #1c2330;
-  --muted: #6b7380;
+  /**
+   * Было #6b7380 — на подложке --surface-2 это 4.2:1, и подписи в 10–11px
+   * (даты файлов, счётчики) читались на пределе. Стало 5.3:1 на ней и 6:1 на
+   * белом.
+   */
+  --muted: #5a6472;
   --accent: #2563eb;
   --state-error: #dc2626;
   --state-warn: #d97706;
@@ -92,6 +97,20 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-inter), Arial, Helvetica, sans-serif;
+}
+
+/**
+ * Кольцо фокуса на все органы управления сразу. До этого focus-visible был
+ * прописан руками в четырёх местах из тридцати восьми: инженер ходит по листам
+ * с клавиатуры (J/K, /, F), а где он находится — было не видно.
+ *
+ * Поля ввода сюда не входят: у них фокус уже показан рамкой focus:border-accent,
+ * и выделять их ещё и кольцом значило бы мигать рамкой на каждый клик мышью.
+ * Область чертежа тоже не входит — это не орган управления, у неё своя подсветка.
+ */
+:where(a, button, select, summary, [role="tab"], [role="menuitem"], [role="option"]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 /**

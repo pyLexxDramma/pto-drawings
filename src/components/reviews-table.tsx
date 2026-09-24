@@ -1660,7 +1660,7 @@ function StatusPicker<T extends string>({
             }
           }
         }}
-        className={`w-full rounded border px-1.5 py-1 text-left pto-t-md font-medium outline-none focus-visible:ring-2 focus-visible:ring-accent ${chips[value]}`}
+        className={`w-full rounded border px-1.5 py-1 text-left pto-t-md font-medium ${chips[value]}`}
       >
         {labels[value]}
       </button>
