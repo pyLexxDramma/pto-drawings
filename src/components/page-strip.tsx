@@ -88,7 +88,9 @@ function SheetRow({
               ? "border-amber-500 bg-amber-50 hover:border-amber-600 hover:bg-amber-100"
               : allResolved
                 ? "border-emerald-600 bg-emerald-100 hover:border-emerald-700 hover:bg-emerald-200"
-                : "border-emerald-400 bg-white hover:border-emerald-600 hover:bg-emerald-100"
+                : // Замечаний нет — цвета нет. Зелёный значит только «разобрано»,
+                  // и красить им каждый обычный лист значило бы обесценить его.
+                  "border-border bg-white hover:border-slate-400 hover:bg-surface-2"
       }`}
     >
       <span className="flex w-full items-center gap-1.5">
@@ -98,7 +100,7 @@ function SheetRow({
         <span className="flex shrink-0 items-center gap-1">
           {isWorking ? (
             <StatusChip
-              className="animate-pulse bg-accent motion-reduce:animate-none"
+              className="bg-accent"
               label="Сейчас обрабатывается"
             />
           ) : dots || isReady ? null : (
@@ -185,14 +187,14 @@ export function PageStrip({
     <div
       className={
         embedded
-          ? "flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-md border-2 border-emerald-600 bg-emerald-50"
-          : "flex h-full min-h-0 shrink-0 flex-col border-r-2 border-emerald-600 bg-emerald-50"
+          ? "flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-md border-2 border-slate-300 bg-surface-2"
+          : "flex h-full min-h-0 shrink-0 flex-col border-r-2 border-slate-300 bg-surface-2"
       }
       style={embedded ? undefined : { width }}
       data-page-strip
     >
       {embedded ? (
-        <div className="shrink-0 border-b-2 border-emerald-600 bg-emerald-100 px-2 py-1 pto-t-sm font-semibold text-emerald-950">
+        <div className="shrink-0 border-b-2 border-slate-300 bg-slate-200 px-2 py-1 pto-t-sm font-semibold text-text">
           Листы
         </div>
       ) : onCollapse ? (

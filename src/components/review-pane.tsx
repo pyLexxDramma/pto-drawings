@@ -24,6 +24,7 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconClose,
+  IconMark,
 } from "@/components/tool-icons";
 import type { ModelCheckInput } from "@/lib/model-check";
 import { KEYMAP, KEYMAP_GROUPS } from "@/lib/keymap";
@@ -43,7 +44,7 @@ import {
   remarkTermsInMarkdown,
 } from "@/lib/highlight-text";
 import { quoteBannerKind } from "@/lib/quote-banner";
-import { placeOrdinal, sheetLabel } from "@/lib/sheet-label";
+import { placeOrdinal, placeShort, sheetLabel } from "@/lib/sheet-label";
 import {
   SPLIT_MAX,
   SPLIT_MIN,
@@ -681,13 +682,13 @@ export function ReviewPane({
               title={`${label} · ${
                 sheetLabel(place) ?? "лист не указан"
               }${here ? "" : " · другой лист или файл"}`}
-              className={`whitespace-nowrap rounded border px-1 py-[1px] font-semibold ${
+              className={`whitespace-nowrap rounded border px-1 py-[1px] font-semibold tabular-nums ${
                 current
                   ? "border-accent bg-accent text-white"
                   : "border-border bg-white text-muted hover:border-accent hover:text-accent"
               }`}
             >
-              {label}
+              {placeShort(index)}
             </button>
           );
         })}
@@ -981,11 +982,12 @@ export function ReviewPane({
     }
   }
 
+  // Стрелку рисует сама кнопка иконкой, в подписи остаётся только назначение.
   const backLabel = markMode || pendingRect
-    ? "← Отменить пометку"
+    ? "Отменить пометку"
     : searchOpen
-      ? "← Закрыть поиск"
-      : "← Назад";
+      ? "Закрыть поиск"
+      : "Назад";
   const sheetToolButtons = (
     <SheetToolbar
       searchOpen={searchOpen}
@@ -1566,10 +1568,11 @@ export function ReviewPane({
                       }}
                       className={
                         markMode
-                          ? "rounded border border-rose-800 bg-rose-800 px-2 py-0.5 pto-t-sm font-semibold text-white"
-                          : "rounded border border-rose-600 bg-rose-600 px-2 py-0.5 pto-t-sm font-semibold text-white shadow-sm hover:bg-rose-700"
+                          ? "inline-flex items-center gap-1 rounded border border-rose-800 bg-rose-800 px-2 py-0.5 pto-t-sm font-semibold text-white"
+                          : "inline-flex items-center gap-1 rounded border border-rose-600 bg-rose-600 px-2 py-0.5 pto-t-sm font-semibold text-white shadow-sm hover:bg-rose-700"
                       }
                     >
+                      <IconMark className="h-3 w-3" />
                       Отметить ошибку
                     </button>
                   ) : null}
@@ -1741,12 +1744,13 @@ export function ReviewPane({
                 type="button"
                 title={markMode ? "Отменить разметку (Esc)" : "Обвести ошибку на чертеже"}
                 onClick={toggleMark}
-                className={`rounded border px-2 py-0.5 pto-t-sm font-semibold ${
+                className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 pto-t-sm font-semibold ${
                   sidePanel === "notes" || markMode
                     ? "border-rose-800 bg-rose-800 text-white"
                     : "border-rose-600 bg-rose-600 text-white shadow-sm hover:bg-rose-700"
                 }`}
               >
+                <IconMark className="h-3 w-3" />
                 Отметить ошибку
                 {!markMode && pageNotes.length ? (
                   <span className="ml-1 tabular-nums opacity-80">

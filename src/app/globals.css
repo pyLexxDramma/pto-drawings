@@ -37,6 +37,21 @@
   --sem-attn-soft: #fffbeb;
   --sem-attn-line: #fbbf24;
   --sem-attn-text: #451a03;
+  /**
+   * Подсветка чертежа и текста. Цвет отвечает за смысл, приём отрисовки — за
+   * роль: место замечания — рамка со свечением наружу, найденное поиском —
+   * только заливка, прочие места — рамка нейтральным синим.
+   *
+   * Заливка поверх чертежа не больше 12%: раньше место замечания заливалось на
+   * 35%, и подложка накрывала ровно ту строку, которую инженер должен прочесть.
+   */
+  --hl-place: #e11d48;
+  --hl-place-soft: rgb(225 29 72 / 0.07);
+  --hl-place-glow: rgb(225 29 72 / 0.16);
+  --hl-alt: #0284c7;
+  --hl-alt-soft: rgb(2 132 199 / 0.1);
+  --hl-find: #fde68a;
+  --hl-find-line: #d97706;
   --control-h: 1.75rem;
   --ui-text: 12px;
   /** Комфортная длина строки расшифровки. */
@@ -433,7 +448,7 @@ body {
 }
 
 .markdown-body mark {
-  background: #fde68a;
+  background: var(--hl-find);
   padding: 0 2px;
 }
 
@@ -456,43 +471,60 @@ body {
   }
 }
 
-@keyframes pto-pulse-ring {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 rgb(14 165 233 / 0.4);
-  }
-  50% {
-    box-shadow: 0 0 0 3px rgb(14 165 233 / 0.12);
-  }
+/**
+ * Место замечания на чертеже: рамка и свечение наружу, заливки почти нет.
+ * Так под подсветкой читается сам чертёж — а проверяют именно его.
+ */
+.pto-place {
+  background-color: var(--hl-place-soft);
+  outline: 2px solid var(--hl-place);
+  box-shadow: 0 0 0 4px var(--hl-place-glow);
 }
 
-@keyframes pto-blink {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.25;
-  }
+/** Прочие места того же замечания: тот же приём, нейтральный синий — это не ошибка. */
+.pto-place-alt {
+  background-color: var(--hl-alt-soft);
+  outline: 2px solid var(--hl-alt);
 }
 
-/** Зона замечания с «Где в ПД»: мягкая подсветка, без яркого мигания. */
+/** Найденное поиском: только заливка. Поиск — навигация, он ничего не оценивает. */
+.pto-find {
+  background-color: rgb(253 230 138 / 0.5);
+}
+
+/** Текущее совпадение из найденных: та же заливка плотнее плюс тонкая рамка. */
+.pto-find-focus {
+  background-color: rgb(253 230 138 / 0.78);
+  outline: 2px solid var(--hl-find-line);
+}
+
+/** Квадратик в ключе к подсветке: цвет тот же, свечение на 10 пикселях лишнее. */
+.pto-swatch {
+  box-shadow: none;
+  outline-width: 1.5px;
+}
+
+/**
+ * Точная цитата внутри места замечания. Цвет тот же, что у рамки места:
+ * один факт — один цвет, раньше оранжевая зона тонула в зелёной заливке.
+ */
 @keyframes pto-remark-flash {
   0%,
   100% {
-    background-color: rgb(251 146 60 / 0.18);
-    outline-color: rgb(234 88 12 / 0.55);
-    box-shadow: 0 0 0 1px rgb(234 88 12 / 0.2);
+    background-color: rgb(225 29 72 / 0.18);
+    outline-color: rgb(225 29 72 / 0.6);
+    box-shadow: 0 0 0 1px rgb(225 29 72 / 0.22);
   }
   50% {
-    background-color: rgb(254 215 170 / 0.1);
-    outline-color: rgb(251 146 60 / 0.4);
-    box-shadow: 0 0 0 2px rgb(251 146 60 / 0.12);
+    background-color: rgb(253 164 175 / 0.12);
+    outline-color: rgb(244 63 94 / 0.4);
+    box-shadow: 0 0 0 2px rgb(244 63 94 / 0.14);
   }
 }
 
+/** Подпись входа: мигала бесконечно и тянула взгляд с полей ввода. */
 .pto-loading-text {
-  animation: pto-blink 1.1s ease-in-out infinite;
+  opacity: 0.75;
 }
 
 .pto-remark-zone {
@@ -505,17 +537,23 @@ body {
    */
   animation: pto-remark-flash 1.6s ease-in-out 2;
   animation-fill-mode: forwards;
-  background-color: rgb(251 146 60 / 0.14);
-  outline-color: rgb(234 88 12 / 0.45);
+  background-color: rgb(225 29 72 / 0.14);
+  outline-color: rgb(225 29 72 / 0.5);
 }
 
-/** Значение из замечания в расшифровке: ровный цвет, без мигания — оно мешало читать. */
+/**
+ * Значение из замечания в расшифровке. Заливка та же песочная, что у поиска, а
+ * отличает его красная черта снизу: раньше оба были ровно #fde68a, потому что
+ * правило .markdown-body mark перебивало этот класс по специфичности, и «вот
+ * спорная цифра» было не отличить от «вот что я искал».
+ */
+.markdown-body .pto-remark-text,
 .pto-remark-text {
   border-radius: 2px;
   padding-inline: 0.125rem;
   color: inherit;
-  background-color: rgb(254 215 170 / 0.55);
-  box-shadow: inset 0 0 0 1px rgb(234 88 12 / 0.35);
+  background-color: var(--hl-find);
+  box-shadow: inset 0 -2px 0 var(--hl-place);
   scroll-margin-block: 2.5rem;
 }
 
@@ -538,21 +576,23 @@ mark[data-focus-quote] {
   animation: pto-shimmer 1.2s linear infinite;
 }
 
+/**
+ * Лист в работе. Кольцо больше не пульсирует бесконечно: анимация в боковом
+ * зрении тянула взгляд от чертежа, а состояние и так видно цветом и подписью.
+ */
 .pto-page-working {
-  animation: pto-pulse-ring 1.4s ease-in-out infinite;
+  box-shadow: 0 0 0 2px rgb(14 165 233 / 0.28);
 }
 
 @media (prefers-reduced-motion: reduce) {
   .pto-spinner,
   .pto-progress__bar,
-  .pto-page-working,
-  .pto-loading-text,
   .pto-remark-zone {
     animation: none;
   }
 
   .pto-remark-zone {
-    background-color: rgb(251 146 60 / 0.16);
-    outline: 1.5px solid rgb(234 88 12 / 0.45);
+    background-color: rgb(225 29 72 / 0.16);
+    outline: 1.5px solid rgb(225 29 72 / 0.5);
   }
 }

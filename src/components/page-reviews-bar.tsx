@@ -1,7 +1,11 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { IconChevronDown, IconChevronRight } from "@/components/tool-icons";
+import {
+  IconChevronDown,
+  IconChevronRight,
+  IconGrid,
+} from "@/components/tool-icons";
 import { normalizeQuote } from "@/lib/remark-jump";
 import { remarkWording } from "@/lib/sheet-label";
 import { REVIEW_SEVERITY_LABEL, type Review } from "@/types";
@@ -47,12 +51,17 @@ export function PageReviewsBar({
   }
 
   return (
-    <div className="shrink-0 border-b border-sem-issue-line bg-sem-issue-soft pto-t-sm leading-snug text-sem-issue-text">
+    /**
+     * Полоса нейтральная: это счётчик, а не авария. Раньше она была розовой
+     * плашкой состояния, и лист с замечаниями выглядел как упавшая обработка.
+     * Про замечания говорит красная точка у числа.
+     */
+    <div className="shrink-0 border-b border-border bg-surface-2 pto-t-sm leading-snug text-text">
       <div className="flex items-center justify-between gap-2 px-2 py-1">
         <button
           type="button"
           onClick={onToggle}
-          className="flex min-w-0 flex-1 items-center gap-1 text-left font-medium hover:text-sem-issue"
+          className="flex min-w-0 flex-1 items-center gap-1 text-left font-medium hover:text-accent"
           title={open ? "Свернуть список замечаний" : "Показать замечания листа"}
         >
           <span className="shrink-0">
@@ -62,6 +71,10 @@ export function PageReviewsBar({
               <IconChevronRight className="h-3 w-3" />
             )}
           </span>
+          <span
+            className="h-1.5 w-1.5 shrink-0 rounded-full bg-sem-issue"
+            aria-hidden
+          />
           <span className="shrink-0">Замечаний по листу: {reviews.length}</span>
           {open || activeReview ? (
             <span className="min-w-0 truncate font-normal opacity-70">
@@ -78,20 +91,22 @@ export function PageReviewsBar({
           <button
             type="button"
             onClick={onOpenReviews}
-            className="shrink-0 rounded border border-sem-issue-line bg-white px-1.5 py-0.5 pto-t-sm font-semibold text-sem-issue-text hover:bg-sem-issue-soft"
+            title="Открыть таблицу замечаний"
+            aria-label="Открыть таблицу замечаний"
+            className="shrink-0 rounded border border-slate-300 bg-white px-1.5 py-1 text-slate-700 hover:bg-slate-50 hover:text-accent"
           >
-            В таблице
+            <IconGrid className="h-3.5 w-3.5" />
           </button>
         ) : null}
       </div>
       {open ? (
-        <ul className="max-h-40 overflow-auto border-t border-sem-issue-line/60">
+        <ul className="max-h-40 overflow-auto border-t border-border">
           {reviews.map((review) => (
             <li
               key={review.id}
               className={`flex w-full items-start gap-1 px-2 py-1 ${
                 isActive(review)
-                  ? "bg-sem-issue-soft outline outline-1 outline-sem-issue"
+                  ? "bg-white outline outline-1 outline-accent"
                   : "hover:bg-white/60"
               }`}
             >

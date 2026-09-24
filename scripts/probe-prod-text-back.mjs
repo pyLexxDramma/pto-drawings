@@ -59,7 +59,7 @@ await page.goto(
 await page.locator("[data-viewer-toolbar]").waitFor({ timeout: 60000 });
 await page.waitForTimeout(1500);
 
-const back = page.getByRole("button", { name: "← Назад" });
+const back = page.getByRole("button", { name: "Назад" });
 check("кнопка возврата в строке расшифровки", (await back.count()) > 0, await back.first().innerText());
 
 // Шаг возврата виден в подсказке: уходим на другой лист — обещает лист 1.

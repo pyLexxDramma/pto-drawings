@@ -1,6 +1,6 @@
 "use client";
 
-import { IconSearch } from "@/components/tool-icons";
+import { IconBack, IconSearch } from "@/components/tool-icons";
 
 const BTN =
   "rounded border px-2 py-0.5 pto-t-sm font-semibold border-slate-300 bg-white text-slate-800 hover:bg-slate-50";
@@ -17,7 +17,7 @@ export function SheetToolbar({
   onOpenSearch,
   onCloseSearch,
   onBack,
-  backLabel = "← Назад",
+  backLabel = "Назад",
   onUndo,
   undoBusy = false,
 }: {
@@ -37,8 +37,9 @@ export function SheetToolbar({
           type="button"
           onClick={onBack}
           title="Туда, откуда открыли этот экран"
-          className={BTN}
+          className={`inline-flex items-center gap-1 ${BTN}`}
         >
+          <IconBack className="h-3 w-3" />
           {backLabel}
         </button>
       ) : null}
