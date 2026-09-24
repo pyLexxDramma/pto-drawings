@@ -74,7 +74,7 @@ export function UserMenu({
           defaultPasswordWarning
             ? "border-amber-500 bg-amber-50 text-amber-950 hover:bg-amber-100"
             : user.role === "admin"
-              ? "border-slate-700 bg-slate-800 text-white hover:bg-slate-700"
+              ? "border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200"
               : "border-sky-500 bg-sky-50 text-sky-950 hover:bg-sky-100"
         }`}
       >
@@ -85,7 +85,7 @@ export function UserMenu({
             defaultPasswordWarning
               ? "bg-amber-200 text-amber-950"
               : user.role === "admin"
-                ? "bg-white text-slate-900"
+                ? "bg-slate-300 text-slate-800"
                 : "bg-sky-600 text-white"
           }`}
         >
@@ -94,22 +94,14 @@ export function UserMenu({
         {compact ? null : (
           <span className="pto-t-md leading-tight">
             <span
-              className={`block font-semibold ${
-                defaultPasswordWarning || user.role !== "admin"
-                  ? "text-slate-900"
-                  : "text-white"
-              }`}
+              className="block font-semibold text-slate-900"
             >
               {user.displayName}
             </span>
           </span>
         )}
         <span
-          className={`shrink-0 ${
-            user.role === "admin" && !defaultPasswordWarning
-              ? "text-white/80"
-              : "text-slate-500"
-          }`}
+          className="shrink-0 text-slate-500"
         >
           <IconChevronDown className="h-3 w-3" />
         </span>

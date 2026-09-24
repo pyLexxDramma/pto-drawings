@@ -28,9 +28,9 @@ const ACTION: Record<StageId, string> = {
 };
 
 /**
- * Оба этапа на одном accent: sky и violet раньше выглядели как два разных
- * статуса, хотя это просто две страницы — какая открыта, говорит заливка, а
- * какой это этап, говорит подпись. Освободившиеся цвета ушли под смыслы.
+ * Выбранный этап — мягкий зелёный, не ярко-синий: это «вы здесь», а не тревога.
+ * Оба этапа одного цвета, какой открыт — говорит заливка, какой это этап —
+ * подпись.
  */
 const STAGE_TAB: Record<
   StageId,
@@ -38,15 +38,17 @@ const STAGE_TAB: Record<
 > = {
   transcribe: {
     idle:
-      "border-accent/40 bg-white text-text hover:border-accent hover:bg-accent/5",
-    current: "border-accent bg-accent text-white shadow-sm hover:bg-[#1d4ed8]",
-    track: "accent",
+      "border-emerald-300 bg-white text-text hover:border-emerald-500 hover:bg-emerald-50",
+    current:
+      "border-emerald-600 bg-emerald-100 text-emerald-950 shadow-sm hover:bg-emerald-200",
+    track: "emerald",
   },
   reviews: {
     idle:
-      "border-accent/40 bg-white text-text hover:border-accent hover:bg-accent/5",
-    current: "border-accent bg-accent text-white shadow-sm hover:bg-[#1d4ed8]",
-    track: "accent",
+      "border-emerald-300 bg-white text-text hover:border-emerald-500 hover:bg-emerald-50",
+    current:
+      "border-emerald-600 bg-emerald-100 text-emerald-950 shadow-sm hover:bg-emerald-200",
+    track: "emerald",
   },
 };
 
@@ -216,7 +218,7 @@ export function ProjectStagesBar({
                 </span>
                 <span
                   className={`truncate pto-t-sm tabular-nums ${
-                    current ? "text-white/90" : "opacity-75"
+                    current ? "text-emerald-800" : "opacity-75"
                   }`}
                 >
                   {stage.count}
