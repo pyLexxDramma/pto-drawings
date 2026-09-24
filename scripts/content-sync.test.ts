@@ -6,6 +6,7 @@ import {
   omitEmptyPlacement,
   parseMarkdownBlocks,
   regionsFromCadTexts,
+  renderedSheetBlocks,
   splitMarkdownSections,
   tidyVerbatim,
 } from "../src/lib/content-sync.ts";
@@ -196,6 +197,29 @@ describe("splitMarkdownSections", () => {
       sections.some((section) => section.title.startsWith("Лист дословно")),
       true,
     );
+  });
+});
+
+describe("renderedSheetBlocks", () => {
+  it("keeps obj ids and does not restart numbering between sections", () => {
+    const blocks = renderedSheetBlocks(
+      [
+        "# План",
+        "",
+        "## Текст листа (из чертежа, дословно)",
+        "",
+        "<!-- obj:7F3A -->",
+        "Колодец К-4 — сливной колодец",
+        "",
+        "## Штамп",
+        "",
+        "Шифр комплекта 2024-118-АР5",
+      ].join("\n"),
+    );
+    const well = blocks.find((block) => block.objId === "7F3A");
+    assert.equal(well?.id, "7F3A");
+    const ids = blocks.map((block) => block.id);
+    assert.equal(new Set(ids).size, ids.length);
   });
 });
 

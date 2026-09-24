@@ -44,11 +44,17 @@ import {
 import { quoteBannerKind } from "@/lib/quote-banner";
 import { placeOrdinal, sheetLabel } from "@/lib/sheet-label";
 import {
+  linkBlocksToRegions,
+  renderedSheetBlocks,
+  type PageTextRegion,
+} from "@/lib/content-sync";
+import {
   SPLIT_MAX,
   SPLIT_MIN,
   clampPaneSplit,
   loadViewerPrefs,
   saveSplit,
+  saveViewerPrefs,
 } from "@/lib/viewer-prefs";
 import { normalizeQuote } from "@/lib/remark-jump";
 import {
@@ -234,6 +240,13 @@ export function ReviewPane({
   const navigatedRef = useRef(false);
   const textPaneRef = useRef<HTMLDivElement>(null);
   const deferredQuery = useDeferredValue(query);
+  /** Эксперимент 0102. Выключен — выделение текста чертёж не трогает. */
+  const [textLinkOn, setTextLinkOn] = useState(
+    () => loadViewerPrefs().expTextToDrawing,
+  );
+  const [expSelection, setExpSelection] = useState("");
+  const [pickedBlockId, setPickedBlockId] = useState<string | null>(null);
+  const [textRegions, setTextRegions] = useState<PageTextRegion[]>([]);
   /** Цитата из «Где в ПД»: подсветка в тексте и на чертеже. */
   const [focusQuote, setFocusQuote] = useState("");
   const [focusRect, setFocusRect] = useState<AnnotationRect | null>(null);
@@ -535,12 +548,16 @@ export function ReviewPane({
     pageNumber,
     pageReviews,
   ]);
+  const expActive = textLinkOn && expSelection.trim().length >= 2;
   /** На чертеже и в расшифровке сначала шифр/число, иначе цитата. */
-  const drawingHighlightQuery = (() => {
-    const raw =
-      focusQuote.trim().length >= 2 ? focusQuote.trim() : deferredQuery.trim();
-    return preferHighlightQuery(raw, page?.markdown ?? "");
-  })();
+  const remarkQuery =
+    focusQuote.trim().length >= 2 ? focusQuote.trim() : deferredQuery.trim();
+  // Выделенный фрагмент идёт на чертёж тем же поиском, что цитата замечания.
+  // Пока ничего не выделено — подсветка замечаний не меняется.
+  const drawingHighlightQuery = preferHighlightQuery(
+    expActive ? expSelection.trim() : remarkQuery,
+    page?.markdown ?? "",
+  );
   /**
    * В расшифровке подсвечиваем фразу целиком, если она там есть. На чертеже
    * цитату приходится сужать до шифра — текстовый слой разбит на куски, — а в
@@ -548,12 +565,10 @@ export function ReviewPane({
    * и подсветка одного числа из него ничего инженеру не говорит (0094).
    */
   const textHighlightQuery = (() => {
-    const raw =
-      focusQuote.trim().length >= 2 ? focusQuote.trim() : deferredQuery.trim();
-    if (raw.length >= 2 && findQuoteRanges(page?.markdown ?? "", raw).length > 0) {
-      return raw;
+    if (remarkQuery.length >= 2 && findQuoteRanges(page?.markdown ?? "", remarkQuery).length > 0) {
+      return remarkQuery;
     }
-    return drawingHighlightQuery;
+    return expActive ? "" : drawingHighlightQuery;
   })();
   const focusDrawing = focusQuote.trim().length >= 2 || Boolean(focusRect);
   // Ссылка должна быть стабильной: зритель фильтрует по ней совпадения поиска.
@@ -562,6 +577,60 @@ export function ReviewPane({
       focusRect ? { id: "review-focus", text: focusQuote, ...focusRect } : null,
     [focusRect, focusQuote],
   );
+  const sheetBlocks = useMemo(
+    () => (textLinkOn ? renderedSheetBlocks(page?.markdown ?? "") : []),
+    [textLinkOn, page?.markdown],
+  );
+  const blockLinks = useMemo(
+    () => linkBlocksToRegions(sheetBlocks, textLinkOn ? textRegions : []),
+    [sheetBlocks, textRegions, textLinkOn],
+  );
+  const linkRegion =
+    textLinkOn && pickedBlockId
+      ? (blockLinks.byBlock.get(pickedBlockId) ?? null)
+      : null;
+  // Пока идёт эксперимент с выделенным фрагментом, рамка замечания не обрезает
+  // поиск: иначе совпадение вне рамки замечания считалось бы промахом.
+  const shownHighlightRegion =
+    expActive || linkRegion ? linkRegion : focusHighlightRegion;
+  const handleTextRegions = useCallback((regions: PageTextRegion[]) => {
+    setTextRegions(regions);
+  }, []);
+  const textLinkControl = useMemo(
+    () => ({
+      on: textLinkOn,
+      onToggle: () => {
+        setTextLinkOn((prev) => {
+          const next = !prev;
+          saveViewerPrefs({ ...loadViewerPrefs(), expTextToDrawing: next });
+          return next;
+        });
+        setExpSelection("");
+        setPickedBlockId(null);
+        setDrawingHitCount(null);
+      },
+    }),
+    [textLinkOn],
+  );
+  useEffect(() => {
+    setExpSelection("");
+    setPickedBlockId(null);
+    setTextRegions([]);
+  }, [document.id, pageNumber]);
+  function pickExperimentText(text: string) {
+    setExpSelection(text);
+    setPickedBlockId(null);
+    setDrawingHitCount(null);
+  }
+  function pickExperimentBlock(blockId: string) {
+    const block = sheetBlocks.find((item) => item.id === blockId);
+    setPickedBlockId(blockId);
+    setExpSelection(block?.text.slice(0, 240) ?? "");
+    setDrawingHitCount(null);
+  }
+  const expLocated = (drawingHitCount ?? 0) > 0 || Boolean(linkRegion);
+  const expMiss =
+    textLinkOn && expActive && drawingHitCount !== null && !expLocated;
   const activeReview = useMemo(
     () => reviews.find((item) => item.id === activeReviewId) ?? null,
     [reviews, activeReviewId],
@@ -1614,10 +1683,12 @@ export function ReviewPane({
                   markMode={markMode && !readOnly}
                   activeAnnotationId={activeNoteId}
                   highlightQuery={drawingHighlightQuery}
-                  highlightRegion={focusHighlightRegion}
+                  highlightRegion={shownHighlightRegion}
                   highlightRegions={extraHighlightRegions}
-                  panToHighlight={focusDrawing}
-                  remarkFocus={focusDrawing}
+                  panToHighlight={focusDrawing || expActive}
+                  remarkFocus={focusDrawing && !expActive}
+                  textLink={textLinkControl}
+                  onTextRegionsReady={handleTextRegions}
                   highlightNonce={focusNonce}
                   onHighlightHits={handleHighlightHits}
                   overlay={placeBar}
@@ -1639,10 +1710,12 @@ export function ReviewPane({
                   markMode={markMode && !readOnly}
                   activeAnnotationId={activeNoteId}
                   highlightQuery={drawingHighlightQuery}
-                  highlightRegion={focusHighlightRegion}
+                  highlightRegion={shownHighlightRegion}
                   highlightRegions={extraHighlightRegions}
-                  panToHighlight={focusDrawing}
-                  remarkFocus={focusDrawing}
+                  panToHighlight={focusDrawing || expActive}
+                  remarkFocus={focusDrawing && !expActive}
+                  textLink={textLinkControl}
+                  onTextRegionsReady={handleTextRegions}
                   highlightNonce={focusNonce}
                   onHighlightHits={handleHighlightHits}
                   overlay={placeBar}
@@ -1663,10 +1736,12 @@ export function ReviewPane({
                   markMode={markMode && !readOnly}
                   activeAnnotationId={activeNoteId}
                   highlightQuery={drawingHighlightQuery}
-                  highlightRegion={focusHighlightRegion}
+                  highlightRegion={shownHighlightRegion}
                   highlightRegions={extraHighlightRegions}
-                  panToHighlight={focusDrawing}
-                  remarkFocus={focusDrawing}
+                  panToHighlight={focusDrawing || expActive}
+                  remarkFocus={focusDrawing && !expActive}
+                  textLink={textLinkControl}
+                  onTextRegionsReady={handleTextRegions}
                   highlightNonce={focusNonce}
                   onHighlightHits={handleHighlightHits}
                   overlay={placeBar}
@@ -1695,10 +1770,12 @@ export function ReviewPane({
                   markMode={markMode && !readOnly}
                   activeAnnotationId={activeNoteId}
                   highlightQuery={drawingHighlightQuery}
-                  highlightRegion={focusHighlightRegion}
+                  highlightRegion={shownHighlightRegion}
                   highlightRegions={extraHighlightRegions}
-                  panToHighlight={focusDrawing}
-                  remarkFocus={focusDrawing}
+                  panToHighlight={focusDrawing || expActive}
+                  remarkFocus={focusDrawing && !expActive}
+                  textLink={textLinkControl}
+                  onTextRegionsReady={handleTextRegions}
                   highlightNonce={focusNonce}
                   onHighlightHits={handleHighlightHits}
                   overlay={placeBar}
@@ -1774,6 +1851,40 @@ export function ReviewPane({
             <div className="flex flex-wrap items-center gap-1 border-b border-border px-1.5 py-0.5">
               <button
                 type="button"
+                data-text-link-toggle=""
+                aria-pressed={textLinkOn}
+                title="Эксперимент: выделите фрагмент расшифровки — подсветится участок на чертеже. Выключено — всё как было."
+                onClick={textLinkControl.onToggle}
+                className={`rounded border px-2 py-0.5 pto-t-sm font-semibold ${
+                  textLinkOn
+                    ? "border-accent bg-accent text-white"
+                    : "border-border bg-white text-text hover:bg-bg"
+                }`}
+              >
+                Связь
+              </button>
+              {textLinkOn && expSelection.trim().length >= 2 ? (
+                <span
+                  data-exp-status={
+                    drawingHitCount === null ? "pending" : expMiss ? "miss" : "hit"
+                  }
+                  className={`rounded px-2 py-0.5 pto-t-sm ${
+                    expMiss
+                      ? "bg-sem-attn-soft text-sem-attn-text"
+                      : "text-muted"
+                  }`}
+                >
+                  {drawingHitCount === null
+                    ? "ищу на чертеже…"
+                    : expMiss
+                      ? "На чертеже не нашлось"
+                      : linkRegion && (drawingHitCount ?? 0) === 0
+                        ? "участок по привязке"
+                        : `на чертеже: ${drawingHitCount}`}
+                </span>
+              ) : null}
+              <button
+                type="button"
                 title={markMode ? "Отменить разметку (Esc)" : "Обвести ошибку на чертеже"}
                 onClick={toggleMark}
                 className={`rounded border px-2 py-0.5 pto-t-sm font-semibold ${
@@ -1834,6 +1945,10 @@ export function ReviewPane({
               highlightQuery={textHighlightQuery}
               focusFirst={focusDrawing}
               flagQuotes={pageReviewQuotes}
+              textLinkOn={textLinkOn}
+              activeBlockId={pickedBlockId}
+              onPickText={pickExperimentText}
+              onPickBlock={pickExperimentBlock}
               reviewsBar={
                 <PageReviewsBar
                   reviews={pageReviews}

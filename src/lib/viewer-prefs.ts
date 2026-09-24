@@ -22,6 +22,11 @@ export type ViewerPrefs = {
   splitDrawing: number;
   /** Доля под чертёж на листе-таблице: ведомость читается шире. */
   splitTable: number;
+  /**
+   * Эксперимент 0102: выделил фрагмент расшифровки — подсветился участок
+   * на чертеже. Выключено, пока команда не решит оставлять.
+   */
+  expTextToDrawing: boolean;
 };
 
 const KEY = "pto-viewer-prefs";
@@ -40,6 +45,7 @@ const DEFAULTS: ViewerPrefs = {
   // узкой колонкой мелкого текста. Чертежу хватает 56%.
   splitDrawing: 56,
   splitTable: 42,
+  expTextToDrawing: false,
 };
 
 export const SPLIT_MIN = 22;

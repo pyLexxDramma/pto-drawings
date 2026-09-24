@@ -20,6 +20,10 @@ type SheetTextProps = {
   highlightQuery?: string;
   flagQuotes?: string[];
   focusFirst?: boolean;
+  /** Эксперимент 0102. Без колбэка блоки ведут себя как раньше. */
+  activeBlockId?: string | null;
+  onPickBlock?: (blockId: string) => void;
+  onHoverBlock?: (blockId: string | null) => void;
 };
 
 /**
@@ -33,6 +37,9 @@ export function SheetText({
   highlightQuery = "",
   flagQuotes = [],
   focusFirst = false,
+  activeBlockId = null,
+  onPickBlock,
+  onHoverBlock,
 }: SheetTextProps) {
   const sections = useMemo(
     () =>
@@ -100,6 +107,9 @@ export function SheetText({
               flagQuotes={flagQuotes}
               sharedFocusState={focusState}
               blockIdOffset={offsets[index]}
+              activeBlockId={activeBlockId}
+              onPickBlock={onPickBlock}
+              onHoverBlock={onHoverBlock}
             >
               {section.body}
             </MarkdownView>
@@ -140,6 +150,9 @@ export function SheetText({
                 flagQuotes={flagQuotes}
                 sharedFocusState={focusState}
                 blockIdOffset={offsets[index]}
+                activeBlockId={activeBlockId}
+                onPickBlock={onPickBlock}
+                onHoverBlock={onHoverBlock}
               >
                 {section.body}
               </MarkdownView>

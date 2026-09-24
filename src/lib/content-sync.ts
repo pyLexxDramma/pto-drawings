@@ -222,6 +222,23 @@ export function tidyVerbatim(body: string): string {
 }
 
 /**
+ * Те же блоки, что рисует SheetText: секции после очистки, id со смещением.
+ * Нужно, чтобы клик по `data-block-id` нашёл ту же запись, что на экране (0102).
+ */
+export function renderedSheetBlocks(markdown: string): MarkdownBlock[] {
+  const blocks: MarkdownBlock[] = [];
+  let offset = 0;
+  for (const section of splitMarkdownSections(markdown)) {
+    const cleaned = omitEmptyPlacement(section.body);
+    const body = /дословно/i.test(section.title) ? tidyVerbatim(cleaned) : cleaned;
+    const part = parseMarkdownBlocks(body, offset);
+    blocks.push(...part);
+    offset += part.length;
+  }
+  return blocks;
+}
+
+/**
  * Разбивает markdown на блоки, совпадающие с тем, что рендерит MarkdownView.
  * `idOffset` нужен, когда лист рендерится посекционно: без него нумерация
  * `b-N` перезапускалась бы в каждой секции и два блока листа получали один id.

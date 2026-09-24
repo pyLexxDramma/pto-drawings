@@ -30,6 +30,7 @@ import {
 } from "@/lib/cad-geometry";
 import {
   regionAtPoint,
+  regionsFromCadTexts,
   type PageTextRegion,
 } from "@/lib/content-sync";
 import {
@@ -74,6 +75,9 @@ type CadPageProps = {
   overlay?: ReactNode;
   /** Переключатель PDF / DWG — внутрь тулбара, а не отдельной плашкой. */
   toolbarLeading?: ReactNode;
+  /** Эксперимент 0102: кнопка в тулбаре и зоны подписей наверх. */
+  textLink?: { on: boolean; onToggle: () => void };
+  onTextRegionsReady?: (regions: PageTextRegion[]) => void;
 };
 
 type DrawState = { x0: number; y0: number; x1: number; y1: number };
@@ -129,8 +133,12 @@ export function CadPage({
   fullscreenActive = false,
   overlay,
   toolbarLeading,
+  textLink,
+  onTextRegionsReady,
 }: CadPageProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
+  const onTextRegionsReadyRef = useRef(onTextRegionsReady);
+  onTextRegionsReadyRef.current = onTextRegionsReady;
   const [geometry, setGeometry] = useState<CadGeometry | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -178,6 +186,10 @@ export function CadPage({
     () => hitsInsideRegion(pageHits, remarkFocus ? highlightRegion : null),
     [pageHits, remarkFocus, highlightRegion],
   );
+  useEffect(() => {
+    if (!geometry) return;
+    onTextRegionsReadyRef.current?.(regionsFromCadTexts(texts, geometry.bbox));
+  }, [geometry, texts]);
   /** Медиана высоты подписей листа в px чертежа — по ней считается «Читаемо». */
   const legibleTextPx = useMemo(() => {
     const sizes = texts
@@ -641,6 +653,7 @@ export function CadPage({
             {searchHits.map((hit, index) => (
               <div
                 key={`q-${index}`}
+                {...(textLink?.on ? { "data-text-link-hit": "" } : {})}
                 className={
                   remarkFocus
                     ? "pointer-events-none absolute z-[7] pto-remark-zone"
@@ -792,6 +805,7 @@ export function CadPage({
         onToggleFullscreen={onToggleFullscreen}
         fullscreenActive={fullscreenActive}
         leading={toolbarLeading}
+        textLink={textLink}
       />
     </div>
   );

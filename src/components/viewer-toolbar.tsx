@@ -193,14 +193,17 @@ export function ViewerToolbar({
   fullscreenActive = false,
   leading,
   extra,
+  textLink,
 }: {
   onToggleFullscreen?: () => void;
   fullscreenActive?: boolean;
   /** Переключатели источника листа (PDF / DWG). */
   leading?: ReactNode;
   extra?: ReactNode;
+  /** Эксперимент 0102. Нет пропа — кнопки нет, поведение прежнее. */
+  textLink?: { on: boolean; onToggle: () => void };
 }) {
-  if (!leading && !onToggleFullscreen && !extra) return null;
+  if (!leading && !onToggleFullscreen && !extra && !textLink) return null;
   return (
     <div
       onMouseDown={(event) => event.stopPropagation()}
@@ -211,6 +214,22 @@ export function ViewerToolbar({
         <div className="flex items-center border-r border-white/20 pr-1">
           {leading}
         </div>
+      ) : null}
+      {textLink ? (
+        <button
+          type="button"
+          data-text-link-toggle=""
+          aria-pressed={textLink.on}
+          title="Эксперимент: выделите фрагмент расшифровки — подсветится участок на чертеже. Выключено — всё как было."
+          onClick={() => textLink.onToggle()}
+          className={`pto-tool pto-tool--slim rounded border px-1.5 text-[11px] font-semibold leading-none ${
+            textLink.on
+              ? "border-accent bg-accent text-white"
+              : "border-white/20 bg-white/10 text-white hover:bg-white/20"
+          }`}
+        >
+          Связь
+        </button>
       ) : null}
       {onToggleFullscreen ? (
         <button

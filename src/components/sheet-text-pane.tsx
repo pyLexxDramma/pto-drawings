@@ -29,6 +29,11 @@ export function SheetTextPane({
   highlightQuery,
   focusFirst,
   flagQuotes,
+  textLinkOn = false,
+  activeBlockId = null,
+  onPickText,
+  onPickBlock,
+  onHoverBlock,
 }: {
   paneRef: RefObject<HTMLDivElement | null>;
   searchRef: RefObject<HTMLInputElement | null>;
@@ -50,6 +55,12 @@ export function SheetTextPane({
   highlightQuery: string;
   focusFirst: boolean;
   flagQuotes: string[];
+  /** Эксперимент 0102. Выключено — выделение текста ничего не делает. */
+  textLinkOn?: boolean;
+  activeBlockId?: string | null;
+  onPickText?: (text: string) => void;
+  onPickBlock?: (blockId: string) => void;
+  onHoverBlock?: (blockId: string | null) => void;
 }) {
   return (
     <>
@@ -102,6 +113,15 @@ export function SheetTextPane({
         ref={paneRef}
         // Заметная полоса и постоянное место под неё — только листу-таблице:
         // на текстовом листе прокручивать нечего, а полоса съедала низ панели.
+        onMouseUp={() => {
+          if (!textLinkOn || !onPickText) return;
+          const selection = window.getSelection();
+          const root = paneRef.current;
+          if (!selection || !root || !selection.anchorNode) return;
+          if (!root.contains(selection.anchorNode)) return;
+          const text = selection.toString().replace(/\s+/g, " ").trim();
+          if (text.length >= 2) onPickText(text.slice(0, 240));
+        }}
         className={`min-h-0 flex-1 overflow-y-auto overscroll-x-contain ${
           page?.kind === "table"
             ? "pto-pane-scroll overflow-x-scroll [scrollbar-gutter:stable]"
@@ -135,6 +155,9 @@ export function SheetTextPane({
               highlightQuery={highlightQuery}
               focusFirst={focusFirst}
               flagQuotes={flagQuotes}
+              activeBlockId={textLinkOn ? activeBlockId : null}
+              onPickBlock={textLinkOn ? onPickBlock : undefined}
+              onHoverBlock={textLinkOn ? onHoverBlock : undefined}
             />
           </div>
         )}

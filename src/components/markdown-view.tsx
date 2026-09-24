@@ -30,6 +30,10 @@ type MarkdownViewProps = {
   sharedFocusState?: FocusHighlightState | null;
   /** Смещение нумерации блоков — см. parseMarkdownBlocks. */
   blockIdOffset?: number;
+  /** Эксперимент 0102: клик по блоку подсвечивает его зону на чертеже. */
+  activeBlockId?: string | null;
+  onPickBlock?: (blockId: string) => void;
+  onHoverBlock?: (blockId: string | null) => void;
 };
 
 function wrapText(
@@ -122,6 +126,9 @@ export function MarkdownView({
   singlePass = false,
   sharedFocusState = null,
   blockIdOffset = 0,
+  activeBlockId = null,
+  onPickBlock,
+  onHoverBlock,
 }: MarkdownViewProps) {
   const blocks = useMemo(
     () => (singlePass ? [] : parseMarkdownBlocks(children, blockIdOffset)),
@@ -147,7 +154,25 @@ export function MarkdownView({
   return (
     <>
       {blocks.map((block) => (
-        <div key={block.id} className="scroll-mt-3">
+        <div
+          key={block.id}
+          data-block-id={block.id}
+          className={`scroll-mt-3 ${
+            activeBlockId === block.id ? "rounded-sm bg-accent/10" : ""
+          } ${onPickBlock ? "cursor-pointer" : ""}`}
+          onMouseEnter={onHoverBlock ? () => onHoverBlock(block.id) : undefined}
+          onMouseLeave={onHoverBlock ? () => onHoverBlock(null) : undefined}
+          onClick={
+            onPickBlock
+              ? () => {
+                  // Выделение фрагмента важнее клика по целому блоку.
+                  const selected = window.getSelection()?.toString().trim() ?? "";
+                  if (selected.length >= 2) return;
+                  onPickBlock(block.id);
+                }
+              : undefined
+          }
+        >
           <BlockMarkdown
             source={block.source}
             highlightQuery={q}

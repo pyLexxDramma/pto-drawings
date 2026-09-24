@@ -15,6 +15,7 @@ import { LEGIBLE_MIN_PX, usePageViewport } from "@/hooks/use-page-viewport";
 import { useSearchHitFocus } from "@/hooks/use-search-hit-focus";
 import {
   regionAtPoint,
+  regionsFromPdfTextContent,
   type PageTextRegion,
 } from "@/lib/content-sync";
 import { findLayerHits, hitsInsideRegion } from "@/lib/highlight-text";
@@ -55,6 +56,9 @@ type PdfPageProps = {
   overlay?: ReactNode;
   /** Переключатель PDF / DWG — внутрь тулбара, а не отдельной плашкой. */
   toolbarLeading?: ReactNode;
+  /** Эксперимент 0102: кнопка в тулбаре и зоны текстового слоя наверх. */
+  textLink?: { on: boolean; onToggle: () => void };
+  onTextRegionsReady?: (regions: PageTextRegion[]) => void;
 };
 
 type DrawState = { x0: number; y0: number; x1: number; y1: number };
@@ -161,8 +165,12 @@ export function PdfPage({
   fullscreenActive = false,
   overlay,
   toolbarLeading,
+  textLink,
+  onTextRegionsReady,
 }: PdfPageProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
+  const onTextRegionsReadyRef = useRef(onTextRegionsReady);
+  onTextRegionsReadyRef.current = onTextRegionsReady;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -313,6 +321,9 @@ export function PdfPage({
           width?: number;
         }>;
         textContentRef.current = { items, viewport: pageViewport };
+        onTextRegionsReadyRef.current?.(
+          regionsFromPdfTextContent(items, pageViewport),
+        );
         const height = legibleTextHeight(items, pageViewport.transform);
         setLegibleTextPx(height);
         setWidestLine(
@@ -624,6 +635,7 @@ export function PdfPage({
             {searchHits.map((hit, index) => (
               <div
                 key={`q-${index}`}
+                {...(textLink?.on ? { "data-text-link-hit": "" } : {})}
                 className={
                   remarkFocus
                     ? "pointer-events-none absolute z-[7] pto-remark-zone"
@@ -756,6 +768,7 @@ export function PdfPage({
         onToggleFullscreen={onToggleFullscreen}
         fullscreenActive={fullscreenActive}
         leading={toolbarLeading}
+        textLink={textLink}
       />
     </div>
   );
