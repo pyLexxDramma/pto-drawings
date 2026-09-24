@@ -24,38 +24,16 @@ export const VERDICT_CHIP: Record<ReviewVerdict, string> = {
 };
 
 /**
- * Строка белая. Важность — яркая рамка, не заливка: иначе длинное замечание
- * выглядит как полоса одного цвета, и средний с высоким спорят с фоном.
- *
- * На `<tr>` ring часто не рисуется (особенно при border-separate), поэтому
- * рамку кладём на ячейки: верх/низ у всех, левый край у первой, правый у последней.
+ * Красим только клетку «Замечание»: блеклая заливка и яркая рамка по важности.
+ * Всю строку заливать нельзя — закрывает текст и красит номер, статус, автора.
  */
-export const SEVERITY_ROW: Record<ReviewSeverity, string> = {
-  unset: "bg-white",
-  high: "bg-white ring-2 ring-inset ring-rose-500",
-  medium: "bg-white ring-2 ring-inset ring-amber-500",
-  low: "bg-white ring-2 ring-inset ring-sky-500",
-  skip: "bg-white opacity-60",
-};
-
-const SEVERITY_EDGE: Record<ReviewSeverity, string> = {
+export const SEVERITY_REMARK: Record<ReviewSeverity, string> = {
   unset: "",
-  high: "border-rose-500",
-  medium: "border-amber-500",
-  low: "border-sky-500",
-  skip: "",
+  high: "border-2 border-rose-500 bg-rose-50",
+  medium: "border-2 border-amber-500 bg-amber-50",
+  low: "border-2 border-sky-500 bg-sky-50",
+  skip: "opacity-60",
 };
-
-export function severityCellFrame(
-  severity: ReviewSeverity,
-  edge: "first" | "mid" | "last",
-): string {
-  const color = SEVERITY_EDGE[severity];
-  if (!color) return "";
-  if (edge === "first") return `border-y-2 border-l-2 ${color}`;
-  if (edge === "last") return `border-y-2 border-r-2 ${color}`;
-  return `border-y-2 ${color}`;
-}
 
 /** Заливку по статусу не даём: статус читается подписью, не фоном строки. */
 export const VERDICT_ROW: Partial<Record<ReviewVerdict, string>> = {};

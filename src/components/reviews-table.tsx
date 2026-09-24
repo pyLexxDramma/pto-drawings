@@ -24,9 +24,8 @@ import {
 } from "@/lib/excel-filter";
 import {
   SEVERITY_CHIP,
-  SEVERITY_ROW,
+  SEVERITY_REMARK,
   VERDICT_CHIP,
-  severityCellFrame,
 } from "@/lib/review-colors";
 import { formatDate } from "@/lib/format";
 import { placeOrdinal, remarkWording, sheetLabel } from "@/lib/sheet-label";
@@ -1775,19 +1774,19 @@ function ReviewRow({
   }
 
   const wording = review.text || review.aiFinding;
-  const edge = (side: "first" | "mid" | "last") =>
-    severityCellFrame(review.severity, side);
 
   return (
     <tr
       onClick={onActivate}
       // Строка переезжает при смене важности и разбора — тестам нужна опора на id.
       data-review-id={review.id}
-      className={`align-top ${SEVERITY_ROW[review.severity] || "bg-white"} ${
+      className={`align-top bg-white ${
+        review.severity === "skip" ? "opacity-60" : ""
+      } ${
         active ? "outline outline-2 -outline-offset-2 outline-accent" : ""
       }`}
     >
-      <td className={`${CELL} px-1 ${edge("first")}`}>
+      <td className={`${CELL} px-1`}>
         <input
           type="checkbox"
           checked={selected}
@@ -1796,7 +1795,7 @@ function ReviewRow({
           aria-label={`Выбрать замечание ${review.number}`}
         />
       </td>
-      <td className={`${CELL} tabular-nums text-muted ${edge("mid")}`}>
+      <td className={`${CELL} tabular-nums text-muted`}>
         <span className="inline-flex items-center gap-1">
           {review.number}
           {review.verdict === "pending" ? null : (
@@ -1807,7 +1806,7 @@ function ReviewRow({
         </span>
       </td>
       {showSection ? (
-        <td className={`${CELL} ${edge("mid")}`}>
+        <td className={CELL}>
           {sectionLabel ? (
             <span className="rounded border border-slate-300 bg-white px-1.5 py-0.5 pto-t-sm font-medium text-text">
               {sectionLabel}
@@ -1815,7 +1814,7 @@ function ReviewRow({
           ) : null}
         </td>
       ) : null}
-      <td className={`${CELL} ${edge("mid")}`}>
+      <td className={`${CELL} ${SEVERITY_REMARK[review.severity]}`}>
         <RemarkText
           wording={wording}
           needle={needle}
@@ -1823,7 +1822,7 @@ function ReviewRow({
           wrongReason={review.wrongReason}
         />
       </td>
-      <td className={`${CELL} ${edge("mid")}`}>
+      <td className={CELL}>
         {review.needsRecheck ? (
           <div className="mb-1 pto-t-sm font-medium text-amber-800">
             нужно перепроверить
@@ -1844,7 +1843,7 @@ function ReviewRow({
           />
         )}
       </td>
-      <td className={`${CELL} ${edge("mid")}`}>
+      <td className={CELL}>
         <StatusPicker
           field="severity"
           ariaLabel={`Важность замечания ${review.number}`}
@@ -1855,7 +1854,7 @@ function ReviewRow({
           onChange={(next) => onPatch({ severity: next })}
         />
       </td>
-      <td className={`${CELL} ${edge("mid")}`}>
+      <td className={CELL}>
         <StatusPicker
           field="verdict"
           ariaLabel={`Статус замечания ${review.number}`}
@@ -1881,7 +1880,7 @@ function ReviewRow({
           </button>
         ) : null}
       </td>
-      <td className={`${CELL} ${edge("mid")}`}>
+      <td className={CELL}>
         {/* Поле открывается по клику: пятнадцать пустых textarea в столбик
             занимали половину строки и мешали читать сами замечания. */}
         {commentOpen ? (
@@ -1967,7 +1966,7 @@ function ReviewRow({
           ) : null}
         </div>
       </td>
-      <td className={`${CELL} ${edge("last")}`}>
+      <td className={CELL}>
         <span className="inline-flex items-center gap-1">
           <span
             className={`inline-block rounded border px-1.5 py-0.5 pto-t-sm font-medium ${

@@ -6,9 +6,8 @@ import { Tooltip } from "@/components/tooltip";
 import { VerdictDot } from "@/components/ui-chrome";
 import {
   SEVERITY_CHIP,
-  SEVERITY_ROW,
+  SEVERITY_REMARK,
   VERDICT_CHIP,
-  severityCellFrame,
 } from "@/lib/review-colors";
 import {
   placeDeepLink,
@@ -434,21 +433,17 @@ export function ResolvedReviewsPage() {
               {group.items.map((review) => (
                 <tr
                   key={review.id}
-                  className={`align-top ${SEVERITY_ROW[review.severity] || "bg-white"}`}
+                  className={`align-top bg-white ${
+                    review.severity === "skip" ? "opacity-60" : ""
+                  }`}
                 >
-                  <Td
-                    className="tabular-nums text-muted"
-                    frame={severityCellFrame(review.severity, "first")}
-                  >
+                  <Td className="tabular-nums text-muted">
                     {review.number}
                   </Td>
-                  <Td
-                    className="text-muted"
-                    frame={severityCellFrame(review.severity, "mid")}
-                  >
+                  <Td className="text-muted">
                     {review.section || "—"}
                   </Td>
-                  <Td frame={severityCellFrame(review.severity, "mid")}>
+                  <Td frame={SEVERITY_REMARK[review.severity]}>
                     <div className="whitespace-pre-wrap leading-snug">
                       {review.text}
                     </div>
@@ -458,7 +453,7 @@ export function ResolvedReviewsPage() {
                       </div>
                     ) : null}
                   </Td>
-                  <Td frame={severityCellFrame(review.severity, "mid")}>
+                  <Td>
                     <div className="space-y-0.5">
                       {review.locations.length === 0 ? (
                         <span className="text-muted">—</span>
@@ -476,7 +471,7 @@ export function ResolvedReviewsPage() {
                       )}
                     </div>
                   </Td>
-                  <Td frame={severityCellFrame(review.severity, "mid")}>
+                  <Td>
                     <VerdictBadge verdict={review.verdict} />
                     {review.wrongReason ? (
                       <div className="mt-1 whitespace-pre-wrap pto-t-md leading-snug text-rose-800">
@@ -484,7 +479,7 @@ export function ResolvedReviewsPage() {
                       </div>
                     ) : null}
                   </Td>
-                  <Td frame={severityCellFrame(review.severity, "mid")}>
+                  <Td>
                     <span
                       className={`inline-flex rounded border px-1.5 py-0.5 pto-t-md ${SEVERITY_CHIP[review.severity]}`}
                       title={`Важность: ${REVIEW_SEVERITY_LABEL[review.severity]}`}
@@ -492,10 +487,7 @@ export function ResolvedReviewsPage() {
                       {REVIEW_SEVERITY_LABEL[review.severity]}
                     </span>
                   </Td>
-                  <Td
-                    className="whitespace-pre-wrap leading-snug text-muted"
-                    frame={severityCellFrame(review.severity, "last")}
-                  >
+                  <Td className="whitespace-pre-wrap leading-snug text-muted">
                     {review.comment || "—"}
                   </Td>
                 </tr>
