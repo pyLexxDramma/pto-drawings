@@ -112,7 +112,7 @@ const STATUS_LABEL: Record<DocumentStatus, string> = {
   error: "Ошибка",
 };
 
-/** Статус файла — те же три смысла, что у замечаний: ждёт, готово, ошибка. */
+/** Состояние системы, три смысла: ждёт, готово, ошибка. Только токенами sem-*. */
 const STATUS_CLASS: Record<DocumentStatus, string> = {
   queued: "bg-sem-attn-soft text-sem-attn-text",
   processing: "bg-accent/10 text-accent",
