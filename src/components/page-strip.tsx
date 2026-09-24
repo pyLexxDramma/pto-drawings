@@ -10,7 +10,7 @@ import {
   type ReviewVerdict,
 } from "@/types";
 
-function StatusDot({
+function StatusChip({
   className,
   label,
 }: {
@@ -19,7 +19,10 @@ function StatusDot({
 }) {
   return (
     <Tooltip label={label}>
-      <span className={`h-3 w-3 rounded-full ${className}`} aria-label={label} />
+      <span
+        className={`inline-flex h-4 min-w-[1.125rem] items-center justify-center rounded-md ${className}`}
+        aria-label={label}
+      />
     </Tooltip>
   );
 }
@@ -33,7 +36,7 @@ type SheetRowProps = {
   isUnseen: boolean;
   isFlagged: boolean;
   isEdited: boolean;
-  dots?: { count: number; verdict: ReviewVerdict };
+  dots?: { count: number; verdict: ReviewVerdict; pending: number };
   onSelect: (page: number) => void;
 };
 
@@ -63,6 +66,9 @@ function SheetRow({
     .filter(Boolean)
     .join(" · ");
 
+  const openIssues = (dots?.pending ?? 0) > 0;
+  const allResolved = Boolean(dots && dots.count > 0 && dots.pending === 0);
+
   return (
     <button
       type="button"
@@ -78,45 +84,53 @@ function SheetRow({
             "border-accent bg-accent/10 font-semibold"
           : isWorking
             ? "pto-page-working border-sky-400 bg-sky-50"
-            : "border-emerald-400 bg-white hover:border-emerald-600 hover:bg-emerald-100"
+            : openIssues
+              ? "border-amber-500 bg-amber-50 hover:border-amber-600 hover:bg-amber-100"
+              : allResolved
+                ? "border-emerald-600 bg-emerald-100 hover:border-emerald-700 hover:bg-emerald-200"
+                : "border-emerald-400 bg-white hover:border-emerald-600 hover:bg-emerald-100"
       }`}
     >
       <span className="flex w-full items-center gap-1.5">
-        <span className="min-w-0 flex-1 truncate pto-t-sm font-medium leading-tight">
-          Лист {pageNumber}
+        <span className="min-w-0 flex-1 truncate pto-t-sm font-medium leading-tight tabular-nums">
+          L{pageNumber}
         </span>
-        <span className="flex shrink-0 items-center gap-1.5">
+        <span className="flex shrink-0 items-center gap-1">
           {isWorking ? (
-            <StatusDot
+            <StatusChip
               className="animate-pulse bg-accent motion-reduce:animate-none"
               label="Сейчас обрабатывается"
             />
           ) : isReady ? (
-            <StatusDot className="bg-sem-ok" label="Текст готов" />
+            <StatusChip className="bg-sem-ok" label="Текст готов" />
           ) : (
-            <StatusDot className="bg-slate-300" label="Ждёт текст" />
+            <StatusChip className="bg-slate-300" label="Ждёт текст" />
           )}
           {isUnseen ? (
-            <StatusDot
-              className="border-2 border-sem-attn bg-sem-attn-soft"
+            <StatusChip
+              className="border border-sem-attn bg-sem-attn-soft"
               label="Лист не открывали"
             />
           ) : null}
           {dots ? (
             <Tooltip
-              label={`${dots.count} · ${REVIEW_VERDICT_LABEL[dots.verdict].toLowerCase()}`}
+              label={
+                openIssues
+                  ? `${dots.pending} не разобрано из ${dots.count}`
+                  : `${dots.count} · ${REVIEW_VERDICT_LABEL[dots.verdict].toLowerCase()}`
+              }
             >
               <span
-                className={`inline-flex min-w-[1.125rem] items-center justify-center rounded-full px-1 pto-t-xs font-semibold leading-[1.125rem] tabular-nums ${VERDICT_COUNT[dots.verdict]}`}
+                className={`inline-flex min-w-[1.25rem] items-center justify-center rounded-md px-1 pto-t-xs font-semibold leading-4 tabular-nums ${VERDICT_COUNT[dots.verdict]}`}
                 aria-label={`${dots.count} · ${REVIEW_VERDICT_LABEL[dots.verdict]}`}
               >
                 {dots.count}
               </span>
             </Tooltip>
           ) : isFlagged ? (
-            <StatusDot className="bg-sem-issue" label="Есть отметка" />
+            <StatusChip className="bg-sem-issue" label="Есть отметка" />
           ) : isEdited ? (
-            <StatusDot className="bg-sem-attn" label="Лист правили" />
+            <StatusChip className="bg-sem-attn" label="Лист правили" />
           ) : null}
         </span>
       </span>
@@ -130,7 +144,7 @@ type PageStripProps = {
   kinds: Map<number, PageKind>;
   edited: Set<number>;
   viewed: Set<number>;
-  pageDots?: Map<number, { count: number; verdict: ReviewVerdict }>;
+  pageDots?: Map<number, { count: number; verdict: ReviewVerdict; pending: number }>;
   ready: Set<number>;
   annotated?: Set<number>;
   hidden?: Set<number>;

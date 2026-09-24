@@ -51,11 +51,16 @@ export function ResolvedReviewsPage() {
   const searchParams = useSearchParams();
   const rawProject = searchParams.get("project")?.trim();
   const projectId = rawProject ? rawProject : null;
+  const rawVerdict = searchParams.get("verdict")?.trim();
   const [projectName, setProjectName] = useState("");
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(Boolean(projectId));
   const [error, setError] = useState<string | null>(null);
-  const [only, setOnly] = useState<ReviewVerdict | null>(null);
+  const [only, setOnly] = useState<ReviewVerdict | null>(() =>
+    rawVerdict && rawVerdict in REVIEW_VERDICT_LABEL
+      ? (rawVerdict as ReviewVerdict)
+      : null,
+  );
   const [query, setQuery] = useState("");
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -137,8 +142,11 @@ export function ResolvedReviewsPage() {
   const rows = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return reviews
-      .filter((item) => item.verdict !== "pending" && item.severity !== "skip")
-      .filter((item) => (only ? item.verdict === only : true))
+      .filter((item) => item.severity !== "skip")
+      .filter((item) => {
+        if (only) return item.verdict === only;
+        return item.verdict !== "pending";
+      })
       .filter((item) => {
         if (!needle) return true;
         return [
@@ -162,10 +170,12 @@ export function ResolvedReviewsPage() {
   /** Блок на каждый итог разбора; внутри блока — самые важные сверху. */
   const groups = useMemo(
     () =>
-      RESOLVED_ORDER.map((verdict) => ({
-        verdict,
-        items: rows.filter((item) => item.verdict === verdict),
-      })).filter((group) => group.items.length > 0),
+      (["pending", ...RESOLVED_ORDER] as ReviewVerdict[])
+        .map((verdict) => ({
+          verdict,
+          items: rows.filter((item) => item.verdict === verdict),
+        }))
+        .filter((group) => group.items.length > 0),
     [rows],
   );
 
@@ -257,10 +267,20 @@ export function ResolvedReviewsPage() {
           <div className="flex flex-wrap items-center gap-1">
             <FilterChip
               active={only === null}
-              label="Все"
+              label="Все разобранные"
               count={resolved}
               onClick={() => setOnly(null)}
             />
+            {(counts.get("pending") ?? 0) > 0 ? (
+              <FilterChip
+                active={only === "pending"}
+                verdict="pending"
+                label={REVIEW_VERDICT_LABEL.pending}
+                hint={VERDICT_HINT.pending}
+                count={counts.get("pending") ?? 0}
+                onClick={() => setOnly(only === "pending" ? null : "pending")}
+              />
+            ) : null}
             {RESOLVED_ORDER.map((verdict) => (
               <FilterChip
                 key={verdict}
@@ -374,8 +394,9 @@ export function ResolvedReviewsPage() {
         <div className="px-4 py-6 text-sm text-muted">Загрузка…</div>
       ) : rows.length === 0 ? (
         <div className="px-4 py-6 text-sm text-muted">
-          Разобранных замечаний нет. Поставьте статус в таблице замечаний —
-          строка появится здесь.
+          {only === "pending"
+            ? "Неразобранных замечаний нет."
+            : "Разобранных замечаний нет. Поставьте статус в таблице замечаний — строка появится здесь."}
         </div>
       ) : (
         <div className="px-4 py-3">
