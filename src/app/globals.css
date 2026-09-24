@@ -347,7 +347,13 @@ body {
   border-spacing: 0;
   margin: 0.8em 0;
   font-size: var(--md-size);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /*
+   * Моношрифта здесь больше нет. Основную площадь ведомости занимает
+   * «Наименование и техническая характеристика» — связный русский текст, а в
+   * Consolas он заметно шире, из-за чего каждая позиция переносилась на лишнюю
+   * строку. Выравнивать цифры по разрядам всё равно нечему: ячейки прижаты
+   * влево, а tabular-nums вдобавок раздвигал дефис в «ГОСТ 21.501-2018».
+   */
 }
 
 /*
@@ -410,8 +416,13 @@ body {
   background: #e8f1ff !important;
 }
 
+/**
+ * Зебра светлее шапки. Было #e8eef6 — ровно цвет thead, поэтому приклеенная
+ * при прокрутке шапка сливалась с каждой второй строкой и переставала читаться
+ * как шапка.
+ */
 .markdown-body tbody tr:nth-child(even) td {
-  background: #e8eef6;
+  background: #f1f5f9;
 }
 
 .markdown-body tbody tr:hover td {
