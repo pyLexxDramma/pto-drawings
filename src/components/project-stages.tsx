@@ -1,5 +1,6 @@
 "use client";
 
+import { IconBack } from "@/components/tool-icons";
 import { ProgressTrack, Spinner } from "@/components/ui-chrome";
 import type { DocumentRecord } from "@/types";
 
@@ -28,27 +29,26 @@ const ACTION: Record<StageId, string> = {
 };
 
 /**
- * Выбранный этап — мягкий зелёный, не ярко-синий: это «вы здесь», а не тревога.
- * Оба этапа одного цвета, какой открыт — говорит заливка, какой это этап —
- * подпись.
+ * Выбранный этап — подчёркивание, а не заливка: «вы здесь» показывает accent,
+ * тот же цвет, что у открытого листа в левом списке. Зелёный из табов ушёл,
+ * потому что в приложении он значит «разобрано» и не может значить заодно
+ * «выбрано». Оба этапа одного цвета, какой это этап — говорит подпись.
  */
 const STAGE_TAB: Record<
   StageId,
   { idle: string; current: string; track: "accent" | "emerald" }
 > = {
   transcribe: {
-    idle:
-      "border-emerald-300 bg-white text-text hover:border-emerald-500 hover:bg-emerald-50",
+    idle: "border-border bg-white text-muted hover:border-slate-400 hover:text-text",
     current:
-      "border-emerald-600 bg-emerald-100 text-emerald-950 shadow-sm hover:bg-emerald-200",
-    track: "emerald",
+      "border-accent/40 bg-white text-text shadow-[inset_0_-2px_0_var(--accent)] hover:bg-accent/5",
+    track: "accent",
   },
   reviews: {
-    idle:
-      "border-emerald-300 bg-white text-text hover:border-emerald-500 hover:bg-emerald-50",
+    idle: "border-border bg-white text-muted hover:border-slate-400 hover:text-text",
     current:
-      "border-emerald-600 bg-emerald-100 text-emerald-950 shadow-sm hover:bg-emerald-200",
-    track: "emerald",
+      "border-accent/40 bg-white text-text shadow-[inset_0_-2px_0_var(--accent)] hover:bg-accent/5",
+    track: "accent",
   },
 };
 
@@ -218,7 +218,7 @@ export function ProjectStagesBar({
                 </span>
                 <span
                   className={`truncate pto-t-sm tabular-nums ${
-                    current ? "text-emerald-800" : "opacity-75"
+                    current ? "text-accent" : "opacity-75"
                   }`}
                 >
                   {stage.count}
@@ -240,8 +240,9 @@ export function ProjectStagesBar({
           type="button"
           onClick={onBackHome}
           title="Туда, откуда открыли эту страницу"
-          className="shrink-0 rounded-md border border-amber-500 bg-amber-500 px-2 py-0.5 pto-t-sm font-bold text-white shadow-sm hover:bg-amber-600"
+          className="inline-flex shrink-0 items-center gap-1 rounded-md border border-slate-300 bg-white px-2 py-0.5 pto-t-sm font-semibold text-slate-800 hover:bg-slate-50"
         >
+          <IconBack className="h-3 w-3" />
           {backLabel}
         </button>
       ) : null}

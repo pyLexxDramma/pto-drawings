@@ -98,16 +98,16 @@ export function ControlsHelpContent() {
         <div className="mb-1 font-semibold text-text">Что значат цвета</div>
         <ul className="space-y-1">
           <li>
-            <Box className="bg-emerald-400/60 outline-emerald-300" />
-            рамка — где замечание
+            <Box className="bg-rose-500/25 outline-rose-500" />
+            рамка — где замечание, внутри неё само расходящееся значение
           </li>
           <li>
-            <Box className="bg-orange-400/60 outline-orange-300" />
-            внутри неё — само расходящееся значение
-          </li>
-          <li>
-            <Box className="bg-sky-400/60 outline-sky-300" />
+            <Box className="bg-sky-500/20 outline-sky-600" />
             то же замечание в другом месте листа
+          </li>
+          <li>
+            <Box className="bg-amber-200 outline-amber-500" />
+            найденное поиском — и та же заливка с красной чертой в расшифровке
           </li>
         </ul>
         <div className="mt-1.5">Кружки у листов в левом списке:</div>
@@ -167,7 +167,7 @@ export function ControlsHelpContent() {
         <div className="mb-1 font-semibold text-text">Переходы</div>
         <ul className="list-disc space-y-1 pl-4">
           <li>
-            <Btn>← Назад</Btn> стоит рядом с поиском и возвращает туда, откуда
+            <Btn>Назад</Btn> стоит рядом с поиском и возвращает туда, откуда
             открыли экран. Логотип PTO — сразу ко всем проектам.
           </li>
           <li>

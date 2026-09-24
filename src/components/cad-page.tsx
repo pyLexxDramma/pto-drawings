@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { HighlightLegend } from "@/components/highlight-legend";
 import { Spinner } from "@/components/ui-chrome";
 import { VIEWER_MOUSE_HINT } from "@/components/viewer-hint";
 import { ViewerStatusBar } from "@/components/viewer-status-bar";
@@ -606,7 +607,7 @@ export function CadPage({
 
             {highlightRegion ? (
               <div
-                className="pointer-events-none absolute z-[5] bg-emerald-400/35 outline outline-2 outline-emerald-600 shadow-[0_0_0_4px_rgba(16,185,129,0.2)]"
+                className="pto-place pointer-events-none absolute z-[5]"
                 style={{
                   left: `${highlightRegion.x * 100}%`,
                   top: `${highlightRegion.y * 100}%`,
@@ -618,7 +619,7 @@ export function CadPage({
             {highlightRegions.map((region) => (
               <div
                 key={region.id}
-                className="pointer-events-none absolute z-[5] bg-sky-400/25 outline outline-2 outline-sky-600"
+                className="pto-place-alt pointer-events-none absolute z-[5]"
                 style={{
                   left: `${region.x * 100}%`,
                   top: `${region.y * 100}%`,
@@ -634,8 +635,8 @@ export function CadPage({
                   remarkFocus
                     ? "pointer-events-none absolute z-[7] pto-remark-zone"
                     : index === hitFocus.index
-                      ? "pointer-events-none absolute z-[7] bg-amber-300/60 outline outline-2 outline-amber-600"
-                      : "pointer-events-none absolute bg-amber-300/45 outline outline-1 outline-amber-500/80"
+                      ? "pto-find-focus pointer-events-none absolute z-[7]"
+                      : "pto-find pointer-events-none absolute"
                 }
                 style={{
                   left: `${hit.x * 100}%`,
@@ -721,6 +722,13 @@ export function CadPage({
       ) : null}
 
       <ViewerStatusBar
+        legend={
+          <HighlightLegend
+            place={Boolean(highlightRegion) || (remarkFocus && searchHits.length > 0)}
+            alt={highlightRegions.length > 0}
+            find={!remarkFocus && searchHits.length > 0}
+          />
+        }
         scaleBar={
           geometry && ready ? (
             <span

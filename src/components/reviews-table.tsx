@@ -14,7 +14,7 @@ import { ExcelColFilter } from "@/components/excel-col-filter";
 import { ResolvedSummary } from "@/components/resolved-summary";
 import { Tooltip } from "@/components/tooltip";
 import { Spinner, VerdictDot } from "@/components/ui-chrome";
-import { IconDoc, IconDownload } from "@/components/tool-icons";
+import { IconBack, IconDoc, IconDownload } from "@/components/tool-icons";
 import {
   applyExcelFilters,
   excelColValues,
@@ -28,7 +28,12 @@ import {
   VERDICT_CHIP,
 } from "@/lib/review-colors";
 import { formatDate } from "@/lib/format";
-import { placeOrdinal, remarkWording, sheetLabel } from "@/lib/sheet-label";
+import {
+  placeOrdinal,
+  placeShort,
+  remarkWording,
+  sheetLabel,
+} from "@/lib/sheet-label";
 import { isCrossSection, knownSectionRank } from "@/lib/sections";
 import {
   REVIEW_EVENT_LABEL,
@@ -701,9 +706,10 @@ export function ReviewsTable({
               type="button"
               onClick={onBack}
               title="Туда, откуда открыли таблицу"
-              className="whitespace-nowrap rounded-md border border-slate-300 bg-white px-2 py-0.5 pto-t-md font-semibold leading-none text-slate-800 hover:bg-slate-50"
+              className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-slate-300 bg-white px-2 py-0.5 pto-t-md font-semibold leading-none text-slate-800 hover:bg-slate-50"
             >
-              ← Назад
+              <IconBack className="h-3 w-3" />
+              Назад
             </button>
           ) : null}
           <input
@@ -1560,8 +1566,11 @@ function ReviewLocations({
           className="flex min-w-0 items-baseline gap-1"
         >
           {many ? (
-            <span className="shrink-0 tabular-nums pto-t-sm text-muted">
-              {placeOrdinal(index)}
+            <span
+              className="shrink-0 tabular-nums pto-t-sm text-muted"
+              title={placeOrdinal(index)}
+            >
+              {placeShort(index)}
             </span>
           ) : null}
           <div className="min-w-0 flex-1">

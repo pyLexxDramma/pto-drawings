@@ -10,9 +10,11 @@
  *     внутри каждой свой цвет, иначе выпадашка сливается в одно пятно;
  *  3. важность красит только клетку «Замечание» (блеклая заливка + яркая рамка),
  *     не всю строку; статус фон строки не даёт;
- *  4. табы этапов на мягком зелёном, не на sky / violet / ярко-синем accent;
- *  5. цветные зоны левой колонки остаются разделёнными толстой рамкой — их
- *     сделали такими нарочно, чтобы инженер не кликнул не в ту зону.
+ *  4. «вы здесь» показывает подчёркивание accent, а не смысловой цвет;
+ *  5. зоны левой колонки разделены толстой нейтральной рамкой — форма охраняет
+ *     от клика не в ту зону, цвет для этого занимать нельзя;
+ *  6. подсветка листа: место замечания — рамка, поиск — заливка, значение в
+ *     расшифровке отличимо от поиска, бесконечных анимаций нет.
  *
  * Запуск: node scripts/palette-check.mjs
  */
@@ -121,32 +123,108 @@ check(
   "статус читается подписью и кружком",
 );
 
-// --------------------------------------- 4. табы этапов на мягком зелёном
+// ------------------ 4. «вы здесь» — подчёркивание accent, а не смысловой цвет
 
 const stageTab = block(read("components", "project-stages.tsx"), "STAGE_TAB");
 check(
-  "табы этапов на мягком зелёном",
-  stageTab.includes("emerald") &&
-    !/-(sky|violet)-/.test(stageTab) &&
-    !/bg-accent/.test(stageTab),
+  "выбранный таб показан подчёркиванием accent",
+  /shadow-\[inset_0_-2px_0_var\(--accent\)\]/.test(stageTab),
   stageTab ? "" : "STAGE_TAB не найден",
 );
+check(
+  "выбранный таб не красится смысловым цветом",
+  Boolean(stageTab) && !/-(emerald|sky|violet|amber|rose)-/.test(stageTab),
+  "зелёный значит «разобрано» и не может значить заодно «выбрано»",
+);
 
-// ------------------------- 5. зоны левой колонки разделены толстой рамкой
+// ------------------- 5. зоны левой колонки: разделены формой, а не смыслом
 
 const strip = read("components", "page-strip.tsx");
 const zones = [
-  ["проекты", workspace, "border-b-2 border-sky-500"],
-  ["разобрано", workspace, "border-t-2 border-amber-500"],
-  ["листы в колонке", workspace, "border-t-2 border-emerald-600"],
-  ["листы отдельной панелью", strip, "border-r-2 border-emerald-600"],
-  ["шапка «Листы»", strip, "border-b-2 border-emerald-600"],
+  ["проекты", workspace, "border-b-2 border-slate-300", 1],
+  ["листы в колонке и «Разобрано»", workspace, "border-t-2 border-slate-300", 2],
+  ["листы отдельной панелью", strip, "border-r-2 border-slate-300", 1],
+  ["шапка «Листы»", strip, "border-b-2 border-slate-300", 1],
 ];
-for (const [label, source, needle] of zones) {
-  check(`зона «${label}» отделена рамкой ${needle}`, source.includes(needle));
+for (const [label, source, needle, times] of zones) {
+  const found = source.split(needle).length - 1;
+  check(
+    `зона «${label}» отделена рамкой ${needle}`,
+    found >= times,
+    `нашлось ${found}, нужно ${times}`,
+  );
 }
+// Зоны делит толщина рамки, и этого хватает. Цвет для них занимать нельзя:
+// оттенки уже заняты смыслом (не разобрано, разобрано, важность), и та же
+// зелёная рамка вокруг зоны обесценивала зелёный на разобранном листе.
+const zoneHue = [
+  ...workspace.matchAll(/border-[trbl]-2 border-(?:emerald|amber|sky|rose|violet)-\d{3}/g),
+  ...strip.matchAll(/border-[trbl]?-?2 border-(?:emerald|amber|sky|rose|violet)-\d{3}/g),
+].map((m) => m[0]);
+check(
+  "хром зон не красится смысловыми оттенками",
+  zoneHue.length === 0,
+  zoneHue.join(", ") || "рамки нейтральные",
+);
 
-// ---------------------------------------- 6. оси зафиксированы в документации
+// ------------------------ 6. подсветка: цвет за смыслом, приём отрисовки за ролью
+
+const cssRule = (selector) =>
+  new RegExp(`${selector.replace(/[.\\]/g, "\\$&")}\\s*\\{[^}]*\\}`).exec(css)?.[0] ?? "";
+const token = (name) =>
+  new RegExp(`${name}:\\s*([^;]+);`).exec(css)?.[1]?.trim() ?? "";
+
+const place = cssRule(".pto-place");
+const placeAlpha = Number(/\/\s*([\d.]+)\s*\)/.exec(token("--hl-place-soft"))?.[1] ?? "1");
+check(
+  "место замечания — рамка, а не плотная заливка",
+  /outline:\s*2px solid/.test(place) && placeAlpha <= 0.12,
+  `заливка ${placeAlpha}, под ней должен читаться чертёж`,
+);
+
+// Место и точная цитата внутри него — один факт, значит один цвет. Раньше
+// место было зелёным, а цитата внутри оранжевой, и цитата в нём тонула.
+const rose = "225 29 72";
+check(
+  "место и точная цитата внутри него одного цвета",
+  token("--hl-place") === "#e11d48" && cssRule(".pto-remark-zone").includes(rose),
+  `${token("--hl-place")} и зона на ${rose}`,
+);
+
+const find = cssRule(".pto-find");
+check(
+  "найденное поиском — только заливка, без рамки",
+  /background-color/.test(find) && !/outline/.test(find),
+  "поиск это навигация, он ничего не оценивает",
+);
+
+// Правило .markdown-body mark перебивало .pto-remark-text по специфичности, и
+// спорное значение выходило ровно того же цвета, что совпадения поиска.
+check(
+  "значение замечания в расшифровке отличимо от поиска",
+  /\.markdown-body \.pto-remark-text/.test(css) &&
+    /inset 0 -2px 0 var\(--hl-place\)/.test(css),
+  "красная черта снизу поверх той же песочной заливки",
+);
+
+// Бесконечная анимация в боковом зрении тянет взгляд с чертежа. Оставлены
+// только две: вертушка ожидания и бегущая полоса загрузки.
+const spinners = ["pto-spinner", "pto-progress__bar"];
+const infinite = [
+  ...css.matchAll(/\.([\w-]+)\s*\{[^}]*animation:[^;]*infinite/g),
+].map((m) => m[1]);
+check(
+  "бесконечно анимированы только вертушка и полоса загрузки",
+  infinite.every((name) => spinners.includes(name)),
+  infinite.join(", ") || "нет",
+);
+check(
+  "в списке листов нет бесконечной пульсации",
+  !/animate-pulse/.test(strip),
+  "состояние листа видно цветом и подписью",
+);
+
+// ---------------------------------------- 7. оси зафиксированы в документации
 
 const doc = fs.readFileSync(path.resolve("docs", "page-contract.md"), "utf8");
 check(
@@ -160,6 +238,12 @@ check(
 check(
   "зонирование левой колонки описано в docs/page-contract.md",
   /Зоны левой колонки/.test(doc),
+);
+check(
+  "система подсветки описана в docs/page-contract.md",
+  /Подсветка/.test(doc) &&
+    ["--hl-place", "--hl-alt", "--hl-find"].every((t) => doc.includes(t)) &&
+    /HighlightLegend/.test(doc),
 );
 
 console.log(failures ? `\nпровалов: ${failures}` : "\nпалитра сведена");
