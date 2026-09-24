@@ -242,12 +242,19 @@ export function ReviewPane({
   /** Список замечаний листа держим свёрнутым: он закрывал расшифровку. */
   const [pageReviewsOpen, setPageReviewsOpen] = useState(false);
   const [keymapOpen, setKeymapOpen] = useState(false);
-  const [drawingHitCount, setDrawingHitCount] = useState<number | null>(null);
+  const [drawingReport, setDrawingReport] = useState<{
+    nonce: number;
+    count: number;
+  } | null>(null);
   const [textHitFound, setTextHitFound] = useState<boolean | null>(null);
   const [quoteBannerOn, setQuoteBannerOn] = useState(true);
-  const handleHighlightHits = useCallback((count: number) => {
-    setDrawingHitCount(count);
+  const handleHighlightHits = useCallback((count: number, nonce: number) => {
+    setDrawingReport({ nonce, count });
   }, []);
+  const drawingHitCount =
+    drawingReport && drawingReport.nonce === focusNonce
+      ? drawingReport.count
+      : null;
 
   const total = Math.max(document.pageCount, document.pages.length, 1);
   const isCadSource = isCadExt(getDrawingExt(document.originalName));
@@ -493,7 +500,7 @@ export function ReviewPane({
     setFocusNonce(Date.now());
     setPaneSolo(null);
     setSidePanel("text");
-    setDrawingHitCount(null);
+    setDrawingReport(null);
     setTextHitFound(null);
   }
   function selectFileReview(review: Review) {
@@ -609,48 +616,6 @@ export function ReviewPane({
     [siblingLocations, document.id, pageNumber, focusRect],
   );
 
-  // Один ряд плашек над листом: счётчик поиска, места, легенда цветов.
-  const placeBar =
-    siblingLocations.length > 1 && activeReview ? (
-      <span className="pointer-events-auto inline-flex max-w-full items-center gap-0.5 rounded border border-white/25 bg-slate-900/70 px-1.5 py-[3px] pto-t-xs font-medium leading-none text-white shadow-md backdrop-blur">
-        <button
-          type="button"
-          className="rounded px-1 font-semibold hover:bg-white/15"
-          title="Предыдущее место"
-          onClick={() => {
-            const from = siblingIndex >= 0 ? siblingIndex : 0;
-            const next =
-              siblingLocations[
-                (from - 1 + siblingLocations.length) % siblingLocations.length
-              ];
-            focusLocation(next, activeReview.id);
-          }}
-        >
-          ←
-        </button>
-        <span className="min-w-0 truncate tabular-nums">
-          Место {Math.max(siblingIndex, 0) + 1} из {siblingLocations.length}
-          {siblingLocations[siblingIndex]
-            ? ((label) => (label ? ` · ${label}` : ""))(
-                sheetLabel(siblingLocations[siblingIndex]),
-              )
-            : ""}
-        </span>
-        <button
-          type="button"
-          className="rounded px-1 font-semibold hover:bg-white/15"
-          title="Следующее место"
-          onClick={() => {
-            const from = siblingIndex >= 0 ? siblingIndex : 0;
-            const next = siblingLocations[(from + 1) % siblingLocations.length];
-            focusLocation(next, activeReview.id);
-          }}
-        >
-          →
-        </button>
-      </span>
-    ) : null;
-
   // Переключатель источника листа едет внутрь тулбара вьюера: отдельной плашкой
   // он был четвёртым независимым слоем поверх чертежа.
   const kitSwitch = hasKitDrawing ? (
@@ -685,12 +650,11 @@ export function ReviewPane({
     setFocusNonce(Date.now());
     setPaneSolo(null);
     setSidePanel("text");
-    setDrawingHitCount(null);
+    setDrawingReport(null);
     setTextHitFound(null);
   }
   /**
-   * Места замечания — чипсами в самой строке: стрелки «Место N из M» над листом
-   * инженеры не замечали и второе место оставалось непросмотренным.
+   * Места замечания — чипсами в самой строке замечания.
    */
   function renderPlaceChips(review: Review) {
     const places = review.locations.filter(
@@ -802,8 +766,8 @@ export function ReviewPane({
     }
   }, [document.id, openPage]);
 
-  // textHitFound / плашку сбрасываем при смене цитаты. drawingHitCount
-  // не трогаем: эффект родителя бежит после зрителя и затирал «найдено: N».
+  // textHitFound сбрасываем при смене цитаты. Ответ чертежа привязан к
+  // focusNonce: старый ноль не зажигает плашку, новый ответ не затирается.
   useEffect(() => {
     setTextHitFound(null);
     setQuoteBannerOn(true);
@@ -1620,7 +1584,6 @@ export function ReviewPane({
                   remarkFocus={focusDrawing}
                   highlightNonce={focusNonce}
                   onHighlightHits={handleHighlightHits}
-                  overlay={placeBar}
                   toolbarLeading={kitSwitch}
                   {...pageNav}
                   onMarkRect={(rect) => setPendingRect(rect)}
@@ -1645,7 +1608,6 @@ export function ReviewPane({
                   remarkFocus={focusDrawing}
                   highlightNonce={focusNonce}
                   onHighlightHits={handleHighlightHits}
-                  overlay={placeBar}
                   toolbarLeading={kitSwitch}
                   {...pageNav}
                   onMarkRect={(rect) => setPendingRect(rect)}
@@ -1669,7 +1631,6 @@ export function ReviewPane({
                   remarkFocus={focusDrawing}
                   highlightNonce={focusNonce}
                   onHighlightHits={handleHighlightHits}
-                  overlay={placeBar}
                   {...pageNav}
                   onMarkRect={(rect) => setPendingRect(rect)}
                   onSelectAnnotation={(id) => setHoverNoteId(id)}
@@ -1701,7 +1662,6 @@ export function ReviewPane({
                   remarkFocus={focusDrawing}
                   highlightNonce={focusNonce}
                   onHighlightHits={handleHighlightHits}
-                  overlay={placeBar}
                   {...pageNav}
                   onMarkRect={(rect) => setPendingRect(rect)}
                   onSelectAnnotation={(id) => setHoverNoteId(id)}

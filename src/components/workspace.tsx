@@ -2431,6 +2431,19 @@ export function Workspace({
               onJumpToPage={jumpToPage}
               onOpenTranscript={() => openStage("transcribe")}
               onStatsChange={setReviewStats}
+              onReviewPatched={(review) => {
+                setProjectReviews((prev) => {
+                  const next = prev.map((item) =>
+                    item.id === review.id ? review : item,
+                  );
+                  setReviewStats({
+                    total: next.length,
+                    pending: next.filter((item) => item.verdict === "pending")
+                      .length,
+                  });
+                  return next;
+                });
+              }}
               refreshToken={reviewsEpoch}
               onReviewsMutated={() => setReviewsEpoch((n) => n + 1)}
               onBack={goBack}
@@ -2454,11 +2467,19 @@ export function Workspace({
               setShowReviews(true);
             }}
             stripHost={stripHost}
-            onReviewPatched={(review) =>
-              setProjectReviews((prev) =>
-                prev.map((item) => (item.id === review.id ? review : item)),
-              )
-            }
+            onReviewPatched={(review) => {
+              setProjectReviews((prev) => {
+                const next = prev.map((item) =>
+                  item.id === review.id ? review : item,
+                );
+                setReviewStats({
+                  total: next.length,
+                  pending: next.filter((item) => item.verdict === "pending")
+                    .length,
+                });
+                return next;
+              });
+            }}
             kitSibling={kitSibling}
             focusMode={focusMode}
             openPage={openPage}

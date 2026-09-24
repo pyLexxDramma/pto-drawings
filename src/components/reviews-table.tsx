@@ -217,6 +217,7 @@ export function ReviewsTable({
   onJumpToPage,
   onOpenTranscript,
   onStatsChange,
+  onReviewPatched,
   refreshToken = 0,
   onBack,
   onUndo,
@@ -246,6 +247,8 @@ export function ReviewsTable({
   onOpenTranscript?: () => void;
   /** Держит счётчик этапа «Замечания» в панели проекта в согласии с таблицей. */
   onStatsChange?: (stats: { total: number; pending: number }) => void;
+  /** Статус из таблицы сразу виден в расшифровке и в полосе слева. */
+  onReviewPatched?: (review: Review) => void;
 }) {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [events, setEvents] = useState<ReviewEvent[]>([]);
@@ -534,12 +537,14 @@ export function ReviewsTable({
   const patch = useCallback(
     async (reviewId: string, body: Partial<Review>) => {
       setSavingId(reviewId);
-      // Оптимистично: разбор идёт быстро, ждать ответ на каждый клик нельзя.
+      const previous = reviews.find((item) => item.id === reviewId);
+      const optimistic = previous ? { ...previous, ...body } : null;
       setReviews((prev) =>
         prev.map((item) =>
           item.id === reviewId ? { ...item, ...body } : item,
         ),
       );
+      if (optimistic) onReviewPatched?.(optimistic);
       try {
         const response = await fetch(
           `/api/projects/${projectId}/reviews/${reviewId}`,
@@ -561,18 +566,20 @@ export function ReviewsTable({
             item.id === reviewId ? payload.review : item,
           ),
         );
+        onReviewPatched?.(payload.review);
         setError(null);
         void refreshEvents();
         return true;
       } catch (err) {
         setError(err instanceof Error ? err.message : "Ошибка сохранения");
+        if (previous) onReviewPatched?.(previous);
         await load().catch(() => undefined);
         return false;
       } finally {
         setSavingId(null);
       }
     },
-    [load, projectId, refreshEvents],
+    [load, onReviewPatched, projectId, refreshEvents, reviews],
   );
 
   async function handleImport(file: File) {

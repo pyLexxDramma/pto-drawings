@@ -8,11 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import {
-  HighlightLegend,
-  SearchHitBadge,
-  Spinner,
-} from "@/components/ui-chrome";
+import { Spinner } from "@/components/ui-chrome";
 import { VIEWER_MOUSE_HINT } from "@/components/viewer-hint";
 import { ViewerStatusBar } from "@/components/viewer-status-bar";
 import { ViewerSheetControls, ViewerToolbar } from "@/components/viewer-toolbar";
@@ -60,7 +56,7 @@ type CadPageProps = {
   hoverRegions?: PageTextRegion[];
   onHoverRegion?: (regionId: string | null) => void;
   onSelectRegion?: (regionId: string | null) => void;
-  onHighlightHits?: (count: number) => void;
+  onHighlightHits?: (count: number, nonce: number) => void;
   onMarkRect?: (rect: AnnotationRect) => void;
   onSelectAnnotation?: (id: string) => void;
   onCancelMark?: () => void;
@@ -70,8 +66,6 @@ type CadPageProps = {
   canNextPage?: boolean;
   onToggleFullscreen?: () => void;
   fullscreenActive?: boolean;
-  /** Плашки разбора («Место N из M») в общий ряд поверх листа. */
-  overlay?: ReactNode;
   /** Переключатель PDF / DWG — внутрь тулбара, а не отдельной плашкой. */
   toolbarLeading?: ReactNode;
 };
@@ -127,7 +121,6 @@ export function CadPage({
   canNextPage = false,
   onToggleFullscreen,
   fullscreenActive = false,
-  overlay,
   toolbarLeading,
 }: CadPageProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -216,10 +209,6 @@ export function CadPage({
     auto: !remarkFocus,
     zoomToRect: viewport.zoomToRect,
   });
-  // Легенда нужна только на листе из разбора: в свободном поиске зелёной рамки
-  // нет и объяснять нечего.
-  const legendOn =
-    remarkFocus && (Boolean(highlightRegion) || searchHits.length > 0);
   // Лист А1 «по ширине» даёт 13%: подписи в 2px не читаются. Пока масштаб ниже
   // порога, предлагаем перейти на читаемый.
   const legibleWarning =
@@ -375,12 +364,12 @@ export function CadPage({
 
   useEffect(() => {
     if (highlightQuery.trim().length < 2) {
-      onHighlightHits?.(0);
+      onHighlightHits?.(0, highlightNonce);
       return;
     }
     if (!geometry) return;
-    onHighlightHits?.(searchHits.length);
-  }, [searchHits.length, onHighlightHits, highlightQuery, geometry]);
+    onHighlightHits?.(searchHits.length, highlightNonce);
+  }, [searchHits.length, onHighlightHits, highlightQuery, geometry, highlightNonce]);
 
   const preview = markMode && draw
     ? {
@@ -723,26 +712,11 @@ export function CadPage({
         ) : null}
       </div>
 
-      {markMode || searchHits.length > 0 || legendOn || overlay ? (
+      {markMode ? (
         <div className="pointer-events-none absolute left-2 top-11 z-20 flex max-w-[calc(100%-0.75rem)] flex-wrap items-center gap-1">
-          {markMode ? (
-            <span className="rounded bg-red-600 px-2 py-0.5 pto-t-sm font-medium leading-none text-white shadow-md">
-              Обведите место на чертеже · Esc — отмена
-            </span>
-          ) : null}
-          <SearchHitBadge
-            count={hitFocus.count}
-            index={hitFocus.index}
-            onStep={hitFocus.step}
-          />
-          {overlay}
-          {legendOn ? (
-            <HighlightLegend
-              hasZone={Boolean(highlightRegion)}
-              hasHits={searchHits.length > 0}
-              hasSiblings={highlightRegions.length > 0}
-            />
-          ) : null}
+          <span className="rounded bg-red-600 px-2 py-0.5 pto-t-sm font-medium leading-none text-white shadow-md">
+            Обведите место на чертеже · Esc — отмена
+          </span>
         </div>
       ) : null}
 
