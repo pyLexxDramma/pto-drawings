@@ -68,7 +68,7 @@ export function UserMenu({
         onClick={() => setOpen((value) => !value)}
         title={`${user.displayName} · ${role}`}
         data-user-menu=""
-        className={`flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md border-2 text-left ${
+        className={`flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md border text-left ${
           compact ? "px-1.5 py-1" : "px-2 py-1"
         } ${
           defaultPasswordWarning

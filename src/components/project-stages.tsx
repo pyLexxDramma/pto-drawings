@@ -38,16 +38,14 @@ const STAGE_TAB: Record<
 > = {
   transcribe: {
     idle:
-      "border-2 border-accent/40 bg-white text-text hover:border-accent hover:bg-accent/5",
-    current:
-      "border-2 border-accent bg-accent text-white shadow-sm hover:bg-[#1d4ed8]",
+      "border-accent/40 bg-white text-text hover:border-accent hover:bg-accent/5",
+    current: "border-accent bg-accent text-white shadow-sm hover:bg-[#1d4ed8]",
     track: "accent",
   },
   reviews: {
     idle:
-      "border-2 border-accent/40 bg-white text-text hover:border-accent hover:bg-accent/5",
-    current:
-      "border-2 border-accent bg-accent text-white shadow-sm hover:bg-[#1d4ed8]",
+      "border-accent/40 bg-white text-text hover:border-accent hover:bg-accent/5",
+    current: "border-accent bg-accent text-white shadow-sm hover:bg-[#1d4ed8]",
     track: "accent",
   },
 };
@@ -183,7 +181,7 @@ export function ProjectStagesBar({
     <div
       className={`flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5 ${
         embedded
-          ? "border-b-4 border-slate-800 bg-slate-200 px-1 py-1"
+          ? "border-b border-slate-800 bg-slate-200 px-1 py-1"
           : "shrink-0 border-b border-border bg-white px-2 py-0.5 sm:px-3"
       }`}
     >
@@ -240,7 +238,7 @@ export function ProjectStagesBar({
           type="button"
           onClick={onBackHome}
           title="Туда, откуда открыли эту страницу"
-          className="shrink-0 rounded-md border-2 border-amber-500 bg-amber-500 px-2 py-0.5 pto-t-sm font-bold text-white shadow-sm hover:bg-amber-600"
+          className="shrink-0 rounded-md border border-amber-500 bg-amber-500 px-2 py-0.5 pto-t-sm font-bold text-white shadow-sm hover:bg-amber-600"
         >
           {backLabel}
         </button>
