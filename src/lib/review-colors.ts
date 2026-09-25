@@ -35,6 +35,24 @@ export const SEVERITY_REMARK: Record<ReviewSeverity, string> = {
   skip: "opacity-60",
 };
 
+/** Строка замечания в полосе листа: рамка по важности, заливка блеклая. */
+export const SEVERITY_ITEM: Record<ReviewSeverity, string> = {
+  unset: "border-slate-300 bg-white",
+  high: "border-rose-500 bg-rose-50",
+  medium: "border-amber-500 bg-amber-50",
+  low: "border-sky-500 bg-sky-50",
+  skip: "border-slate-300 bg-white opacity-60",
+};
+
+/** Чип места «№1»: та же важность, что у замечания. */
+export const SEVERITY_PLACE: Record<ReviewSeverity, string> = {
+  unset: "border-slate-400 bg-white text-slate-600",
+  high: "border-rose-500 bg-rose-50 text-rose-800",
+  medium: "border-amber-500 bg-amber-50 text-amber-900",
+  low: "border-sky-500 bg-sky-50 text-sky-800",
+  skip: "border-slate-300 bg-slate-100 text-slate-500",
+};
+
 /** Заливку по статусу не даём: статус читается подписью, не фоном строки. */
 export const VERDICT_ROW: Partial<Record<ReviewVerdict, string>> = {};
 

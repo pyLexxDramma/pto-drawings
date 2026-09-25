@@ -111,9 +111,11 @@ export function SheetText({
         // нужный сам и это не запоминаем: уход с листа вернёт как инженер оставил.
         const expanded = open[section.id] ?? focusSections.has(section.id);
         return (
-          <section key={section.id} id={section.id} className="scroll-mt-10">
+          <section key={section.id} id={section.id} className="sheet-section scroll-mt-10">
             <h2
-              className="sheet-section-head flex items-center gap-1.5"
+              className={`sheet-section-head flex items-center gap-1.5 ${
+                expanded ? "sheet-section-head--open" : ""
+              }`}
               data-sheet-section={section.service ? "service" : "content"}
             >
               <button

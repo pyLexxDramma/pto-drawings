@@ -316,7 +316,7 @@ export function PaneToggle({
         event.stopPropagation();
         onToggle();
       }}
-      className={`relative z-20 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 ${className}`}
+      className={`relative z-20 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-sky-500 bg-sky-50 text-sky-800 hover:border-sky-600 hover:bg-sky-100 ${className}`}
     >
       <Icon />
     </button>

@@ -294,15 +294,30 @@ body {
  * первым, и инженер уже не знал, какую таблицу читает. Подложка непрозрачная и
  * шире колонки текста, иначе строки просвечивают сквозь заголовок.
  */
+/**
+ * Раздел расшифровки: рамка по периметру, чтобы свёрнутые блоки не сливались
+ * в одну простыню. Цвет нейтральный — это навигация, не оценка.
+ */
+.markdown-body .sheet-section {
+  margin: 0.4em 0.15rem;
+  overflow: hidden;
+  border: 1px solid #c5cdd8;
+  border-radius: 6px;
+  background: var(--surface);
+}
+
 .markdown-body .sheet-section-head {
   position: sticky;
   top: 0;
   z-index: 1;
   max-width: none;
-  margin: 0.35em -0.75rem 0.15em;
-  padding: 0.15rem 0.75rem;
+  margin: 0;
+  padding: 0.3rem 0.65rem;
   background: var(--surface);
-  border-bottom: 1px solid var(--border);
+}
+
+.markdown-body .sheet-section-head--open {
+  border-bottom: 1px solid #d8dee8;
 }
 
 .markdown-body .sheet-section-head:first-child {

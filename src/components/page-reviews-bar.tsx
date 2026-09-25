@@ -7,6 +7,7 @@ import {
   IconGrid,
 } from "@/components/tool-icons";
 import { normalizeQuote } from "@/lib/remark-jump";
+import { SEVERITY_ITEM } from "@/lib/review-colors";
 import { remarkWording } from "@/lib/sheet-label";
 import { REVIEW_SEVERITY_LABEL, type Review } from "@/types";
 
@@ -100,15 +101,13 @@ export function PageReviewsBar({
         ) : null}
       </div>
       {open ? (
-        <ul className="max-h-40 overflow-auto border-t border-border">
+        <ul className="max-h-40 space-y-1 overflow-auto border-t border-border px-1.5 py-1.5">
           {reviews.map((review) => (
             <li
               key={review.id}
-              className={`flex w-full items-start gap-1 px-2 py-1 ${
-                isActive(review)
-                  ? "bg-white outline outline-1 outline-accent"
-                  : "hover:bg-white/60"
-              }`}
+              className={`flex w-full items-start gap-1 rounded border px-2 py-1 ${
+                SEVERITY_ITEM[review.severity]
+              } ${isActive(review) ? "outline outline-1 outline-slate-400" : ""}`}
             >
               <button
                 type="button"

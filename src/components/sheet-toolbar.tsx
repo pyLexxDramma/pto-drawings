@@ -3,9 +3,9 @@
 import { IconBack, IconSearch } from "@/components/tool-icons";
 
 const BTN =
-  "rounded border px-2 py-0.5 pto-t-sm font-semibold border-slate-300 bg-white text-slate-800 hover:bg-slate-50";
+  "rounded border px-2 py-0.5 pto-t-sm font-semibold border-slate-400 bg-slate-100 text-slate-800 hover:bg-slate-200";
 const BTN_ACTIVE =
-  "rounded border px-2 py-0.5 pto-t-sm font-semibold border-accent/50 bg-accent/10 text-accent";
+  "rounded border px-2 py-0.5 pto-t-sm font-semibold border-accent bg-accent/10 text-accent";
 
 /**
  * Кнопки над листом: поиск по файлу и метка режима просмотра. Вынесено из

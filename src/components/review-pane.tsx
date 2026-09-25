@@ -44,6 +44,7 @@ import {
   remarkTermsInMarkdown,
 } from "@/lib/highlight-text";
 import { quoteBannerKind } from "@/lib/quote-banner";
+import { SEVERITY_PLACE } from "@/lib/review-colors";
 import { placeOrdinal, placeShort, sheetLabel } from "@/lib/sheet-label";
 import {
   SPLIT_MAX,
@@ -682,11 +683,9 @@ export function ReviewPane({
               title={`${label} · ${
                 sheetLabel(place) ?? "лист не указан"
               }${here ? "" : " · другой лист или файл"}`}
-              className={`whitespace-nowrap rounded border px-1 py-[1px] font-semibold tabular-nums ${
-                current
-                  ? "border-accent bg-accent text-white"
-                  : "border-border bg-white text-muted hover:border-accent hover:text-accent"
-              }`}
+              className={`whitespace-nowrap rounded px-1 py-[1px] font-semibold tabular-nums ${
+                current ? "border-2" : "border"
+              } ${SEVERITY_PLACE[review.severity]}`}
             >
               {placeShort(index)}
             </button>
@@ -1568,8 +1567,8 @@ export function ReviewPane({
                       }}
                       className={
                         markMode
-                          ? "inline-flex items-center gap-1 rounded border border-rose-800 bg-rose-800 px-2 py-0.5 pto-t-sm font-semibold text-white"
-                          : "inline-flex items-center gap-1 rounded border border-rose-600 bg-rose-600 px-2 py-0.5 pto-t-sm font-semibold text-white shadow-sm hover:bg-rose-700"
+                          ? "inline-flex items-center gap-1 rounded border border-rose-700 bg-rose-100 px-2 py-0.5 pto-t-sm font-semibold text-rose-950"
+                          : "inline-flex items-center gap-1 rounded border border-rose-600 bg-rose-50 px-2 py-0.5 pto-t-sm font-semibold text-rose-800 hover:bg-rose-100"
                       }
                     >
                       <IconMark className="h-3 w-3" />
@@ -1746,8 +1745,8 @@ export function ReviewPane({
                 onClick={toggleMark}
                 className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 pto-t-sm font-semibold ${
                   sidePanel === "notes" || markMode
-                    ? "border-rose-800 bg-rose-800 text-white"
-                    : "border-rose-600 bg-rose-600 text-white shadow-sm hover:bg-rose-700"
+                    ? "border-rose-700 bg-rose-100 text-rose-950"
+                    : "border-rose-600 bg-rose-50 text-rose-800 hover:bg-rose-100"
                 }`}
               >
                 <IconMark className="h-3 w-3" />
