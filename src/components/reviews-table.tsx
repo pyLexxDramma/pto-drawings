@@ -281,7 +281,6 @@ export function ReviewsTable({
   const [activeId, setActiveId] = useState<string | null>(null);
   /** Серый XLSX: строка в другом файле — показать весь проект. */
   const [fileScopeOff, setFileScopeOff] = useState(false);
-  const jumpId = useRef<string | null>(null);
 
   const load = useCallback(
     async (signal?: AbortSignal) => {
@@ -661,30 +660,6 @@ export function ReviewsTable({
     }
   }
 
-  const leftover = reviews.filter(
-    (item) => item.verdict === "pending" || item.severity === "unset",
-  );
-  function goToLeftover() {
-    const next = leftover[0];
-    if (!next) return;
-    jumpId.current = next.id;
-    if (!scoped.some((item) => item.id === next.id)) setFileScopeOff(true);
-    if (!visible.some((item) => item.id === next.id)) {
-      setColFilters({});
-      setQuery("");
-    }
-    setActiveId(next.id);
-  }
-
-  useEffect(() => {
-    const id = jumpId.current;
-    if (!id) return;
-    const node = document.querySelector(`[data-review-id="${id}"]`);
-    if (!node) return;
-    jumpId.current = null;
-    node.scrollIntoView({ block: "center", behavior: "smooth" });
-  }, [activeId, scoped, visible]);
-
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-white">
       {/* «К проектам» живёт в шапке приложения — вторая кнопка тут дублировала. */}
@@ -765,43 +740,22 @@ export function ReviewsTable({
           >
             {importing ? "Загрузка…" : "Мои замечания из Excel"}
           </button>
-          {visibleExportable.length === 0 ||
-          (!filtersOn && leftover.length > 0) ? (
-            <button
-              type="button"
-              onClick={goToLeftover}
-              className="inline-flex items-center gap-1 whitespace-nowrap rounded-md border border-slate-300 bg-slate-100 px-2 py-0.5 pto-t-md font-semibold leading-none text-slate-500"
-              title={
-                leftover.length > 0
-                  ? `Ещё ${leftover.length} без важности или разбора. Нажмите — перейти к строке`
-                  : "Под текущий фильтр нечего выгружать"
-              }
-            >
-              <IconDownload className="h-3.5 w-3.5" />
-              {leftover.length > 0
-                ? `Скачать Excel · ещё ${leftover.length}`
-                : "Скачать таблицу Excel"}
-            </button>
-          ) : (
-            <button
-              type="button"
-              disabled={exporting}
-              onClick={() => void downloadVisibleXlsx()}
-              className="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-accent px-2 py-0.5 pto-t-md font-semibold leading-none text-white hover:bg-[#1d4ed8] disabled:opacity-50"
-              title={
-                filtersOn
-                  ? `Скачать отфильтрованные: ${visibleExportable.length}`
-                  : "То, что разобрано — одним файлом Excel"
-              }
-            >
-              <IconDownload className="h-3.5 w-3.5" />
-              {exporting
-                ? "…"
+          <button
+            type="button"
+            disabled={exporting || visibleExportable.length === 0}
+            onClick={() => void downloadVisibleXlsx()}
+            className="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-accent px-2 py-0.5 pto-t-md font-semibold leading-none text-white hover:bg-[#1d4ed8] disabled:opacity-50"
+            title={
+              visibleExportable.length === 0
+                ? "Нечего выгружать: нужны важность и разбор (не «Не нужно» / «Неверно»)"
                 : filtersOn
-                  ? `Скачать Excel · ${visibleExportable.length}`
-                  : "Скачать таблицу Excel"}
-            </button>
-          )}
+                  ? `Скачать отфильтрованные: ${visibleExportable.length}`
+                  : "Скачать таблицу Excel"
+            }
+          >
+            <IconDownload className="h-3.5 w-3.5" />
+            {exporting ? "…" : "Скачать Excel"}
+          </button>
           {reviews.some((item) => item.verdict !== "pending") ? (
             <button
               type="button"
