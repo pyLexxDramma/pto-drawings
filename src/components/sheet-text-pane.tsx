@@ -100,13 +100,10 @@ export function SheetTextPane({
 
       <div
         ref={paneRef}
-        // Заметная полоса и постоянное место под неё — только листу-таблице:
-        // на текстовом листе прокручивать нечего, а полоса съедала низ панели.
-        className={`min-h-0 flex-1 overflow-y-auto overscroll-x-contain ${
-          page?.kind === "table"
-            ? "pto-pane-scroll overflow-x-scroll [scrollbar-gutter:stable]"
-            : "overflow-x-auto"
-        }`}
+        // Горизонталь у широкой таблицы — внутри .pto-md-table. Полоса на всю
+        // панель (overflow-x-scroll + gutter) всегда висела внизу, даже когда
+        // переносить было нечего: ширина и так тянется сплитом.
+        className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-x-contain"
       >
         {filterEmpty ? (
           <div className="p-4 text-xs text-muted">{filterEmptyText}</div>
