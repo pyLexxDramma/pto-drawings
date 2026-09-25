@@ -77,13 +77,10 @@ export function PageReviewsBar({
             aria-hidden
           />
           <span className="shrink-0">Замечаний по листу: {reviews.length}</span>
-          {open || activeReview ? (
+          {!open && activeReview ? (
             <span className="min-w-0 truncate font-normal opacity-70">
-              {open
-                ? "· клик по строке подсветит место"
-                : `· № ${activeReview?.number} ${remarkWording(
-                    activeReview?.text || activeReview?.aiFinding || "",
-                  )}`}
+              · № {activeReview.number}{" "}
+              {remarkWording(activeReview.text || activeReview.aiFinding || "")}
             </span>
           ) : null}
         </button>
