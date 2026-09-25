@@ -227,6 +227,8 @@ export function ReviewsTable({
   onBack,
   onUndo,
   undoBusy = false,
+  initialColFilters,
+  standalone = false,
 }: {
   projectId: string;
   projectName: string;
@@ -242,6 +244,10 @@ export function ReviewsTable({
   /** Отмена последнего добавления или удаления замечания. */
   onUndo?: () => void;
   undoBusy?: boolean;
+  /** Стартовый фильтр колонок — вкладка «Разобрано» приходит уже на статусе. */
+  initialColFilters?: ExcelColFilters;
+  /** Отдельная вкладка: без окошка «Разобрано», оно открыло бы ещё одну такую же. */
+  standalone?: boolean;
   /** Открыть место в ПД в просмотрщике (новая вкладка + подсветка). */
   onJumpToPage: (
     documentId: string,
@@ -263,7 +269,9 @@ export function ReviewsTable({
   /** Строка, по которой открыто окно «что именно неверно». */
   const [wrongFor, setWrongFor] = useState<Review | null>(null);
   const [logFor, setLogFor] = useState<Review | null>(null);
-  const [colFilters, setColFilters] = useState<ExcelColFilters>({});
+  const [colFilters, setColFilters] = useState<ExcelColFilters>(
+    () => initialColFilters ?? {},
+  );
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<ExcelCol>("number");
   const [sortDir, setSortDir] = useState<1 | -1>(1);
@@ -700,7 +708,9 @@ export function ReviewsTable({
         </div>
 
         <div className="ml-auto flex shrink-0 items-center gap-1.5">
-          <ResolvedSummary reviews={reviews} projectId={projectId} compact />
+          {standalone ? null : (
+            <ResolvedSummary reviews={reviews} projectId={projectId} compact />
+          )}
           {onBack ? (
             <button
               type="button"
