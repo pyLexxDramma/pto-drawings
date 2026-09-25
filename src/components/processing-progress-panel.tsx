@@ -407,7 +407,9 @@ export function LiveProgressDock({
           className={`min-w-0 flex-1 text-left ${
             onOpen ? "cursor-pointer hover:opacity-90" : "cursor-default"
           }`}
-          title={onOpen ? "Открыть обрабатываемый файл" : undefined}
+          title={
+            onOpen ? "Показать прогресс по всем листам файла" : undefined
+          }
         >
           <div className="flex items-start gap-2">
             {isActive && !cancelPending ? (

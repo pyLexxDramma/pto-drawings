@@ -435,6 +435,8 @@ export function Workspace({
     documentId: string;
     reviewId?: string;
     quote?: string;
+    /** Клик по плашке прогресса — панель «По листам», без прыжка на активный лист. */
+    showProgress?: boolean;
   } | null>(null);
   const autoReadyJumpRef = useRef<string | null>(null);
   const statusPrevRef = useRef<Map<string, DocumentStatus>>(new Map());
@@ -1625,7 +1627,6 @@ export function Workspace({
     if (!liveJobDoc) return;
     const targetProject = liveJobDoc.projectId;
     const docId = liveJobDoc.id;
-    const page = liveJobPage(liveJobDoc);
     if (targetProject && targetProject !== projectId) {
       setProjectId(targetProject);
       setProjectsCollapsed(false);
@@ -1639,7 +1640,24 @@ export function Workspace({
         loadProjectReviews(targetProject).catch(() => undefined),
       ]);
     }
-    await openDocument(docId, page);
+    const alreadyOpen =
+      selectedIdRef.current === docId &&
+      !showReviewsRef.current &&
+      !peekOpenRef.current;
+    if (!alreadyOpen) pushBack();
+    setShowReviews(false);
+    setPeekOpen(false);
+    setNavFromReviews(false);
+    setSelectedId(docId);
+    setProjectsCollapsed(narrowRef.current);
+    setOpenPage({
+      nonce: Date.now(),
+      page: 0,
+      documentId: docId,
+      showProgress: true,
+    });
+    autoReadyJumpRef.current = null;
+    await refreshDocument(docId);
   }, [
     liveJobDoc,
     projectId,
@@ -1647,7 +1665,7 @@ export function Workspace({
     loadDocuments,
     loadEdits,
     loadNotes,
-    openDocument,
+    refreshDocument,
   ]);
 
   async function handleCancel(id: string) {

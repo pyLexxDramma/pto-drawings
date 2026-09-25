@@ -86,6 +86,8 @@ type ReviewPaneProps = {
     documentId: string;
     reviewId?: string;
     quote?: string;
+    /** Плашка прогресса: справа статусы всех листов, без перехода на активный. */
+    showProgress?: boolean;
   } | null;
   canceling?: boolean;
   readOnly?: boolean;
@@ -781,6 +783,19 @@ export function ReviewPane({
 
   useEffect(() => {
     if (!openPage || openPage.documentId !== document.id) return;
+    if (openPage.showProgress) {
+      // Плашка в углу: открыть прогресс по всем листам, не прыгать на текущий.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSheetPeek(false);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setProgressExpanded(true);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPaneSolo(null);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSidePanel("text");
+      return;
+    }
+    if (!(openPage.page > 0)) return;
     navigatedRef.current = true;
     // Переход из фида проекта: внешнее событие, поэтому состояние двигаем здесь.
     // eslint-disable-next-line react-hooks/set-state-in-effect
