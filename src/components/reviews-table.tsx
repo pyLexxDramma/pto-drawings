@@ -154,7 +154,6 @@ const COL_DEFAULT: Record<ColId, number> = {
   comment: 180,
   author: 120,
 };
-const COL_CHECK = 32;
 
 const CELL = "border border-[#a6a6a6] px-1.5 py-1";
 
@@ -276,7 +275,6 @@ export function ReviewsTable({
   const [sortKey, setSortKey] = useState<ExcelCol>("number");
   const [sortDir, setSortDir] = useState<1 | -1>(1);
   const [colW, setColW] = useState(loadColWidths);
-  const [picked, setPicked] = useState<string[]>([]);
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
   const importRef = useRef<HTMLInputElement>(null);
@@ -450,7 +448,7 @@ export function ReviewsTable({
     () => visible.some((review) => transcriptSection(review.section, fileOf(review))),
     [visible, fileOf],
   );
-  const colCount = showSectionCol ? 9 : 8;
+  const colCount = showSectionCol ? 8 : 7;
 
   function dragCol(id: ColId, event: ReactPointerEvent) {
     event.preventDefault();
@@ -484,7 +482,6 @@ export function ReviewsTable({
   }
 
   const tableWidth =
-    COL_CHECK +
     colW.num +
     (showSectionCol ? colW.section : 0) +
     colW.text +
@@ -830,53 +827,6 @@ export function ReviewsTable({
         </div>
       ) : null}
 
-      {picked.length > 0 ? (
-        <div className="flex flex-wrap items-center gap-2 border-b border-border bg-accent/5 px-3 py-1.5 text-xs">
-          <span className="tabular-nums text-muted">выбрано {picked.length}</span>
-          <select
-            className="rounded border border-border bg-white px-2 py-1"
-            defaultValue=""
-            onChange={(event) => {
-              const value = event.target.value as ReviewSeverity | "";
-              if (!value) return;
-              for (const id of picked) void patch(id, { severity: value });
-              event.target.value = "";
-            }}
-          >
-            <option value="">Важность…</option>
-            {REVIEW_SEVERITY_ORDER.map((item) => (
-              <option key={item} value={item}>
-                {REVIEW_SEVERITY_LABEL[item]}
-              </option>
-            ))}
-          </select>
-          <select
-            className="rounded border border-border bg-white px-2 py-1"
-            defaultValue=""
-            onChange={(event) => {
-              const value = event.target.value as ReviewVerdict | "";
-              if (!value || value === "wrong") return;
-              for (const id of picked) void patch(id, { verdict: value });
-              event.target.value = "";
-            }}
-          >
-            <option value="">Статус…</option>
-            {VERDICTS.filter((item) => item !== "wrong").map((item) => (
-              <option key={item} value={item}>
-                {REVIEW_VERDICT_LABEL[item]}
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            className="text-muted hover:text-text"
-            onClick={() => setPicked([])}
-          >
-            Снять выбор
-          </button>
-        </div>
-      ) : null}
-
       <div
         className="min-h-0 flex-1 overflow-auto outline-none"
         tabIndex={0}
@@ -906,7 +856,6 @@ export function ReviewsTable({
             className="w-full table-fixed border-collapse border border-[#7f7f7f] text-xs"
           >
             <colgroup>
-              <col style={{ width: COL_CHECK }} />
               <col style={{ width: colW.num }} />
               {showSectionCol ? <col style={{ width: colW.section }} /> : null}
               <col style={{ width: colW.text }} />
@@ -918,21 +867,6 @@ export function ReviewsTable({
             </colgroup>
             <thead className="sticky top-0 z-10 text-left pto-t-sm">
               <tr>
-                <th style={{ width: COL_CHECK }} className={CELL + " bg-[#d6dce4]"}>
-                  <input
-                    type="checkbox"
-                    aria-label="Выбрать все видимые"
-                    checked={
-                      visible.length > 0 &&
-                      visible.every((item) => picked.includes(item.id))
-                    }
-                    onChange={(event) => {
-                      setPicked(
-                        event.target.checked ? visible.map((item) => item.id) : [],
-                      );
-                    }}
-                  />
-                </th>
                 <ColHead colId="num" width={colW.num} onDrag={(event) => dragCol("num", event)}>
                   <ExcelColFilter
                     label="№"
@@ -1082,19 +1016,11 @@ export function ReviewsTable({
                       review={review}
                       needle={query.trim().toLowerCase()}
                       active={activeId === review.id}
-                      selected={picked.includes(review.id)}
                       saving={savingId === review.id}
                       lastEvent={lastEventByReview.get(review.id) ?? null}
                       showSection={showSectionCol}
                       sectionLabel={transcriptSection(review.section, fileOf(review))}
                       onActivate={() => setActiveId(review.id)}
-                      onToggleSelect={() =>
-                        setPicked((prev) =>
-                          prev.includes(review.id)
-                            ? prev.filter((id) => id !== review.id)
-                            : [...prev, review.id],
-                        )
-                      }
                       onPatch={(body) => void patch(review.id, body)}
                       onMarkWrong={() => setWrongFor(review)}
                       onShowLog={() => setLogFor(review)}
@@ -1721,13 +1647,11 @@ function ReviewRow({
   review,
   needle,
   active,
-  selected,
   saving,
   lastEvent,
   showSection,
   sectionLabel,
   onActivate,
-  onToggleSelect,
   onPatch,
   onMarkWrong,
   onShowLog,
@@ -1737,14 +1661,12 @@ function ReviewRow({
   /** Уже приведённая к нижнему регистру строка поиска — что подсветить. */
   needle: string;
   active: boolean;
-  selected: boolean;
   saving: boolean;
   /** Последняя правка строки — подпись «кто и когда». */
   lastEvent: ReviewEvent | null;
   showSection: boolean;
   sectionLabel: string | null;
   onActivate: () => void;
-  onToggleSelect: () => void;
   onPatch: (body: Partial<Review>) => void;
   onMarkWrong: () => void;
   onShowLog: () => void;
@@ -1805,15 +1727,6 @@ function ReviewRow({
         active ? "outline outline-2 -outline-offset-2 outline-accent" : ""
       }`}
     >
-      <td className={`${CELL} px-1`}>
-        <input
-          type="checkbox"
-          checked={selected}
-          onClick={(event) => event.stopPropagation()}
-          onChange={onToggleSelect}
-          aria-label={`Выбрать замечание ${review.number}`}
-        />
-      </td>
       <td className={`${CELL} tabular-nums text-muted`}>
         <span className="inline-flex items-center gap-1">
           {review.number}
