@@ -36,11 +36,16 @@ import {
 } from "@/lib/highlight-text";
 import { normalizeQuote } from "@/lib/remark-jump";
 import {
+  SEVERITY_FRAME,
+  SEVERITY_PIN,
+  type DrawingRemarkPin,
+} from "@/lib/review-colors";
+import {
   loadViewerPrefs,
   saveViewerPrefs,
   shouldShowViewerHint,
 } from "@/lib/viewer-prefs";
-import type { AnnotationRect, PageAnnotation } from "@/types";
+import type { AnnotationRect, PageAnnotation, ReviewSeverity } from "@/types";
 
 type CadPageProps = {
   documentId: string;
@@ -52,6 +57,9 @@ type CadPageProps = {
   highlightQuery?: string;
   highlightRegion?: PageTextRegion | null;
   highlightRegions?: PageTextRegion[];
+  highlightSeverity?: ReviewSeverity;
+  remarkPins?: DrawingRemarkPin[];
+  onSelectRemarkPin?: (reviewId: string) => void;
   panToHighlight?: boolean;
   remarkFocus?: boolean;
   hoverRegions?: PageTextRegion[];
@@ -61,6 +69,8 @@ type CadPageProps = {
   onMarkRect?: (rect: AnnotationRect) => void;
   onSelectAnnotation?: (id: string) => void;
   onCancelMark?: () => void;
+  onToggleMark?: () => void;
+  markCount?: number;
   onPrevPage?: () => void;
   onNextPage?: () => void;
   canPrevPage?: boolean;
@@ -107,6 +117,9 @@ export function CadPage({
   highlightQuery = "",
   highlightRegion = null,
   highlightRegions = [],
+  highlightSeverity = "unset",
+  remarkPins = [],
+  onSelectRemarkPin,
   panToHighlight = false,
   remarkFocus = false,
   hoverRegions = [],
@@ -116,6 +129,8 @@ export function CadPage({
   onMarkRect,
   onSelectAnnotation,
   onCancelMark,
+  onToggleMark,
+  markCount = 0,
   onPrevPage,
   onNextPage,
   canPrevPage = false,
@@ -607,7 +622,7 @@ export function CadPage({
 
             {highlightRegion ? (
               <div
-                className="pto-place pointer-events-none absolute z-[5]"
+                className={`pointer-events-none absolute z-[5] ${SEVERITY_FRAME[highlightSeverity]}`}
                 style={{
                   left: `${highlightRegion.x * 100}%`,
                   top: `${highlightRegion.y * 100}%`,
@@ -627,6 +642,42 @@ export function CadPage({
                   height: `${Math.max(1.5, region.h * 100)}%`,
                 }}
               />
+            ))}
+            {remarkPins.map((pin) => (
+              <button
+                key={`pin-${pin.id}-${pin.x}-${pin.y}`}
+                type="button"
+                title={`Замечание № ${pin.number}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onSelectRemarkPin?.(pin.id);
+                }}
+                onMouseDown={(event) => event.stopPropagation()}
+                className="absolute z-[6]"
+                style={{
+                  left: `${pin.x * 100}%`,
+                  top: `${pin.y * 100}%`,
+                  width: `${Math.max(1.5, pin.w * 100)}%`,
+                  height: `${Math.max(1, pin.h * 100)}%`,
+                }}
+              >
+                <span
+                  className={`absolute font-semibold ${SEVERITY_PIN[pin.severity]} ${
+                    pin.active ? "ring-2 ring-offset-1 ring-slate-800" : ""
+                  }`}
+                  style={{
+                    left: 0,
+                    top: 0,
+                    transform: "translate(-2%, -105%)",
+                    padding: `${1 / viewport.scale}px ${4 / viewport.scale}px`,
+                    borderRadius: 3 / viewport.scale,
+                    fontSize: Math.max(7, 12 / viewport.scale),
+                    lineHeight: 1.3,
+                  }}
+                >
+                  {pin.number}
+                </span>
+              </button>
             ))}
             {searchHits.map((hit, index) => (
               <div
@@ -774,6 +825,9 @@ export function CadPage({
         onToggleFullscreen={onToggleFullscreen}
         fullscreenActive={fullscreenActive}
         leading={toolbarLeading}
+        markMode={markMode}
+        onToggleMark={onToggleMark}
+        markCount={markCount}
       />
     </div>
   );

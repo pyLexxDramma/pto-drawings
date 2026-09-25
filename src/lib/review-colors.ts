@@ -53,6 +53,38 @@ export const SEVERITY_PLACE: Record<ReviewSeverity, string> = {
   skip: "border-slate-300 bg-slate-100 text-slate-500",
 };
 
+/**
+ * Рамка места на чертеже и цвет мини-пина — по важности.
+ * Неразобранное без важности остаётся rose: это всё равно ошибка на плане.
+ */
+export const SEVERITY_FRAME: Record<ReviewSeverity, string> = {
+  unset: "pto-place",
+  high: "pto-place pto-place--high",
+  medium: "pto-place pto-place--medium",
+  low: "pto-place pto-place--low",
+  skip: "pto-place opacity-50",
+};
+
+export const SEVERITY_PIN: Record<ReviewSeverity, string> = {
+  unset: "bg-rose-600 text-white",
+  high: "bg-rose-600 text-white",
+  medium: "bg-amber-500 text-white",
+  low: "bg-sky-600 text-white",
+  skip: "bg-slate-400 text-white",
+};
+
+/** Мини-пин замечания на чертеже: номер + место + важность. */
+export type DrawingRemarkPin = {
+  id: string;
+  number: number;
+  severity: ReviewSeverity;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  active?: boolean;
+};
+
 /** Заливку по статусу не даём: статус читается подписью, не фоном строки. */
 export const VERDICT_ROW: Partial<Record<ReviewVerdict, string>> = {};
 

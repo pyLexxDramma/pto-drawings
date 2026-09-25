@@ -45,6 +45,7 @@ import {
 } from "@/lib/highlight-text";
 import { quoteBannerKind } from "@/lib/quote-banner";
 import { SEVERITY_PLACE } from "@/lib/review-colors";
+import type { DrawingRemarkPin } from "@/lib/review-colors";
 import { placeOrdinal, placeShort, sheetLabel } from "@/lib/sheet-label";
 import {
   SPLIT_MAX,
@@ -622,6 +623,33 @@ export function ReviewPane({
         })),
     [siblingLocations, document.id, pageNumber, focusRect],
   );
+  const highlightSeverity = activeReview?.severity ?? "unset";
+  /**
+   * Мини-пины на плане: номер замечания в цвете важности. Клик — то же, что
+   * строка в полосе замечаний. Без rect место на плане неизвестно — пин не рисуем.
+   */
+  const remarkPins = useMemo((): DrawingRemarkPin[] => {
+    const pins: DrawingRemarkPin[] = [];
+    for (const review of pageReviews) {
+      for (const loc of review.locations) {
+        if (loc.documentId !== document.id) continue;
+        if (loc.pageNumber !== pageNumber) continue;
+        if (!loc.rect) continue;
+        pins.push({
+          id: review.id,
+          number: review.number,
+          severity: review.severity,
+          x: loc.rect.x,
+          y: loc.rect.y,
+          w: loc.rect.w,
+          h: loc.rect.h,
+          active: review.id === activeReviewId,
+        });
+        break;
+      }
+    }
+    return pins;
+  }, [pageReviews, document.id, pageNumber, activeReviewId]);
 
   // Переключатель источника листа едет внутрь тулбара вьюера: отдельной плашкой
   // он был четвёртым независимым слоем поверх чертежа.
@@ -1553,28 +1581,6 @@ export function ReviewPane({
               {paneSolo === "pdf" ? (
                 <div className="absolute left-2 top-12 z-30 flex flex-wrap items-center gap-1.5 rounded-md border border-border bg-white/95 px-1.5 py-1 shadow-sm">
                   {sheetToolButtons}
-                  {!readOnly ? (
-                    <button
-                      type="button"
-                      title={markMode ? "Отменить разметку (Esc)" : "Обвести ошибку на чертеже"}
-                      onClick={() => {
-                        if (markMode) {
-                          toggleMark();
-                          return;
-                        }
-                        setPaneSolo(null);
-                        toggleMark();
-                      }}
-                      className={
-                        markMode
-                          ? "inline-flex items-center gap-1 rounded border border-rose-700 bg-rose-100 px-2 py-0.5 pto-t-sm font-semibold text-rose-950"
-                          : "inline-flex items-center gap-1 rounded border border-rose-600 bg-rose-50 px-2 py-0.5 pto-t-sm font-semibold text-rose-800 hover:bg-rose-100"
-                      }
-                    >
-                      <IconMark className="h-3 w-3" />
-                      Отметить ошибку
-                    </button>
-                  ) : null}
                 </div>
               ) : null}
               {hasKitDrawing && kitDrawingView === "cad" && kitCadDoc ? (
@@ -1587,6 +1593,14 @@ export function ReviewPane({
                   highlightQuery={drawingHighlightQuery}
                   highlightRegion={focusHighlightRegion}
                   highlightRegions={extraHighlightRegions}
+                  highlightSeverity={highlightSeverity}
+                  remarkPins={remarkPins}
+                  onSelectRemarkPin={(id) => {
+                    const review = pageReviews.find((item) => item.id === id);
+                    if (review) focusReviewOnSheet(review);
+                  }}
+                  onToggleMark={readOnly ? undefined : toggleMark}
+                  markCount={pageNotes.length}
                   panToHighlight={focusDrawing}
                   remarkFocus={focusDrawing}
                   highlightNonce={focusNonce}
@@ -1611,6 +1625,14 @@ export function ReviewPane({
                   highlightQuery={drawingHighlightQuery}
                   highlightRegion={focusHighlightRegion}
                   highlightRegions={extraHighlightRegions}
+                  highlightSeverity={highlightSeverity}
+                  remarkPins={remarkPins}
+                  onSelectRemarkPin={(id) => {
+                    const review = pageReviews.find((item) => item.id === id);
+                    if (review) focusReviewOnSheet(review);
+                  }}
+                  onToggleMark={readOnly ? undefined : toggleMark}
+                  markCount={pageNotes.length}
                   panToHighlight={focusDrawing}
                   remarkFocus={focusDrawing}
                   highlightNonce={focusNonce}
@@ -1634,6 +1656,14 @@ export function ReviewPane({
                   highlightQuery={drawingHighlightQuery}
                   highlightRegion={focusHighlightRegion}
                   highlightRegions={extraHighlightRegions}
+                  highlightSeverity={highlightSeverity}
+                  remarkPins={remarkPins}
+                  onSelectRemarkPin={(id) => {
+                    const review = pageReviews.find((item) => item.id === id);
+                    if (review) focusReviewOnSheet(review);
+                  }}
+                  onToggleMark={readOnly ? undefined : toggleMark}
+                  markCount={pageNotes.length}
                   panToHighlight={focusDrawing}
                   remarkFocus={focusDrawing}
                   highlightNonce={focusNonce}
@@ -1665,6 +1695,14 @@ export function ReviewPane({
                   highlightQuery={drawingHighlightQuery}
                   highlightRegion={focusHighlightRegion}
                   highlightRegions={extraHighlightRegions}
+                  highlightSeverity={highlightSeverity}
+                  remarkPins={remarkPins}
+                  onSelectRemarkPin={(id) => {
+                    const review = pageReviews.find((item) => item.id === id);
+                    if (review) focusReviewOnSheet(review);
+                  }}
+                  onToggleMark={readOnly ? undefined : toggleMark}
+                  markCount={pageNotes.length}
                   panToHighlight={focusDrawing}
                   remarkFocus={focusDrawing}
                   highlightNonce={focusNonce}
@@ -1739,24 +1777,39 @@ export function ReviewPane({
             ) : (
               <>
             <div className="flex flex-wrap items-center gap-1 border-b border-border px-1.5 py-0.5">
-              <button
-                type="button"
-                title={markMode ? "Отменить разметку (Esc)" : "Обвести ошибку на чертеже"}
-                onClick={toggleMark}
-                className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 pto-t-sm font-semibold ${
-                  sidePanel === "notes" || markMode
-                    ? "border-rose-700 bg-rose-100 text-rose-950"
-                    : "border-rose-600 bg-rose-50 text-rose-800 hover:bg-rose-100"
-                }`}
-              >
-                <IconMark className="h-3 w-3" />
-                Отметить ошибку
-                {!markMode && pageNotes.length ? (
-                  <span className="ml-1 tabular-nums opacity-80">
-                    {pageNotes.length}
-                  </span>
-                ) : null}
-              </button>
+              {!readOnly ? (
+                <button
+                  type="button"
+                  title={
+                    markMode
+                      ? "Отменить разметку (Esc)"
+                      : pageNotes.length > 0
+                        ? `Обвести ошибку на чертеже (${pageNotes.length})`
+                        : "Обвести ошибку на чертеже"
+                  }
+                  aria-label={
+                    markMode
+                      ? "Отменить разметку"
+                      : pageNotes.length > 0
+                        ? `Отметить ошибку, пометок: ${pageNotes.length}`
+                        : "Отметить ошибку"
+                  }
+                  aria-pressed={markMode}
+                  onClick={toggleMark}
+                  className={`relative inline-flex h-6 w-6 items-center justify-center rounded border ${
+                    sidePanel === "notes" || markMode
+                      ? "border-rose-700 bg-rose-100 text-rose-950"
+                      : "border-rose-600 bg-rose-50 text-rose-800 hover:bg-rose-100"
+                  }`}
+                >
+                  <IconMark className="h-3 w-3" />
+                  {!markMode && pageNotes.length > 0 ? (
+                    <span className="absolute -right-1 -top-1 min-w-3 rounded-full bg-rose-700 px-0.5 text-center text-[8px] font-bold leading-3 text-white">
+                      {pageNotes.length}
+                    </span>
+                  ) : null}
+                </button>
+              ) : null}
               {sheetToolButtons}
               <span className="ml-auto flex shrink-0 items-center gap-1">
                 <PaneToggle

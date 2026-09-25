@@ -36,19 +36,19 @@ const DEFAULTS: ViewerPrefs = {
   remarks: true,
   sessions: 0,
   hintDismissed: false,
-  // Было 66/34: на широком экране расшифровка получала треть окна и выглядела
-  // узкой колонкой мелкого текста. Чертежу хватает 56%.
-  splitDrawing: 56,
+  // Чертёж — главная площадь: раньше 56% оставляли расшифровке почти половину,
+  // и план читался как боковая колонка. 64% ближе к привычному Bluebeam/Docs.
+  splitDrawing: 64,
   splitTable: 42,
 };
 
 export const SPLIT_MIN = 22;
 export const SPLIT_MAX = 82;
 
-/** Ниже этой ширины окна расшифровка стартует уже, чем сохранённые 56%. */
+/** Ниже этой ширины окна расшифровка стартует уже, чем сохранённые 64%. */
 const NARROW_VIEWPORT = 1600;
 /** Доля чертежа на узком окне: расшифровке остаётся около трети. */
-const NARROW_DRAWING_SPLIT = 68;
+const NARROW_DRAWING_SPLIT = 70;
 
 /**
  * Доля под чертёж. Текст не шире половины окна. На экране до 1600px
@@ -88,7 +88,11 @@ export function loadViewerPrefs(): ViewerPrefs {
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return { ...DEFAULTS };
-    return { ...DEFAULTS, ...(JSON.parse(raw) as Partial<ViewerPrefs>) };
+    const parsed = JSON.parse(raw) as Partial<ViewerPrefs>;
+    // Старый стартовый 56% — узкий чертёж. Кто сам не двигал границу,
+    // получает новый акцент на план; кто двигал — оставляем как есть.
+    if (parsed.splitDrawing === 56) parsed.splitDrawing = DEFAULTS.splitDrawing;
+    return { ...DEFAULTS, ...parsed };
   } catch {
     return { ...DEFAULTS };
   }

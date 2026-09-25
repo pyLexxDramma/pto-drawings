@@ -489,11 +489,30 @@ body {
 /**
  * Место замечания на чертеже: рамка и свечение наружу, заливки почти нет.
  * Так под подсветкой читается сам чертёж — а проверяют именно его.
+ * Модификаторы --high/--medium/--low красят рамку по важности.
  */
 .pto-place {
   background-color: var(--hl-place-soft);
   outline: 2px solid var(--hl-place);
   box-shadow: 0 0 0 4px var(--hl-place-glow);
+}
+
+.pto-place--high {
+  background-color: rgb(225 29 72 / 0.07);
+  outline-color: #e11d48;
+  box-shadow: 0 0 0 4px rgb(225 29 72 / 0.16);
+}
+
+.pto-place--medium {
+  background-color: rgb(217 119 6 / 0.08);
+  outline-color: #d97706;
+  box-shadow: 0 0 0 4px rgb(217 119 6 / 0.16);
+}
+
+.pto-place--low {
+  background-color: rgb(2 132 199 / 0.08);
+  outline-color: #0284c7;
+  box-shadow: 0 0 0 4px rgb(2 132 199 / 0.14);
 }
 
 /** Прочие места того же замечания: тот же приём, нейтральный синий — это не ошибка. */

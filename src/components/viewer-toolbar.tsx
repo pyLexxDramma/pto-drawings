@@ -5,6 +5,7 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconExpand,
+  IconMark,
   IconMinus,
   IconPlus,
 } from "@/components/tool-icons";
@@ -199,14 +200,21 @@ export function ViewerToolbar({
   fullscreenActive = false,
   leading,
   extra,
+  markMode = false,
+  onToggleMark,
+  markCount = 0,
 }: {
   onToggleFullscreen?: () => void;
   fullscreenActive?: boolean;
   /** Переключатели источника листа (PDF / DWG). */
   leading?: ReactNode;
   extra?: ReactNode;
+  /** Карандаш разметки — на чертеже, где инженер смотрит (как в Bluebeam). */
+  markMode?: boolean;
+  onToggleMark?: () => void;
+  markCount?: number;
 }) {
-  if (!leading && !onToggleFullscreen && !extra) return null;
+  if (!leading && !onToggleFullscreen && !extra && !onToggleMark) return null;
   return (
     <div
       onMouseDown={(event) => event.stopPropagation()}
@@ -222,6 +230,39 @@ export function ViewerToolbar({
         <div className="flex items-center border-r border-border pr-1">
           {leading}
         </div>
+      ) : null}
+      {onToggleMark ? (
+        <button
+          type="button"
+          title={
+            markMode
+              ? "Отменить разметку (Esc / E)"
+              : markCount > 0
+                ? `Отметить ошибку — обвести место на чертеже (E), пометок: ${markCount}`
+                : "Отметить ошибку — обвести место на чертеже (E)"
+          }
+          aria-label={
+            markMode
+              ? "Отменить разметку"
+              : markCount > 0
+                ? `Отметить ошибку, пометок: ${markCount}`
+                : "Отметить ошибку"
+          }
+          aria-pressed={markMode}
+          onClick={() => onToggleMark()}
+          className={`pto-tool pto-tool--slim relative inline-flex w-6 items-center justify-center rounded border ${
+            markMode
+              ? "border-rose-700 bg-rose-100 text-rose-950"
+              : "border-rose-500 bg-rose-50 text-rose-800 hover:bg-rose-100"
+          }`}
+        >
+          <IconMark className="h-3 w-3" />
+          {markCount > 0 && !markMode ? (
+            <span className="absolute -right-1 -top-1 min-w-3 rounded-full bg-rose-700 px-0.5 text-center text-[8px] font-bold leading-3 text-white">
+              {markCount}
+            </span>
+          ) : null}
+        </button>
       ) : null}
       {onToggleFullscreen ? (
         <button
