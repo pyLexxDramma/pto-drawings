@@ -95,12 +95,15 @@ export function ResolvedSummary({
   projectId,
   className = "",
   compact = false,
+  onShowUnresolved,
 }: {
   reviews: Review[];
   projectId: string;
   className?: string;
   /** Одна строка: для шапки таблицы, где высота на счёт. */
   compact?: boolean;
+  /** Шапка таблицы: отфильтровать «Не разобрано» здесь, без новой вкладки. */
+  onShowUnresolved?: () => void;
 }) {
   const { counts, resolved, total } = resolvedCounts(reviews);
   if (total === 0) return null;
@@ -109,24 +112,22 @@ export function ResolvedSummary({
   );
 
   if (compact) {
+    const pending = total - resolved;
+    const label =
+      pending > 0 ? `Не разобрано ${pending}` : "Все разобраны";
     return (
       <button
         type="button"
-        onClick={() => openReviews(projectId)}
-        title="Открыть разобранные замечания в отдельной вкладке"
-        className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-border bg-white px-1.5 py-0.5 pto-t-md leading-none hover:border-accent hover:bg-blue-50/60 ${className}`}
+        onClick={onShowUnresolved}
+        disabled={!onShowUnresolved || pending === 0}
+        title={
+          pending > 0
+            ? "Показать в этой таблице только неразобранные"
+            : "Все замечания разобраны"
+        }
+        className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-md border border-border bg-white px-1.5 py-0.5 pto-t-md font-medium leading-none tabular-nums text-text hover:border-accent hover:bg-blue-50/60 disabled:cursor-default disabled:hover:border-border disabled:hover:bg-white ${className}`}
       >
-        <span className="font-medium text-text tabular-nums">
-          Разобрано {resolved} из {total}
-        </span>
-        {shown.map((verdict) => (
-          <VerdictChip
-            key={verdict}
-            verdict={verdict}
-            count={counts.get(verdict) ?? 0}
-          />
-        ))}
-        <span className="text-accent underline decoration-dotted">открыть</span>
+        {label}
       </button>
     );
   }

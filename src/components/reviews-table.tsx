@@ -665,8 +665,19 @@ export function ReviewsTable({
       {/* «К проектам» живёт в шапке приложения — вторая кнопка тут дублировала. */}
       {/* Панель в одну строку: высота нужна чертежу и таблице, не кнопкам. */}
       <header className="flex items-center gap-2 border-b border-border bg-surface px-2 py-0.5">
+        {onBack ? (
+          <button
+            type="button"
+            onClick={onBack}
+            title="Туда, откуда открыли таблицу"
+            className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-slate-300 bg-white px-2 py-0.5 pto-t-md font-semibold leading-none text-slate-800 hover:bg-slate-50"
+          >
+            <IconBack className="h-3 w-3" />
+            Назад
+          </button>
+        ) : null}
         <div
-          className="min-w-0 flex-1 truncate pto-t-md tabular-nums leading-tight"
+          className="min-w-0 truncate pto-t-md tabular-nums leading-tight"
           title={
             loading
               ? projectName
@@ -681,25 +692,20 @@ export function ReviewsTable({
 
         <div className="ml-auto flex shrink-0 items-center gap-1.5">
           {standalone ? null : (
-            <ResolvedSummary reviews={reviews} projectId={projectId} compact />
+            <ResolvedSummary
+              reviews={reviews}
+              projectId={projectId}
+              compact
+              onShowUnresolved={() => {
+                const label = REVIEW_VERDICT_LABEL.pending;
+                const current = colFilters.verdict;
+                applyColFilter(
+                  "verdict",
+                  current?.length === 1 && current[0] === label ? null : [label],
+                );
+              }}
+            />
           )}
-          {onBack ? (
-            <button
-              type="button"
-              onClick={onBack}
-              title="Туда, откуда открыли таблицу"
-              className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-slate-300 bg-white px-2 py-0.5 pto-t-md font-semibold leading-none text-slate-800 hover:bg-slate-50"
-            >
-              <IconBack className="h-3 w-3" />
-              Назад
-            </button>
-          ) : null}
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Поиск"
-            className="w-32 rounded-md border border-border bg-white px-1.5 py-0.5 pto-t-md outline-none placeholder:text-muted focus:border-accent"
-          />
           {onUndo ? (
             <button
               type="button"
@@ -773,6 +779,12 @@ export function ReviewsTable({
             </button>
           ) : null}
         </div>
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Поиск"
+          className="w-32 shrink-0 rounded-md border border-border bg-white px-1.5 py-0.5 pto-t-md outline-none placeholder:text-muted focus:border-accent"
+        />
       </header>
 
       {error ? (

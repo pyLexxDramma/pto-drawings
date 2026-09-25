@@ -1,8 +1,6 @@
 "use client";
 
-import { Tooltip } from "@/components/tooltip";
 import { PaneToggle } from "@/components/ui-chrome";
-import { VERDICT_CHIP } from "@/lib/review-colors";
 import {
   KIND_LABEL,
   REVIEW_VERDICT_LABEL,
@@ -10,21 +8,17 @@ import {
   type ReviewVerdict,
 } from "@/types";
 
-function StatusChip({
-  className,
-  label,
-}: {
-  className: string;
-  label: string;
-}) {
-  return (
-    <Tooltip label={label}>
-      <span
-        className={`inline-block h-2 w-2 shrink-0 rounded-sm ${className}`}
-        aria-label={label}
-      />
-    </Tooltip>
-  );
+function sheetMark(input: {
+  isWorking: boolean;
+  isReady: boolean;
+  pending: number;
+  resolved: boolean;
+}): string {
+  if (input.isWorking) return "обрабатывается";
+  if (input.pending > 0) return `не разобрано ${input.pending}`;
+  if (input.resolved) return "разобраны";
+  if (input.isReady) return "текст готов";
+  return "ждёт текст";
 }
 
 type SheetRowProps = {
@@ -97,46 +91,13 @@ function SheetRow({
         <span className="min-w-0 flex-1 truncate pto-t-sm font-medium leading-tight tabular-nums">
           L{pageNumber}
         </span>
-        <span className="flex shrink-0 items-center gap-1">
-          {isWorking ? (
-            <StatusChip
-              className="bg-accent"
-              label="Сейчас обрабатывается"
-            />
-          ) : dots || isReady ? null : (
-            <StatusChip className="bg-slate-300" label="Ждёт текст" />
-          )}
-          {isUnseen ? (
-            <StatusChip
-              className="outline outline-1 outline-sky-500 bg-sky-100"
-              label="Лист не открывали"
-            />
-          ) : null}
-          {dots ? (
-            <span
-              className={`inline-flex max-w-full items-center gap-0.5 truncate rounded-md border px-1 py-px pto-t-xs font-semibold leading-4 ${
-                openIssues ? VERDICT_CHIP.pending : VERDICT_CHIP[dots.verdict]
-              }`}
-              title={
-                openIssues
-                  ? `${dots.pending} не разобрано из ${dots.count}`
-                  : `${dots.count} · ${REVIEW_VERDICT_LABEL[dots.verdict]}`
-              }
-            >
-              <span className="truncate">
-                {openIssues
-                  ? REVIEW_VERDICT_LABEL.pending
-                  : REVIEW_VERDICT_LABEL[dots.verdict]}
-              </span>
-              <span className="tabular-nums">
-                {openIssues ? dots.pending : dots.count}
-              </span>
-            </span>
-          ) : isFlagged ? (
-            <StatusChip className="bg-sem-issue" label="Есть отметка" />
-          ) : isEdited ? (
-            <StatusChip className="outline outline-1 outline-slate-400 bg-slate-200" label="Лист правили" />
-          ) : null}
+        <span className="shrink-0 truncate pto-t-xs font-semibold tabular-nums text-slate-700">
+          {sheetMark({
+            isWorking,
+            isReady,
+            pending: dots?.pending ?? 0,
+            resolved: allResolved,
+          })}
         </span>
       </span>
     </button>
@@ -208,6 +169,9 @@ export function PageStrip({
           />
         </div>
       ) : null}
+      <div className="shrink-0 border-b border-slate-200 px-1.5 py-1 pto-t-xs leading-snug text-muted">
+        обрабатывается · не разобрано N · разобраны · текст готов · ждёт текст
+      </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
         {pages.length === 0 && emptyLabel ? (
           <div className="px-1 py-2 pto-t-sm leading-snug text-muted">
