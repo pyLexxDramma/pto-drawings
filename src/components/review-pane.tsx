@@ -229,8 +229,8 @@ export function ReviewPane({
   });
   const [sidePanel, setSidePanel] = useState<"text" | "notes">("text");
   const [searchOpen, setSearchOpen] = useState(false);
-  /** Пользователь развернул прогресс поверх просмотра готового листа. */
-  const [progressExpanded, setProgressExpanded] = useState(false);
+  /** Пока файл в работе — прогресс по листам на виду; свернуть можно вручную. */
+  const [progressExpanded, setProgressExpanded] = useState(true);
   /** Клик по листу в полоске / прогрессе — показать чертёж, не панель обработки. */
   const [sheetPeek, setSheetPeek] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -728,10 +728,15 @@ export function ReviewPane({
     progressLive &&
     (sheetPeek ||
       (ready.has(pageNumber) && pageNumber !== activeProcessingPage));
+  /**
+   * Во время расшифровки справа — прогресс по листам (%), а не пустая зона
+   * свёрнутых секций. Свернуть можно кнопкой, если нужно глянуть готовый лист.
+   */
   const showFullProgress =
-    progressIsCurrentDoc &&
-    progressLive &&
-    (!viewingProcessedSheet || progressExpanded);
+    liveProcessing &&
+    (progressIsCurrentDoc
+      ? !viewingProcessedSheet || progressExpanded
+      : true);
 
   useEffect(() => {
     onFullProgressVisible?.(showFullProgress);
@@ -739,11 +744,8 @@ export function ReviewPane({
   }, [showFullProgress, onFullProgressVisible]);
 
   useEffect(() => {
-    if (viewingProcessedSheet) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setProgressExpanded(false);
-    }
-  }, [pageNumber, viewingProcessedSheet]);
+    if (liveProcessing) setProgressExpanded(true);
+  }, [document.id, liveProcessing]);
 
   useEffect(() => {
     pageRef.current = pageNumber;
@@ -1769,8 +1771,11 @@ export function ReviewPane({
                 currentPage={pageNumber}
                 onOpenPage={(page) => goToPage(page)}
                 onCollapse={
-                  viewingProcessedSheet
-                    ? () => setProgressExpanded(false)
+                  viewingProcessedSheet || progressExpanded
+                    ? () => {
+                        setSheetPeek(true);
+                        setProgressExpanded(false);
+                      }
                     : undefined
                 }
               />
