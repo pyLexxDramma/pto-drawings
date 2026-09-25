@@ -662,13 +662,14 @@ export function CadPage({
                 }}
               >
                 <span
-                  className={`absolute font-semibold ${SEVERITY_PIN[pin.severity]} ${
+                  className={`absolute font-semibold shadow-sm backdrop-blur-[1px] ${SEVERITY_PIN[pin.severity]} ${
                     pin.active ? "ring-2 ring-offset-1 ring-slate-800" : ""
                   }`}
                   style={{
+                    // Чуть выше и левее зоны места — квадратик не накрывает подпись.
                     left: 0,
                     top: 0,
-                    transform: "translate(-2%, -105%)",
+                    transform: "translate(-35%, -130%)",
                     padding: `${1 / viewport.scale}px ${4 / viewport.scale}px`,
                     borderRadius: 3 / viewport.scale,
                     fontSize: Math.max(7, 12 / viewport.scale),

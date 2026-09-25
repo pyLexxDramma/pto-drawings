@@ -65,12 +65,13 @@ export const SEVERITY_FRAME: Record<ReviewSeverity, string> = {
   skip: "pto-place opacity-50",
 };
 
+/** Мини-пин на чертеже: номер замечания. Фон полупрозрачный — чертёж читается под ним. */
 export const SEVERITY_PIN: Record<ReviewSeverity, string> = {
-  unset: "bg-rose-600 text-white",
-  high: "bg-rose-600 text-white",
-  medium: "bg-amber-500 text-white",
-  low: "bg-sky-600 text-white",
-  skip: "bg-slate-400 text-white",
+  unset: "border border-rose-700/70 bg-rose-600/45 text-rose-950",
+  high: "border border-rose-700/70 bg-rose-600/45 text-rose-950",
+  medium: "border border-amber-700/70 bg-amber-500/45 text-amber-950",
+  low: "border border-sky-700/70 bg-sky-600/45 text-sky-950",
+  skip: "border border-slate-500/60 bg-slate-400/40 text-slate-800",
 };
 
 /** Мини-пин замечания на чертеже: номер + место + важность. */
