@@ -24,7 +24,6 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconClose,
-  IconMark,
 } from "@/components/tool-icons";
 import type { ModelCheckInput } from "@/lib/model-check";
 import { KEYMAP, KEYMAP_GROUPS } from "@/lib/keymap";
@@ -1782,39 +1781,6 @@ export function ReviewPane({
             ) : (
               <>
             <div className="flex flex-wrap items-center gap-1 border-b border-border px-1.5 py-0.5">
-              {!readOnly ? (
-                <button
-                  type="button"
-                  title={
-                    markMode
-                      ? "Отменить разметку (Esc)"
-                      : pageNotes.length > 0
-                        ? `Обвести ошибку на чертеже (${pageNotes.length})`
-                        : "Обвести ошибку на чертеже"
-                  }
-                  aria-label={
-                    markMode
-                      ? "Отменить разметку"
-                      : pageNotes.length > 0
-                        ? `Отметить ошибку, пометок: ${pageNotes.length}`
-                        : "Отметить ошибку"
-                  }
-                  aria-pressed={markMode}
-                  onClick={toggleMark}
-                  className={`relative inline-flex h-6 w-6 items-center justify-center rounded border ${
-                    sidePanel === "notes" || markMode
-                      ? "border-rose-700 bg-rose-100 text-rose-950"
-                      : "border-rose-600 bg-rose-50 text-rose-800 hover:bg-rose-100"
-                  }`}
-                >
-                  <IconMark className="h-3 w-3" />
-                  {!markMode && pageNotes.length > 0 ? (
-                    <span className="absolute -right-1 -top-1 min-w-3 rounded-full bg-rose-700 px-0.5 text-center text-[8px] font-bold leading-3 text-white">
-                      {pageNotes.length}
-                    </span>
-                  ) : null}
-                </button>
-              ) : null}
               {sheetToolButtons}
               <span className="ml-auto flex shrink-0 items-center gap-1">
                 <PaneToggle
