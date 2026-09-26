@@ -453,15 +453,22 @@ export function usePageViewport({
 
   const zoomToRectRef = useRef(zoomToRect);
   zoomToRectRef.current = zoomToRect;
-  const appliedHighlightNonce = useRef(0);
+  const appliedHighlight = useRef("");
 
   useEffect(() => {
     if (!panToHighlight || !highlightRegion || !highlightNonce) return;
-    if (appliedHighlightNonce.current === highlightNonce) return;
+    const key = [
+      highlightNonce,
+      highlightRegion.x.toFixed(4),
+      highlightRegion.y.toFixed(4),
+      highlightRegion.w.toFixed(4),
+      highlightRegion.h.toFixed(4),
+    ].join(":");
+    if (appliedHighlight.current === key) return;
     const wrap = wrapRef.current;
     if (!wrap || wrap.clientWidth < 8 || wrap.clientHeight < 8) return;
     if (!ready) return;
-    appliedHighlightNonce.current = highlightNonce;
+    appliedHighlight.current = key;
     zoomToRectRef.current(padHighlightRect(highlightRegion), { highlight: true });
   }, [highlightNonce, highlightRegion, panToHighlight, ready, wrapRef]);
 

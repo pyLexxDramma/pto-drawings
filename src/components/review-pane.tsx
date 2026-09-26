@@ -1606,7 +1606,7 @@ export function ReviewPane({
                   annotations={pageNotes}
                   markMode={markMode && !readOnly}
                   activeAnnotationId={activeNoteId}
-                  highlightQuery={drawingHighlightQuery}
+                  highlightQuery={textHighlightQuery}
                   highlightRegion={focusHighlightRegion}
                   highlightRegions={extraHighlightRegions}
                   highlightSeverity={highlightSeverity}
@@ -1638,7 +1638,7 @@ export function ReviewPane({
                   annotations={pageNotes}
                   markMode={markMode && !readOnly}
                   activeAnnotationId={activeNoteId}
-                  highlightQuery={drawingHighlightQuery}
+                  highlightQuery={textHighlightQuery}
                   highlightRegion={focusHighlightRegion}
                   highlightRegions={extraHighlightRegions}
                   highlightSeverity={highlightSeverity}
@@ -1669,7 +1669,7 @@ export function ReviewPane({
                   annotations={pageNotes}
                   markMode={markMode && !readOnly}
                   activeAnnotationId={activeNoteId}
-                  highlightQuery={drawingHighlightQuery}
+                  highlightQuery={textHighlightQuery}
                   highlightRegion={focusHighlightRegion}
                   highlightRegions={extraHighlightRegions}
                   highlightSeverity={highlightSeverity}
@@ -1708,7 +1708,7 @@ export function ReviewPane({
                   annotations={pageNotes}
                   markMode={markMode && !readOnly}
                   activeAnnotationId={activeNoteId}
-                  highlightQuery={drawingHighlightQuery}
+                  highlightQuery={textHighlightQuery}
                   highlightRegion={focusHighlightRegion}
                   highlightRegions={extraHighlightRegions}
                   highlightSeverity={highlightSeverity}

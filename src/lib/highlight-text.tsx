@@ -205,6 +205,31 @@ export function hitsInsideRegion<
   return inside.length > 0 ? inside : hits;
 }
 
+/** Какое совпадение обвести: ближайшее к сохранённому месту, иначе первое. */
+export function nearestHit<
+  T extends { x: number; y: number; w: number; h: number },
+>(
+  hits: T[],
+  region: { x: number; y: number; w: number; h: number } | null,
+): T | null {
+  if (hits.length === 0) return null;
+  if (!region || hits.length === 1) return hits[0];
+  const cx = region.x + region.w / 2;
+  const cy = region.y + region.h / 2;
+  let best = hits[0];
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (const hit of hits) {
+    const dx = hit.x + hit.w / 2 - cx;
+    const dy = hit.y + hit.h / 2 - cy;
+    const distance = dx * dx + dy * dy;
+    if (distance < bestDistance) {
+      best = hit;
+      bestDistance = distance;
+    }
+  }
+  return best;
+}
+
 /**
  * Ищет цитату в текстовом слое: берём самый длинный подошедший needle,
  * прямоугольники обрезаны по доле совпавшего текста — не вся строка листа.

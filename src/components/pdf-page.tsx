@@ -17,7 +17,7 @@ import {
   regionAtPoint,
   type PageTextRegion,
 } from "@/lib/content-sync";
-import { findLayerHits, hitsInsideRegion } from "@/lib/highlight-text";
+import { findLayerHits, hitsInsideRegion, nearestHit } from "@/lib/highlight-text";
 import {
   SEVERITY_FRAME,
   SEVERITY_PIN,
@@ -195,9 +195,10 @@ export function PdfPage({
   } | null>(null);
 
   const ready = !loading && !error;
-  const focusRegion =
-    highlightRegion ??
-    (remarkFocus && searchHits[0] ? searchHits[0] : null);
+  // Слова текстового слоя важнее сохранённого прямоугольника: тот часто стоит мимо.
+  const quoteHit = remarkFocus ? nearestHit(searchHits, highlightRegion) : null;
+  const frameRegion = quoteHit ?? highlightRegion;
+  const focusRegion = frameRegion;
   const viewport = usePageViewport({
     wrapRef,
     natural,
@@ -608,14 +609,14 @@ export function PdfPage({
               ref={canvasRef}
               className="block bg-white shadow-[0_12px_40px_rgba(0,0,0,0.45)]"
             />
-            {highlightRegion ? (
+            {frameRegion ? (
               <div
                 className={`pointer-events-none absolute z-[5] ${SEVERITY_FRAME[highlightSeverity]}`}
                 style={{
-                  left: `${highlightRegion.x * 100}%`,
-                  top: `${highlightRegion.y * 100}%`,
-                  width: `${Math.max(2.5, highlightRegion.w * 100)}%`,
-                  height: `${Math.max(1.5, highlightRegion.h * 100)}%`,
+                  left: `${frameRegion.x * 100}%`,
+                  top: `${frameRegion.y * 100}%`,
+                  width: `${Math.max(2.5, frameRegion.w * 100)}%`,
+                  height: `${Math.max(1.5, frameRegion.h * 100)}%`,
                 }}
               />
             ) : null}
@@ -631,7 +632,9 @@ export function PdfPage({
                 }}
               />
             ))}
-            {remarkPins.map((pin) => (
+            {remarkPins.map((pin) => {
+              const box = pin.active && quoteHit ? quoteHit : pin;
+              return (
               <button
                 key={`pin-${pin.id}-${pin.x}-${pin.y}`}
                 type="button"
@@ -643,10 +646,10 @@ export function PdfPage({
                 onMouseDown={(event) => event.stopPropagation()}
                 className="absolute z-[6]"
                 style={{
-                  left: `${pin.x * 100}%`,
-                  top: `${pin.y * 100}%`,
-                  width: `${Math.max(1.5, pin.w * 100)}%`,
-                  height: `${Math.max(1, pin.h * 100)}%`,
+                  left: `${box.x * 100}%`,
+                  top: `${box.y * 100}%`,
+                  width: `${Math.max(1.5, box.w * 100)}%`,
+                  height: `${Math.max(1, box.h * 100)}%`,
                 }}
               >
                 <span
@@ -667,16 +670,16 @@ export function PdfPage({
                   {pin.number}
                 </span>
               </button>
-            ))}
-            {searchHits.map((hit, index) => (
+              );
+            })}
+            {!remarkFocus
+              ? searchHits.map((hit, index) => (
               <div
                 key={`q-${index}`}
                 className={
-                  remarkFocus
-                    ? "pointer-events-none absolute z-[7] pto-remark-zone"
-                    : index === hitFocus.index
-                      ? "pto-find-focus pointer-events-none absolute z-[7]"
-                      : "pto-find pointer-events-none absolute"
+                  index === hitFocus.index
+                    ? "pto-find-focus pointer-events-none absolute z-[7]"
+                    : "pto-find pointer-events-none absolute"
                 }
                 style={{
                   left: `${hit.x * 100}%`,
@@ -685,7 +688,8 @@ export function PdfPage({
                   height: `${hit.h * 100}%`,
                 }}
               />
-            ))}
+            ))
+              : null}
             {annotations.map((annotation, index) => {
               const isActive = annotation.id === activeAnnotationId;
               const isOpen = annotation.status === "open";

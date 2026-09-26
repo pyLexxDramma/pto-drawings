@@ -33,6 +33,7 @@ import {
   findLayerHits,
   highlightNeedles,
   hitsInsideRegion,
+  nearestHit,
 } from "@/lib/highlight-text";
 import { normalizeQuote } from "@/lib/remark-jump";
 import {
@@ -187,6 +188,8 @@ export function CadPage({
     () => hitsInsideRegion(pageHits, remarkFocus ? highlightRegion : null),
     [pageHits, remarkFocus, highlightRegion],
   );
+  const quoteHit = remarkFocus ? nearestHit(searchHits, highlightRegion) : null;
+  const frameRegion = quoteHit ?? highlightRegion;
   /** Медиана высоты подписей листа в px чертежа — по ней считается «Читаемо». */
   const legibleTextPx = useMemo(() => {
     const sizes = texts
@@ -196,9 +199,7 @@ export function CadPage({
     if (!sizes.length) return 0;
     return sizes[Math.floor(sizes.length / 2)] * PX_PER_MM;
   }, [texts]);
-  const focusRegion =
-    highlightRegion ??
-    (remarkFocus && searchHits[0] ? searchHits[0] : null);
+  const focusRegion = frameRegion;
   const viewport = usePageViewport({
     wrapRef,
     natural,
@@ -620,14 +621,14 @@ export function CadPage({
               />
             ) : null}
 
-            {highlightRegion ? (
+            {frameRegion ? (
               <div
                 className={`pointer-events-none absolute z-[5] ${SEVERITY_FRAME[highlightSeverity]}`}
                 style={{
-                  left: `${highlightRegion.x * 100}%`,
-                  top: `${highlightRegion.y * 100}%`,
-                  width: `${Math.max(2.5, highlightRegion.w * 100)}%`,
-                  height: `${Math.max(1.5, highlightRegion.h * 100)}%`,
+                  left: `${frameRegion.x * 100}%`,
+                  top: `${frameRegion.y * 100}%`,
+                  width: `${Math.max(2.5, frameRegion.w * 100)}%`,
+                  height: `${Math.max(1.5, frameRegion.h * 100)}%`,
                 }}
               />
             ) : null}
@@ -643,7 +644,9 @@ export function CadPage({
                 }}
               />
             ))}
-            {remarkPins.map((pin) => (
+            {remarkPins.map((pin) => {
+              const box = pin.active && quoteHit ? quoteHit : pin;
+              return (
               <button
                 key={`pin-${pin.id}-${pin.x}-${pin.y}`}
                 type="button"
@@ -655,10 +658,10 @@ export function CadPage({
                 onMouseDown={(event) => event.stopPropagation()}
                 className="absolute z-[6]"
                 style={{
-                  left: `${pin.x * 100}%`,
-                  top: `${pin.y * 100}%`,
-                  width: `${Math.max(1.5, pin.w * 100)}%`,
-                  height: `${Math.max(1, pin.h * 100)}%`,
+                  left: `${box.x * 100}%`,
+                  top: `${box.y * 100}%`,
+                  width: `${Math.max(1.5, box.w * 100)}%`,
+                  height: `${Math.max(1, box.h * 100)}%`,
                 }}
               >
                 <span
@@ -679,16 +682,16 @@ export function CadPage({
                   {pin.number}
                 </span>
               </button>
-            ))}
-            {searchHits.map((hit, index) => (
+              );
+            })}
+            {!remarkFocus
+              ? searchHits.map((hit, index) => (
               <div
                 key={`q-${index}`}
                 className={
-                  remarkFocus
-                    ? "pointer-events-none absolute z-[7] pto-remark-zone"
-                    : index === hitFocus.index
-                      ? "pto-find-focus pointer-events-none absolute z-[7]"
-                      : "pto-find pointer-events-none absolute"
+                  index === hitFocus.index
+                    ? "pto-find-focus pointer-events-none absolute z-[7]"
+                    : "pto-find pointer-events-none absolute"
                 }
                 style={{
                   left: `${hit.x * 100}%`,
@@ -697,7 +700,8 @@ export function CadPage({
                   height: `${hit.h * 100}%`,
                 }}
               />
-            ))}
+            ))
+              : null}
 
             {annotations.map((annotation, index) => {
               const isActive = annotation.id === activeAnnotationId;
