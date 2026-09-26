@@ -403,6 +403,10 @@ export function Workspace({
     input: ModelCheckInput;
   } | null>(null);
   const [showReviews, setShowReviews] = useState(false);
+  /** Иконка таблицы с листа: прокрутить к строке выбранного пина. */
+  const [tableFocus, setTableFocus] = useState<{ id: string; token: number } | null>(
+    null,
+  );
   /** Лист, открытый поверх таблицы замечаний по ссылке «Где в ПД». */
   const [peekOpen, setPeekOpen] = useState(false);
   const [reviewStats, setReviewStats] = useState<ReviewStats | null>(null);
@@ -2468,6 +2472,8 @@ export function Workspace({
               }}
               refreshToken={reviewsEpoch}
               onReviewsMutated={() => setReviewsEpoch((n) => n + 1)}
+              focusReview={tableFocus}
+              onFocusReviewHandled={() => setTableFocus(null)}
               onBack={goBack}
               onUndo={remarkUndo ? () => void undoRemark() : undefined}
               undoBusy={undoBusy}
@@ -2483,10 +2489,11 @@ export function Workspace({
             projectId={currentProject?.id}
             reviews={projectReviews}
             onJumpToPage={jumpToPage}
-            onOpenReviews={() => {
+            onOpenReviews={(reviewId) => {
               if (!showReviews) pushBack();
               setPeekOpen(false);
               setShowReviews(true);
+              setTableFocus(reviewId ? { id: reviewId, token: Date.now() } : null);
             }}
             stripHost={stripHost}
             onReviewPatched={(review) => {

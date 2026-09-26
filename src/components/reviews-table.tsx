@@ -229,6 +229,8 @@ export function ReviewsTable({
   undoBusy = false,
   initialColFilters,
   standalone = false,
+  focusReview = null,
+  onFocusReviewHandled,
 }: {
   projectId: string;
   projectName: string;
@@ -248,6 +250,9 @@ export function ReviewsTable({
   initialColFilters?: ExcelColFilters;
   /** Отдельная вкладка: без окошка «Разобрано», оно открыло бы ещё одну такую же. */
   standalone?: boolean;
+  /** Строка выбранного пина: прокрутить к ней, когда таблицу открыли с листа. */
+  focusReview?: { id: string; token: number } | null;
+  onFocusReviewHandled?: () => void;
   /** Открыть место в ПД в просмотрщике (новая вкладка + подсветка). */
   onJumpToPage: (
     documentId: string,
@@ -280,6 +285,7 @@ export function ReviewsTable({
   const [exporting, setExporting] = useState(false);
   const importRef = useRef<HTMLInputElement>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   /** Серый XLSX: строка в другом файле — показать весь проект. */
   const [fileScopeOff, setFileScopeOff] = useState(false);
 
@@ -521,6 +527,38 @@ export function ReviewsTable({
       (a, b) => rank(a) - rank(b) || (a.number - b.number) * sortDir,
     );
   }, [fileOf, sortDir, sortKey, visible]);
+
+  useEffect(() => {
+    if (!focusReview || loading) return;
+    if (!reviews.some((item) => item.id === focusReview.id)) {
+      if (reviews.length > 0) onFocusReviewHandled?.();
+      return;
+    }
+    if (!visible.some((item) => item.id === focusReview.id)) {
+      if (query || Object.keys(colFilters).length > 0 || !fileScopeOff) {
+        setQuery("");
+        setColFilters({});
+        setFileScopeOff(true);
+      } else {
+        onFocusReviewHandled?.();
+      }
+      return;
+    }
+    setActiveId(focusReview.id);
+    listRef.current
+      ?.querySelector(`[data-review-id="${focusReview.id}"]`)
+      ?.scrollIntoView({ block: "center" });
+    onFocusReviewHandled?.();
+  }, [
+    colFilters,
+    fileScopeOff,
+    focusReview,
+    loading,
+    onFocusReviewHandled,
+    query,
+    reviews,
+    visible,
+  ]);
 
   /**
    * Разделитель при смене файла. Только при сортировке по номеру: при сортировке
@@ -805,6 +843,7 @@ export function ReviewsTable({
       ) : null}
 
       <div
+        ref={listRef}
         className="min-h-0 flex-1 overflow-auto outline-none"
         tabIndex={0}
         onKeyDown={(event) => {

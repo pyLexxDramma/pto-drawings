@@ -120,7 +120,7 @@ type ReviewPaneProps = {
   undoBusy?: boolean;
   notesRefreshToken?: number;
   /** Те же строки, что в «Замечаний по листу» — открыть таблицу по этому файлу. */
-  onOpenReviews?: () => void;
+  onOpenReviews?: (reviewId?: string) => void;
   /** Другой файл того же замечания — из «место 2 из 3». */
   onJumpToPage?: (
     documentId: string,

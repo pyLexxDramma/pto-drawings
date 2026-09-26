@@ -34,7 +34,7 @@ export function PageReviewsBar({
   renderPlaceChips: (review: Review) => ReactNode;
   onToggle: () => void;
   onFocusReview: (review: Review) => void;
-  onOpenReviews?: () => void;
+  onOpenReviews?: (reviewId?: string) => void;
 }) {
   if (!reviews.length) return null;
 
@@ -88,9 +88,17 @@ export function PageReviewsBar({
         {onOpenReviews ? (
           <button
             type="button"
-            onClick={onOpenReviews}
-            title="Открыть таблицу замечаний"
-            aria-label="Открыть таблицу замечаний"
+            onClick={() => onOpenReviews?.(activeReview?.id)}
+            title={
+              activeReview
+                ? `Открыть замечание № ${activeReview.number} в таблице`
+                : "Открыть таблицу замечаний"
+            }
+            aria-label={
+              activeReview
+                ? `Открыть замечание № ${activeReview.number} в таблице`
+                : "Открыть таблицу замечаний"
+            }
             className="shrink-0 rounded border border-slate-300 bg-white px-1.5 py-1 text-slate-700 hover:bg-slate-50 hover:text-accent"
           >
             <IconGrid className="h-3.5 w-3.5" />
