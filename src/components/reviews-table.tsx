@@ -158,6 +158,9 @@ const COL_DEFAULT: Record<ColId, number> = {
 
 const CELL = "border border-[#a6a6a6] px-1.5 py-1";
 
+/** Два экрана этой таблицы: строка с переносом занимает около пятнадцати мест. */
+const SUMMARY_FROM = 30;
+
 function loadColWidths(): Record<ColId, number> {
   if (typeof window === "undefined") return { ...COL_DEFAULT };
   try {
@@ -211,6 +214,63 @@ function ColHead({
         />
       ) : null}
     </th>
+  );
+}
+
+function SeveritySummary({
+  rows,
+  total,
+  onOpen,
+}: {
+  rows: { severity: ReviewSeverity; count: number }[];
+  total: number;
+  onOpen: () => void;
+}) {
+  return (
+    <div className="p-3">
+      <table className="w-auto border-collapse border border-[#7f7f7f] text-xs">
+        <thead>
+          <tr>
+            <th className={`${CELL} bg-[#d6dce4] text-left font-semibold text-slate-900`}>
+              Важность
+            </th>
+            <th className={`${CELL} min-w-28 bg-[#d6dce4] text-right font-semibold text-slate-900`}>
+              Количество
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.severity} className="bg-white">
+              <td className={CELL}>
+                <span
+                  className={`inline-block rounded border px-1.5 py-1 pto-t-md font-medium ${SEVERITY_CHIP[row.severity]}`}
+                >
+                  {REVIEW_SEVERITY_LABEL[row.severity]}
+                </span>
+              </td>
+              <td className={`${CELL} text-right tabular-nums font-semibold text-text`}>
+                {row.count}
+              </td>
+            </tr>
+          ))}
+          <tr className="bg-white">
+            <td className={`${CELL} font-semibold text-text`}>Всего</td>
+            <td className={`${CELL} text-right tabular-nums font-semibold text-text`}>
+              {total}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <button
+        type="button"
+        aria-expanded={false}
+        onClick={onOpen}
+        className="mt-2 whitespace-nowrap rounded-md border border-slate-300 bg-white px-2 py-0.5 pto-t-md font-semibold leading-none text-slate-800 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      >
+        Раскрыть таблицу
+      </button>
+    </div>
   );
 }
 
@@ -275,6 +335,8 @@ export function ReviewsTable({
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<ExcelCol>("severity");
   const [sortDir, setSortDir] = useState<1 | -1>(1);
+  /** Большой список сначала показывает сводку по важности, не все строки. */
+  const [listOpen, setListOpen] = useState(false);
   const [colW, setColW] = useState(loadColWidths);
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -521,6 +583,23 @@ export function ReviewsTable({
       (a, b) => rank(a) - rank(b) || (a.number - b.number) * sortDir,
     );
   }, [fileOf, sortDir, sortKey, visible]);
+
+  const severityCounts = useMemo(() => {
+    const counts = new Map<ReviewSeverity, number>();
+    for (const review of sorted) {
+      counts.set(review.severity, (counts.get(review.severity) ?? 0) + 1);
+    }
+    return REVIEW_SEVERITY_STRENGTH.flatMap((severity) => {
+      const count = counts.get(severity) ?? 0;
+      return count > 0 ? [{ severity, count }] : [];
+    });
+  }, [sorted]);
+
+  const showSummary = !loading && !listOpen && sorted.length > SUMMARY_FROM;
+
+  useEffect(() => {
+    setListOpen(false);
+  }, [projectId]);
 
   /**
    * Разделитель при смене файла. Только при сортировке по номеру: при сортировке
@@ -804,10 +883,24 @@ export function ReviewsTable({
         </div>
       ) : null}
 
+      {listOpen && !loading && sorted.length > SUMMARY_FROM ? (
+        <div className="flex shrink-0 items-center border-b border-[#a6a6a6] bg-white px-3 py-1">
+          <button
+            type="button"
+            aria-expanded
+            onClick={() => setListOpen(false)}
+            className="whitespace-nowrap rounded-md border border-slate-300 bg-white px-2 py-0.5 pto-t-md font-semibold leading-none text-slate-800 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          >
+            Свернуть
+          </button>
+        </div>
+      ) : null}
+
       <div
         className="min-h-0 flex-1 overflow-auto outline-none"
         tabIndex={0}
         onKeyDown={(event) => {
+          if (showSummary) return;
           const flat = sorted;
           if (flat.length === 0) return;
           const index = Math.max(0, flat.findIndex((item) => item.id === activeId));
@@ -825,6 +918,12 @@ export function ReviewsTable({
           <div className="flex items-center justify-center gap-2 p-10 text-xs text-muted">
             <Spinner /> Загружаем замечания
           </div>
+        ) : showSummary ? (
+          <SeveritySummary
+            rows={severityCounts}
+            total={sorted.length}
+            onOpen={() => setListOpen(true)}
+          />
         ) : (
           // table-fixed: без него длинные ссылки в «Где в ПД» задавали
           // min-content колонки и выдавливали текст замечания в столбик.
