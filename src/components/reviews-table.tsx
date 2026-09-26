@@ -40,6 +40,7 @@ import {
   reviewAuthor,
   REVIEW_SEVERITY_LABEL,
   REVIEW_SEVERITY_ORDER,
+  REVIEW_SEVERITY_STRENGTH,
   REVIEW_VERDICT_LABEL,
   isExportableReview,
   type Review,
@@ -272,7 +273,7 @@ export function ReviewsTable({
     () => initialColFilters ?? {},
   );
   const [query, setQuery] = useState("");
-  const [sortKey, setSortKey] = useState<ExcelCol>("number");
+  const [sortKey, setSortKey] = useState<ExcelCol>("severity");
   const [sortDir, setSortDir] = useState<1 | -1>(1);
   const [colW, setColW] = useState(loadColWidths);
   const [importing, setImporting] = useState(false);
@@ -492,6 +493,16 @@ export function ReviewsTable({
 
   const sorted = useMemo(() => {
     const items = [...visible];
+    if (sortKey === "severity") {
+      const rank = (severity: ReviewSeverity) => {
+        const index = REVIEW_SEVERITY_STRENGTH.indexOf(severity);
+        return index < 0 ? REVIEW_SEVERITY_STRENGTH.length : index;
+      };
+      return items.sort(
+        (a, b) =>
+          (rank(a.severity) - rank(b.severity)) * sortDir || a.number - b.number,
+      );
+    }
     if (sortKey !== "number") {
       return items.sort((a, b) => {
         const left = excelColValues(a, sortKey)[0] ?? "";
@@ -889,6 +900,8 @@ export function ReviewsTable({
                     values={filterValues.severity}
                     selected={colFilters.severity ?? null}
                     sortDir={sortKey === "severity" ? sortDir : null}
+                    sortAscLabel="Сначала важные"
+                    sortDescLabel="Сначала низкие"
                     onSort={(dir) => sortBy("severity", dir)}
                     onApply={(next) => applyColFilter("severity", next)}
                   />

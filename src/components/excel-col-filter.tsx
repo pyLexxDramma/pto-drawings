@@ -14,6 +14,8 @@ export function ExcelColFilter({
   sortDir = null,
   onSort,
   onApply,
+  sortAscLabel = "Сортировка от А до Я",
+  sortDescLabel = "Сортировка от Я до А",
 }: {
   label: string;
   values: string[];
@@ -22,6 +24,8 @@ export function ExcelColFilter({
   sortDir?: 1 | -1 | null;
   onSort: (dir: 1 | -1) => void;
   onApply: (next: string[] | null) => void;
+  sortAscLabel?: string;
+  sortDescLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -155,7 +159,7 @@ export function ExcelColFilter({
                     setOpen(false);
                   }}
                 >
-                  Сортировка от А до Я
+                  {sortAscLabel}
                 </button>
                 <button
                   type="button"
@@ -165,7 +169,7 @@ export function ExcelColFilter({
                     setOpen(false);
                   }}
                 >
-                  Сортировка от Я до А
+                  {sortDescLabel}
                 </button>
               </div>
               <input
