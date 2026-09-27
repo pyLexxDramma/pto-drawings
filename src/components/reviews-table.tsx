@@ -1353,14 +1353,33 @@ export function stripRemarkPlacePrefix(wording: string): string {
   return remarkWording(wording);
 }
 
+/** В свёрнутой строке цитата впереди: адрес листа уже есть в колонке «Где в ПД». */
+function tableRemarkLead(wording: string, quote: string): string {
+  const body = remarkWording(wording).replace(/^\s*лист\s+\d+\s*[.,:]\s*/iu, "");
+  const q = quote.trim();
+  if (!q) return body;
+  const mark = `«${q}»`;
+  const rest = body
+    .replaceAll(mark, " ")
+    .replaceAll(q, " ")
+    .replace(/«\s*»/g, " ")
+    .replace(/\s+/g, " ")
+    .replace(/^[\s,.;:–—-]+/, "")
+    .replace(/[\s,.;:–—-]+$/, "")
+    .trim();
+  return rest ? `${mark}. ${rest}` : mark;
+}
+
 /** Формулировка в 3 строки; находка ИИ — за «ещё». «Неверно» всегда видно. */
 function RemarkText({
   wording,
+  quote,
   needle,
   aiFinding,
   wrongReason,
 }: {
   wording: string;
+  quote: string;
   needle: string;
   aiFinding: string;
   wrongReason: string;
@@ -1385,7 +1404,7 @@ function RemarkText({
   const expanded = open || needleHitsAi;
   const showToggle = Boolean(aiFinding) || overflows;
   // Свёрнутым показываем формулировку без дубля места; раскрытым — как пришла.
-  const shown = expanded ? wording : stripRemarkPlacePrefix(wording);
+  const shown = expanded ? wording : tableRemarkLead(wording, quote);
 
   return (
     // Колонка гибкая, и на широком мониторе замечание растягивалось строкой на
@@ -1767,6 +1786,7 @@ function ReviewRow({
       <td className={`${CELL} ${SEVERITY_REMARK[review.severity]}`}>
         <RemarkText
           wording={wording}
+          quote={review.locations.find((item) => item.quote)?.quote ?? ""}
           needle={needle}
           aiFinding={review.text && review.aiFinding ? review.aiFinding : ""}
           wrongReason={review.wrongReason}

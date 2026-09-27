@@ -353,6 +353,7 @@ export function Workspace({
   const [uploads, setUploads] = useState<UploadItem[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [filesLoading, setFilesLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectDescription, setNewProjectDescription] = useState("");
@@ -403,6 +404,9 @@ export function Workspace({
     input: ModelCheckInput;
   } | null>(null);
   const [showReviews, setShowReviews] = useState(false);
+  useEffect(() => {
+    if (narrowDesktop && selectedId && !showReviews) setProjectsCollapsed(true);
+  }, [narrowDesktop, selectedId, showReviews]);
   /** Иконка таблицы с листа: прокрутить к строке выбранного пина. */
   const [tableFocus, setTableFocus] = useState<{ id: string; token: number } | null>(
     null,
@@ -1256,13 +1260,18 @@ export function Workspace({
     setNotesFilter("open");
     setProjectQuery("");
     setHits([]);
-    // Замечания тоже: вход в тот же проект раньше не обновлял их совсем.
-    await Promise.all([
-      loadDocuments(id),
-      loadEdits(id),
-      loadNotes(id),
-      loadProjectReviews(id).catch(() => undefined),
-    ]);
+    setFilesLoading(true);
+    setDocuments([]);
+    try {
+      await Promise.all([
+        loadDocuments(id),
+        loadEdits(id),
+        loadNotes(id),
+        loadProjectReviews(id).catch(() => undefined),
+      ]);
+    } finally {
+      setFilesLoading(false);
+    }
   }
 
   async function handleCreateProject(event: FormEvent) {
@@ -2406,7 +2415,11 @@ export function Workspace({
                           </div>
                           );
                         })}
-                        {!loading && documents.length === 0 && uploads.length === 0 ? (
+                        {filesLoading ? (
+                          <div className="px-1 py-2 text-center pto-t-md text-muted">
+                            Загрузка…
+                          </div>
+                        ) : !loading && documents.length === 0 && uploads.length === 0 ? (
                           <div className="px-1 py-2 text-center pto-t-md text-muted">
                             Нет файлов — загрузите PDF/DWG
                           </div>

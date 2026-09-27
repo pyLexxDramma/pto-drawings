@@ -511,6 +511,7 @@ export function ReviewPane({
     setSidePanel("text");
     setDrawingReport(null);
     setTextHitFound(null);
+    setPageReviewsOpen(true);
   }
   function selectFileReview(review: Review) {
     const location =
@@ -682,6 +683,7 @@ export function ReviewPane({
     if (location.pageNumber) goToPage(location.pageNumber);
     setActiveReviewId(reviewId);
     setFocusQuote(quote);
+    setPageReviewsOpen(true);
     setFocusRect(location.rect ?? null);
     setFocusNonce(Date.now());
     setPaneSolo(null);
@@ -812,6 +814,7 @@ export function ReviewPane({
       setFocusNonce(Date.now());
       setPaneSolo(null);
       setSidePanel("text");
+      setPageReviewsOpen(true);
     }
   }, [document.id, openPage]);
 
@@ -940,6 +943,12 @@ export function ReviewPane({
     setSheetPeek(true);
     setProgressExpanded(false);
     setPaneSolo(null);
+    if (next !== pageRef.current) {
+      setFocusQuote("");
+      setFocusRect(null);
+      setFocusNonce(0);
+      setActiveReviewId(null);
+    }
   }
 
   function stepVisible(delta: number) {
