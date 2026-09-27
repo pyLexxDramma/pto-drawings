@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import type { ReactNode } from "react";
-import { KEYMAP, KEYMAP_GROUPS } from "@/lib/keymap";
+import { KEYMAP } from "@/lib/keymap";
 
 function Kbd({ children }: { children: string }) {
   return (
@@ -20,7 +20,6 @@ function Btn({ children }: { children: string }) {
   );
 }
 
-/** Цвет показываем цветом, а не словом «зелёная». */
 function Box({ className }: { className: string }) {
   return (
     <span
@@ -41,254 +40,154 @@ function Step({ children }: { children: ReactNode }) {
   return <li className="marker:font-semibold marker:text-accent">{children}</li>;
 }
 
-/** Инструкция в меню Админ / Инженер — как пользоваться, без внутренней кухни. */
+/** Инструкция в меню Админ / Инженер — коротко, по делу. */
 export function ControlsHelpContent() {
   return (
-    <div className="space-y-3.5 pto-t-md leading-relaxed text-muted">
+    <div className="space-y-3 pto-t-md leading-snug text-muted">
       <section>
-        <div className="mb-1 font-semibold text-text">Порядок работы</div>
-        <ol className="list-decimal space-y-1 pl-4">
+        <div className="mb-1 font-semibold text-text">Порядок</div>
+        <ol className="list-decimal space-y-0.5 pl-4">
+          <Step>Загрузить PDF / DWG / ZIP (до 20 МБ).</Step>
+          <Step>Открыть лист: слева чертёж, справа расшифровка.</Step>
           <Step>
-            Загрузить PDF и чертёж (DWG/DXF) или один ZIP из них. До 20 МБ.
+            Своя ошибка — <Btn>Отметить ошибку</Btn> и обвести место.
           </Step>
           <Step>
-            Открыть лист: слева чертёж, справа его расшифровка.
-          </Step>
-          <Step>
-            Нашли ошибку — <Btn>Отметить ошибку</Btn> и обвести место. Строка
-            сразу появится в таблице, важность поставьте сами.
-          </Step>
-          <Step>
-            В таблице поставить каждому замечанию статус и выгрузить Excel.
+            В таблице — статусы и <Btn>Скачать Excel</Btn>.
           </Step>
         </ol>
       </section>
 
       <section>
-        <div className="mb-1 font-semibold text-text">Работа с листом</div>
-        <ul className="list-disc space-y-1 pl-4">
+        <div className="mb-1 font-semibold text-text">Лист</div>
+        <ul className="list-disc space-y-0.5 pl-4">
           <li>
-            Свою пометку ставите кнопкой <Btn>Отметить ошибку</Btn>. Удалили
-            рамку — строка уйдёт из таблицы, и наоборот.
+            Колёсико — сдвиг, зум — <Kbd>Ctrl</Kbd>+колёсико. В файле —{" "}
+            <Kbd>/</Kbd>.
           </li>
           <li>
-            <Btn>Следующий лист</Btn> вписывает лист целиком и снимает рамку
-            прошлого замечания. Пины на новом листе свои.
+            Поиск по проекту — поле в шапке. Клик по строке открывает файл, лист
+            и подсветку.
           </li>
           <li>
-            Поиск по листу — <Kbd>/</Kbd>. Совпадения подсвечиваются, текущее
-            обведено жирнее. Листание и масштаб — внизу листа.
+            Разделы справа сначала свёрнуты; открытый запоминается на этом листе.
           </li>
           <li>
-            Колёсико сдвигает лист, зум — только с <Kbd>Ctrl</Kbd>. Остальные
-            клавиши — в конце инструкции.
-          </li>
-          <li>
-            Справа после обработки все разделы свёрнуты: «Описание чертежа»,
-            «Лист дословно» и остальные. Откройте нужный стрелкой.
-          </li>
-          <li>
-            Открытый раздел запоминается на этом листе. Ушли на другой и
-            вернулись — он останется открытым. Новый лист снова весь свёрнут.
-          </li>
-          <li>
-            Поиск сам раскрывает раздел, где нашлась цитата. Это не
-            запоминается: закрыли поиск — раздел как вы его оставили.
+            <Btn>F</Btn> — только чертёж. <Kbd>Esc</Kbd> — назад.{" "}
+            <Btn>Назад</Btn> у поиска — туда, откуда пришли.
           </li>
         </ul>
       </section>
 
       <section>
-        <div className="mb-1 font-semibold text-text">Пины, рамка и подсветка</div>
-        <ul className="list-disc space-y-1 pl-4">
+        <div className="mb-1 font-semibold text-text">Замечания на чертеже</div>
+        <ul className="list-disc space-y-0.5 pl-4">
           <li>
-            Пин на листе — номер замечания. Красный — высокое, жёлтый —
-            среднее, синий — низкое. Стоит чуть выше слов, чтобы не закрывать
-            подпись.
-          </li>
-          <li>
-            Клик по пину, по строке «Этот лист» или по ссылке в «Где в ПД»
-            выбирает это замечание. Список справа раскрыт, видна формулировка.
-          </li>
-          <li>
-            Рамка на чертеже и жёлтая фраза справа — одна и та же цитата.
-            Рамка садится на эти слова, цвет рамки — та же важность.
-          </li>
-          <li>
-            Чипы <Btn>№1</Btn> <Btn>№2</Btn> <Btn>№3</Btn> у строки — другие
-            места той же фразы, не другие замечания. Клик переносит рамку.
-            «Мест N» в тексте — сколько раз расхождение нашлось в комплекте;
-            на лист выведены только привязанные места.
-          </li>
-          <li>
-            Значок таблицы справа от полосы «Этот лист» открывает таблицу на
-            строке этого пина.
-          </li>
-          <li>
-            Полоса «Этот лист» — только открытый лист. В таблице бейдж «этот
-            файл» или «весь проект»; кнопка рядом переключает срез.
-          </li>
-          <li>
-            Стрелки ← → у полосы и клавиши ↑ ↓ — очередь неразобранных в файле.
-            Enter (разобрано) сразу переносит к следующему.
-          </li>
-          <li>
-            <Btn>Очередь ИИ</Btn> — только находки конвейера, которые ещё ждут
-            человека. <Btn>Принять</Btn> / <Btn>Ложное</Btn> /{" "}
-            <Btn>В таблице</Btn>; после вердикта сразу следующая находка ИИ. В
-            шапке: «ИИ ждёт N». Esc закрывает очередь.
-          </li>
-          <li>
-            <Btn>F</Btn> или «Весь экран» / шеврон у расшифровки — режим «только
-            лист»: без проектов и текста. Esc возвращает.
-          </li>
-          <li>
-            В таблице сверху важные, потом средние, потом низкие. В свёрнутой
-            строке сначала цитата, лист — в колонке «Где в ПД».
-          </li>
-          <li>
-            На узком окне список проектов прячется, когда открыт лист. Вернуть —
-            стрелка у левого края.
-          </li>
-        </ul>
-      </section>
-
-      <section>
-        <div className="mb-1 font-semibold text-text">Что значат цвета</div>
-        <ul className="space-y-1">
-          <li>
+            Пин = номер. Цвет = важность (
             <Box className="bg-rose-500/25 outline-rose-500" />
-            высокое: пин и рамка на выбранной цитате
-          </li>
-          <li>
+            выс.{" "}
             <Box className="bg-amber-500/25 outline-amber-600" />
-            среднее: пин и рамка
-          </li>
-          <li>
+            сред.{" "}
             <Box className="bg-sky-500/20 outline-sky-600" />
-            низкое: пин и рамка. Та же синяя рамка без цифры — то же замечание
-            в другом месте листа
+            низ.).
           </li>
           <li>
-            <Box className="bg-amber-200 outline-amber-500" />
-            найденное поиском. Жёлтая фраза с красной чертой в расшифровке —
-            цитата выбранного замечания
+            Клик по пину или строке «Этот лист» — рамка на чертеже и жёлтая
+            цитата в тексте.
+          </li>
+          <li>
+            <Btn>№1</Btn> <Btn>№2</Btn> — другие места той же фразы, не другие
+            замечания.
+          </li>
+          <li>
+            ↑ ↓ / ← → у полосы — следующее неразобранное. <Kbd>Enter</Kbd> —
+            принять и дальше.
           </li>
         </ul>
-        <div className="mt-1.5">Кружки у листов в левом списке:</div>
-        <ul className="mt-1 space-y-1">
+      </section>
+
+      <section>
+        <div className="mb-1 font-semibold text-text">Очередь ИИ</div>
+        <ul className="list-disc space-y-0.5 pl-4">
           <li>
+            Только находки конвейера (<Btn>ИИ</Btn>), ещё не разобранные.
+          </li>
+          <li>
+            В шапке — <Btn>ИИ ждёт N</Btn>, на листе —{" "}
+            <Btn>Очередь ИИ · N</Btn>.
+          </li>
+          <li>
+            <Btn>Принять</Btn> / <Btn>Ложное</Btn> (с причиной) → сразу
+            следующая. <Btn>В таблице</Btn> — открыть строку и выйти.
+          </li>
+          <li>
+            В очереди ↑ ↓ только по ИИ. <Kbd>Esc</Kbd> закрывает очередь.
+          </li>
+        </ul>
+      </section>
+
+      <section>
+        <div className="mb-1 font-semibold text-text">Таблица</div>
+        <ul className="list-disc space-y-0.5 pl-4">
+          <li>Фильтры в шапке колонок — как в Excel.</li>
+          <li>
+            «Где в ПД» — прыжок на лист и цитату. Срез: этот файл / весь проект.
+          </li>
+          <li>
+            <Btn>Неверно</Btn> — без причины не сохранится. Excel — только
+            разобранные с важностью.
+          </li>
+        </ul>
+      </section>
+
+      <section>
+        <div className="mb-1 font-semibold text-text">Листы слева</div>
+        <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+          <span>
             <Dot className="bg-emerald-500" />
-            текст готов
-          </li>
-          <li>
+            готов
+          </span>
+          <span>
             <Dot className="bg-sky-500" />
-            обрабатывается сейчас
-          </li>
-          <li>
+            сейчас
+          </span>
+          <span>
             <Dot className="bg-slate-400" />
-            ещё в очереди
-          </li>
-          <li>
+            в очереди
+          </span>
+          <span>
             <Dot className="border-2 border-amber-500 bg-amber-100" />
-            готов, но вы его не открывали
+            не открывали
+          </span>
+        </div>
+      </section>
+
+      <section>
+        <div className="mb-1 font-semibold text-text">Если сбой</div>
+        <ul className="list-disc space-y-0.5 pl-4">
+          <li>
+            Ошибка на карточке файла → <Btn>Запустить заново</Btn>.
+          </li>
+          <li>
+            Модель мимо — Админ → <Btn>Журналы правок</Btn> →{" "}
+            <Btn>Агент ИИ (ошибки)</Btn>.
           </li>
         </ul>
       </section>
 
       <section>
-        <div className="mb-1 font-semibold text-text">Таблица замечаний</div>
-        <ul className="list-disc space-y-1 pl-4">
-          <li>
-            Фильтры в шапке — как в Excel: стрелка на колонке фильтрует, статусы
-            не меняет.
-          </li>
-          <li>
-            <Btn>Мои замечания из Excel</Btn> — занести свой список. Нужна
-            колонка «Замечание»; дубли по тексту пропускаются.
-          </li>
-          <li>
-            <Btn>Скачать Excel</Btn> — разобранные строки с важностью (не
-            «Не нужно» / «Неверно»).
-          </li>
-          <li>
-            <Btn>Неверно</Btn> — если ИИ придумал лишнее. Без причины не
-            сохранится.
-          </li>
-          <li>
-            Клик по «Где в ПД» открывает лист и ставит рамку на цитату. Одно
-            расхождение в нескольких местах — чипы <Btn>№1</Btn> <Btn>№2</Btn>{" "}
-            у этой строки, не отдельные замечания.
-          </li>
-          <li>
-            Кнопка <Btn>Не разобрано N</Btn> в шапке фильтрует эту же таблицу
-            по статусу. Повторный клик снимает фильтр.
-          </li>
-        </ul>
-      </section>
-
-      <section>
-        <div className="mb-1 font-semibold text-text">Переходы</div>
-        <ul className="list-disc space-y-1 pl-4">
-          <li>
-            <Btn>Назад</Btn> стоит рядом с поиском и возвращает туда, откуда
-            открыли экран. Логотип PTO — сразу ко всем проектам.
-          </li>
-          <li>
-            <Btn>Отменить</Btn> рядом с поиском убирает или возвращает последнее
-            добавленное или удалённое замечание.
-          </li>
-          <li>
-            Полоса <Btn>Расшифровка</Btn> · <Btn>Таблица замечаний</Btn> в шапке
-            — не индикатор, а переход к работе.
-          </li>
-        </ul>
-      </section>
-
-      <section>
-        <div className="mb-1 font-semibold text-text">Если что-то не так</div>
-        <ul className="list-disc space-y-1 pl-4">
-          <li>
-            Обработка упала — причина на карточке файла, там же{" "}
-            <Btn>Запустить заново</Btn>.
-          </li>
-          <li>
-            Красная полоса «сервер не отвечает» — перезагрузить VPS и повторить.
-          </li>
-          <li>
-            Модель ошиблась или читала картинку вместо текста — Админ →{" "}
-            <Btn>Журналы правок</Btn> → <Btn>Агент ИИ (ошибки)</Btn>. Число на
-            вкладке — сколько нашлось по листу.
-          </li>
-        </ul>
-      </section>
-
-      <section>
-        <div className="mb-1 font-semibold text-text">Горячие клавиши</div>
-        <div className="space-y-2">
-          {KEYMAP_GROUPS.map((group) => (
-            <div key={group.id}>
-              <div className="font-medium text-text">{group.label}</div>
-              <ul className="space-y-1">
-                {KEYMAP.filter((item) => item.group === group.id).map((item) => (
-                  <li key={item.keys}>
-                    <Kbd>{item.keys}</Kbd>
-                    {" — "}
-                    {item.action}
-                  </li>
-                ))}
-              </ul>
-            </div>
+        <div className="mb-1 font-semibold text-text">Клавиши</div>
+        <ul className="space-y-0.5">
+          {KEYMAP.map((item) => (
+            <li key={item.keys} className="flex gap-2">
+              <Kbd>{item.keys}</Kbd>
+              <span>{item.action}</span>
+            </li>
           ))}
-        </div>
-      </section>
-
-      <section>
-        <div className="mb-1 font-semibold text-text">macOS</div>
-        <div>
-          Везде вместо <Kbd>Ctrl</Kbd> — <Kbd>⌘</Kbd>. <Kbd>Control</Kbd>+клик
-          открывает меню, а не новую вкладку.
-        </div>
+        </ul>
+        <p className="mt-1.5">
+          На macOS вместо <Kbd>Ctrl</Kbd> — <Kbd>⌘</Kbd>.
+        </p>
       </section>
     </div>
   );
@@ -304,7 +203,7 @@ export function ControlsHelpDialog({ onClose }: { onClose: () => void }) {
       onClick={onClose}
     >
       <div
-        className="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-xl border border-border bg-white p-4 shadow-xl"
+        className="max-h-[80vh] w-full max-w-md overflow-y-auto rounded-xl border border-border bg-white p-4 shadow-xl"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="mb-3 flex items-center justify-between gap-2">

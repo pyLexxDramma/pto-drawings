@@ -20,6 +20,7 @@ import {
   type ReviewStats,
   type StageId,
 } from "@/components/project-stages";
+import { ProjectSearch } from "@/components/project-search";
 import { PtoLogo } from "@/components/pto-logo";
 import {
   ToastHost,
@@ -375,6 +376,7 @@ export function Workspace({
   const [projectQuery, setProjectQuery] = useState("");
   const [hits, setHits] = useState<SearchHit[]>([]);
   const [searching, setSearching] = useState(false);
+  const [projectSearchOpen, setProjectSearchOpen] = useState(false);
   const [notes, setNotes] = useState<ProjectAnnotation[]>([]);
   const [showNotes, setShowNotes] = useState(true);
   const [notesFilter, setNotesFilter] = useState<"all" | "open" | string>("open");
@@ -709,6 +711,9 @@ export function Workspace({
     setProjectReviews([]);
     setRemarkUndo(null);
     setAiQueueOn(false);
+    setProjectQuery("");
+    setHits([]);
+    setProjectSearchOpen(false);
     void loadProjectReviews(projectId, controller.signal).catch(() => undefined);
     return () => controller.abort();
   }, [loadProjectReviews, projectId]);
@@ -831,8 +836,13 @@ export function Workspace({
 
   useEffect(() => {
     const query = projectQuery.trim();
-    if (!projectId || query.length < 2) return;
+    if (!projectId || query.length < 2) {
+      setHits([]);
+      setSearching(false);
+      return;
+    }
     const ac = new AbortController();
+    setSearching(true);
     const timer = window.setTimeout(() => {
       void (async () => {
         try {
@@ -846,7 +856,7 @@ export function Workspace({
         } catch {
           // запрос отменён при новом вводе
         } finally {
-          setSearching(false);
+          if (!ac.signal.aborted) setSearching(false);
         }
       })();
     }, 350);
@@ -855,6 +865,33 @@ export function Workspace({
       ac.abort();
     };
   }, [projectId, projectQuery]);
+
+  /** Клик по выдаче: открыть файл и лист, подсветить запрос как цитату. */
+  const openProjectSearchHit = useCallback(
+    (hit: SearchHit) => {
+      const quote = projectQuery.trim();
+      const alreadyOpen =
+        selectedIdRef.current === hit.documentId &&
+        !showReviewsRef.current &&
+        !peekOpenRef.current;
+      if (!alreadyOpen) pushBack();
+      setShowReviews(false);
+      setPeekOpen(false);
+      setNavFromReviews(false);
+      setSelectedId(hit.documentId);
+      setProjectsCollapsed(narrowRef.current);
+      setFocusMode(false);
+      setOpenPage({
+        nonce: Date.now(),
+        page: hit.pageNumber,
+        documentId: hit.documentId,
+        quote: quote.length >= 2 ? quote : undefined,
+      });
+      setProjectSearchOpen(false);
+      void refreshDocument(hit.documentId);
+    },
+    [projectQuery, refreshDocument],
+  );
 
   useEffect(() => {
     const ac = new AbortController();
@@ -1983,7 +2020,18 @@ export function Workspace({
             <div className="min-w-0 flex-1" />
           )}
 
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex min-w-0 shrink-0 items-center gap-2">
+            {currentProject ? (
+              <ProjectSearch
+                query={projectQuery}
+                onQueryChange={setProjectQuery}
+                hits={hits}
+                searching={searching}
+                open={projectSearchOpen}
+                onOpenChange={setProjectSearchOpen}
+                onPick={openProjectSearchHit}
+              />
+            ) : null}
             {visibleQueueChip ? (
               <div
                 className={`hidden max-w-[12rem] items-center gap-1.5 truncate whitespace-nowrap rounded-md border px-2 py-1 pto-t-sm lg:flex ${visibleQueueChip.className}`}
