@@ -260,12 +260,6 @@ export function ReviewPane({
   const [activeReviewId, setActiveReviewId] = useState<string | null>(null);
   /** Список замечаний листа держим свёрнутым: он закрывал расшифровку. */
   const [pageReviewsOpen, setPageReviewsOpen] = useState(false);
-  /** Фильтр пинов на чертеже: пустой набор важности = все. */
-  const [pinPendingOnly, setPinPendingOnly] = useState(false);
-  const [pinAiOnly, setPinAiOnly] = useState(false);
-  const [pinSeverities, setPinSeverities] = useState<Set<ReviewSeverity>>(
-    () => new Set(),
-  );
   const [keymapOpen, setKeymapOpen] = useState(false);
   const [drawingReport, setDrawingReport] = useState<{
     nonce: number;
@@ -454,21 +448,6 @@ export function ReviewPane({
           review.locations.some((loc) => loc.documentId === document.id),
       ),
     [document.id, reviews],
-  );
-  const matchesPinFilter = useCallback(
-    (review: Review) => {
-      if (pinPendingOnly && review.verdict !== "pending") return false;
-      if (pinAiOnly && review.origin !== "ai") return false;
-      if (pinSeverities.size > 0 && !pinSeverities.has(review.severity)) {
-        return false;
-      }
-      return true;
-    },
-    [pinAiOnly, pinPendingOnly, pinSeverities],
-  );
-  const filteredPageReviews = useMemo(
-    () => pageReviews.filter(matchesPinFilter),
-    [matchesPinFilter, pageReviews],
   );
   /** Очередь разбора: неразобранные файла по номеру. */
   const pendingFileReviews = useMemo(
@@ -728,7 +707,7 @@ export function ReviewPane({
    */
   const remarkPins = useMemo((): DrawingRemarkPin[] => {
     const pins: DrawingRemarkPin[] = [];
-    for (const review of filteredPageReviews) {
+    for (const review of pageReviews) {
       for (const loc of review.locations) {
         if (loc.documentId !== document.id) continue;
         if (loc.pageNumber !== pageNumber) continue;
@@ -747,7 +726,7 @@ export function ReviewPane({
       }
     }
     return pins;
-  }, [filteredPageReviews, document.id, pageNumber, activeReviewId]);
+  }, [pageReviews, document.id, pageNumber, activeReviewId]);
 
   // Переключатель источника листа едет внутрь тулбара вьюера: отдельной плашкой
   // он был четвёртым независимым слоем поверх чертежа.
@@ -1139,19 +1118,9 @@ export function ReviewPane({
     }
   }
 
-  function togglePinSeverity(severity: ReviewSeverity) {
-    setPinSeverities((prev) => {
-      const next = new Set(prev);
-      if (next.has(severity)) next.delete(severity);
-      else next.add(severity);
-      return next;
-    });
-  }
-
   const pageReviewsBar = pageReviews.length > 0 ? (
     <PageReviewsBar
-      reviews={filteredPageReviews}
-      totalCount={pageReviews.length}
+      reviews={pageReviews}
       open={pageReviewsOpen}
       focusQuote={focusQuote}
       activeReview={activePageReview}
@@ -1164,12 +1133,6 @@ export function ReviewPane({
       onNextPending={() => stepPending(1)}
       canPrevPending={canPrevPending}
       canNextPending={canNextPending}
-      pinPendingOnly={pinPendingOnly}
-      pinAiOnly={pinAiOnly}
-      pinSeverities={pinSeverities}
-      onTogglePinPending={() => setPinPendingOnly((prev) => !prev)}
-      onTogglePinAi={() => setPinAiOnly((prev) => !prev)}
-      onTogglePinSeverity={togglePinSeverity}
     />
   ) : null;
 

@@ -10,13 +10,7 @@ import {
 import { normalizeQuote } from "@/lib/remark-jump";
 import { SEVERITY_ITEM } from "@/lib/review-colors";
 import { remarkWording } from "@/lib/sheet-label";
-import {
-  REVIEW_SEVERITY_LABEL,
-  type Review,
-  type ReviewSeverity,
-} from "@/types";
-
-const SEVERITY_CHIPS: ReviewSeverity[] = ["high", "medium", "low"];
+import { REVIEW_SEVERITY_LABEL, type Review } from "@/types";
 
 /**
  * Полоса замечаний текущего листа над расшифровкой. Вынесено из review-pane:
@@ -25,7 +19,6 @@ const SEVERITY_CHIPS: ReviewSeverity[] = ["high", "medium", "low"];
  */
 export function PageReviewsBar({
   reviews,
-  totalCount,
   open,
   focusQuote,
   activeReview,
@@ -38,16 +31,8 @@ export function PageReviewsBar({
   onNextPending,
   canPrevPending = false,
   canNextPending = false,
-  pinPendingOnly = false,
-  pinAiOnly = false,
-  pinSeverities,
-  onTogglePinPending,
-  onTogglePinAi,
-  onTogglePinSeverity,
 }: {
   reviews: Review[];
-  /** Сколько на листе до фильтра пинов — для подписи «3 из 12». */
-  totalCount?: number;
   open: boolean;
   /** Цитата, подсвеченная сейчас — по ней определяем активную строку. */
   focusQuote: string;
@@ -61,20 +46,8 @@ export function PageReviewsBar({
   onNextPending?: () => void;
   canPrevPending?: boolean;
   canNextPending?: boolean;
-  pinPendingOnly?: boolean;
-  pinAiOnly?: boolean;
-  pinSeverities?: Set<ReviewSeverity>;
-  onTogglePinPending?: () => void;
-  onTogglePinAi?: () => void;
-  onTogglePinSeverity?: (severity: ReviewSeverity) => void;
 }) {
-  const total = totalCount ?? reviews.length;
-  if (!total) return null;
-
-  const filtersOn = Boolean(
-    onTogglePinPending || onTogglePinAi || onTogglePinSeverity,
-  );
-  const severitySet = pinSeverities ?? new Set<ReviewSeverity>();
+  if (!reviews.length) return null;
 
   /** Строка активна, если подсвечена её цитата или сама формулировка. */
   function isActive(review: Review) {
@@ -88,11 +61,6 @@ export function PageReviewsBar({
       normalizeQuote(review.aiFinding || "") === needle
     );
   }
-
-  const countLabel =
-    reviews.length === total
-      ? `Этот лист · ${total}`
-      : `Этот лист · ${reviews.length} из ${total}`;
 
   return (
     /**
@@ -119,7 +87,7 @@ export function PageReviewsBar({
             className="h-1.5 w-1.5 shrink-0 rounded-full bg-sem-issue"
             aria-hidden
           />
-          <span className="shrink-0">{countLabel}</span>
+          <span className="shrink-0">Этот лист · {reviews.length}</span>
           {pendingCount > 0 ? (
             <span className="shrink-0 font-normal opacity-70">
               · не разобрано {pendingCount}
@@ -177,96 +145,33 @@ export function PageReviewsBar({
           </button>
         ) : null}
       </div>
-      {filtersOn ? (
-        <div className="flex flex-wrap items-center gap-1 border-t border-border px-2 py-1">
-          <span className="mr-0.5 text-muted">Пины:</span>
-          <FilterChip
-            active={pinPendingOnly}
-            onClick={() => onTogglePinPending?.()}
-            title="Только неразобранные"
-          >
-            Не разобрано
-          </FilterChip>
-          <FilterChip
-            active={pinAiOnly}
-            onClick={() => onTogglePinAi?.()}
-            title="Только находки конвейера"
-          >
-            ИИ
-          </FilterChip>
-          {SEVERITY_CHIPS.map((severity) => (
-            <FilterChip
-              key={severity}
-              active={severitySet.has(severity)}
-              onClick={() => onTogglePinSeverity?.(severity)}
-              title={REVIEW_SEVERITY_LABEL[severity]}
-            >
-              {REVIEW_SEVERITY_LABEL[severity]}
-            </FilterChip>
-          ))}
-        </div>
-      ) : null}
       {open ? (
         <ul className="max-h-40 space-y-1 overflow-auto border-t border-border px-1.5 py-1.5">
-          {reviews.length === 0 ? (
-            <li className="px-2 py-1 text-muted">
-              Нет замечаний под текущий фильтр пинов.
-            </li>
-          ) : (
-            reviews.map((review) => (
-              <li
-                key={review.id}
-                className={`flex w-full items-start gap-1 rounded border px-2 py-1 ${
-                  SEVERITY_ITEM[review.severity]
-                } ${isActive(review) ? "outline outline-1 outline-slate-400" : ""}`}
+          {reviews.map((review) => (
+            <li
+              key={review.id}
+              className={`flex w-full items-start gap-1 rounded border px-2 py-1 ${
+                SEVERITY_ITEM[review.severity]
+              } ${isActive(review) ? "outline outline-1 outline-slate-400" : ""}`}
+            >
+              <button
+                type="button"
+                onClick={() => onFocusReview(review)}
+                className="min-w-0 flex-1 text-left"
+                title="Подсветить место на чертеже и в расшифровке"
               >
-                <button
-                  type="button"
-                  onClick={() => onFocusReview(review)}
-                  className="min-w-0 flex-1 text-left"
-                  title="Подсветить место на чертеже и в расшифровке"
-                >
-                  <span className="font-semibold tabular-nums">
-                    № {review.number}
-                  </span>
-                  {` · ${REVIEW_SEVERITY_LABEL[review.severity].toLowerCase()} · ${remarkWording(
-                    review.text || review.aiFinding || "",
-                  )}`}
-                </button>
-                {renderPlaceChips(review)}
-              </li>
-            ))
-          )}
+                <span className="font-semibold tabular-nums">
+                  № {review.number}
+                </span>
+                {` · ${REVIEW_SEVERITY_LABEL[review.severity].toLowerCase()} · ${remarkWording(
+                  review.text || review.aiFinding || "",
+                )}`}
+              </button>
+              {renderPlaceChips(review)}
+            </li>
+          ))}
         </ul>
       ) : null}
     </div>
-  );
-}
-
-function FilterChip({
-  active,
-  onClick,
-  title,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  title: string;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      title={title}
-      aria-pressed={active}
-      onClick={onClick}
-      className={`rounded border px-1.5 py-0.5 pto-t-xs font-medium ${
-        active
-          ? "border-sky-500 bg-sky-50 text-sky-900"
-          : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
-      }`}
-    >
-      {children}
-    </button>
   );
 }

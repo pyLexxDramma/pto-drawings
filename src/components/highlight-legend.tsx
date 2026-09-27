@@ -1,8 +1,6 @@
 "use client";
 
 type LegendProps = {
-  /** Место замечания на листе. */
-  place: boolean;
   /** То же замечание в других местах. */
   alt: boolean;
   /** Совпадения поиска по листу. */
@@ -11,14 +9,11 @@ type LegendProps = {
 
 /**
  * Ключ к подсветке листа. Квадратики красятся теми же классами, что и сама
- * подсветка на чертеже, — так ключ не может разойтись с тем, что видно. До
- * этого цветов на листе было четыре, а ключа к ним не было вовсе.
- *
- * Показываем только те цвета, которые на листе сейчас действительно есть.
+ * подсветка на чертеже, — так ключ не может разойтись с тем, что видно.
+ * «Место замечания» в ключе не показываем: рамка на листе и так понятна.
  */
-export function HighlightLegend({ place, alt, find }: LegendProps) {
+export function HighlightLegend({ alt, find }: LegendProps) {
   const items = [
-    place ? { key: "place", tone: "pto-place", label: "место замечания" } : null,
     alt ? { key: "alt", tone: "pto-place-alt", label: "оно же в другом месте" } : null,
     find ? { key: "find", tone: "pto-find-focus", label: "найдено поиском" } : null,
   ].filter((item): item is { key: string; tone: string; label: string } =>
