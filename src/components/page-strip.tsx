@@ -169,9 +169,6 @@ export function PageStrip({
           />
         </div>
       ) : null}
-      <div className="shrink-0 border-b border-slate-200 px-1.5 py-1 pto-t-xs leading-snug text-muted">
-        обрабатывается · не разобрано N · разобраны · текст готов · ждёт текст
-      </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
         {pages.length === 0 && emptyLabel ? (
           <div className="px-1 py-2 pto-t-sm leading-snug text-muted">
