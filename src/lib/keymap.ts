@@ -19,10 +19,10 @@ export const KEYMAP: KeymapItem[] = [
   { group: "sheets", keys: "K / PageUp / Fn+↑", action: "Предыдущий лист" },
   { group: "search", keys: "/ или Ctrl+F / ⌘F", action: "Поиск по файлу" },
   { group: "remarks", keys: "E", action: "Отметить ошибку / отменить разметку" },
-  { group: "remarks", keys: "↑ ↓", action: "Предыдущее / следующее неразобранное" },
+  { group: "remarks", keys: "↑ ↓", action: "Предыдущее / следующее неразобранное (в очереди ИИ — только ИИ)" },
   { group: "remarks", keys: "1 / 2 / 3", action: "Важность: низкая / средняя / высокая" },
-  { group: "remarks", keys: "Enter", action: "Разобрано → следующее неразобранное" },
-  { group: "search", keys: "Esc", action: "Закрыть поиск, разметку, режим «только лист»" },
+  { group: "remarks", keys: "Enter", action: "Принять → следующее (в очереди ИИ — следующая находка ИИ)" },
+  { group: "search", keys: "Esc", action: "Закрыть поиск, разметку, очередь ИИ, «только лист»" },
   { group: "view", keys: "?", action: "Карта клавиш" },
 ];
 

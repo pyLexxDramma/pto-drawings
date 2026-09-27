@@ -1,0 +1,224 @@
+"use client";
+
+import { useState } from "react";
+import {
+  IconChevronLeft,
+  IconChevronRight,
+  IconClose,
+} from "@/components/tool-icons";
+import { remarkWording } from "@/lib/sheet-label";
+import {
+  REVIEW_SEVERITY_LABEL,
+  type Review,
+} from "@/types";
+
+const WRONG_TAGS = [
+  "Такого в чертеже нет",
+  "Не то место в ПД",
+  "Числа сходятся",
+  "Дубль другого замечания",
+  "Формулировка мимо",
+];
+
+/**
+ * Очередь подтверждения находок конвейера: принять / ложное / в таблицу,
+ * без поиска глазами в общей куче.
+ */
+export function AiReviewQueueCard({
+  review,
+  index,
+  total,
+  busy,
+  onPrev,
+  onNext,
+  canPrev,
+  canNext,
+  onAccept,
+  onWrong,
+  onEdit,
+  onClose,
+}: {
+  review: Review;
+  index: number;
+  total: number;
+  busy?: boolean;
+  onPrev: () => void;
+  onNext: () => void;
+  canPrev: boolean;
+  canNext: boolean;
+  onAccept: () => void;
+  onWrong: (reason: string) => void;
+  onEdit: () => void;
+  onClose: () => void;
+}) {
+  const [wrongOpen, setWrongOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const quote = (
+    review.locations.find((item) => item.quote)?.quote ||
+    review.text ||
+    review.aiFinding ||
+    ""
+  ).trim();
+
+  return (
+    <div
+      className="shrink-0 border-b border-sky-200 bg-sky-50/90 pto-t-sm text-text"
+      data-ai-queue=""
+    >
+      <div className="flex items-start gap-2 px-2 py-1.5">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+            <span className="font-semibold text-sky-950">Очередь ИИ</span>
+            <span className="tabular-nums text-sky-800/80">
+              {index + 1} из {total}
+            </span>
+            <span className="font-semibold tabular-nums">
+              № {review.number}
+            </span>
+            <span className="text-muted">
+              {REVIEW_SEVERITY_LABEL[review.severity].toLowerCase()}
+            </span>
+          </div>
+          <p className="mt-0.5 line-clamp-2 leading-snug text-text">
+            {quote
+              ? remarkWording(quote)
+              : remarkWording(review.text || review.aiFinding || "—")}
+          </p>
+        </div>
+        <button
+          type="button"
+          title="Закрыть очередь ИИ"
+          aria-label="Закрыть очередь ИИ"
+          onClick={onClose}
+          className="shrink-0 rounded p-0.5 text-sky-900/70 hover:bg-sky-100 hover:text-sky-950"
+        >
+          <IconClose className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      <div className="flex flex-wrap items-center gap-1 border-t border-sky-200/80 px-2 py-1.5">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={onAccept}
+          className="rounded-md bg-emerald-600 px-2 py-1 font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+        >
+          Принять
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => {
+            setReason("");
+            setWrongOpen(true);
+          }}
+          className="rounded-md border border-rose-300 bg-white px-2 py-1 font-semibold text-rose-800 hover:bg-rose-50 disabled:opacity-50"
+        >
+          Ложное
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={onEdit}
+          className="rounded-md border border-slate-300 bg-white px-2 py-1 font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+        >
+          В таблице
+        </button>
+        <span className="ml-auto flex items-center gap-0.5">
+          <button
+            type="button"
+            disabled={!canPrev || busy}
+            onClick={onPrev}
+            title="Предыдущее от ИИ (↑)"
+            aria-label="Предыдущее от ИИ"
+            className="rounded border border-slate-300 bg-white px-1 py-1 text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+          >
+            <IconChevronLeft className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            disabled={!canNext || busy}
+            onClick={onNext}
+            title="Следующее от ИИ (↓)"
+            aria-label="Следующее от ИИ"
+            className="rounded border border-slate-300 bg-white px-1 py-1 text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+          >
+            <IconChevronRight className="h-3.5 w-3.5" />
+          </button>
+        </span>
+      </div>
+      {wrongOpen ? (
+        <div className="border-t border-rose-200 bg-white px-2 py-2">
+          <div className="mb-1 font-medium text-rose-900">Почему ложное?</div>
+          <textarea
+            autoFocus
+            rows={2}
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            placeholder="Что неверно…"
+            className="w-full resize-none rounded-md border border-border px-2 py-1 text-xs outline-none focus:border-accent"
+          />
+          <div className="mt-1 flex flex-wrap gap-1">
+            {WRONG_TAGS.map((tag) => (
+              <button
+                key={tag}
+                type="button"
+                onClick={() =>
+                  setReason((prev) =>
+                    prev.trim() ? `${prev.trim()}. ${tag}` : tag,
+                  )
+                }
+                className="rounded-full border border-rose-200 px-2 py-0.5 pto-t-xs text-rose-800 hover:bg-rose-50"
+              >
+                {tag}
+              </button>
+            ))}
+          </div>
+          <div className="mt-2 flex gap-2">
+            <button
+              type="button"
+              disabled={busy || !reason.trim()}
+              onClick={() => {
+                const text = reason.trim();
+                if (!text) return;
+                onWrong(text);
+                setWrongOpen(false);
+              }}
+              className="rounded-md bg-rose-600 px-2 py-1 font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
+            >
+              Снять как ложное
+            </button>
+            <button
+              type="button"
+              onClick={() => setWrongOpen(false)}
+              className="rounded-md border border-slate-300 px-2 py-1 text-slate-700"
+            >
+              Отмена
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** Кнопка входа в очередь, когда режим ещё не включён. */
+export function AiQueueEntryButton({
+  count,
+  onStart,
+}: {
+  count: number;
+  onStart: () => void;
+}) {
+  if (count <= 0) return null;
+  return (
+    <button
+      type="button"
+      onClick={onStart}
+      title="Разобрать находки конвейера по одной"
+      className="shrink-0 rounded-md border border-sky-400 bg-sky-50 px-2 py-1 pto-t-sm font-semibold text-sky-950 hover:bg-sky-100"
+      data-ai-queue-entry=""
+    >
+      Очередь ИИ · {count}
+    </button>
+  );
+}

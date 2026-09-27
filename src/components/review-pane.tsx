@@ -12,6 +12,10 @@ import {
 import { createPortal } from "react-dom";
 import { ColumnResizer, clamp } from "@/components/column-resizer";
 import { CadPage } from "@/components/cad-page";
+import {
+  AiQueueEntryButton,
+  AiReviewQueueCard,
+} from "@/components/ai-review-queue";
 import { PageReviewsBar } from "@/components/page-reviews-bar";
 import { PageStrip } from "@/components/page-strip";
 import { PdfPage } from "@/components/pdf-page";
@@ -129,6 +133,9 @@ type ReviewPaneProps = {
   ) => void;
   /** Миниатюры листов в колонке проектов — сворачиваются вместе с ней. */
   stripHost?: HTMLElement | null;
+  /** Очередь ИИ живёт в workspace: иначе смена файла сбрасывает режим. */
+  aiQueueOn?: boolean;
+  onAiQueueOnChange?: (on: boolean) => void;
 };
 
 function canScrollX(element: HTMLElement) {
@@ -210,6 +217,8 @@ export function ReviewPane({
   onOpenReviews,
   onJumpToPage,
   stripHost = null,
+  aiQueueOn = false,
+  onAiQueueOnChange,
 }: ReviewPaneProps) {
   const [rawPage, setRawPage] = useState(() => {
     const cached = getDocumentView(document.id);
@@ -260,7 +269,14 @@ export function ReviewPane({
   const [activeReviewId, setActiveReviewId] = useState<string | null>(null);
   /** Список замечаний листа держим свёрнутым: он закрывал расшифровку. */
   const [pageReviewsOpen, setPageReviewsOpen] = useState(false);
+  const [aiQueueBusy, setAiQueueBusy] = useState(false);
   const [keymapOpen, setKeymapOpen] = useState(false);
+  const setAiQueueOn = useCallback(
+    (on: boolean) => {
+      onAiQueueOnChange?.(on);
+    },
+    [onAiQueueOnChange],
+  );
   const [drawingReport, setDrawingReport] = useState<{
     nonce: number;
     count: number;
@@ -457,6 +473,19 @@ export function ReviewPane({
         .sort((a, b) => a.number - b.number),
     [fileReviews],
   );
+  /** Очередь ИИ по всему проекту — origin ai, ещё не разобраны. */
+  const aiPendingReviews = useMemo(
+    () =>
+      reviews
+        .filter(
+          (review) =>
+            review.origin === "ai" &&
+            review.verdict === "pending" &&
+            review.severity !== "skip",
+        )
+        .sort((a, b) => a.number - b.number),
+    [reviews],
+  );
   const pendingSheetCount = useMemo(
     () => pageReviews.filter((review) => review.verdict === "pending").length,
     [pageReviews],
@@ -469,6 +498,15 @@ export function ReviewPane({
     pendingFileReviews.length > 0 &&
     (pendingQueueIndex < 0 ||
       pendingQueueIndex < pendingFileReviews.length - 1);
+  const aiQueueIndex = aiPendingReviews.findIndex(
+    (review) => review.id === activeReviewId,
+  );
+  const activeAiReview =
+    aiQueueIndex >= 0 ? aiPendingReviews[aiQueueIndex] : null;
+  const canPrevAi = aiPendingReviews.length > 0 && aiQueueIndex > 0;
+  const canNextAi =
+    aiPendingReviews.length > 0 &&
+    (aiQueueIndex < 0 || aiQueueIndex < aiPendingReviews.length - 1);
   // На миниатюре — сколько замечаний на листе, цвет по разбору: важность у них
   // разная, и одна точка «средняя» вводила в заблуждение (созвон 18.09).
   const pageDots = useMemo(() => {
@@ -540,6 +578,29 @@ export function ReviewPane({
     if (location?.pageNumber) goToPage(location.pageNumber);
     focusReviewOnSheet(review);
   }
+  function selectAiReview(review: Review) {
+    const location =
+      review.locations.find(
+        (item) => item.documentId && item.pageNumber,
+      ) ?? review.locations[0];
+    if (!location?.documentId || !location.pageNumber) {
+      selectFileReview(review);
+      return;
+    }
+    if (location.documentId !== document.id) {
+      onJumpToPage?.(location.documentId, location.pageNumber, {
+        reviewId: review.id,
+        quote: (
+          location.quote ||
+          review.text ||
+          review.aiFinding ||
+          ""
+        ).trim() || undefined,
+      });
+      return;
+    }
+    selectFileReview(review);
+  }
   function stepPending(dir: 1 | -1) {
     if (!pendingFileReviews.length) return;
     let index = pendingFileReviews.findIndex(
@@ -549,9 +610,64 @@ export function ReviewPane({
     const next = pendingFileReviews[index + dir];
     if (next) selectFileReview(next);
   }
+  function stepAiQueue(dir: 1 | -1) {
+    if (!aiPendingReviews.length) return;
+    let index = aiPendingReviews.findIndex(
+      (review) => review.id === activeReviewId,
+    );
+    if (index < 0) index = dir > 0 ? -1 : 0;
+    const next = aiPendingReviews[index + dir];
+    if (next) selectAiReview(next);
+  }
+  function startAiQueue() {
+    setAiQueueOn(true);
+    const current =
+      aiPendingReviews.find((review) => review.id === activeReviewId) ??
+      aiPendingReviews[0];
+    if (current) selectAiReview(current);
+  }
+  function advanceAfterVerdict(reviewId: string, fromAiQueue: boolean) {
+    const currentNumber =
+      reviews.find((review) => review.id === reviewId)?.number ?? 0;
+    if (fromAiQueue) {
+      const nextAi = aiPendingReviews
+        .filter((review) => review.id !== reviewId)
+        .sort((a, b) => a.number - b.number);
+      const pick =
+        nextAi.find((review) => review.number > currentNumber) ?? nextAi[0];
+      if (pick) {
+        selectAiReview(pick);
+        return;
+      }
+      setAiQueueOn(false);
+      return;
+    }
+    const sheetNext = pageReviews
+      .filter(
+        (review) => review.id !== reviewId && review.verdict === "pending",
+      )
+      .sort((a, b) => a.number - b.number);
+    const onSheet =
+      sheetNext.find((review) => review.number > currentNumber) ??
+      sheetNext[0];
+    if (onSheet) {
+      focusReviewOnSheet(onSheet);
+      return;
+    }
+    const fileNext = fileReviews
+      .filter(
+        (review) => review.id !== reviewId && review.verdict === "pending",
+      )
+      .sort((a, b) => a.number - b.number);
+    const inFile =
+      fileNext.find((review) => review.number > currentNumber) ?? fileNext[0];
+    if (inFile) selectFileReview(inFile);
+  }
   async function patchReview(reviewId: string, body: Partial<Review>) {
-    if (!projectId) return;
+    if (!projectId) return false;
+    const fromAiQueue = aiQueueOn;
     try {
+      setAiQueueBusy(true);
       const response = await fetch(
         `/api/projects/${projectId}/reviews/${reviewId}`,
         {
@@ -560,39 +676,17 @@ export function ReviewPane({
           body: JSON.stringify(body),
         },
       );
-      if (!response.ok) return;
+      if (!response.ok) return false;
       const payload = (await response.json()) as { review: Review };
       onReviewPatched?.(payload.review);
-      // После вердикта — следующее неразобранное на листе, иначе в файле.
       if (body.verdict && body.verdict !== "pending") {
-        const sheetNext = pageReviews
-          .filter(
-            (review) =>
-              review.id !== reviewId && review.verdict === "pending",
-          )
-          .sort((a, b) => a.number - b.number);
-        const currentNumber =
-          pageReviews.find((review) => review.id === reviewId)?.number ?? 0;
-        const onSheet =
-          sheetNext.find((review) => review.number > currentNumber) ??
-          sheetNext[0];
-        if (onSheet) {
-          focusReviewOnSheet(onSheet);
-          return;
-        }
-        const fileNext = fileReviews
-          .filter(
-            (review) =>
-              review.id !== reviewId && review.verdict === "pending",
-          )
-          .sort((a, b) => a.number - b.number);
-        const inFile =
-          fileNext.find((review) => review.number > currentNumber) ??
-          fileNext[0];
-        if (inFile) selectFileReview(inFile);
+        advanceAfterVerdict(reviewId, fromAiQueue);
       }
+      return true;
     } catch {
-      // разбор не блокирует просмотр
+      return false;
+    } finally {
+      setAiQueueBusy(false);
     }
   }
 
@@ -1136,6 +1230,55 @@ export function ReviewPane({
     />
   ) : null;
 
+  const aiQueueCard =
+    aiQueueOn && activeAiReview ? (
+      <AiReviewQueueCard
+        review={activeAiReview}
+        index={Math.max(0, aiQueueIndex)}
+        total={aiPendingReviews.length}
+        busy={aiQueueBusy}
+        onPrev={() => stepAiQueue(-1)}
+        onNext={() => stepAiQueue(1)}
+        canPrev={canPrevAi}
+        canNext={canNextAi}
+        onAccept={() => {
+          void patchReview(activeAiReview.id, { verdict: "confirmed" });
+        }}
+        onWrong={(reason) => {
+          void patchReview(activeAiReview.id, {
+            verdict: "wrong",
+            wrongReason: reason,
+          });
+        }}
+        onEdit={() => {
+          setAiQueueOn(false);
+          onOpenReviews?.(activeAiReview.id);
+        }}
+        onClose={() => setAiQueueOn(false)}
+      />
+    ) : null;
+
+  const aiQueueEntry =
+    !aiQueueOn && aiPendingReviews.length > 0 ? (
+      <div className="flex shrink-0 items-center justify-end gap-2 border-b border-border bg-surface-2 px-2 py-1">
+        <AiQueueEntryButton
+          count={aiPendingReviews.length}
+          onStart={startAiQueue}
+        />
+      </div>
+    ) : null;
+  const hasAiQueueChrome = Boolean(aiQueueCard || aiQueueEntry);
+
+  useEffect(() => {
+    if (aiQueueOn && aiPendingReviews.length === 0) setAiQueueOn(false);
+  }, [aiQueueOn, aiPendingReviews.length]);
+
+  useEffect(() => {
+    if (!aiQueueOn || activeAiReview || !aiPendingReviews[0]) return;
+    selectAiReview(aiPendingReviews[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aiQueueOn, activeAiReview, aiPendingReviews]);
+
   // Стрелку рисует сама кнопка иконкой, в подписи остаётся только назначение.
   const backLabel = markMode || pendingRect
     ? "Отменить пометку"
@@ -1192,6 +1335,11 @@ export function ReviewPane({
           cancelMark();
           return;
         }
+        if (aiQueueOn) {
+          event.preventDefault();
+          setAiQueueOn(false);
+          return;
+        }
         if (paneSolo || focusMode) {
           event.preventDefault();
           exitSheetOnly();
@@ -1230,13 +1378,17 @@ export function ReviewPane({
         return;
       }
 
-      if (
-        pendingFileReviews.length > 0 &&
-        (event.key === "ArrowUp" || event.key === "ArrowDown")
-      ) {
-        event.preventDefault();
-        stepPending(event.key === "ArrowDown" ? 1 : -1);
-        return;
+      if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+        if (aiQueueOn && aiPendingReviews.length > 0) {
+          event.preventDefault();
+          stepAiQueue(event.key === "ArrowDown" ? 1 : -1);
+          return;
+        }
+        if (pendingFileReviews.length > 0) {
+          event.preventDefault();
+          stepPending(event.key === "ArrowDown" ? 1 : -1);
+          return;
+        }
       }
       if (activeReviewId && projectId) {
         if (event.key === "1" || event.key === "2" || event.key === "3") {
@@ -1276,6 +1428,8 @@ export function ReviewPane({
     searchOpen,
     readOnly,
     pendingFileReviews,
+    aiPendingReviews,
+    aiQueueOn,
     activeReviewId,
     isOfficeSource,
   ]);
@@ -1728,6 +1882,12 @@ export function ReviewPane({
                   <div className="flex flex-wrap items-center gap-1.5 rounded-md border border-border bg-white/95 px-1.5 py-1 shadow-sm">
                     {sheetToolButtons}
                   </div>
+                  {hasAiQueueChrome ? (
+                    <div className="overflow-hidden rounded-md border border-border bg-white/95 shadow-sm">
+                      {aiQueueCard}
+                      {aiQueueEntry}
+                    </div>
+                  ) : null}
                   {pageReviewsBar ? (
                     <div className="overflow-hidden rounded-md border border-border bg-white/95 shadow-sm">
                       {pageReviewsBar}
@@ -1977,7 +2137,13 @@ export function ReviewPane({
               highlightQuery={textHighlightQuery}
               focusFirst={focusDrawing}
               flagQuotes={pageReviewQuotes}
-              reviewsBar={pageReviewsBar}
+              reviewsBar={
+                <>
+                  {aiQueueCard}
+                  {aiQueueEntry}
+                  {pageReviewsBar}
+                </>
+              }
             />
 
               </>

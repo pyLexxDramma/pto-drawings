@@ -403,6 +403,7 @@ export function Workspace({
     input: ModelCheckInput;
   } | null>(null);
   const [showReviews, setShowReviews] = useState(false);
+  const [aiQueueOn, setAiQueueOn] = useState(false);
   useEffect(() => {
     if (narrowDesktop && selectedId && !showReviews) setProjectsCollapsed(true);
   }, [narrowDesktop, selectedId, showReviews]);
@@ -690,6 +691,9 @@ export function Workspace({
     setReviewStats({
       total: payload.reviews.length,
       pending: payload.reviews.filter((item) => item.verdict === "pending").length,
+      aiPending: payload.reviews.filter(
+        (item) => item.origin === "ai" && item.verdict === "pending",
+      ).length,
     });
   }, []);
 
@@ -704,6 +708,7 @@ export function Workspace({
     setReviewStats(null);
     setProjectReviews([]);
     setRemarkUndo(null);
+    setAiQueueOn(false);
     void loadProjectReviews(projectId, controller.signal).catch(() => undefined);
     return () => controller.abort();
   }, [loadProjectReviews, projectId]);
@@ -2478,6 +2483,10 @@ export function Workspace({
                     total: next.length,
                     pending: next.filter((item) => item.verdict === "pending")
                       .length,
+                    aiPending: next.filter(
+                      (item) =>
+                        item.origin === "ai" && item.verdict === "pending",
+                    ).length,
                   });
                   return next;
                 });
@@ -2517,10 +2526,16 @@ export function Workspace({
                   total: next.length,
                   pending: next.filter((item) => item.verdict === "pending")
                     .length,
+                  aiPending: next.filter(
+                    (item) =>
+                      item.origin === "ai" && item.verdict === "pending",
+                  ).length,
                 });
                 return next;
               });
             }}
+            aiQueueOn={aiQueueOn}
+            onAiQueueOnChange={setAiQueueOn}
             kitSibling={kitSibling}
             focusMode={focusMode}
             openPage={openPage}
@@ -2557,7 +2572,14 @@ export function Workspace({
                 );
                 setReviewStats((prev) => ({
                   total: (prev?.total ?? 0) + 1,
-                  pending: (prev?.pending ?? 0) + (added.verdict === "pending" ? 1 : 0),
+                  pending:
+                    (prev?.pending ?? 0) +
+                    (added.verdict === "pending" ? 1 : 0),
+                  aiPending:
+                    (prev?.aiPending ?? 0) +
+                    (added.origin === "ai" && added.verdict === "pending"
+                      ? 1
+                      : 0),
                 }));
               }
               setReviewsEpoch((n) => n + 1);

@@ -262,7 +262,11 @@ export function ReviewsTable({
   /** Уйти на этап расшифровки — из пустой таблицы это единственный выход. */
   onOpenTranscript?: () => void;
   /** Держит счётчик этапа «Замечания» в панели проекта в согласии с таблицей. */
-  onStatsChange?: (stats: { total: number; pending: number }) => void;
+  onStatsChange?: (stats: {
+    total: number;
+    pending: number;
+    aiPending?: number;
+  }) => void;
   /** Статус из таблицы сразу виден в расшифровке и в полосе слева. */
   onReviewPatched?: (review: Review) => void;
 }) {
@@ -417,6 +421,9 @@ export function ReviewsTable({
     const exportable = reviews.filter(isExportableReview).length;
     const high = reviews.filter((item) => item.severity === "high").length;
     const ai = reviews.filter((item) => item.origin === "ai").length;
+    const aiPending = reviews.filter(
+      (item) => item.origin === "ai" && item.verdict === "pending",
+    ).length;
     const engineer = reviews.filter((item) => item.origin === "engineer").length;
     const both = reviews.filter((item) => item.origin === "both").length;
     const wrong = reviews.filter((item) => item.verdict === "wrong").length;
@@ -427,6 +434,7 @@ export function ReviewsTable({
       exportable,
       high,
       ai,
+      aiPending,
       engineer,
       both,
       wrong,
@@ -440,8 +448,12 @@ export function ReviewsTable({
   );
 
   useEffect(() => {
-    onStatsChange?.({ total: stats.total, pending: stats.pending });
-  }, [onStatsChange, stats.pending, stats.total]);
+    onStatsChange?.({
+      total: stats.total,
+      pending: stats.pending,
+      aiPending: stats.aiPending,
+    });
+  }, [onStatsChange, stats.aiPending, stats.pending, stats.total]);
 
   /** Замечания без места идут последней группой, а не вперемешку с файлами. */
   const NO_FILE = "Без привязки к файлу";

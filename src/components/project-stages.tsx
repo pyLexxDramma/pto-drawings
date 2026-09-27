@@ -4,7 +4,12 @@ import { IconBack } from "@/components/tool-icons";
 import { ProgressTrack, Spinner } from "@/components/ui-chrome";
 import type { DocumentRecord } from "@/types";
 
-export type ReviewStats = { total: number; pending: number };
+export type ReviewStats = {
+  total: number;
+  pending: number;
+  /** Неразобранные находки конвейера (origin ai) — для очереди подтверждения. */
+  aiPending?: number;
+};
 
 /**
  * Нарезку архива на листы инженеру видеть незачем (решение Дархана 09.09):
@@ -126,7 +131,11 @@ function buildStages(
           // ставим сколько замечаний всего, вторым — сколько разобрано.
           count:
             reviewsTotal > 0
-              ? `${reviewsTotal} · разобрано ${reviewsDone}`
+              ? `${reviewsTotal} · разобрано ${reviewsDone}${
+                  (reviews.aiPending ?? 0) > 0
+                    ? ` · ИИ ждёт ${reviews.aiPending}`
+                    : ""
+                }`
               : shownTotal > 0 && shownReady >= shownTotal
                 ? "замечаний 0"
                 : "ещё нет",
@@ -142,7 +151,9 @@ function buildStages(
               ? shownTotal > 0 && shownReady >= shownTotal
                 ? "Замечаний в проекте: 0"
                 : "Замечаний пока нет — конвейер их ещё не присылал"
-              : `Замечаний в проекте: ${reviewsTotal}, разобрано с заказчиком: ${reviewsDone}`,
+              : (reviews.aiPending ?? 0) > 0
+                ? `Замечаний: ${reviewsTotal}, разобрано: ${reviewsDone}. Находки ИИ ждут человека: ${reviews.aiPending}`
+                : `Замечаний в проекте: ${reviewsTotal}, разобрано с заказчиком: ${reviewsDone}`,
         },
   ];
 }
