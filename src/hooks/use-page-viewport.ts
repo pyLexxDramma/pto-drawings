@@ -213,7 +213,7 @@ export function usePageViewport({
       const wrap = wrapRef.current;
       if (!wrap) return;
       const n = naturalRef.current;
-      const s = computeFitScale(
+      let s = computeFitScale(
         wrap,
         n,
         mode,
@@ -221,6 +221,17 @@ export function usePageViewport({
         legibleRef.current,
         widestRef.current,
       );
+      const widthScale = computeFitScale(wrap, n, "width", minScale);
+      // Автооткрытие огромного плана: «Читаемо» считает 200%+ и оставляет угол.
+      // Кнопка «Читаемо» этот потолок не включает.
+      if (
+        mode === "legible" &&
+        opts?.remember === false &&
+        preferredFitRef.current !== "legible" &&
+        widthScale < 0.5
+      ) {
+        s = Math.min(Math.max(s, 0.8), 1);
+      }
       const contentW = n.w * s;
       const contentH = n.h * s;
       // «Читаемо» показывает начало листа: по центру лист обрезан с обеих сторон,
