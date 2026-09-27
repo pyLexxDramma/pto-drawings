@@ -143,11 +143,10 @@ const NARROW_DESKTOP_W = 1180;
 function useNarrowDesktop() {
   const [narrow, setNarrow] = useState(false);
   useEffect(() => {
-    const mq = window.matchMedia(`(max-width: ${NARROW_DESKTOP_W - 1}px)`);
-    const apply = () => setNarrow(mq.matches);
+    const apply = () => setNarrow(window.innerWidth < NARROW_DESKTOP_W);
     apply();
-    mq.addEventListener("change", apply);
-    return () => mq.removeEventListener("change", apply);
+    window.addEventListener("resize", apply);
+    return () => window.removeEventListener("resize", apply);
   }, []);
   return narrow;
 }

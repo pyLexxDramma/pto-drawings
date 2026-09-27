@@ -236,6 +236,8 @@ export function ReviewPane({
   const [sheetPeek, setSheetPeek] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const pageRef = useRef(rawPage);
+  /** Листание сбрасывает замечание. Иначе эффект openPage возвращает старую рамку. */
+  const leftRemarkRef = useRef(false);
   const navigatedRef = useRef(false);
   const textPaneRef = useRef<HTMLDivElement>(null);
   const deferredQuery = useDeferredValue(query);
@@ -503,6 +505,7 @@ export function ReviewPane({
       ""
     ).trim();
     if (quote.length < 2 && !location?.rect) return;
+    leftRemarkRef.current = false;
     setActiveReviewId(review.id);
     setFocusQuote(quote);
     setFocusRect(location?.rect ?? null);
@@ -681,6 +684,7 @@ export function ReviewPane({
       return;
     }
     if (location.pageNumber) goToPage(location.pageNumber);
+    leftRemarkRef.current = false;
     setActiveReviewId(reviewId);
     setFocusQuote(quote);
     setPageReviewsOpen(true);
@@ -798,6 +802,7 @@ export function ReviewPane({
       return;
     }
     if (!(openPage.page > 0)) return;
+    leftRemarkRef.current = false;
     navigatedRef.current = true;
     // Переход из фида проекта: внешнее событие, поэтому состояние двигаем здесь.
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -828,6 +833,7 @@ export function ReviewPane({
   // Цитата из reviewId, если workspace ещё не дописал quote в openPage.
   useEffect(() => {
     const reviewId = openPage?.reviewId;
+    if (leftRemarkRef.current) return;
     if (!reviewId || openPage.documentId !== document.id) return;
     const review = reviews.find((item) => item.id === reviewId);
     if (!review) return;
@@ -944,6 +950,7 @@ export function ReviewPane({
     setProgressExpanded(false);
     setPaneSolo(null);
     if (next !== pageRef.current) {
+      leftRemarkRef.current = true;
       setFocusQuote("");
       setFocusRect(null);
       setFocusNonce(0);
