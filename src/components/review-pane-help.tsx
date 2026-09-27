@@ -166,11 +166,9 @@ export function ControlsHelpContent() {
         <div className="mb-1 font-semibold text-text">Если сбой</div>
         <ul className="list-disc space-y-0.5 pl-4">
           <li>
-            Ошибка на карточке файла → <Btn>Запустить заново</Btn>.
-          </li>
-          <li>
-            Модель мимо — Админ → <Btn>Журналы правок</Btn> →{" "}
-            <Btn>Агент ИИ (ошибки)</Btn>.
+            Ошибка на карточке файла → <Btn>Запустить заново</Btn>. Сбои
+            расшифровки — Админ → <Btn>Журналы правок</Btn> →{" "}
+            <Btn>Ошибки обработки</Btn>.
           </li>
         </ul>
       </section>

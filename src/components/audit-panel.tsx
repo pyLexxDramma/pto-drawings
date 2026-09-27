@@ -1,18 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ModelCheckPanel } from "@/components/model-check-panel";
 import { SegmentedTabs } from "@/components/ui-chrome";
 import { formatBytes, formatDate } from "@/lib/format";
-import type { ModelCheckInput } from "@/lib/model-check";
 
 /**
- * Живые журналы админа. Пустые вкладки (правки текста, замечания, отметки)
- * убраны: правки расшифровки закрыты, журнал замечания живёт в строке таблицы,
- * отметки — на самом чертеже.
+ * Живые журналы админа. Пустые вкладки убраны: правки текста, замечания,
+ * отметки на чертеже и сверка модели по листу («Агент ИИ») — не сюда.
  */
 
-type Tab = "log" | "processing" | "agent" | "files" | "releases";
+type Tab = "log" | "processing" | "files" | "releases";
 
 const TABS: {
   id: Tab;
@@ -21,7 +18,6 @@ const TABS: {
 }[] = [
   { id: "log", label: "Журнал действий", accent: "critical" },
   { id: "processing", label: "Ошибки обработки", accent: "warn" },
-  { id: "agent", label: "Агент ИИ (ошибки)", accent: "warn" },
   { id: "files", label: "Файлы", accent: "neutral" },
   { id: "releases", label: "Обновления прода", accent: "info" },
 ];
@@ -30,8 +26,6 @@ const HINT: Record<Tab, string> = {
   log: "Что сработало и что нет: фронт, бэк интерфейса, конвейер, агент ИИ. Хранится 14 дней.",
   processing:
     "Расшифровка по листам: где конвейер не справился и что именно вернул.",
-  agent:
-    "Сверка модели по открытому листу: откуда текст, что не сошлось, чего нет в таблице.",
   files: "Загрузки файлов: кто, когда, каким конвейером расшифровали.",
   releases:
     "Что выкатили на прод: ветки коллег и правки в main. Без перечисления каждого запуска.",
@@ -167,12 +161,10 @@ export function AuditPanel({
   open,
   onClose,
   initialTab = "log",
-  modelCheck = null,
 }: {
   open: boolean;
   onClose: () => void;
   initialTab?: Tab;
-  modelCheck?: { count: number; input: ModelCheckInput } | null;
 }) {
   const [tab, setTab] = useState<Tab>(initialTab);
   const [layer, setLayer] = useState<LogLayer | "all">("all");
@@ -208,7 +200,6 @@ export function AuditPanel({
 
   useEffect(() => {
     if (!open) return;
-    if (tab === "agent") return;
     const ac = new AbortController();
     void (async () => {
       if (ac.signal.aborted) return;
@@ -221,14 +212,9 @@ export function AuditPanel({
 
   const payload = result?.tab === tab ? result.payload : null;
   const error = failure?.tab === tab ? failure.message : null;
-  const busy = tab !== "agent" && !payload && !error;
+  const busy = !payload && !error;
   const rows = (payload?.rows ?? []) as unknown[];
-  const empty =
-    !busy &&
-    !error &&
-    tab !== "releases" &&
-    tab !== "agent" &&
-    rows.length === 0;
+  const empty = !busy && !error && tab !== "releases" && rows.length === 0;
 
   return (
     <div
@@ -261,12 +247,7 @@ export function AuditPanel({
             size="xs"
             value={tab}
             onChange={(value) => setTab(value as Tab)}
-            options={TABS.map((item) => {
-              const agentCount = modelCheck?.count ?? 0;
-              return item.id === "agent" && agentCount > 0
-                ? { ...item, label: `${item.label} ${agentCount}` }
-                : item;
-            })}
+            options={TABS}
           />
           {busy ? <span className="pto-t-md text-muted">Читаем…</span> : null}
         </div>
@@ -296,16 +277,6 @@ export function AuditPanel({
           ) : null}
           {empty ? (
             <div className="py-6 text-center text-xs text-muted">Записей пока нет.</div>
-          ) : null}
-
-          {tab === "agent" ? (
-            modelCheck?.input ? (
-              <ModelCheckPanel input={modelCheck.input} />
-            ) : (
-              <div className="py-6 text-center text-xs text-muted">
-                Откройте лист — сверка модели появится здесь.
-              </div>
-            )
           ) : null}
 
           {tab === "log" && rows.length ? (

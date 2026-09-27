@@ -23,13 +23,11 @@ import { SheetTextPane } from "@/components/sheet-text-pane";
 import { SheetToolbar } from "@/components/sheet-toolbar";
 import type { RemarkUndo } from "@/lib/remark-undo";
 import { PaneToggle, SegmentedTabs } from "@/components/ui-chrome";
-import { modelIssueCount } from "@/components/model-check-panel";
 import {
   IconChevronLeft,
   IconChevronRight,
   IconClose,
 } from "@/components/tool-icons";
-import type { ModelCheckInput } from "@/lib/model-check";
 import { KEYMAP, KEYMAP_GROUPS } from "@/lib/keymap";
 import { VoiceNoteButton } from "@/components/voice-note";
 import { formatDate } from "@/lib/format";
@@ -99,11 +97,6 @@ type ReviewPaneProps = {
   showTech?: boolean;
   /** Открыть историю правок текущего листа — пункт в верхнем меню пользователя. */
   onPageLogReady?: (api: { open: () => void; count: number } | null) => void;
-  /** Сверка модели текущего листа — вкладка журналов «Агент ИИ (ошибки)». */
-  onModelCheckChange?: (state: {
-    count: number;
-    input: ModelCheckInput;
-  } | null) => void;
   /** Файл с активной обработкой в проекте (может отличаться от открытого). */
   activeJobDocument?: DocumentRecord | null;
   /** Связанный PDF или DWG из комплекта kitId. */
@@ -199,7 +192,6 @@ export function ReviewPane({
   readOnly = false,
   showTech = false,
   onPageLogReady,
-  onModelCheckChange,
   activeJobDocument = null,
   kitSibling = null,
   onFullProgressVisible,
@@ -1587,28 +1579,6 @@ export function ReviewPane({
   const pageWarning = document.pageWarnings?.[String(pageNumber)] ?? null;
   const isMockPage = Boolean(page?.markdown.includes("[MOCK]"));
   const errorCount = Object.keys(document.pageErrors ?? {}).length;
-  const modelCheckInput = useMemo(
-    () => ({
-      pageNumber,
-      source: page?.source,
-      warnings: page?.warnings ?? [],
-      pageWarning,
-      pageError,
-      numbers: page?.numbers,
-      reviewCount: pageReviews.length,
-    }),
-    [
-      pageNumber,
-      page?.source,
-      page?.warnings,
-      pageWarning,
-      pageError,
-      page?.numbers,
-      pageReviews.length,
-    ],
-  );
-  const modelIssues = modelIssueCount(modelCheckInput);
-
   useEffect(() => {
     setHoverNoteId(null);
   }, [pageNumber, document.id]);
@@ -1623,14 +1593,6 @@ export function ReviewPane({
   useEffect(() => {
     if (pendingRect) setSidePanel("notes");
   }, [pendingRect]);
-
-  useEffect(() => {
-    onModelCheckChange?.({ count: modelIssues, input: modelCheckInput });
-  }, [modelIssues, modelCheckInput, onModelCheckChange]);
-
-  useEffect(() => {
-    return () => onModelCheckChange?.(null);
-  }, [onModelCheckChange]);
 
   const notesPanel = (
     <div className="flex min-h-0 flex-1 flex-col">
