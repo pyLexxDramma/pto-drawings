@@ -260,6 +260,12 @@ export function ReviewPane({
   const [activeReviewId, setActiveReviewId] = useState<string | null>(null);
   /** Список замечаний листа держим свёрнутым: он закрывал расшифровку. */
   const [pageReviewsOpen, setPageReviewsOpen] = useState(false);
+  /** Фильтр пинов на чертеже: пустой набор важности = все. */
+  const [pinPendingOnly, setPinPendingOnly] = useState(false);
+  const [pinAiOnly, setPinAiOnly] = useState(false);
+  const [pinSeverities, setPinSeverities] = useState<Set<ReviewSeverity>>(
+    () => new Set(),
+  );
   const [keymapOpen, setKeymapOpen] = useState(false);
   const [drawingReport, setDrawingReport] = useState<{
     nonce: number;
@@ -449,6 +455,41 @@ export function ReviewPane({
       ),
     [document.id, reviews],
   );
+  const matchesPinFilter = useCallback(
+    (review: Review) => {
+      if (pinPendingOnly && review.verdict !== "pending") return false;
+      if (pinAiOnly && review.origin !== "ai") return false;
+      if (pinSeverities.size > 0 && !pinSeverities.has(review.severity)) {
+        return false;
+      }
+      return true;
+    },
+    [pinAiOnly, pinPendingOnly, pinSeverities],
+  );
+  const filteredPageReviews = useMemo(
+    () => pageReviews.filter(matchesPinFilter),
+    [matchesPinFilter, pageReviews],
+  );
+  /** Очередь разбора: неразобранные файла по номеру. */
+  const pendingFileReviews = useMemo(
+    () =>
+      fileReviews
+        .filter((review) => review.verdict === "pending")
+        .sort((a, b) => a.number - b.number),
+    [fileReviews],
+  );
+  const pendingSheetCount = useMemo(
+    () => pageReviews.filter((review) => review.verdict === "pending").length,
+    [pageReviews],
+  );
+  const pendingQueueIndex = pendingFileReviews.findIndex(
+    (review) => review.id === activeReviewId,
+  );
+  const canPrevPending = pendingFileReviews.length > 0 && pendingQueueIndex > 0;
+  const canNextPending =
+    pendingFileReviews.length > 0 &&
+    (pendingQueueIndex < 0 ||
+      pendingQueueIndex < pendingFileReviews.length - 1);
   // На миниатюре — сколько замечаний на листе, цвет по разбору: важность у них
   // разная, и одна точка «средняя» вводила в заблуждение (созвон 18.09).
   const pageDots = useMemo(() => {
@@ -484,24 +525,6 @@ export function ReviewPane({
     }
     return map;
   }, [document.id, fileReviews]);
-  async function patchReview(reviewId: string, body: Partial<Review>) {
-    if (!projectId) return;
-    try {
-      const response = await fetch(
-        `/api/projects/${projectId}/reviews/${reviewId}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        },
-      );
-      if (!response.ok) return;
-      const payload = (await response.json()) as { review: Review };
-      onReviewPatched?.(payload.review);
-    } catch {
-      // разбор не блокирует просмотр
-    }
-  }
   function focusReviewOnSheet(review: (typeof pageReviews)[number]) {
     const location =
       review.locations.find(
@@ -522,8 +545,11 @@ export function ReviewPane({
     setFocusQuote(quote);
     setFocusRect(location?.rect ?? null);
     setFocusNonce(Date.now());
-    setPaneSolo(null);
-    setSidePanel("text");
+    // В «только лист» оставляем чертёж на весь экран — иначе очередь сама гасит режим.
+    if (!(focusMode || paneSolo === "pdf")) {
+      setPaneSolo(null);
+      setSidePanel("text");
+    }
     setDrawingReport(null);
     setTextHitFound(null);
     setPageReviewsOpen(true);
@@ -534,6 +560,61 @@ export function ReviewPane({
       review.locations[0];
     if (location?.pageNumber) goToPage(location.pageNumber);
     focusReviewOnSheet(review);
+  }
+  function stepPending(dir: 1 | -1) {
+    if (!pendingFileReviews.length) return;
+    let index = pendingFileReviews.findIndex(
+      (review) => review.id === activeReviewId,
+    );
+    if (index < 0) index = dir > 0 ? -1 : 0;
+    const next = pendingFileReviews[index + dir];
+    if (next) selectFileReview(next);
+  }
+  async function patchReview(reviewId: string, body: Partial<Review>) {
+    if (!projectId) return;
+    try {
+      const response = await fetch(
+        `/api/projects/${projectId}/reviews/${reviewId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
+      );
+      if (!response.ok) return;
+      const payload = (await response.json()) as { review: Review };
+      onReviewPatched?.(payload.review);
+      // После вердикта — следующее неразобранное на листе, иначе в файле.
+      if (body.verdict && body.verdict !== "pending") {
+        const sheetNext = pageReviews
+          .filter(
+            (review) =>
+              review.id !== reviewId && review.verdict === "pending",
+          )
+          .sort((a, b) => a.number - b.number);
+        const currentNumber =
+          pageReviews.find((review) => review.id === reviewId)?.number ?? 0;
+        const onSheet =
+          sheetNext.find((review) => review.number > currentNumber) ??
+          sheetNext[0];
+        if (onSheet) {
+          focusReviewOnSheet(onSheet);
+          return;
+        }
+        const fileNext = fileReviews
+          .filter(
+            (review) =>
+              review.id !== reviewId && review.verdict === "pending",
+          )
+          .sort((a, b) => a.number - b.number);
+        const inFile =
+          fileNext.find((review) => review.number > currentNumber) ??
+          fileNext[0];
+        if (inFile) selectFileReview(inFile);
+      }
+    } catch {
+      // разбор не блокирует просмотр
+    }
   }
 
   /**
@@ -647,7 +728,7 @@ export function ReviewPane({
    */
   const remarkPins = useMemo((): DrawingRemarkPin[] => {
     const pins: DrawingRemarkPin[] = [];
-    for (const review of pageReviews) {
+    for (const review of filteredPageReviews) {
       for (const loc of review.locations) {
         if (loc.documentId !== document.id) continue;
         if (loc.pageNumber !== pageNumber) continue;
@@ -666,7 +747,7 @@ export function ReviewPane({
       }
     }
     return pins;
-  }, [pageReviews, document.id, pageNumber, activeReviewId]);
+  }, [filteredPageReviews, document.id, pageNumber, activeReviewId]);
 
   // Переключатель источника листа едет внутрь тулбара вьюера: отдельной плашкой
   // он был четвёртым независимым слоем поверх чертежа.
@@ -960,7 +1041,8 @@ export function ReviewPane({
     setRawPage(next);
     setSheetPeek(true);
     setProgressExpanded(false);
-    setPaneSolo(null);
+    // В режиме «только лист» не возвращаем боковые колонки при смене листа.
+    if (!focusMode && paneSolo !== "pdf") setPaneSolo(null);
     if (next !== pageRef.current) {
       leftRemarkRef.current = true;
       setFocusQuote("");
@@ -968,6 +1050,11 @@ export function ReviewPane({
       setFocusNonce(0);
       setActiveReviewId(null);
     }
+  }
+
+  function exitSheetOnly() {
+    setPaneSolo(null);
+    if (focusMode) onToggleFocus();
   }
 
   function stepVisible(delta: number) {
@@ -1044,14 +1131,47 @@ export function ReviewPane({
   }
 
   function toggleDrawingFullscreen() {
-    if (paneSolo === "pdf") {
-      setPaneSolo(null);
-      if (focusMode) onToggleFocus();
+    if (paneSolo === "pdf" || focusMode) {
+      exitSheetOnly();
     } else {
       setPaneSolo("pdf");
-      if (!focusMode) onToggleFocus();
+      onToggleFocus();
     }
   }
+
+  function togglePinSeverity(severity: ReviewSeverity) {
+    setPinSeverities((prev) => {
+      const next = new Set(prev);
+      if (next.has(severity)) next.delete(severity);
+      else next.add(severity);
+      return next;
+    });
+  }
+
+  const pageReviewsBar = pageReviews.length > 0 ? (
+    <PageReviewsBar
+      reviews={filteredPageReviews}
+      totalCount={pageReviews.length}
+      open={pageReviewsOpen}
+      focusQuote={focusQuote}
+      activeReview={activePageReview}
+      renderPlaceChips={renderPlaceChips}
+      onToggle={() => setPageReviewsOpen((prev) => !prev)}
+      onFocusReview={focusReviewOnSheet}
+      onOpenReviews={onOpenReviews}
+      pendingCount={pendingSheetCount}
+      onPrevPending={() => stepPending(-1)}
+      onNextPending={() => stepPending(1)}
+      canPrevPending={canPrevPending}
+      canNextPending={canNextPending}
+      pinPendingOnly={pinPendingOnly}
+      pinAiOnly={pinAiOnly}
+      pinSeverities={pinSeverities}
+      onTogglePinPending={() => setPinPendingOnly((prev) => !prev)}
+      onTogglePinAi={() => setPinAiOnly((prev) => !prev)}
+      onTogglePinSeverity={togglePinSeverity}
+    />
+  ) : null;
 
   // Стрелку рисует сама кнопка иконкой, в подписи остаётся только назначение.
   const backLabel = markMode || pendingRect
@@ -1078,7 +1198,7 @@ export function ReviewPane({
     canPrevPage,
     canNextPage,
     onToggleFullscreen: isOfficeSource ? undefined : toggleDrawingFullscreen,
-    fullscreenActive: paneSolo === "pdf",
+    fullscreenActive: paneSolo === "pdf" || focusMode,
   };
 
   useEffect(() => {
@@ -1111,8 +1231,7 @@ export function ReviewPane({
         }
         if (paneSolo || focusMode) {
           event.preventDefault();
-          setPaneSolo(null);
-          if (focusMode) onToggleFocus();
+          exitSheetOnly();
           return;
         }
         onBackToProjects();
@@ -1138,7 +1257,7 @@ export function ReviewPane({
 
       if (event.code === "KeyF") {
         event.preventDefault();
-        setPaneSolo((prev) => (prev === null ? "pdf" : prev === "pdf" ? "md" : null));
+        if (!isOfficeSource) toggleDrawingFullscreen();
         return;
       }
 
@@ -1148,14 +1267,12 @@ export function ReviewPane({
         return;
       }
 
-      if (fileReviews.length > 0 && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
+      if (
+        pendingFileReviews.length > 0 &&
+        (event.key === "ArrowUp" || event.key === "ArrowDown")
+      ) {
         event.preventDefault();
-        const index = Math.max(0, fileReviews.findIndex((item) => item.id === activeReviewId));
-        const next =
-          event.key === "ArrowDown"
-            ? fileReviews[Math.min(fileReviews.length - 1, index + 1)]
-            : fileReviews[Math.max(0, index - 1)];
-        if (next) selectFileReview(next);
+        stepPending(event.key === "ArrowDown" ? 1 : -1);
         return;
       }
       if (activeReviewId && projectId) {
@@ -1183,7 +1300,22 @@ export function ReviewPane({
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusMode, markMode, pendingRect, onBackToProjects, onToggleFocus, visiblePages, document.pages, showLog, paneSolo, searchOpen, readOnly]);
+  }, [
+    focusMode,
+    markMode,
+    pendingRect,
+    onBackToProjects,
+    onToggleFocus,
+    visiblePages,
+    document.pages,
+    showLog,
+    paneSolo,
+    searchOpen,
+    readOnly,
+    pendingFileReviews,
+    activeReviewId,
+    isOfficeSource,
+  ]);
 
   const hits = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -1629,8 +1761,15 @@ export function ReviewPane({
                 </div>
               ) : null}
               {paneSolo === "pdf" ? (
-                <div className="absolute left-2 top-12 z-30 flex flex-wrap items-center gap-1.5 rounded-md border border-border bg-white/95 px-1.5 py-1 shadow-sm">
-                  {sheetToolButtons}
+                <div className="absolute left-2 top-12 z-30 flex max-w-xl flex-col gap-1.5">
+                  <div className="flex flex-wrap items-center gap-1.5 rounded-md border border-border bg-white/95 px-1.5 py-1 shadow-sm">
+                    {sheetToolButtons}
+                  </div>
+                  {pageReviewsBar ? (
+                    <div className="overflow-hidden rounded-md border border-border bg-white/95 shadow-sm">
+                      {pageReviewsBar}
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
               {hasKitDrawing && kitDrawingView === "cad" && kitCadDoc ? (
@@ -1772,9 +1911,9 @@ export function ReviewPane({
           {paneSolo === "pdf" ? (
             <button
               type="button"
-              title="Показать текст"
-              aria-label="Показать текст"
-              onClick={() => setPaneSolo(null)}
+              title="Выйти из режима «только лист» (Esc)"
+              aria-label="Выйти из режима «только лист»"
+              onClick={exitSheetOnly}
               className="flex w-8 shrink-0 flex-col items-center border-l border-border bg-white py-2 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
             >
               <IconChevronLeft />
@@ -1836,8 +1975,8 @@ export function ReviewPane({
                   expanded
                   align="right"
                   expandLabel="Показать текст"
-                  collapseLabel="Скрыть расшифровку — останется только чертёж"
-                  onToggle={() => setPaneSolo("pdf")}
+                  collapseLabel="Только лист — свернуть проекты и расшифровку"
+                  onToggle={toggleDrawingFullscreen}
                 />
               </span>
             </div>
@@ -1875,18 +2014,7 @@ export function ReviewPane({
               highlightQuery={textHighlightQuery}
               focusFirst={focusDrawing}
               flagQuotes={pageReviewQuotes}
-              reviewsBar={
-                <PageReviewsBar
-                  reviews={pageReviews}
-                  open={pageReviewsOpen}
-                  focusQuote={focusQuote}
-                  activeReview={activePageReview}
-                  renderPlaceChips={renderPlaceChips}
-                  onToggle={() => setPageReviewsOpen((prev) => !prev)}
-                  onFocusReview={focusReviewOnSheet}
-                  onOpenReviews={onOpenReviews}
-                />
-              }
+              reviewsBar={pageReviewsBar}
             />
 
               </>

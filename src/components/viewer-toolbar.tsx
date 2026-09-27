@@ -269,10 +269,12 @@ export function ViewerToolbar({
           type="button"
           title={
             fullscreenActive
-              ? "Показать текст листа рядом (F)"
-              : "Чертёж на весь экран (F)"
+              ? "Выйти из режима «только лист» (Esc)"
+              : "Только лист — свернуть проекты и расшифровку (F)"
           }
-          aria-label={fullscreenActive ? "Свернуть чертёж" : "Весь экран"}
+          aria-label={
+            fullscreenActive ? "Выйти из режима «только лист»" : "Только лист"
+          }
           onClick={() => onToggleFullscreen()}
           className={`pto-tool pto-tool--slim inline-flex w-6 items-center justify-center rounded border ${
             fullscreenActive
