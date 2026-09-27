@@ -75,7 +75,7 @@ export function UserMenu({
             ? "border-amber-500 bg-amber-50 text-amber-950 hover:bg-amber-100"
             : user.role === "admin"
               ? "border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200"
-              : "border-sky-500 bg-sky-50 text-sky-950 hover:bg-sky-100"
+              : "border-accent/50 bg-accent/5 text-text hover:bg-accent/10"
         }`}
       >
         <span
@@ -86,7 +86,7 @@ export function UserMenu({
               ? "bg-amber-200 text-amber-950"
               : user.role === "admin"
                 ? "bg-slate-300 text-slate-800"
-                : "bg-sky-600 text-white"
+                : "bg-accent text-white"
           }`}
         >
           {letter}

@@ -273,7 +273,7 @@ export function ProjectStagesBar({
         </span>
       ) : null}
 
-      {busy ? <Spinner className="h-3.5 w-3.5 shrink-0 text-sky-700" /> : null}
+      {busy ? <Spinner className="h-3.5 w-3.5 shrink-0 text-accent" /> : null}
     </div>
   );
 }

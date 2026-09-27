@@ -75,13 +75,13 @@ export function ProcessingProgressPanel({
   const statusLabel = processingStatusLabel(document);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-[#f7f9fc]">
-      <div className="border-b border-sky-100 bg-sky-50/90 px-4 py-3">
+    <div className="flex min-h-0 flex-1 flex-col bg-bg">
+      <div className="border-b border-accent/15 bg-accent/5 px-4 py-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="flex items-center gap-2 text-sm font-semibold text-sky-950">
+            <div className="flex items-center gap-2 text-sm font-semibold text-text">
               {cancelPending ? null : (
-                <Spinner className="h-3.5 w-3.5 text-sky-700" />
+                <Spinner className="h-3.5 w-3.5 text-accent" />
               )}
               {statusLabel}
               {showTech && document.pipelineMode === "mock" ? (
@@ -90,7 +90,7 @@ export function ProcessingProgressPanel({
                 </span>
               ) : null}
             </div>
-            <div className="mt-1 truncate pto-t-md text-sky-900/80">
+            <div className="mt-1 truncate pto-t-md text-muted">
               {document.originalName ?? "Документ"}
               {showTech
                 ? document.pipelineMode === "mock"
@@ -108,7 +108,7 @@ export function ProcessingProgressPanel({
               <button
                 type="button"
                 onClick={onCollapse}
-                className="rounded-md border border-sky-200 bg-white px-2.5 py-1 text-xs font-semibold text-sky-900 hover:bg-sky-100"
+                className="rounded-md border border-accent/25 bg-white px-2.5 py-1 text-xs font-semibold text-text hover:bg-accent/10"
                 title="Свернуть в угол"
               >
                 Свернуть
@@ -119,7 +119,7 @@ export function ProcessingProgressPanel({
                 type="button"
                 disabled={canceling}
                 onClick={onCancel}
-                className="rounded-md border border-sky-300 bg-white px-2.5 py-1 text-xs font-semibold text-sky-900 hover:bg-sky-100 disabled:opacity-50"
+                className="rounded-md border border-accent/35 bg-white px-2.5 py-1 text-xs font-semibold text-text hover:bg-accent/10 disabled:opacity-50"
               >
                 {canceling ? "Отмена…" : "Стоп"}
               </button>
@@ -128,7 +128,7 @@ export function ProcessingProgressPanel({
         </div>
 
         <div className="mt-3 space-y-1.5">
-          <div className="pto-t-md font-semibold tabular-nums text-sky-950">
+          <div className="pto-t-md font-semibold tabular-nums text-text">
             {[
               document.status === "processing" || document.status === "queued"
                 ? processingStepLabel(document.processingStep)
@@ -155,12 +155,12 @@ export function ProcessingProgressPanel({
           const isCurrent = currentPage === row.pageNumber;
           const className = `w-full rounded-md border px-2.5 py-2 text-left ${
             row.status === "active"
-              ? "border-sky-200 bg-white"
+              ? "border-accent/25 bg-white"
               : row.status === "error"
                 ? "border-red-200 bg-red-50/70"
                 : "border-border bg-white"
-          } ${canOpen ? "cursor-pointer hover:border-sky-400 hover:bg-sky-50/80" : ""} ${
-            isCurrent ? "ring-1 ring-sky-400" : ""
+          } ${canOpen ? "cursor-pointer hover:border-accent hover:bg-accent/5" : ""} ${
+            isCurrent ? "ring-1 ring-accent" : ""
           }`;
           const body = (
             <>
@@ -170,7 +170,7 @@ export function ProcessingProgressPanel({
                     row.status === "error"
                       ? "text-red-800"
                       : row.status === "active"
-                        ? "text-sky-950"
+                        ? "text-text"
                         : row.status === "done"
                           ? "text-emerald-900"
                           : "text-muted"
@@ -375,15 +375,15 @@ export function LiveProgressDock({
       <button
         type="button"
         onClick={onExpand}
-        className="pointer-events-auto fixed bottom-3 right-3 z-40 flex max-w-[11rem] items-center gap-1.5 rounded-full border border-sky-200 bg-white/95 px-2.5 py-1.5 pto-t-sm font-semibold tabular-nums text-sky-950 shadow-lg backdrop-blur hover:bg-sky-50"
+        className="pointer-events-auto fixed bottom-3 right-3 z-40 flex max-w-[11rem] items-center gap-1.5 rounded-full border border-accent/25 bg-white/95 px-2.5 py-1.5 pto-t-sm font-semibold tabular-nums text-text shadow-lg backdrop-blur hover:bg-accent/5"
         title="Показать прогресс (обработка продолжается)"
         data-testid="live-progress-dock-collapsed"
       >
         {!cancelPending ? (
-          <Spinner className="h-2.5 w-2.5 shrink-0 text-sky-700" />
+          <Spinner className="h-2.5 w-2.5 shrink-0 text-accent" />
         ) : null}
         <span className="truncate">{formatProcessingPercent(percent)}</span>
-          <span className="shrink-0 text-sky-700/70">
+          <span className="shrink-0 text-accent/70">
             <IconChevronRight className="h-3 w-3" />
           </span>
       </button>
@@ -394,7 +394,7 @@ export function LiveProgressDock({
 
   return (
     <div
-      className="pointer-events-auto fixed bottom-3 right-3 z-40 w-[min(calc(100vw-1.5rem),17rem)] overflow-hidden rounded-lg border border-sky-200/90 bg-white/95 shadow-lg backdrop-blur"
+      className="pointer-events-auto fixed bottom-3 right-3 z-40 w-[min(calc(100vw-1.5rem),17rem)] overflow-hidden rounded-lg border border-accent/25 bg-white/95 shadow-lg backdrop-blur"
       role="status"
       aria-live="polite"
       data-testid="live-progress-dock"
@@ -413,13 +413,13 @@ export function LiveProgressDock({
         >
           <div className="flex items-start gap-2">
             {isActive && !cancelPending ? (
-              <Spinner className="mt-0.5 h-3 w-3 shrink-0 text-sky-700" />
+              <Spinner className="mt-0.5 h-3 w-3 shrink-0 text-accent" />
             ) : null}
             <div className="min-w-0 flex-1">
-              <div className="truncate pto-t-md font-semibold text-sky-950">
+              <div className="truncate pto-t-md font-semibold text-text">
                 {document.originalName ?? "Обработка"}
               </div>
-              <div className="mt-0.5 truncate pto-t-sm tabular-nums text-sky-900/80">
+              <div className="mt-0.5 truncate pto-t-sm tabular-nums text-muted">
                 {summaryLine}
               </div>
             </div>
@@ -429,7 +429,7 @@ export function LiveProgressDock({
           <button
             type="button"
             onClick={isFinished ? closeFinished : onHide}
-            className="shrink-0 rounded px-1 py-0.5 pto-t-md leading-none text-sky-800/70 hover:bg-sky-50 hover:text-sky-950"
+            className="shrink-0 rounded px-1 py-0.5 pto-t-md leading-none text-muted hover:bg-accent/5 hover:text-text"
             title={
               isFinished
                 ? "Закрыть"
@@ -445,13 +445,13 @@ export function LiveProgressDock({
         <ProgressTrack value={percent} className="h-0.5" />
       </div>
       {isActive && onCancel && !cancelPending ? (
-        <div className="flex items-center justify-between gap-2 border-t border-sky-100 px-2 py-1">
-          <span className="pto-t-xs text-sky-800/60">Стоп — остановить</span>
+        <div className="flex items-center justify-between gap-2 border-t border-accent/15 px-2 py-1">
+          <span className="pto-t-xs text-muted">Стоп — остановить</span>
           <button
             type="button"
             disabled={canceling}
             onClick={onCancel}
-            className="rounded border border-sky-200 bg-white px-1.5 py-0.5 pto-t-sm font-semibold text-sky-900 hover:bg-sky-50 disabled:opacity-50"
+            className="rounded border border-accent/25 bg-white px-1.5 py-0.5 pto-t-sm font-semibold text-text hover:bg-accent/5 disabled:opacity-50"
             title="Остановить обработку"
           >
             {canceling ? "…" : "Стоп"}
@@ -525,7 +525,7 @@ export function ProcessingCompactBadge({
 
   return (
     <div
-      className={`pointer-events-auto z-20 w-[min(100%-1.5rem,16.5rem)] rounded-lg border border-sky-200 bg-white/95 p-2.5 shadow-lg backdrop-blur ${className}`}
+      className={`pointer-events-auto z-20 w-[min(100%-1.5rem,16.5rem)] rounded-lg border border-accent/25 bg-white/95 p-2.5 shadow-lg backdrop-blur ${className}`}
     >
       <button
         type="button"
@@ -536,14 +536,14 @@ export function ProcessingCompactBadge({
       >
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <div className="flex items-center gap-1.5 pto-t-md font-semibold text-sky-950">
+            <div className="flex items-center gap-1.5 pto-t-md font-semibold text-text">
               {live && !cancelPending && document.status !== "done" ? (
-                <Spinner className="h-3 w-3 text-sky-700" />
+                <Spinner className="h-3 w-3 text-accent" />
               ) : null}
               <span>{statusLabel}</span>
             </div>
             <div className="mt-1 flex items-baseline gap-2 pto-t-md text-muted">
-              <span className="font-semibold tabular-nums text-sky-950">
+              <span className="font-semibold tabular-nums text-text">
                 {formatProcessingPercent(percent)}
               </span>
               <span>
@@ -572,7 +572,7 @@ export function ProcessingCompactBadge({
                 <IconClose className="h-3 w-3" />
               </span>
           ) : interactive ? (
-            <span className="shrink-0 pto-t-sm font-medium text-sky-800">
+            <span className="shrink-0 pto-t-sm font-medium text-accent">
               Развернуть
             </span>
           ) : null}
@@ -583,7 +583,7 @@ export function ProcessingCompactBadge({
         <button
           type="button"
           onClick={onGoToCurrent}
-          className="mt-2 w-full rounded-md border border-sky-200 bg-sky-50 px-2 py-1 pto-t-md font-semibold text-sky-950 hover:bg-sky-100"
+          className="mt-2 w-full rounded-md border border-accent/25 bg-accent/5 px-2 py-1 pto-t-md font-semibold text-text hover:bg-accent/10"
         >
           К текущему листу {currentPage}
         </button>

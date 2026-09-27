@@ -125,7 +125,7 @@ export function ResolvedSummary({
             ? "Показать в этой таблице только неразобранные"
             : "Все замечания разобраны"
         }
-        className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-md border border-border bg-white px-1.5 py-0.5 pto-t-md font-medium leading-none tabular-nums text-text hover:border-accent hover:bg-blue-50/60 disabled:cursor-default disabled:hover:border-border disabled:hover:bg-white ${className}`}
+        className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-md border border-border bg-white px-1.5 py-0.5 pto-t-md font-medium leading-none tabular-nums text-text hover:border-accent hover:bg-accent/5 disabled:cursor-default disabled:hover:border-border disabled:hover:bg-white ${className}`}
       >
         {label}
       </button>

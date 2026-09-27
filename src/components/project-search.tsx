@@ -44,7 +44,7 @@ export function ProjectSearch({
 
   return (
     <div ref={wrapRef} className="relative min-w-0 max-w-[14rem] flex-1 sm:max-w-[18rem]">
-      <div className="flex items-center gap-1 rounded-md border border-slate-300 bg-white px-1.5 py-0.5">
+      <div className="flex items-center gap-1 rounded-md border border-border bg-white px-1.5 py-0.5">
         <input
           ref={inputRef}
           type="search"
@@ -85,7 +85,7 @@ export function ProjectSearch({
               onQueryChange("");
               inputRef.current?.focus();
             }}
-            className="shrink-0 rounded p-0.5 text-muted hover:bg-slate-100 hover:text-text"
+            className="shrink-0 rounded p-0.5 text-muted hover:bg-surface-2 hover:text-text"
           >
             <IconClose className="h-3 w-3" />
           </button>
@@ -110,7 +110,7 @@ export function ProjectSearch({
                 type="button"
                 role="option"
                 onClick={() => onPick(hit)}
-                className="flex w-full flex-col gap-0.5 px-2 py-1.5 text-left hover:bg-sky-50"
+                className="flex w-full flex-col gap-0.5 px-2 py-1.5 text-left hover:bg-accent/5"
               >
                 <span className="truncate pto-t-sm font-semibold text-text">
                   {hit.originalName}

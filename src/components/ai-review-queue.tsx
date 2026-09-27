@@ -62,14 +62,14 @@ export function AiReviewQueueCard({
 
   return (
     <div
-      className="shrink-0 border-b border-sky-200 bg-sky-50/90 pto-t-sm text-text"
+      className="shrink-0 border-b border-accent/20 bg-accent/5 pto-t-sm text-text"
       data-ai-queue=""
     >
       <div className="flex items-start gap-2 px-2 py-1.5">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-            <span className="font-semibold text-sky-950">Очередь ИИ</span>
-            <span className="tabular-nums text-sky-800/80">
+            <span className="font-semibold text-text">Очередь ИИ</span>
+            <span className="tabular-nums text-muted">
               {index + 1} из {total}
             </span>
             <span className="font-semibold tabular-nums">
@@ -90,12 +90,12 @@ export function AiReviewQueueCard({
           title="Закрыть очередь ИИ"
           aria-label="Закрыть очередь ИИ"
           onClick={onClose}
-          className="shrink-0 rounded p-0.5 text-sky-900/70 hover:bg-sky-100 hover:text-sky-950"
+          className="shrink-0 rounded p-0.5 text-muted hover:bg-accent/10 hover:text-text"
         >
           <IconClose className="h-3.5 w-3.5" />
         </button>
       </div>
-      <div className="flex flex-wrap items-center gap-1 border-t border-sky-200/80 px-2 py-1.5">
+      <div className="flex flex-wrap items-center gap-1 border-t border-accent/15 px-2 py-1.5">
         <button
           type="button"
           disabled={busy}
@@ -119,7 +119,7 @@ export function AiReviewQueueCard({
           type="button"
           disabled={busy}
           onClick={onEdit}
-          className="rounded-md border border-slate-300 bg-white px-2 py-1 font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+          className="rounded-md border border-border bg-white px-2 py-1 font-medium text-text hover:bg-surface-2 disabled:opacity-50"
         >
           В таблице
         </button>
@@ -130,7 +130,7 @@ export function AiReviewQueueCard({
             onClick={onPrev}
             title="Предыдущее от ИИ (↑)"
             aria-label="Предыдущее от ИИ"
-            className="rounded border border-slate-300 bg-white px-1 py-1 text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+            className="rounded border border-border bg-white px-1 py-1 text-text hover:bg-surface-2 disabled:opacity-40"
           >
             <IconChevronLeft className="h-3.5 w-3.5" />
           </button>
@@ -140,7 +140,7 @@ export function AiReviewQueueCard({
             onClick={onNext}
             title="Следующее от ИИ (↓)"
             aria-label="Следующее от ИИ"
-            className="rounded border border-slate-300 bg-white px-1 py-1 text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+            className="rounded border border-border bg-white px-1 py-1 text-text hover:bg-surface-2 disabled:opacity-40"
           >
             <IconChevronRight className="h-3.5 w-3.5" />
           </button>
@@ -190,7 +190,7 @@ export function AiReviewQueueCard({
             <button
               type="button"
               onClick={() => setWrongOpen(false)}
-              className="rounded-md border border-slate-300 px-2 py-1 text-slate-700"
+              className="rounded-md border border-border px-2 py-1 text-text"
             >
               Отмена
             </button>
@@ -215,7 +215,7 @@ export function AiQueueEntryButton({
       type="button"
       onClick={onStart}
       title="Разобрать находки конвейера по одной"
-      className="shrink-0 rounded-md border border-sky-400 bg-sky-50 px-2 py-1 pto-t-sm font-semibold text-sky-950 hover:bg-sky-100"
+      className="shrink-0 rounded-md border border-accent/40 bg-accent/5 px-2 py-1 pto-t-sm font-semibold text-accent hover:bg-accent/10"
       data-ai-queue-entry=""
     >
       Очередь ИИ · {count}

@@ -2146,7 +2146,7 @@ export function Workspace({
             <button
               type="button"
               onClick={() => setProjectsCollapsed(false)}
-              className="flex flex-1 flex-col items-center gap-1 py-2 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+              className="flex flex-1 flex-col items-center gap-1 py-2 text-muted hover:bg-surface-2 hover:text-text"
               title="Показать проекты и листы"
               aria-label="Показать проекты и листы"
               aria-expanded={false}
@@ -2199,7 +2199,7 @@ export function Workspace({
                 onToggle={() => setProjectsCollapsed(true)}
               />
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto bg-sky-50 p-1.5" data-projects-tree>
+            <div className="min-h-0 flex-1 overflow-y-auto bg-bg p-1.5" data-projects-tree>
               {projects.map((project) =>
                 renameId === project.id ? (
                   <input
@@ -2219,8 +2219,8 @@ export function Workspace({
                     key={project.id}
                     className={`mb-1.5 rounded-md border ${
                       project.id === projectId
-                        ? "border-slate-500 bg-blue-50"
-                        : "border-slate-400 bg-white hover:border-slate-500 hover:bg-slate-50"
+                        ? "border-accent/50 bg-accent/10"
+                        : "border-border bg-white hover:border-accent/30 hover:bg-surface-2"
                     }`}
                     data-project-row={project.id}
                   >
@@ -2317,7 +2317,7 @@ export function Workspace({
                                   ? "border border-red-300 bg-red-50"
                                   : selectedId === doc.id
                                     ? "bg-accent/15 ring-1 ring-accent/40"
-                                    : "hover:bg-slate-200/90"
+                                    : "hover:bg-surface-2"
                             }`}
                             data-document-row={doc.id}
                           >
@@ -2450,7 +2450,7 @@ export function Workspace({
                                 <button
                                   type="button"
                                   onClick={() => void handleDelete(doc.id)}
-                                  className="shrink-0 rounded-md border border-slate-400 bg-white px-2 py-0.5 pto-t-sm font-semibold leading-tight text-slate-800 hover:bg-slate-100"
+                                  className="shrink-0 rounded-md border border-border bg-white px-2 py-0.5 pto-t-sm font-semibold leading-tight text-text hover:bg-surface-2"
                                 >
                                   Удалить
                                 </button>

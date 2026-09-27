@@ -231,7 +231,7 @@ export function SheetsGallery({
                   </div>
                 ) : null}
                 {isWorking ? (
-                  <div className="absolute left-2 top-2 rounded bg-sky-600 px-1.5 py-0.5 pto-t-sm font-medium text-white">
+                  <div className="absolute left-2 top-2 rounded bg-accent px-1.5 py-0.5 pto-t-sm font-medium text-white">
                     обрабатывается
                   </div>
                 ) : null}

@@ -615,7 +615,7 @@ mark[data-focus-quote] {
  * зрении тянула взгляд от чертежа, а состояние и так видно цветом и подписью.
  */
 .pto-page-working {
-  box-shadow: 0 0 0 2px rgb(14 165 233 / 0.28);
+  box-shadow: 0 0 0 2px rgb(37 99 235 / 0.28);
 }
 
 @media (prefers-reduced-motion: reduce) {

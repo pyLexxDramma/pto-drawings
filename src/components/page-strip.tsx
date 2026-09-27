@@ -77,21 +77,21 @@ function SheetRow({
             // листании с клавиатуры. Accent здесь значит «вы находитесь тут».
             "border-accent bg-accent/10 font-semibold"
           : isWorking
-            ? "pto-page-working border-sky-400 bg-sky-50"
+            ? "pto-page-working border-accent bg-accent/5"
             : openIssues
               ? "border-amber-500 bg-amber-50 hover:border-amber-600 hover:bg-amber-100"
               : allResolved
                 ? "border-emerald-600 bg-emerald-100 hover:border-emerald-700 hover:bg-emerald-200"
                 : // Замечаний нет — цвета нет. Зелёный значит только «разобрано»,
                   // и красить им каждый обычный лист значило бы обесценить его.
-                  "border-border bg-white hover:border-slate-400 hover:bg-surface-2"
+                  "border-border bg-white hover:border-accent/30 hover:bg-surface-2"
       }`}
     >
       <span className="flex w-full items-center gap-1.5">
         <span className="min-w-0 flex-1 truncate pto-t-sm font-medium leading-tight tabular-nums">
           L{pageNumber}
         </span>
-        <span className="shrink-0 truncate pto-t-xs font-semibold tabular-nums text-slate-700">
+        <span className="shrink-0 truncate pto-t-xs font-semibold tabular-nums text-muted">
           {sheetMark({
             isWorking,
             isReady,

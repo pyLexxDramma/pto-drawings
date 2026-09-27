@@ -513,7 +513,7 @@ export function CadPage({
       >
         {loading ? (
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 text-sm text-[#8b93a3]">
-            <Spinner className="h-5 w-5 text-sky-700" />
+            <Spinner className="h-5 w-5 text-accent" />
             <span>Загрузка геометрии листа…</span>
             <span className="pto-t-md text-muted">
               первый раз может занять несколько секунд

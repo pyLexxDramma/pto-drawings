@@ -148,7 +148,7 @@ export function ControlsHelpContent() {
             готов
           </span>
           <span>
-            <Dot className="bg-sky-500" />
+            <Dot className="bg-accent" />
             сейчас
           </span>
           <span>

@@ -81,14 +81,14 @@ type SegmentOption<T extends string> = {
 const ACCENT_IDLE: Record<SegmentAccent, string> = {
   critical: "text-red-700 hover:bg-red-50 hover:text-red-800",
   warn: "text-amber-800 hover:bg-amber-50 hover:text-amber-900",
-  info: "text-sky-700 hover:bg-sky-50 hover:text-sky-800",
+  info: "text-accent hover:bg-accent/5 hover:text-accent",
   neutral: "",
 };
 
 const ACCENT_ACTIVE: Record<SegmentAccent, string> = {
   critical: "bg-red-600 text-white font-semibold shadow-sm",
   warn: "bg-amber-500 text-white font-semibold shadow-sm",
-  info: "bg-sky-600 text-white font-semibold shadow-sm",
+  info: "bg-accent text-white font-semibold shadow-sm",
   neutral: "",
 };
 
@@ -122,7 +122,7 @@ export function SegmentedTabs<T extends string>({
       : "text-white/65 hover:bg-white/20 hover:text-white";
   const active =
     tone === "dark"
-      ? "bg-[#2a3342] text-white shadow-sm ring-1 ring-sky-400/50"
+      ? "bg-[#2a3342] text-white shadow-sm ring-1 ring-accent/50"
       : tone === "onDark"
         ? "bg-white/20 font-semibold text-white ring-1 ring-white/30"
         : "bg-white text-text font-semibold shadow-sm ring-1 ring-accent/50";
@@ -316,7 +316,7 @@ export function PaneToggle({
         event.stopPropagation();
         onToggle();
       }}
-      className={`relative z-20 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-sky-500 bg-sky-50 text-sky-800 hover:border-sky-600 hover:bg-sky-100 ${className}`}
+      className={`relative z-20 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-accent/50 bg-accent/5 text-accent hover:border-accent hover:bg-accent/10 ${className}`}
     >
       <Icon />
     </button>
