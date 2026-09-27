@@ -1262,15 +1262,15 @@ export function Workspace({
     setFilesLoading(true);
     setDocuments([]);
     try {
-      await Promise.all([
-        loadDocuments(id),
-        loadEdits(id),
-        loadNotes(id),
-        loadProjectReviews(id).catch(() => undefined),
-      ]);
+      await loadDocuments(id);
     } finally {
       setFilesLoading(false);
     }
+    await Promise.all([
+      loadEdits(id),
+      loadNotes(id),
+      loadProjectReviews(id).catch(() => undefined),
+    ]);
   }
 
   async function handleCreateProject(event: FormEvent) {
