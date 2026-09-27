@@ -1,5 +1,6 @@
 import {
   REVIEW_SEVERITY_LABEL,
+  REVIEW_SEVERITY_STRENGTH,
   REVIEW_VERDICT_LABEL,
   reviewAuthor,
   type Review,
@@ -93,5 +94,14 @@ export function excelUniqueValues(
   for (const row of rows) {
     for (const value of excelColValues(row, col)) seen.add(value);
   }
-  return [...seen].sort((a, b) => a.localeCompare(b, "ru", { numeric: true }));
+  return [...seen].sort((a, b) => {
+    if (col !== "severity") return a.localeCompare(b, "ru", { numeric: true });
+    const rank = (value: string) => {
+      const key = REVIEW_SEVERITY_STRENGTH.find(
+        (item) => REVIEW_SEVERITY_LABEL[item] === value,
+      );
+      return key ? REVIEW_SEVERITY_STRENGTH.indexOf(key) : REVIEW_SEVERITY_STRENGTH.length;
+    };
+    return rank(a) - rank(b);
+  });
 }

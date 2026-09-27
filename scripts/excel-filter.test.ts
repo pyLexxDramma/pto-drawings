@@ -70,6 +70,21 @@ describe("excelUniqueValues", () => {
     assert.deepEqual(values, ["Высокий"]);
   });
 
+  it("важность идёт по силе, не по алфавиту", () => {
+    assert.deepEqual(
+      excelUniqueValues(
+        [
+          review({ id: "a", severity: "low" }),
+          review({ id: "b", severity: "high" }),
+          review({ id: "c", severity: "medium" }),
+        ],
+        "severity",
+        {},
+      ),
+      ["Высокий", "Средний", "Низкий"],
+    );
+  });
+
   it("автор — ИИ или инженер", () => {
     const rows = [
       review({ id: "a", origin: "ai" }),

@@ -95,7 +95,9 @@ function buildStages(
       // подсказку под курсором на демо никто не наводит (баг 0099).
       count:
         shownTotal > 0
-          ? `листов ${shownReady} из ${shownTotal}`
+          ? fileOpen
+            ? `файл ${shownReady} из ${shownTotal}`
+            : `проект ${shownReady} из ${shownTotal}`
           : filesTotal === 0
             ? "нет файлов"
             : "режем на листы",
@@ -125,7 +127,9 @@ function buildStages(
           count:
             reviewsTotal > 0
               ? `${reviewsTotal} · разобрано ${reviewsDone}`
-              : "ещё нет",
+              : shownTotal > 0 && shownReady >= shownTotal
+                ? "замечаний 0"
+                : "ещё нет",
           percent: percent(reviewsDone, reviewsTotal),
           state:
             reviewsTotal === 0
@@ -135,7 +139,9 @@ function buildStages(
                 : "active",
           hint:
             reviewsTotal === 0
-              ? "Замечаний пока нет — конвейер их ещё не присылал"
+              ? shownTotal > 0 && shownReady >= shownTotal
+                ? "Замечаний в проекте: 0"
+                : "Замечаний пока нет — конвейер их ещё не присылал"
               : `Замечаний в проекте: ${reviewsTotal}, разобрано с заказчиком: ${reviewsDone}`,
         },
   ];
@@ -188,7 +194,7 @@ export function ProjectStagesBar({
       }`}
     >
       <span
-        className="hidden max-w-[8rem] shrink-0 truncate pto-t-sm font-medium uppercase tracking-wide text-muted xl:inline"
+        className="max-w-[10rem] shrink-0 truncate pto-t-sm font-medium text-text sm:max-w-[18rem] xl:max-w-[26rem]"
         title={projectName}
       >
         {projectName}

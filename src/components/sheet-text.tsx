@@ -14,6 +14,16 @@ import { findQuoteRanges, type FocusHighlightState } from "@/lib/highlight-text"
 /** Какие разделы инженер сам открыл. Ключ — текст листа, чтобы возврат на него не сбрасывал. */
 const openedBySheet = new Map<string, Record<string, boolean>>();
 
+function firstOpenSection(
+  sections: { id: string; title: string; service?: boolean }[],
+): Record<string, boolean> {
+  const pick =
+    sections.find((section) => /описание/i.test(section.title)) ??
+    sections.find((section) => section.title && !section.service) ??
+    sections.find((section) => section.title);
+  return pick ? { [pick.id]: true } : {};
+}
+
 type SheetTextProps = {
   markdown: string;
   /** Лист-таблица: режем на секции, но тело секции рендерим одним куском. */
@@ -61,11 +71,13 @@ export function SheetText({
   }, [sections]);
 
   const [open, setOpen] = useState<Record<string, boolean>>(
-    () => openedBySheet.get(markdown) ?? {},
+    () => openedBySheet.get(markdown) ?? firstOpenSection(sections),
   );
-  // Другой лист подставляет свой набор. Пустой набор — все разделы свёрнуты.
+  // Другой лист: своё состояние или первый содержательный раздел, чтобы справа не было пусто.
   useEffect(() => {
-    setOpen(openedBySheet.get(markdown) ?? {});
+    setOpen(openedBySheet.get(markdown) ?? firstOpenSection(sections));
+    // sections пересчитаны из markdown в этом же рендере.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [markdown]);
 
   /**

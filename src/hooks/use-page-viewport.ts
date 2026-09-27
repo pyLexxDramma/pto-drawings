@@ -394,27 +394,56 @@ export function usePageViewport({
   ]);
 
   // Первый заход на лист: «по ширине» на крупном формате мельче порога
-  // читаемости. Поднимаем «Читаемо» сами и запоминаем для следующих листов.
+  // читаемости. Поднимаем «Читаемо» сами. Если лист всё равно мельче 50%,
+  // ставим пол 80% — иначе план открывается почтовой маркой.
   useEffect(() => {
-    if (!ready || restoredRef.current || legibleTextPx <= 0) return;
+    if (!ready || restoredRef.current) return;
+    if (panToHighlight && highlightNonce && highlightRegion) return;
     const preferred =
       (viewCacheKey ? getDocumentView(viewCacheKey)?.preferredFit : undefined) ??
       preferredFitRef.current;
-    if (preferred) return;
+    if (preferred === "page" || preferred === "width") return;
     const wrap = wrapRef.current;
     if (!wrap || wrap.clientWidth < 8) return;
     const widthScale = computeFitScale(wrap, natural, "width", minScale);
-    const legible = computeFitScale(
-      wrap,
-      natural,
+    const legible =
+      legibleTextPx > 0
+        ? computeFitScale(wrap, natural, "legible", minScale, legibleTextPx, widestLinePx)
+        : widthScale;
+    const target =
+      widthScale < 0.5 ? Math.max(legible, 0.8) : !preferred && legible > widthScale * 1.15 ? legible : widthScale;
+    if (target <= widthScale * 1.05) return;
+    if (scaleRef.current > widthScale * 1.15 && scaleRef.current + 0.04 >= Math.min(target, 0.8)) return;
+    const n = naturalRef.current;
+    const contentW = n.w * target;
+    const contentH = n.h * target;
+    applyView(
+      target,
+      clampPan(
+        { x: (wrap.clientWidth - contentW) / 2, y: 0 },
+        {
+          viewW: wrap.clientWidth,
+          viewH: wrap.clientHeight,
+          contentW,
+          contentH,
+        },
+      ),
       "legible",
-      minScale,
-      legibleTextPx,
-      widestLinePx,
     );
-    if (legible <= widthScale * 1.15) return;
-    fit("legible");
-  }, [fit, legibleTextPx, widestLinePx, minScale, natural, pageNumber, ready, viewCacheKey, wrapRef]);
+  }, [
+    applyView,
+    highlightNonce,
+    highlightRegion,
+    legibleTextPx,
+    minScale,
+    natural,
+    pageNumber,
+    panToHighlight,
+    ready,
+    viewCacheKey,
+    widestLinePx,
+    wrapRef,
+  ]);
 
   // Размер подписей приходит после первой отрисовки листа (текстовый слой PDF,
   // геометрия DWG) — «читаемый» масштаб пересчитываем, когда он появился.

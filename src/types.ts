@@ -267,17 +267,22 @@ export const REVIEW_ORIGIN_LABEL: Record<ReviewOrigin, string> = {
   both: "ИИ и инженер",
 };
 
-/** Кто написал замечание: ИИ, инженер или оба. Имя — если оно есть. */
+/**
+ * Кто написал замечание. «ИИ» — только конвейер (origin ai).
+ * Учётка с таким же именем не должна совпадать с этой подписью:
+ * иначе колонка и счётчик «ИИ» считают разное.
+ */
 export function reviewAuthor(review: {
   origin: ReviewOrigin;
   authorName?: string | null;
 }): string {
   if (review.origin === "ai") return REVIEW_ORIGIN_LABEL.ai;
   const name = review.authorName?.trim();
+  const person = !name || name === "ИИ" ? null : name;
   if (review.origin === "both") {
-    return name ? `ИИ и ${name}` : REVIEW_ORIGIN_LABEL.both;
+    return person ? `ИИ и ${person}` : REVIEW_ORIGIN_LABEL.both;
   }
-  return name || REVIEW_ORIGIN_LABEL.engineer;
+  return person ?? "Инженер";
 }
 
 /** Порядок в таблице: сначала без важности (надо проставить), затем по силе. */

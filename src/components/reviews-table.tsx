@@ -726,17 +726,27 @@ export function ReviewsTable({
           </button>
         ) : null}
         <div
-          className="min-w-0 truncate pto-t-md tabular-nums leading-tight"
+          className="flex min-w-0 items-center gap-1.5 pto-t-md tabular-nums leading-tight"
           title={
             loading
               ? projectName
               : `${projectName}: ${stats.total} всего, ${stats.pending} не разобрано, выс. ${stats.high}, в выгрузку ${stats.exportable}, ИИ ${stats.ai}, инж. ${stats.engineer}`
           }
         >
-          <span className="font-semibold text-text">
+          <span className="min-w-0 truncate font-semibold text-text">
             Замечания · {projectName}
           </span>
-          {loading ? <span className="text-muted"> · загрузка…</span> : null}
+          {loading ? <span className="shrink-0 text-muted"> · загрузка…</span> : null}
+          <span
+            className="inline-flex shrink-0 items-center rounded border border-slate-300 bg-white px-1.5 py-0.5 pto-t-sm font-medium text-slate-700"
+            title={
+              currentDocumentId && !fileScopeOff
+                ? "В таблице замечания открытого файла, все его листы. Полоса на чертеже — только текущий лист."
+                : "В таблице замечания всего проекта. Полоса на чертеже — только текущий лист."
+            }
+          >
+            {currentDocumentId && !fileScopeOff ? "этот файл" : "весь проект"}
+          </span>
         </div>
 
         <div className="ml-auto flex shrink-0 items-center gap-1.5">
@@ -766,14 +776,18 @@ export function ReviewsTable({
               Отменить
             </button>
           ) : null}
-          {currentDocumentId && fileScopeOff ? (
+          {currentDocumentId ? (
             <button
               type="button"
-              onClick={() => setFileScopeOff(false)}
+              onClick={() => setFileScopeOff((value) => !value)}
               className="whitespace-nowrap rounded-md border border-slate-300 bg-white px-2 py-0.5 pto-t-md font-semibold leading-none text-slate-800 hover:bg-slate-50"
-              title="Снова только замечания открытого файла"
+              title={
+                fileScopeOff
+                  ? "Снова только замечания открытого файла"
+                  : "Показать замечания всего проекта"
+              }
             >
-              Снова этот файл
+              {fileScopeOff ? "Этот файл" : "Весь проект"}
             </button>
           ) : null}
           <input
@@ -1758,7 +1772,7 @@ function ReviewRow({
       onClick={onActivate}
       // Строка переезжает при смене важности и разбора — тестам нужна опора на id.
       data-review-id={review.id}
-      className={`align-top bg-white ${
+      className={`group align-top bg-white ${
         review.severity === "skip" ? "opacity-60" : ""
       } ${
         active ? "outline outline-2 -outline-offset-2 outline-accent" : ""
@@ -1881,13 +1895,13 @@ function ReviewRow({
             }}
             data-comment-toggle=""
             title={review.comment || "Добавить заметку проверяющего"}
-            className={`w-full truncate rounded border border-dashed px-1.5 py-1 text-left pto-t-md ${
+            className={`w-full truncate rounded px-1.5 py-1 text-left pto-t-md ${
               review.comment
-                ? "border-slate-300 bg-white text-text hover:border-accent"
-                : "border-slate-300 text-muted hover:border-accent hover:text-accent"
+                ? "border border-dashed border-slate-300 bg-white text-text hover:border-accent"
+                : "border border-transparent text-muted opacity-100 focus:opacity-100 sm:opacity-0 sm:focus:opacity-100 sm:group-hover:opacity-100"
             }`}
           >
-            {review.comment || "+ заметка"}
+            {review.comment || "заметка"}
           </button>
         )}
         {/* Заметка сохраняется только по кнопке: раньше она уходила молча по
@@ -1939,6 +1953,13 @@ function ReviewRow({
       <td className={CELL}>
         <span className="inline-flex items-center gap-1">
           <span
+            title={
+              review.origin === "ai"
+                ? "Нашёл конвейер"
+                : review.origin === "both"
+                  ? "Конвейер и человек"
+                  : "Написал человек, не конвейер"
+            }
             className={`inline-block rounded border px-1.5 py-0.5 pto-t-sm font-medium ${
               ORIGIN_CHIP[review.origin]
             }`}

@@ -76,7 +76,7 @@ export function PageReviewsBar({
             className="h-1.5 w-1.5 shrink-0 rounded-full bg-sem-issue"
             aria-hidden
           />
-          <span className="shrink-0">Замечаний по листу: {reviews.length}</span>
+          <span className="shrink-0">Этот лист · {reviews.length}</span>
           {!open && activeReview ? (
             <span className="min-w-0 truncate font-normal opacity-70">
               · № {activeReview.number}{" "}

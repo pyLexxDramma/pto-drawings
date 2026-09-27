@@ -155,6 +155,17 @@ function jobLiveProcessing(doc: DocumentRecord) {
   );
 }
 
+function useStackedPanes() {
+  const [stacked, setStacked] = useState(false);
+  useEffect(() => {
+    const apply = () => setStacked(window.innerWidth < 760);
+    apply();
+    window.addEventListener("resize", apply);
+    return () => window.removeEventListener("resize", apply);
+  }, []);
+  return stacked;
+}
+
 function sameRect(a?: AnnotationRect | null, b?: AnnotationRect | null) {
   if (!a || !b) return false;
   return a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
@@ -211,6 +222,7 @@ export function ReviewPane({
       typeof window === "undefined" ? 1920 : window.innerWidth,
     ),
   );
+  const stacked = useStackedPanes();
   const [query, setQuery] = useState("");
   const [showLog, setShowLog] = useState(false);
   const [filter, setFilter] = useState<KindFilter>("all");
@@ -1534,11 +1546,17 @@ export function ReviewPane({
             )
           : null}
 
-        <div className="flex min-h-0 min-w-0 flex-1">
+        <div className={`flex min-h-0 min-w-0 flex-1 ${stacked && paneSolo === null ? "flex-col" : ""}`}>
           {paneSolo !== "md" ? (
             <div
-              className="relative h-full min-h-0 min-w-0 overflow-hidden"
-              style={{ width: paneSolo === "pdf" ? "100%" : `${split}%` }}
+              className="relative min-h-0 min-w-0 overflow-hidden"
+              style={
+                paneSolo === "pdf"
+                  ? { width: "100%", height: "100%" }
+                  : stacked
+                    ? { width: "100%", height: "52%", flex: "0 0 52%" }
+                    : { width: `${split}%`, height: "100%" }
+              }
             >
               {quoteMiss ? (
                 // Выше строки состояния: на её уровне плашка обрезалась, и
@@ -1763,7 +1781,7 @@ export function ReviewPane({
             </button>
           ) : null}
 
-          {paneSolo === null ? (
+          {paneSolo === null && !stacked ? (
             <div
               role="separator"
               data-split-handle=""
