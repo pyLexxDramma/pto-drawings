@@ -410,8 +410,10 @@ export function usePageViewport({
       legibleTextPx > 0
         ? computeFitScale(wrap, natural, "legible", minScale, legibleTextPx, widestLinePx)
         : widthScale;
-    const target =
+    const lifted =
       widthScale < 0.5 ? Math.max(legible, 0.8) : !preferred && legible > widthScale * 1.15 ? legible : widthScale;
+    // «Читаемо» на огромном плане уезжает за 200% и оставляет угол листа.
+    const target = widthScale < 0.5 ? Math.min(lifted, 1) : lifted;
     if (target <= widthScale * 1.05) return;
     if (scaleRef.current > widthScale * 1.15 && scaleRef.current + 0.04 >= Math.min(target, 0.8)) return;
     const n = naturalRef.current;
