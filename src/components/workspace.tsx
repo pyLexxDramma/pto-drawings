@@ -1897,9 +1897,9 @@ export function Workspace({
       title="На предыдущий экран"
       aria-label="Назад"
       data-nav-back=""
-      className="inline-flex w-full items-center justify-center gap-1.5 rounded-md border border-accent bg-accent px-2 py-1.5 pto-t-sm font-semibold text-white shadow-sm hover:bg-[#1d4ed8]"
+      className="inline-flex w-fit items-center gap-0.5 rounded border border-emerald-600 bg-emerald-100 px-1.5 py-0.5 text-[9px] font-semibold leading-none text-emerald-950 hover:bg-emerald-200"
     >
-      <IconBack className="h-3.5 w-3.5" />
+      <IconBack className="h-2.5 w-2.5" />
       назад
     </button>
   ) : null;
@@ -1994,7 +1994,7 @@ export function Workspace({
       />
 
       <header className="sticky top-0 z-30 flex shrink-0 items-center gap-1.5 border-b border-border bg-surface px-2 py-0.5 sm:px-3">
-          <div className="flex w-[7.25rem] shrink-0 flex-col items-stretch gap-0.5 sm:w-[8.5rem]">
+          <div className="flex w-auto shrink-0 flex-col items-start gap-0.5 pr-1">
             <button
               type="button"
               onClick={openProjectsList}
@@ -2007,7 +2007,7 @@ export function Workspace({
                 <div className="text-xs font-semibold leading-none tracking-tight">PTO</div>
               </div>
             </button>
-            {focusMode || showReviews || projectsCollapsed ? navBackButton : null}
+            {navBackButton}
           </div>
           {currentProject ? (
             <ProjectStagesBar
@@ -2178,11 +2178,6 @@ export function Workspace({
             className="flex min-h-0 shrink-0 flex-col bg-surface"
             style={{ width: projectsWidth, maxWidth: "100%" }}
           >
-            {navBackButton ? (
-              <div className="shrink-0 border-b border-border bg-surface px-1.5 py-1.5">
-                {navBackButton}
-              </div>
-            ) : null}
             <div className="flex items-start gap-1 border-b-2 border-slate-300 bg-slate-200 px-2 py-1.5">
               <div className="min-w-0 flex-1">
               {showNewProject || projects.length === 0 ? (
