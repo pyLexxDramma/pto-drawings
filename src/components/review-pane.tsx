@@ -1863,24 +1863,6 @@ export function ReviewPane({
                   </div>
                 </div>
               ) : null}
-              {paneSolo === "pdf" ? (
-                <div className="absolute left-2 top-12 z-30 flex max-w-xl flex-col gap-1.5">
-                  <div className="flex flex-nowrap items-center gap-1.5 rounded-md border border-border bg-white/95 px-1.5 py-1 shadow-sm">
-                    {sheetToolButtons}
-                    {aiQueueEntry}
-                  </div>
-                  {aiQueueCard ? (
-                    <div className="overflow-hidden rounded-md border border-border bg-white/95 shadow-sm">
-                      {aiQueueCard}
-                    </div>
-                  ) : null}
-                  {pageReviewsBar ? (
-                    <div className="overflow-hidden rounded-md border border-border bg-white/95 shadow-sm">
-                      {pageReviewsBar}
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
               {hasKitDrawing && kitDrawingView === "cad" && kitCadDoc ? (
                 <CadPage
                   documentId={kitCadDoc.id}
