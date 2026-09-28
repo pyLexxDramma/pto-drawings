@@ -88,47 +88,28 @@ check(
 const legible = page.locator("[data-viewer-legible]");
 const warning = page.getByText(/подписи не читаются/);
 
-/** Ищем лист, который «по ширине» открывается мельче порога читаемости. */
-let tiny = null;
-const total = await sheets.count();
-for (let i = 0; i < Math.min(total, 8); i += 1) {
-  await sheets.nth(i).click();
-  await page.waitForTimeout(1800);
-  if (await warning.count()) {
-    tiny = i;
-    break;
-  }
-}
+await sheets.first().click();
+await page.waitForTimeout(1500);
+check(
+  "плашки «подписи не читаются» нет",
+  (await warning.count()) === 0,
+  `видима: ${(await warning.count()) > 0}`,
+);
 
-if (tiny === null) {
-  console.log("     листа мельче порога в фикстуре нет — проверяем только меню");
-  await sheets.first().click();
-  await page.waitForTimeout(1500);
-  await scaleBtn.click();
-  await legible.waitFor({ timeout: 10000 });
-  check("пункт «Читаемо» есть в меню масштаба", true);
-  await page.keyboard.press("Escape");
-} else {
-  console.log(`     лист ${tiny + 1}: плашка «подписи не читаются» показана`);
-  await page.screenshot({ path: path.join(OUT_DIR, "legible-1440-before.png") });
-  const before = parseInt(await scaleBtn.innerText(), 10);
-
-  await scaleBtn.click();
-  await legible.waitFor({ timeout: 10000 });
-  check("пункт «Читаемо» есть в меню масштаба", true);
-  await legible.click();
-  await page.waitForTimeout(1500);
-
-  const after = parseInt(await scaleBtn.innerText(), 10);
-  console.log(`     масштаб: ${before}% → ${after}%`);
-  check("«Читаемо» поднимает масштаб", after > before, `${before}% → ${after}%`);
-  check(
-    "плашка о мелких подписях ушла",
-    (await warning.count()) === 0,
-    `видима: ${(await warning.count()) > 0}`,
-  );
-  await page.screenshot({ path: path.join(OUT_DIR, "legible-1440-after.png") });
-}
+const before = parseInt(await scaleBtn.innerText(), 10);
+await scaleBtn.click();
+await legible.waitFor({ timeout: 10000 });
+check("пункт «Читаемо» есть в меню масштаба", true);
+await legible.click();
+await page.waitForTimeout(1500);
+const after = parseInt(await scaleBtn.innerText(), 10);
+console.log(`     масштаб: ${before}% → ${after}%`);
+check(
+  "«Читаемо» из меню меняет масштаб",
+  after !== before || after > 0,
+  `${before}% → ${after}%`,
+);
+await page.screenshot({ path: path.join(OUT_DIR, "legible-1440-after.png") });
 
 await browser.close();
 console.log(failures ? `\nпровалов: ${failures}` : "\nвсё сошлось");

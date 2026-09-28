@@ -11,7 +11,7 @@ import { HighlightLegend } from "@/components/highlight-legend";
 import { VIEWER_MOUSE_HINT } from "@/components/viewer-hint";
 import { ViewerStatusBar } from "@/components/viewer-status-bar";
 import { ViewerSheetControls, ViewerToolbar } from "@/components/viewer-toolbar";
-import { LEGIBLE_MIN_PX, usePageViewport } from "@/hooks/use-page-viewport";
+import { usePageViewport } from "@/hooks/use-page-viewport";
 import { useSearchHitFocus } from "@/hooks/use-search-hit-focus";
 import {
   regionAtPoint,
@@ -227,16 +227,6 @@ export function PdfPage({
     auto: !remarkFocus,
     zoomToRect: viewport.zoomToRect,
   });
-  // А1 «по ширине» — это 13% и подписи в 2px. Пока лист открыт мельче порога,
-  // предлагаем перейти на читаемый масштаб.
-  const legibleWarning =
-    ready &&
-    viewport.textOnScreenPx > 0 &&
-    viewport.textOnScreenPx < LEGIBLE_MIN_PX &&
-    viewport.legibleScale > viewport.scale * 1.15
-      ? `${Math.round(viewport.scale * 100)}% — подписи не читаются`
-      : null;
-
   useEffect(() => {
     let cancelled = false;
     let renderTask: { cancel: () => void; promise: Promise<unknown> } | null = null;
@@ -771,8 +761,6 @@ export function PdfPage({
           />
         }
         hint={hintOn ? VIEWER_MOUSE_HINT : null}
-        legibleWarning={legibleWarning}
-        onLegible={() => viewport.fit("legible")}
         onDismissHint={() => {
           saveViewerPrefs({ ...loadViewerPrefs(), hintDismissed: true });
           setHintOn(false);

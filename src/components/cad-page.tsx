@@ -13,7 +13,7 @@ import { Spinner } from "@/components/ui-chrome";
 import { VIEWER_MOUSE_HINT } from "@/components/viewer-hint";
 import { ViewerStatusBar } from "@/components/viewer-status-bar";
 import { ViewerSheetControls, ViewerToolbar } from "@/components/viewer-toolbar";
-import { LEGIBLE_MIN_PX, usePageViewport } from "@/hooks/use-page-viewport";
+import { usePageViewport } from "@/hooks/use-page-viewport";
 import { useSearchHitFocus } from "@/hooks/use-search-hit-focus";
 import {
   bboxSize,
@@ -226,16 +226,6 @@ export function CadPage({
     auto: !remarkFocus,
     zoomToRect: viewport.zoomToRect,
   });
-  // Лист А1 «по ширине» даёт 13%: подписи в 2px не читаются. Пока масштаб ниже
-  // порога, предлагаем перейти на читаемый.
-  const legibleWarning =
-    ready &&
-    viewport.textOnScreenPx > 0 &&
-    viewport.textOnScreenPx < LEGIBLE_MIN_PX &&
-    viewport.legibleScale > viewport.scale * 1.15
-      ? `${Math.round(viewport.scale * 100)}% — подписи не читаются`
-      : null;
-
   useEffect(() => {
     let cancelled = false;
     let objectUrl: string | null = null;
@@ -802,8 +792,6 @@ export function CadPage({
           ) : null
         }
         hint={hintOn ? VIEWER_MOUSE_HINT : null}
-        legibleWarning={legibleWarning}
-        onLegible={() => viewport.fit("legible")}
         onDismissHint={() => {
           saveViewerPrefs({ ...loadViewerPrefs(), hintDismissed: true });
           setHintOn(false);

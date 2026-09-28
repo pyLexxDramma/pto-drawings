@@ -386,9 +386,9 @@ export function usePageViewport({
     const preferred =
       (viewCacheKey ? getDocumentView(viewCacheKey)?.preferredFit : undefined) ??
       preferredFitRef.current;
-    // Без своего вида — последний выбранный масштаб. Иначе каждый лист
-    // открывался «по ширине»: на А1 это 20%, и подписи не читаются.
-    fit(preferred ?? "width", { remember: false });
+    // Без своего вида — весь лист в кадре. Раньше поднимали «Читаемо» сами
+    // и на А1 оставался угол; инженер сначала хочет видеть лист целиком.
+    fit(preferred ?? "page", { remember: false });
   }, [
     applyView,
     fit,
@@ -401,60 +401,6 @@ export function usePageViewport({
     panToHighlight,
     ready,
     viewCacheKey,
-    wrapRef,
-  ]);
-
-  // Первый заход на лист: «по ширине» на крупном формате мельче порога
-  // читаемости. Поднимаем «Читаемо» сами. Если лист всё равно мельче 50%,
-  // ставим пол 80% — иначе план открывается почтовой маркой.
-  useEffect(() => {
-    if (!ready || restoredRef.current) return;
-    if (panToHighlight && highlightNonce && highlightRegion) return;
-    const preferred =
-      (viewCacheKey ? getDocumentView(viewCacheKey)?.preferredFit : undefined) ??
-      preferredFitRef.current;
-    if (preferred === "page" || preferred === "width") return;
-    const wrap = wrapRef.current;
-    if (!wrap || wrap.clientWidth < 8) return;
-    const widthScale = computeFitScale(wrap, natural, "width", minScale);
-    const legible =
-      legibleTextPx > 0
-        ? computeFitScale(wrap, natural, "legible", minScale, legibleTextPx, widestLinePx)
-        : widthScale;
-    const lifted =
-      widthScale < 0.5 ? Math.max(legible, 0.8) : !preferred && legible > widthScale * 1.15 ? legible : widthScale;
-    // «Читаемо» на огромном плане уезжает за 200% и оставляет угол листа.
-    const target = widthScale < 0.5 ? Math.min(lifted, 1) : lifted;
-    if (target <= widthScale * 1.05) return;
-    if (scaleRef.current > widthScale * 1.15 && scaleRef.current + 0.04 >= Math.min(target, 0.8)) return;
-    const n = naturalRef.current;
-    const contentW = n.w * target;
-    const contentH = n.h * target;
-    applyView(
-      target,
-      clampPan(
-        { x: (wrap.clientWidth - contentW) / 2, y: 0 },
-        {
-          viewW: wrap.clientWidth,
-          viewH: wrap.clientHeight,
-          contentW,
-          contentH,
-        },
-      ),
-      "legible",
-    );
-  }, [
-    applyView,
-    highlightNonce,
-    highlightRegion,
-    legibleTextPx,
-    minScale,
-    natural,
-    pageNumber,
-    panToHighlight,
-    ready,
-    viewCacheKey,
-    widestLinePx,
     wrapRef,
   ]);
 
