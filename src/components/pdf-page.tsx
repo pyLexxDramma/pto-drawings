@@ -756,7 +756,6 @@ export function PdfPage({
       <ViewerStatusBar
         legend={
           <HighlightLegend
-            alt={highlightRegions.length > 0}
             find={!remarkFocus && searchHits.length > 0}
           />
         }
