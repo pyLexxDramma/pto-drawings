@@ -570,6 +570,16 @@ export function ReviewPane({
     setTextHitFound(null);
     setPageReviewsOpen(true);
   }
+  /** Пин на развёрнутом чертеже возвращает обычный вид и открывает эту ошибку в расшифровке. */
+  function openRemarkFromPin(reviewId: string) {
+    const review = pageReviews.find((item) => item.id === reviewId);
+    if (!review) return;
+    if (focusMode || paneSolo === "pdf") {
+      exitSheetOnly();
+      setSidePanel("text");
+    }
+    focusReviewOnSheet(review);
+  }
   function selectFileReview(review: Review) {
     const location =
       review.locations.find((item) => item.documentId === document.id) ??
@@ -1894,10 +1904,7 @@ export function ReviewPane({
                   highlightRegions={extraHighlightRegions}
                   highlightSeverity={highlightSeverity}
                   remarkPins={remarkPins}
-                  onSelectRemarkPin={(id) => {
-                    const review = pageReviews.find((item) => item.id === id);
-                    if (review) focusReviewOnSheet(review);
-                  }}
+                  onSelectRemarkPin={openRemarkFromPin}
                   panToHighlight={focusDrawing}
                   remarkFocus={focusDrawing}
                   highlightNonce={focusNonce}
@@ -1924,10 +1931,7 @@ export function ReviewPane({
                   highlightRegions={extraHighlightRegions}
                   highlightSeverity={highlightSeverity}
                   remarkPins={remarkPins}
-                  onSelectRemarkPin={(id) => {
-                    const review = pageReviews.find((item) => item.id === id);
-                    if (review) focusReviewOnSheet(review);
-                  }}
+                  onSelectRemarkPin={openRemarkFromPin}
                   panToHighlight={focusDrawing}
                   remarkFocus={focusDrawing}
                   highlightNonce={focusNonce}
@@ -1953,10 +1957,7 @@ export function ReviewPane({
                   highlightRegions={extraHighlightRegions}
                   highlightSeverity={highlightSeverity}
                   remarkPins={remarkPins}
-                  onSelectRemarkPin={(id) => {
-                    const review = pageReviews.find((item) => item.id === id);
-                    if (review) focusReviewOnSheet(review);
-                  }}
+                  onSelectRemarkPin={openRemarkFromPin}
                   panToHighlight={focusDrawing}
                   remarkFocus={focusDrawing}
                   highlightNonce={focusNonce}
@@ -1990,10 +1991,7 @@ export function ReviewPane({
                   highlightRegions={extraHighlightRegions}
                   highlightSeverity={highlightSeverity}
                   remarkPins={remarkPins}
-                  onSelectRemarkPin={(id) => {
-                    const review = pageReviews.find((item) => item.id === id);
-                    if (review) focusReviewOnSheet(review);
-                  }}
+                  onSelectRemarkPin={openRemarkFromPin}
                   panToHighlight={focusDrawing}
                   remarkFocus={focusDrawing}
                   highlightNonce={focusNonce}
