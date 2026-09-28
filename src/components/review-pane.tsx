@@ -480,6 +480,14 @@ export function ReviewPane({
         .sort((a, b) => a.number - b.number),
     [reviews],
   );
+  /** Все находки ИИ по номеру, включая уже разобранные: иначе первая не открывается. */
+  const aiReviews = useMemo(
+    () =>
+      reviews
+        .filter((review) => review.origin === "ai" && review.severity !== "skip")
+        .sort((a, b) => a.number - b.number),
+    [reviews],
+  );
   const pendingSheetCount = useMemo(
     () => pageReviews.filter((review) => review.verdict === "pending").length,
     [pageReviews],
@@ -495,12 +503,9 @@ export function ReviewPane({
   const aiQueueIndex = aiPendingReviews.findIndex(
     (review) => review.id === activeReviewId,
   );
-  const activeAiReview =
-    aiQueueIndex >= 0 ? aiPendingReviews[aiQueueIndex] : null;
-  const canPrevAi = aiPendingReviews.length > 0 && aiQueueIndex > 0;
-  const canNextAi =
-    aiPendingReviews.length > 0 &&
-    (aiQueueIndex < 0 || aiQueueIndex < aiPendingReviews.length - 1);
+  const aiWalkIndex = aiReviews.findIndex((review) => review.id === activeReviewId);
+  const canPrevAi = aiWalkIndex > 0;
+  const canNextAi = aiWalkIndex >= 0 && aiWalkIndex < aiReviews.length - 1;
   // На миниатюре — сколько замечаний на листе, цвет по разбору: важность у них
   // разная, и одна точка «средняя» вводила в заблуждение (созвон 18.09).
   const pageDots = useMemo(() => {
@@ -605,12 +610,10 @@ export function ReviewPane({
     if (next) selectFileReview(next);
   }
   function stepAiQueue(dir: 1 | -1) {
-    if (!aiPendingReviews.length) return;
-    let index = aiPendingReviews.findIndex(
-      (review) => review.id === activeReviewId,
-    );
+    if (!aiReviews.length) return;
+    let index = aiReviews.findIndex((review) => review.id === activeReviewId);
     if (index < 0) index = dir > 0 ? -1 : 0;
-    const next = aiPendingReviews[index + dir];
+    const next = aiReviews[index + dir];
     if (next) selectAiReview(next);
   }
   function stepSheetReview(dir: 1 | -1) {
@@ -633,10 +636,8 @@ export function ReviewPane({
       listBeforeAiRef.current = pageReviewsOpen;
     }
     setAiQueueOn(true);
-    const current =
-      aiPendingReviews.find((review) => review.id === activeReviewId) ??
-      aiPendingReviews[0];
-    if (current) selectAiReview(current);
+    const first = aiReviews[0];
+    if (first) selectAiReview(first);
   }
   function advanceAfterVerdict(reviewId: string, fromAiQueue: boolean) {
     const currentNumber =
@@ -1248,33 +1249,36 @@ export function ReviewPane({
     />
   ) : null;
 
-  const aiQueueCard =
-    aiQueueOn && activeAiReview ? (
-      <AiReviewQueueCard
-        review={activeAiReview}
-        index={Math.max(0, aiQueueIndex)}
-        total={aiPendingReviews.length}
-        busy={aiQueueBusy}
-        onPrev={() => stepAiQueue(-1)}
-        onNext={() => stepAiQueue(1)}
-        canPrev={canPrevAi}
-        canNext={canNextAi}
-        onAccept={() => {
-          void patchReview(activeAiReview.id, { verdict: "confirmed" });
-        }}
-        onWrong={(reason) => {
-          void patchReview(activeAiReview.id, {
-            verdict: "wrong",
-            wrongReason: reason,
-          });
-        }}
-        onEdit={() => {
-          closeAiQueue();
-          onOpenReviews?.(activeAiReview.id);
-        }}
-        onClose={closeAiQueue}
-      />
-    ) : null;
+  const queueReview =
+    aiQueueOn && activeReviewId
+      ? (reviews.find((review) => review.id === activeReviewId) ?? null)
+      : null;
+  const aiQueueCard = queueReview ? (
+    <AiReviewQueueCard
+      review={queueReview}
+      index={aiQueueIndex}
+      total={aiPendingReviews.length}
+      busy={aiQueueBusy}
+      onPrev={() => stepAiQueue(-1)}
+      onNext={() => stepAiQueue(1)}
+      canPrev={canPrevAi}
+      canNext={canNextAi}
+      onAccept={() => {
+        void patchReview(queueReview.id, { verdict: "confirmed" });
+      }}
+      onWrong={(reason) => {
+        void patchReview(queueReview.id, {
+          verdict: "wrong",
+          wrongReason: reason,
+        });
+      }}
+      onEdit={() => {
+        closeAiQueue();
+        onOpenReviews?.(queueReview.id);
+      }}
+      onClose={closeAiQueue}
+    />
+  ) : null;
 
   const aiQueueEntry =
     !aiQueueOn && aiPendingReviews.length > 0 ? (
@@ -1289,10 +1293,10 @@ export function ReviewPane({
   }, [aiQueueOn, aiPendingReviews.length]);
 
   useEffect(() => {
-    if (!aiQueueOn || activeAiReview || !aiPendingReviews[0]) return;
-    selectAiReview(aiPendingReviews[0]);
+    if (!aiQueueOn || activeReviewId || !aiReviews[0]) return;
+    selectAiReview(aiReviews[0]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aiQueueOn, activeAiReview, aiPendingReviews]);
+  }, [aiQueueOn, activeReviewId, aiReviews]);
 
   // Стрелку рисует сама кнопка иконкой, в подписи остаётся только назначение.
   const backLabel = markMode || pendingRect
@@ -1395,7 +1399,7 @@ export function ReviewPane({
       }
 
       if (event.key === "ArrowUp" || event.key === "ArrowDown") {
-        if (aiQueueOn && aiPendingReviews.length > 0) {
+        if (aiQueueOn && aiReviews.length > 0) {
           event.preventDefault();
           stepAiQueue(event.key === "ArrowDown" ? 1 : -1);
           return;
@@ -1444,7 +1448,7 @@ export function ReviewPane({
     searchOpen,
     readOnly,
     pendingFileReviews,
-    aiPendingReviews,
+    aiReviews,
     aiQueueOn,
     activeReviewId,
     isOfficeSource,

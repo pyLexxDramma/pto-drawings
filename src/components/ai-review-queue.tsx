@@ -69,9 +69,11 @@ export function AiReviewQueueCard({
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-baseline gap-x-2">
             <span className="shrink-0 font-semibold text-text">Разбор ИИ</span>
-            <span className="shrink-0 tabular-nums text-muted">
-              {index + 1} из {total}
-            </span>
+            {index >= 0 ? (
+              <span className="shrink-0 tabular-nums text-muted">
+                {index + 1} из {total}
+              </span>
+            ) : null}
             <span className="shrink-0 font-semibold tabular-nums">
               № {review.number}
             </span>
