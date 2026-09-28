@@ -1,6 +1,6 @@
 "use client";
 
-import { IconBack, IconSearch } from "@/components/tool-icons";
+import { IconBack, IconMark, IconSearch } from "@/components/tool-icons";
 
 const BTN =
   "pto-tool pto-tool--slim inline-flex items-center justify-center rounded border border-slate-400 bg-slate-100 text-slate-800 hover:bg-slate-200";
@@ -22,6 +22,9 @@ export function SheetToolbar({
   onUndo,
   undoBusy = false,
   showBack = true,
+  markMode = false,
+  onToggleMark,
+  markCount = 0,
 }: {
   searchOpen: boolean;
   readOnly: boolean;
@@ -33,6 +36,9 @@ export function SheetToolbar({
   undoBusy?: boolean;
   /** false — кнопку рисует панель чертежа слева, не шапка расшифровки. */
   showBack?: boolean;
+  markMode?: boolean;
+  onToggleMark?: () => void;
+  markCount?: number;
 }) {
   return (
     <>
@@ -56,6 +62,39 @@ export function SheetToolbar({
       >
         <IconSearch className="h-3 w-3" />
       </button>
+      {onToggleMark ? (
+        <button
+          type="button"
+          title={
+            markMode
+              ? "Отменить разметку (Esc / E)"
+              : markCount > 0
+                ? `Отметить ошибку — обвести место на чертеже (E), пометок: ${markCount}`
+                : "Отметить ошибку — обвести место на чертеже (E)"
+          }
+          aria-label={
+            markMode
+              ? "Отменить разметку"
+              : markCount > 0
+                ? `Отметить ошибку, пометок: ${markCount}`
+                : "Отметить ошибку"
+          }
+          aria-pressed={markMode}
+          onClick={() => onToggleMark()}
+          className={`pto-tool pto-tool--slim relative inline-flex w-6 items-center justify-center rounded border ${
+            markMode
+              ? "border-rose-700 bg-rose-100 text-rose-950"
+              : "border-rose-500 bg-rose-50 text-rose-800 hover:bg-rose-100"
+          }`}
+        >
+          <IconMark className="h-3 w-3" />
+          {markCount > 0 && !markMode ? (
+            <span className="absolute -right-1 -top-1 min-w-3 rounded-full bg-rose-700 px-0.5 text-center text-[8px] font-bold leading-3 text-white">
+              {markCount}
+            </span>
+          ) : null}
+        </button>
+      ) : null}
       {onUndo ? (
         <button
           type="button"

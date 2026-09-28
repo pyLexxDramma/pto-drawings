@@ -1289,6 +1289,9 @@ export function ReviewPane({
       showBack={false}
       onUndo={canUndoRemark ? onUndoRemark : undefined}
       undoBusy={undoBusy}
+      markMode={markMode}
+      onToggleMark={readOnly ? undefined : toggleMark}
+      markCount={pageNotes.length}
     />
   );
   const collapseSheet = (
@@ -1336,7 +1339,6 @@ export function ReviewPane({
     onNextPage: () => stepVisible(1),
     canPrevPage,
     canNextPage,
-    onToggleFullscreen: isOfficeSource ? undefined : toggleDrawingFullscreen,
     fullscreenActive: paneSolo === "pdf" || focusMode,
   };
 
@@ -1896,8 +1898,6 @@ export function ReviewPane({
                     const review = pageReviews.find((item) => item.id === id);
                     if (review) focusReviewOnSheet(review);
                   }}
-                  onToggleMark={readOnly ? undefined : toggleMark}
-                  markCount={pageNotes.length}
                   panToHighlight={focusDrawing}
                   remarkFocus={focusDrawing}
                   highlightNonce={focusNonce}
@@ -1928,8 +1928,6 @@ export function ReviewPane({
                     const review = pageReviews.find((item) => item.id === id);
                     if (review) focusReviewOnSheet(review);
                   }}
-                  onToggleMark={readOnly ? undefined : toggleMark}
-                  markCount={pageNotes.length}
                   panToHighlight={focusDrawing}
                   remarkFocus={focusDrawing}
                   highlightNonce={focusNonce}
@@ -1959,8 +1957,6 @@ export function ReviewPane({
                     const review = pageReviews.find((item) => item.id === id);
                     if (review) focusReviewOnSheet(review);
                   }}
-                  onToggleMark={readOnly ? undefined : toggleMark}
-                  markCount={pageNotes.length}
                   panToHighlight={focusDrawing}
                   remarkFocus={focusDrawing}
                   highlightNonce={focusNonce}
@@ -1998,8 +1994,6 @@ export function ReviewPane({
                     const review = pageReviews.find((item) => item.id === id);
                     if (review) focusReviewOnSheet(review);
                   }}
-                  onToggleMark={readOnly ? undefined : toggleMark}
-                  markCount={pageNotes.length}
                   panToHighlight={focusDrawing}
                   remarkFocus={focusDrawing}
                   highlightNonce={focusNonce}

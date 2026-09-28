@@ -55,13 +55,10 @@ type PdfPageProps = {
   onMarkRect?: (rect: AnnotationRect) => void;
   onSelectAnnotation?: (id: string) => void;
   onCancelMark?: () => void;
-  onToggleMark?: () => void;
-  markCount?: number;
   onPrevPage?: () => void;
   onNextPage?: () => void;
   canPrevPage?: boolean;
   canNextPage?: boolean;
-  onToggleFullscreen?: () => void;
   fullscreenActive?: boolean;
   /** Переключатель PDF / DWG — внутрь тулбара, а не отдельной плашкой. */
   toolbarLeading?: ReactNode;
@@ -166,13 +163,10 @@ export function PdfPage({
   onMarkRect,
   onSelectAnnotation,
   onCancelMark,
-  onToggleMark,
-  markCount = 0,
   onPrevPage,
   onNextPage,
   canPrevPage = false,
   canNextPage = false,
-  onToggleFullscreen,
   fullscreenActive = false,
   toolbarLeading,
 }: PdfPageProps) {
@@ -783,12 +777,7 @@ export function PdfPage({
       />
 
       <ViewerToolbar
-        onToggleFullscreen={onToggleFullscreen}
-        fullscreenActive={fullscreenActive}
         leading={toolbarLeading}
-        markMode={markMode}
-        onToggleMark={onToggleMark}
-        markCount={markCount}
       />
     </div>
   );
