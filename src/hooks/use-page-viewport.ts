@@ -57,6 +57,7 @@ export function usePageViewport({
   legibleTextPx = 0,
   widestLinePx = 0,
   onUserZoom,
+  fillWidth = false,
 }: {
   wrapRef: RefObject<HTMLDivElement | null>;
   natural: { w: number; h: number };
@@ -74,6 +75,8 @@ export function usePageViewport({
   panToHighlight?: boolean;
   wheelMode?: WheelMode;
   onUserZoom?: () => void;
+  /** «Только лист»: растянуть чертёж по ширине окна, без полей слева и справа. */
+  fillWidth?: boolean;
 }) {
   const panRef = useRef({ x: 0, y: 0 });
   const scaleRef = useRef(1);
@@ -81,6 +84,9 @@ export function usePageViewport({
   const legibleRef = useRef(legibleTextPx);
   const widestRef = useRef(widestLinePx);
   const fitModeRef = useRef<FitMode>("page");
+  const fillWidthRef = useRef(false);
+  fillWidthRef.current = fillWidth;
+  const beforeFillRef = useRef<FitMode | null>(null);
   /** Лист открыт из сохранённого вида — авто-«Читаемо» его не перебивает. */
   const restoredRef = useRef(false);
   const preferredFitRef = useRef<FitMode | null>(
@@ -127,6 +133,7 @@ export function usePageViewport({
 
   const persist = useCallback(
     (page: number, snap: Snap) => {
+      if (fillWidthRef.current) return;
       viewCacheRef.current.set(page, snap);
       if (viewCacheKey) setPageView(viewCacheKey, page, snap);
     },
@@ -438,6 +445,19 @@ export function usePageViewport({
     ro.observe(wrap);
     return () => ro.disconnect();
   }, [fit, pageNumber, ready, wrapRef]);
+
+  useEffect(() => {
+    if (!ready) return;
+    if (fillWidth) {
+      if (beforeFillRef.current === null) beforeFillRef.current = fitModeRef.current;
+      fit("width", { remember: false });
+      return;
+    }
+    if (beforeFillRef.current === null) return;
+    const prev = beforeFillRef.current;
+    beforeFillRef.current = null;
+    fit(prev, { remember: false });
+  }, [fillWidth, fit, pageNumber, ready]);
 
   const zoomToRectRef = useRef(zoomToRect);
   zoomToRectRef.current = zoomToRect;

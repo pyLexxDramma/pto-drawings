@@ -210,6 +210,7 @@ export function CadPage({
     highlightRegion: focusRegion,
     panToHighlight: panToHighlight || remarkFocus,
     wheelMode: "pan",
+    fillWidth: fullscreenActive,
     onUserZoom: () => {
       const next = loadViewerPrefs();
       if (!next.hintDismissed) {

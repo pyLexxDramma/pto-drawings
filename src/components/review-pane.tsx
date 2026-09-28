@@ -24,7 +24,6 @@ import { SheetToolbar } from "@/components/sheet-toolbar";
 import type { RemarkUndo } from "@/lib/remark-undo";
 import { SegmentedTabs } from "@/components/ui-chrome";
 import {
-  IconChevronLeft,
   IconChevronRight,
   IconChevronsRight,
   IconClose,
@@ -2015,18 +2014,6 @@ export function ReviewPane({
                 />
               )}
             </div>
-          ) : null}
-
-          {paneSolo === "pdf" ? (
-            <button
-              type="button"
-              title="Выйти из режима «только лист» (Esc)"
-              aria-label="Выйти из режима «только лист»"
-              onClick={exitSheetOnly}
-              className="flex w-8 shrink-0 flex-col items-center border-l border-border bg-white py-2 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-            >
-              <IconChevronLeft />
-            </button>
           ) : null}
 
           {paneSolo === null && !stacked ? (

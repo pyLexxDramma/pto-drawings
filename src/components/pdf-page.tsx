@@ -211,6 +211,7 @@ export function PdfPage({
     highlightRegion: focusRegion,
     panToHighlight: panToHighlight || remarkFocus,
     wheelMode: "pan",
+    fillWidth: fullscreenActive,
     onUserZoom: () => {
       const prefs = loadViewerPrefs();
       if (!prefs.hintDismissed) {
