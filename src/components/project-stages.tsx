@@ -205,7 +205,7 @@ export function ProjectStagesBar({
       }`}
     >
       <span
-        className="max-w-[9rem] shrink-0 truncate pto-t-sm font-medium text-text sm:max-w-[14rem]"
+        className="max-w-[9rem] shrink-0 truncate pto-t-sm font-semibold text-slate-950 sm:max-w-[14rem]"
         title={projectName}
       >
         {projectName}
@@ -213,7 +213,7 @@ export function ProjectStagesBar({
 
       {docTitle ? (
         <span
-          className="min-w-0 max-w-[16rem] shrink truncate pto-t-sm font-medium text-slate-700 sm:max-w-[22rem]"
+          className="min-w-0 max-w-[16rem] shrink truncate rounded bg-white px-1.5 py-0.5 pto-t-sm font-normal text-slate-600 sm:max-w-[22rem]"
           title={docTitle}
         >
           {docTitle}
