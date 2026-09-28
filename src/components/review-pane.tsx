@@ -24,6 +24,7 @@ import { SheetToolbar } from "@/components/sheet-toolbar";
 import type { RemarkUndo } from "@/lib/remark-undo";
 import { PaneToggle, SegmentedTabs } from "@/components/ui-chrome";
 import {
+  IconBack,
   IconChevronLeft,
   IconChevronRight,
   IconClose,
@@ -1285,9 +1286,23 @@ export function ReviewPane({
       onCloseSearch={closeSearch}
       onBack={onBackToProjects}
       backLabel={backLabel}
+      showBack={paneSolo === "md"}
       onUndo={canUndoRemark ? onUndoRemark : undefined}
       undoBusy={undoBusy}
     />
+  );
+
+  const drawingBackButton = (
+    <button
+      type="button"
+      onClick={onBackToProjects}
+      title={backLabel}
+      aria-label={backLabel}
+      data-drawing-back=""
+      className="pointer-events-auto absolute left-1.5 top-1.5 z-30 inline-flex h-7 w-7 items-center justify-center rounded border border-border bg-white/92 text-text shadow-sm backdrop-blur hover:bg-surface-2"
+    >
+      <IconBack className="h-3.5 w-3.5" />
+    </button>
   );
 
   const pageNav = {
@@ -1769,6 +1784,7 @@ export function ReviewPane({
                     : { width: `${split}%`, height: "100%" }
               }
             >
+              {drawingBackButton}
               {quoteMiss ? (
                 // Выше строки состояния: на её уровне плашка обрезалась, и
                 // кнопка «Показать в тексте» уезжала под подсказку про мышь.

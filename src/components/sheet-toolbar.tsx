@@ -21,6 +21,7 @@ export function SheetToolbar({
   backLabel = "Назад",
   onUndo,
   undoBusy = false,
+  showBack = true,
 }: {
   searchOpen: boolean;
   readOnly: boolean;
@@ -30,10 +31,12 @@ export function SheetToolbar({
   backLabel?: string;
   onUndo?: () => void;
   undoBusy?: boolean;
+  /** false — кнопку рисует панель чертежа слева, не шапка расшифровки. */
+  showBack?: boolean;
 }) {
   return (
     <>
-      {onBack ? (
+      {showBack && onBack ? (
         <button
           type="button"
           onClick={onBack}
