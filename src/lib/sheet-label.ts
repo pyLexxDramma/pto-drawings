@@ -38,10 +38,25 @@ export function placeOrdinal(index: number): string {
   return `Место ${index + 1} этой фразы`;
 }
 
+function fileExt(name: string): string {
+  return name.match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase() ?? "";
+}
+
+/** Кусок имени, которым этот файл отличается от остальных с тем же номером листа. */
+function distinctFileBit(name: string, others: string[]): string {
+  const base = name.replace(/\.[^.]+$/, "");
+  const rest = others.map((item) => item.replace(/\.[^.]+$/, ""));
+  let index = 0;
+  while (index < base.length && rest.every((item) => item[index] === base[index])) index += 1;
+  const start = Math.max(0, index - 4);
+  const bit = (base.slice(start) || base).trim();
+  return bit.length > 10 ? `${bit.slice(0, 9)}…` : bit;
+}
+
 /**
  * Чип места в строке замечания. Номер «№1» читался как другое замечание
  * («№ 5» стоит в той же строке), поэтому на кнопке — лист, где эта фраза.
- * Повтор на том же листе: «л.2 · 2». Два файла с одним номером листа — короткое имя файла.
+ * Повтор на том же листе: «л.2 · 2». Тот же номер в PDF и DXF: «pdf л.1» и «dxf л.1».
  */
 export function placeChipLabel(
   location: { documentId: string | null; documentName: string; pageNumber: number | null },
@@ -65,13 +80,18 @@ export function placeChipLabel(
       ).length;
     return `${sheet} · ${n}`;
   }
-  const samePageOtherFile = places.some(
+  const samePage = places.filter(
     (item) => item.pageNumber === page && item.documentId !== location.documentId,
   );
-  if (!samePageOtherFile) return sheet;
-  const name = location.documentName.replace(/\.[^.]+$/, "");
-  const short = name.length > 12 ? `${name.slice(0, 11)}…` : name;
-  return short ? `${short} ${sheet}` : sheet;
+  if (!samePage.length) return sheet;
+  const ext = fileExt(location.documentName);
+  const exts = samePage.map((item) => fileExt(item.documentName));
+  if (ext && exts.every((item) => item !== ext)) return `${ext} ${sheet}`;
+  const bit = distinctFileBit(
+    location.documentName,
+    samePage.map((item) => item.documentName),
+  );
+  return bit ? `${bit} ${sheet}` : sheet;
 }
 
 /**
