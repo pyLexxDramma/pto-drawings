@@ -599,6 +599,7 @@ export function Workspace({
       setPeekOpen(false);
       setNavFromReviews(false);
       setSelectedId(id);
+      setProjectSearchOpen(false);
       setOpenPage(
         page && page > 0
           ? { nonce: Date.now(), page, documentId: id }
@@ -2010,7 +2011,7 @@ export function Workspace({
           )}
 
           <div className="flex min-w-0 shrink-0 items-center gap-2">
-            {currentProject ? (
+            {currentProject && !(selected && !showReviews) ? (
               <ProjectSearch
                 query={projectQuery}
                 onQueryChange={setProjectQuery}
