@@ -60,7 +60,7 @@ await page.goto(`${BASE}/?project=${target.project.id}`, {
 });
 await page.waitForTimeout(3000);
 
-const summary = page.getByRole("button", { name: /Разобрано \d+ из \d+/ });
+const summary = page.getByText(/Замечаний \d+/).first();
 const summaryCount = await summary.count();
 ok("окошко итогов в левой колонке", summaryCount > 0, `найдено ${summaryCount}`);
 const summaryText = summaryCount ? await summary.first().innerText() : "";

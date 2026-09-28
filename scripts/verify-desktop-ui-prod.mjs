@@ -1,7 +1,7 @@
 /**
  * Прод после десктопного адаптива: шкала текста от ширины окна, таблица
  * замечаний влезает без горизонтальной прокрутки, колонка проектов растёт с
- * окном и сворачивается на узком, панель листа с одной акцентной кнопкой.
+ * окном, на узком список проектов остаётся открытым, панель листа с одной акцентной кнопкой.
  */
 import { chromium } from "playwright";
 import path from "node:path";
@@ -20,9 +20,9 @@ function check(name, pass, detail = "") {
 }
 
 const SIZES = [
-  { tag: "1100", width: 1100, height: 760, expectSm: "11px", narrow: true },
-  { tag: "1440", width: 1440, height: 900, expectSm: "11px", narrow: false },
-  { tag: "2560", width: 2560, height: 1400, expectSm: "12px", narrow: false },
+  { tag: "1100", width: 1100, height: 760, expectSm: "11px" },
+  { tag: "1440", width: 1440, height: 900, expectSm: "11px" },
+  { tag: "2560", width: 2560, height: 1400, expectSm: "12px" },
 ];
 
 const browser = await chromium.launch({ headless: true });
@@ -152,8 +152,8 @@ try {
       const collapsed =
         (await page.getByRole("button", { name: "Показать проекты и листы" }).count()) > 0;
       check(
-        `${size.tag}: дерево ${size.narrow ? "свёрнуто" : "открыто"} на листе`,
-        collapsed === size.narrow,
+        `${size.tag}: дерево открыто на листе`,
+        collapsed === false,
         `свёрнуто=${collapsed}`,
       );
 

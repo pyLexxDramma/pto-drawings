@@ -136,19 +136,32 @@ export function ResolvedSummary({
     <div
       className={`w-full rounded-md border-2 border-amber-600 bg-amber-50 px-1.5 py-1 ${className}`}
     >
-      <button
-        type="button"
-        onClick={() => openReviews(projectId)}
-        title="Открыть разобранные замечания в отдельной вкладке"
-        className="flex w-full items-center justify-between gap-1 pto-t-sm font-medium text-text hover:text-accent"
-      >
-        <span className="tabular-nums">
-          Разобрано {resolved} из {total}
-        </span>
-        <span className="pto-t-xs text-accent underline decoration-dotted">
-          открыть
-        </span>
-      </button>
+      {resolved > 0 ? (
+        <button
+          type="button"
+          onClick={() => openReviews(projectId)}
+          title="Открыть разобранные замечания в отдельной вкладке"
+          className="flex w-full items-center justify-between gap-1 pto-t-sm font-medium text-text hover:text-accent"
+        >
+          <span className="tabular-nums">
+            {total - resolved > 0
+              ? `Замечаний ${total} · не разобрано ${total - resolved}`
+              : `Все ${total} разобраны`}
+          </span>
+          <span className="pto-t-xs text-accent underline decoration-dotted">
+            открыть
+          </span>
+        </button>
+      ) : (
+        <div
+          className="flex w-full items-center pto-t-sm font-medium text-text"
+          title="Замечания в проекте есть, статус им ещё не поставлен"
+        >
+          <span className="tabular-nums">
+            Замечаний {total} · не разобрано {total - resolved}
+          </span>
+        </div>
+      )}
       {shown.length > 0 ? (
         <div className="mt-1 flex flex-wrap items-center gap-1">
           {shown.map((verdict) => (

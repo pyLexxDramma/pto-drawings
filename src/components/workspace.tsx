@@ -134,23 +134,6 @@ function defaultProjectsWidth(viewportW: number) {
   return 222;
 }
 
-/**
- * Узкий десктоп — 1280×800 и мелкие окна. Дерево проектов и открытый лист туда
- * рядом не влезают, поэтому при переходе на лист дерево сворачивается само.
- */
-const NARROW_DESKTOP_W = 1180;
-
-function useNarrowDesktop() {
-  const [narrow, setNarrow] = useState(false);
-  useEffect(() => {
-    const apply = () => setNarrow(window.innerWidth < NARROW_DESKTOP_W);
-    apply();
-    window.addEventListener("resize", apply);
-    return () => window.removeEventListener("resize", apply);
-  }, []);
-  return narrow;
-}
-
 const STATUS_DOT: Record<DocumentStatus, string> = {
   queued: "bg-sem-attn",
   processing: "bg-accent",
@@ -359,9 +342,6 @@ export function Workspace({
   const [creatingProject, setCreatingProject] = useState(false);
   const [showNewProject, setShowNewProject] = useState(false);
   const [projectsCollapsed, setProjectsCollapsed] = useState(false);
-  const narrowDesktop = useNarrowDesktop();
-  const narrowRef = useRef(narrowDesktop);
-  narrowRef.current = narrowDesktop;
   const [stripHost, setStripHost] = useState<HTMLDivElement | null>(null);
   const [focusMode, setFocusMode] = useState(false);
   const [renameId, setRenameId] = useState<string | null>(null);
@@ -404,9 +384,6 @@ export function Workspace({
     token: 0,
   });
   const [aiQueueOn, setAiQueueOn] = useState(false);
-  useEffect(() => {
-    if (narrowDesktop && selectedId && !showReviews) setProjectsCollapsed(true);
-  }, [narrowDesktop, selectedId, showReviews]);
   /** Иконка таблицы с листа: прокрутить к строке выбранного пина. */
   const [tableFocus, setTableFocus] = useState<{ id: string; token: number } | null>(
     null,
@@ -603,7 +580,6 @@ export function Workspace({
     setShowReviews(false);
     if (view.kind === "drawing") {
       setSelectedId(view.documentId);
-      setProjectsCollapsed(narrowRef.current);
       return;
     }
     setSelectedId(null);
@@ -623,8 +599,6 @@ export function Workspace({
       setPeekOpen(false);
       setNavFromReviews(false);
       setSelectedId(id);
-      // На узком десктопе дерево и лист рядом не живут — уступаем место чертежу.
-      setProjectsCollapsed(narrowRef.current);
       setOpenPage(
         page && page > 0
           ? { nonce: Date.now(), page, documentId: id }
@@ -650,7 +624,6 @@ export function Workspace({
         return;
       }
       setShowReviews(false);
-      setProjectsCollapsed(narrowRef.current);
       // Уже в файле — просто вернуться к расшифровке, не прыгать на другой лист.
       if (selectedId) return;
 
@@ -878,7 +851,6 @@ export function Workspace({
       setPeekOpen(false);
       setNavFromReviews(false);
       setSelectedId(hit.documentId);
-      setProjectsCollapsed(narrowRef.current);
       setFocusMode(false);
       setOpenPage({
         nonce: Date.now(),
@@ -1702,7 +1674,6 @@ export function Workspace({
     setPeekOpen(false);
     setNavFromReviews(false);
     setSelectedId(docId);
-    setProjectsCollapsed(narrowRef.current);
     setOpenPage({
       nonce: Date.now(),
       page: 0,
