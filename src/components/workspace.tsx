@@ -2007,7 +2007,7 @@ export function Workspace({
                 <div className="text-xs font-semibold leading-none tracking-tight">PTO</div>
               </div>
             </button>
-            {navBackButton}
+            {focusMode || showReviews || projectsCollapsed ? navBackButton : null}
           </div>
           {currentProject ? (
             <ProjectStagesBar
@@ -2178,46 +2178,51 @@ export function Workspace({
             className="flex min-h-0 shrink-0 flex-col bg-surface"
             style={{ width: projectsWidth, maxWidth: "100%" }}
           >
-            <div className="flex items-start gap-1 border-b-2 border-slate-300 bg-slate-200 px-2 py-1.5">
-              <div className="min-w-0 flex-1">
-              {showNewProject || projects.length === 0 ? (
-                <form onSubmit={handleCreateProject} className="space-y-1">
-                  <div className="flex gap-1">
-                    <input
-                      value={newProjectName}
-                      onChange={(event) => setNewProjectName(event.target.value)}
-                      placeholder="Новый объект"
-                      className="min-w-0 flex-1 rounded-md border border-border bg-white px-2 py-1.5 text-sm outline-none placeholder:text-muted focus:border-accent"
-                    />
-                    <button
-                      type="submit"
-                      disabled={creatingProject}
-                      className="rounded-md border border-border px-2 text-sm text-muted hover:text-text"
-                    >
-                      OK
-                    </button>
-                  </div>
-                  <input
-                    value={newProjectDescription}
-                    onChange={(event) => setNewProjectDescription(event.target.value)}
-                    placeholder="Описание (необязательно)"
-                    className="w-full rounded-md border border-border bg-white px-2 py-1.5 text-sm outline-none placeholder:text-muted focus:border-accent"
-                  />
-                </form>
-              ) : (
-                <div className="truncate px-1 pto-t-sm text-muted" title={currentProject?.name}>
-                  {currentProject?.name}
-                </div>
-              )}
+            <div className="flex h-7 shrink-0 items-center gap-1 border-b-2 border-slate-300 bg-slate-200 px-1.5">
+              {navBackButton}
+              <div
+                className="min-w-0 flex-1 truncate pto-t-xs leading-tight text-text"
+                title={currentProject?.name}
+              >
+                {currentProject?.name ?? "Проекты"}
               </div>
               <PaneToggle
                 expanded
                 align="left"
                 expandLabel="Показать проекты и листы"
-                collapseLabel="Скрыть проекты и листы"
+                collapseLabel="Свернуть проекты"
                 onToggle={() => setProjectsCollapsed(true)}
+                className="h-5 w-5"
               />
             </div>
+            {showNewProject || projects.length === 0 ? (
+              <form
+                onSubmit={handleCreateProject}
+                className="space-y-1 border-b border-border bg-surface px-1.5 py-1.5"
+              >
+                <div className="flex gap-1">
+                  <input
+                    value={newProjectName}
+                    onChange={(event) => setNewProjectName(event.target.value)}
+                    placeholder="Новый объект"
+                    className="min-w-0 flex-1 rounded-md border border-border bg-white px-2 py-1.5 text-sm outline-none placeholder:text-muted focus:border-accent"
+                  />
+                  <button
+                    type="submit"
+                    disabled={creatingProject}
+                    className="rounded-md border border-border px-2 text-sm text-muted hover:text-text"
+                  >
+                    OK
+                  </button>
+                </div>
+                <input
+                  value={newProjectDescription}
+                  onChange={(event) => setNewProjectDescription(event.target.value)}
+                  placeholder="Описание (необязательно)"
+                  className="w-full rounded-md border border-border bg-white px-2 py-1.5 text-sm outline-none placeholder:text-muted focus:border-accent"
+                />
+              </form>
+            ) : null}
             <div className="min-h-0 flex-1 overflow-y-auto bg-bg p-1.5" data-projects-tree>
               {projects.map((project) =>
                 renameId === project.id ? (
