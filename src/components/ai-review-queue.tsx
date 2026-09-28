@@ -210,7 +210,7 @@ export function AiQueueEntryButton({
       type="button"
       onClick={onStart}
       title="Разобрать находки конвейера по одной"
-      className="shrink-0 rounded-md border border-accent/40 bg-accent/5 px-2 py-1 pto-t-sm font-semibold text-accent hover:bg-accent/10"
+      className="inline-flex h-6 shrink-0 items-center rounded-md border border-accent/40 bg-accent/5 px-2 pto-t-sm font-semibold text-accent hover:bg-accent/10"
       data-ai-queue-entry=""
     >
       Разбор ИИ · {count}

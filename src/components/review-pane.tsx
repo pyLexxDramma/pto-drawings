@@ -1278,14 +1278,11 @@ export function ReviewPane({
 
   const aiQueueEntry =
     !aiQueueOn && aiPendingReviews.length > 0 ? (
-      <div className="flex shrink-0 items-center justify-end gap-2 border-b border-border bg-surface-2 px-2 py-1">
-        <AiQueueEntryButton
-          count={aiPendingReviews.length}
-          onStart={startAiQueue}
-        />
-      </div>
+      <AiQueueEntryButton
+        count={aiPendingReviews.length}
+        onStart={startAiQueue}
+      />
     ) : null;
-  const hasAiQueueChrome = Boolean(aiQueueCard || aiQueueEntry);
 
   useEffect(() => {
     if (aiQueueOn && aiPendingReviews.length === 0) closeAiQueue();
@@ -1868,13 +1865,13 @@ export function ReviewPane({
               ) : null}
               {paneSolo === "pdf" ? (
                 <div className="absolute left-2 top-12 z-30 flex max-w-xl flex-col gap-1.5">
-                  <div className="flex flex-wrap items-center gap-1.5 rounded-md border border-border bg-white/95 px-1.5 py-1 shadow-sm">
+                  <div className="flex flex-nowrap items-center gap-1.5 rounded-md border border-border bg-white/95 px-1.5 py-1 shadow-sm">
                     {sheetToolButtons}
+                    {aiQueueEntry}
                   </div>
-                  {hasAiQueueChrome ? (
+                  {aiQueueCard ? (
                     <div className="overflow-hidden rounded-md border border-border bg-white/95 shadow-sm">
                       {aiQueueCard}
-                      {aiQueueEntry}
                     </div>
                   ) : null}
                   {pageReviewsBar ? (
@@ -2080,8 +2077,9 @@ export function ReviewPane({
               />
             ) : (
               <>
-            <div className="flex flex-wrap items-center gap-1 border-b border-border px-1.5 py-0.5">
+            <div className="flex flex-nowrap items-center gap-1 border-b border-border px-1.5 py-0.5">
               {sheetToolButtons}
+              {aiQueueEntry}
               <span className="ml-auto flex shrink-0 items-center gap-1">
                 <PaneToggle
                   expanded
@@ -2129,7 +2127,6 @@ export function ReviewPane({
               reviewsBar={
                 <>
                   {aiQueueCard}
-                  {aiQueueEntry}
                   {pageReviewsBar}
                 </>
               }
