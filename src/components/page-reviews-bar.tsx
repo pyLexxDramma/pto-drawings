@@ -31,6 +31,7 @@ export function PageReviewsBar({
   onNextPending,
   canPrevPending = false,
   canNextPending = false,
+  showStep = true,
 }: {
   reviews: Review[];
   open: boolean;
@@ -46,6 +47,8 @@ export function PageReviewsBar({
   onNextPending?: () => void;
   canPrevPending?: boolean;
   canNextPending?: boolean;
+  /** В разборе ИИ свои стрелки — эту пару прячем. */
+  showStep?: boolean;
 }) {
   if (!reviews.length) return null;
 
@@ -101,14 +104,14 @@ export function PageReviewsBar({
           ) : null}
         </button>
         {!open && activeReview ? renderPlaceChips(activeReview) : null}
-        {onPrevPending && onNextPending ? (
+        {showStep && onPrevPending && onNextPending ? (
           <span className="flex shrink-0 items-center gap-0.5">
             <button
               type="button"
               disabled={!canPrevPending}
               onClick={onPrevPending}
-              title="Предыдущее неразобранное (↑)"
-              aria-label="Предыдущее неразобранное"
+              title="Предыдущее замечание листа (↑)"
+              aria-label="Предыдущее замечание листа"
               className="rounded border border-slate-300 bg-white px-1 py-1 text-slate-700 hover:bg-slate-50 hover:text-accent disabled:cursor-default disabled:opacity-40"
             >
               <IconChevronLeft className="h-3.5 w-3.5" />
@@ -117,8 +120,8 @@ export function PageReviewsBar({
               type="button"
               disabled={!canNextPending}
               onClick={onNextPending}
-              title="Следующее неразобранное (↓)"
-              aria-label="Следующее неразобранное"
+              title="Следующее замечание листа (↓)"
+              aria-label="Следующее замечание листа"
               className="rounded border border-slate-300 bg-white px-1 py-1 text-slate-700 hover:bg-slate-50 hover:text-accent disabled:cursor-default disabled:opacity-40"
             >
               <IconChevronRight className="h-3.5 w-3.5" />
@@ -152,7 +155,7 @@ export function PageReviewsBar({
               key={review.id}
               className={`flex w-full items-start gap-1 rounded border px-2 py-1 ${
                 SEVERITY_ITEM[review.severity]
-              } ${isActive(review) ? "outline outline-1 outline-slate-400" : ""}`}
+              } ${isActive(review) ? "outline outline-2 outline-accent" : ""}`}
             >
               <button
                 type="button"

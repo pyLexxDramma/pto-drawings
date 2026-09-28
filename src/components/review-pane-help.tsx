@@ -107,14 +107,14 @@ export function ControlsHelpContent() {
       </section>
 
       <section>
-        <div className="mb-1 font-semibold text-text">Очередь ИИ</div>
+        <div className="mb-1 font-semibold text-text">Разбор ИИ</div>
         <ul className="list-disc space-y-0.5 pl-4">
           <li>
             Только находки конвейера (<Btn>ИИ</Btn>), ещё не разобранные.
           </li>
           <li>
             В шапке — <Btn>ИИ ждёт N</Btn>, на листе —{" "}
-            <Btn>Очередь ИИ · N</Btn>.
+            <Btn>Разбор ИИ · N</Btn>.
           </li>
           <li>
             <Btn>Принять</Btn> / <Btn>Ложное</Btn> (с причиной) → сразу

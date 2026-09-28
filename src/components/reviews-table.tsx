@@ -231,6 +231,8 @@ export function ReviewsTable({
   standalone = false,
   focusReview = null,
   onFocusReviewHandled,
+  initialWholeProject = false,
+  scopeToken = 0,
 }: {
   projectId: string;
   projectName: string;
@@ -253,6 +255,12 @@ export function ReviewsTable({
   /** Строка выбранного пина: прокрутить к ней, когда таблицу открыли с листа. */
   focusReview?: { id: string; token: number } | null;
   onFocusReviewHandled?: () => void;
+  /**
+   * Стартовый срез. Вкладка «Таблица замечаний» — весь проект.
+   * Прыжок с листа — только открытый файл. scopeToken сбрасывает срез заново.
+   */
+  initialWholeProject?: boolean;
+  scopeToken?: number;
   /** Открыть место в ПД в просмотрщике (новая вкладка + подсветка). */
   onJumpToPage: (
     documentId: string,
@@ -290,8 +298,14 @@ export function ReviewsTable({
   const importRef = useRef<HTMLInputElement>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
-  /** Серый XLSX: строка в другом файле — показать весь проект. */
-  const [fileScopeOff, setFileScopeOff] = useState(false);
+  /** true — весь проект; false — только открытый файл. */
+  const [fileScopeOff, setFileScopeOff] = useState(initialWholeProject);
+  const scopeTokenRef = useRef(scopeToken);
+  useEffect(() => {
+    if (scopeToken === scopeTokenRef.current) return;
+    scopeTokenRef.current = scopeToken;
+    setFileScopeOff(initialWholeProject);
+  }, [initialWholeProject, scopeToken]);
 
   const load = useCallback(
     async (signal?: AbortSignal) => {
@@ -749,16 +763,37 @@ export function ReviewsTable({
             Замечания · {projectName}
           </span>
           {loading ? <span className="shrink-0 text-muted"> · загрузка…</span> : null}
-          <span
-            className="inline-flex shrink-0 items-center rounded border border-slate-300 bg-white px-1.5 py-0.5 pto-t-sm font-medium text-slate-700"
-            title={
-              currentDocumentId && !fileScopeOff
-                ? "В таблице замечания открытого файла, все его листы. Полоса на чертеже — только текущий лист."
-                : "В таблице замечания всего проекта. Полоса на чертеже — только текущий лист."
-            }
-          >
-            {currentDocumentId && !fileScopeOff ? "этот файл" : "весь проект"}
-          </span>
+          {currentDocumentId ? (
+            <span
+              className="inline-flex shrink-0 overflow-hidden rounded-md border border-border"
+              title="Какие замечания сейчас в таблице"
+            >
+              <button
+                type="button"
+                onClick={() => setFileScopeOff(false)}
+                aria-pressed={!fileScopeOff}
+                className={`px-1.5 py-0.5 pto-t-sm font-semibold leading-none ${
+                  fileScopeOff
+                    ? "bg-white text-muted hover:text-text"
+                    : "bg-accent text-white"
+                }`}
+              >
+                этот файл
+              </button>
+              <button
+                type="button"
+                onClick={() => setFileScopeOff(true)}
+                aria-pressed={fileScopeOff}
+                className={`px-1.5 py-0.5 pto-t-sm font-semibold leading-none ${
+                  fileScopeOff
+                    ? "bg-accent text-white"
+                    : "bg-white text-muted hover:text-text"
+                }`}
+              >
+                весь проект
+              </button>
+            </span>
+          ) : null}
         </div>
 
         <div className="ml-auto flex shrink-0 items-center gap-1.5">
@@ -786,20 +821,6 @@ export function ReviewsTable({
               className="whitespace-nowrap rounded-md border border-slate-300 bg-white px-2 py-0.5 pto-t-md font-semibold leading-none text-slate-800 hover:bg-slate-50 disabled:opacity-50"
             >
               Отменить
-            </button>
-          ) : null}
-          {currentDocumentId ? (
-            <button
-              type="button"
-              onClick={() => setFileScopeOff((value) => !value)}
-              className="whitespace-nowrap rounded-md border border-slate-300 bg-white px-2 py-0.5 pto-t-md font-semibold leading-none text-slate-800 hover:bg-slate-50"
-              title={
-                fileScopeOff
-                  ? "Снова только замечания открытого файла"
-                  : "Показать замечания всего проекта"
-              }
-            >
-              {fileScopeOff ? "Этот файл" : "Весь проект"}
             </button>
           ) : null}
           <input

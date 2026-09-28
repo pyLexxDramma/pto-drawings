@@ -23,7 +23,7 @@ export const KEYMAP: KeymapItem[] = [
   { group: "remarks", keys: "↑ ↓", action: "Следующее неразобранное / в очереди ИИ" },
   { group: "remarks", keys: "1 / 2 / 3", action: "Важность низ / сред / выс" },
   { group: "remarks", keys: "Enter", action: "Принять → следующее" },
-  { group: "search", keys: "Esc", action: "Закрыть поиск / очередь / только лист" },
+  { group: "search", keys: "Esc", action: "Закрыть поиск / разбор ИИ / только лист" },
   { group: "view", keys: "?", action: "Клавиши" },
 ];
 

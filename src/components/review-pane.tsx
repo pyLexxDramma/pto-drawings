@@ -261,6 +261,8 @@ export function ReviewPane({
   const [activeReviewId, setActiveReviewId] = useState<string | null>(null);
   /** Список замечаний листа держим свёрнутым: он закрывал расшифровку. */
   const [pageReviewsOpen, setPageReviewsOpen] = useState(false);
+  /** Был ли список открыт до «Разбор ИИ» — крестик возвращает то же. */
+  const listBeforeAiRef = useRef<boolean | null>(null);
   const [aiQueueBusy, setAiQueueBusy] = useState(false);
   const [keymapOpen, setKeymapOpen] = useState(false);
   const setAiQueueOn = useCallback(
@@ -611,7 +613,25 @@ export function ReviewPane({
     const next = aiPendingReviews[index + dir];
     if (next) selectAiReview(next);
   }
+  function stepSheetReview(dir: 1 | -1) {
+    const ordered = [...pageReviews].sort((a, b) => a.number - b.number);
+    if (!ordered.length) return;
+    let index = ordered.findIndex((review) => review.id === activeReviewId);
+    if (index < 0) index = dir > 0 ? -1 : 0;
+    const next = ordered[index + dir];
+    if (next) selectFileReview(next);
+  }
+  function closeAiQueue() {
+    setAiQueueOn(false);
+    if (listBeforeAiRef.current !== null) {
+      setPageReviewsOpen(listBeforeAiRef.current);
+      listBeforeAiRef.current = null;
+    }
+  }
   function startAiQueue() {
+    if (listBeforeAiRef.current === null) {
+      listBeforeAiRef.current = pageReviewsOpen;
+    }
     setAiQueueOn(true);
     const current =
       aiPendingReviews.find((review) => review.id === activeReviewId) ??
@@ -631,7 +651,7 @@ export function ReviewPane({
         selectAiReview(pick);
         return;
       }
-      setAiQueueOn(false);
+      closeAiQueue();
       return;
     }
     const sheetNext = pageReviews
@@ -863,6 +883,7 @@ export function ReviewPane({
     if (places.length < 2) return null;
     return (
       <span className="inline-flex shrink-0 items-center gap-0.5">
+        <span className="pto-t-xs font-medium text-muted">места</span>
         {places.map((place, index) => {
           const here =
             place.documentId === document.id && place.pageNumber === pageNumber;
@@ -1204,6 +1225,9 @@ export function ReviewPane({
     }
   }
 
+  const sheetOrder = [...pageReviews].sort((a, b) => a.number - b.number);
+  const sheetIndex = sheetOrder.findIndex((review) => review.id === activeReviewId);
+
   const pageReviewsBar = pageReviews.length > 0 ? (
     <PageReviewsBar
       reviews={pageReviews}
@@ -1215,10 +1239,13 @@ export function ReviewPane({
       onFocusReview={focusReviewOnSheet}
       onOpenReviews={onOpenReviews}
       pendingCount={pendingSheetCount}
-      onPrevPending={() => stepPending(-1)}
-      onNextPending={() => stepPending(1)}
-      canPrevPending={canPrevPending}
-      canNextPending={canNextPending}
+      onPrevPending={() => stepSheetReview(-1)}
+      onNextPending={() => stepSheetReview(1)}
+      canPrevPending={sheetIndex > 0}
+      canNextPending={
+        sheetOrder.length > 0 && sheetIndex < sheetOrder.length - 1
+      }
+      showStep={!aiQueueOn}
     />
   ) : null;
 
@@ -1243,10 +1270,10 @@ export function ReviewPane({
           });
         }}
         onEdit={() => {
-          setAiQueueOn(false);
+          closeAiQueue();
           onOpenReviews?.(activeAiReview.id);
         }}
-        onClose={() => setAiQueueOn(false)}
+        onClose={closeAiQueue}
       />
     ) : null;
 
@@ -1262,7 +1289,7 @@ export function ReviewPane({
   const hasAiQueueChrome = Boolean(aiQueueCard || aiQueueEntry);
 
   useEffect(() => {
-    if (aiQueueOn && aiPendingReviews.length === 0) setAiQueueOn(false);
+    if (aiQueueOn && aiPendingReviews.length === 0) closeAiQueue();
   }, [aiQueueOn, aiPendingReviews.length]);
 
   useEffect(() => {
@@ -1330,7 +1357,7 @@ export function ReviewPane({
         }
         if (aiQueueOn) {
           event.preventDefault();
-          setAiQueueOn(false);
+          closeAiQueue();
           return;
         }
         if (paneSolo || focusMode) {

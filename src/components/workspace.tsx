@@ -398,6 +398,11 @@ export function Workspace({
   const [liveDockCollapsed, setLiveDockCollapsed] = useState(false);
   const [auditTab, setAuditTab] = useState<"log" | "processing">("log");
   const [showReviews, setShowReviews] = useState(false);
+  /** Срез таблицы: вкладка — весь проект, прыжок с листа — этот файл. */
+  const [tableScope, setTableScope] = useState({
+    wholeProject: true,
+    token: 0,
+  });
   const [aiQueueOn, setAiQueueOn] = useState(false);
   useEffect(() => {
     if (narrowDesktop && selectedId && !showReviews) setProjectsCollapsed(true);
@@ -639,6 +644,7 @@ export function Workspace({
     (stage: StageId) => {
       if (stage === "reviews") {
         if (!showReviews) pushBack();
+        setTableScope({ wholeProject: true, token: Date.now() });
         setPeekOpen(false);
         setShowReviews(true);
         return;
@@ -2560,6 +2566,8 @@ export function Workspace({
               onReviewsMutated={() => setReviewsEpoch((n) => n + 1)}
               focusReview={tableFocus}
               onFocusReviewHandled={() => setTableFocus(null)}
+              initialWholeProject={tableScope.wholeProject}
+              scopeToken={tableScope.token}
               onUndo={remarkUndo ? () => void undoRemark() : undefined}
               undoBusy={undoBusy}
             />
@@ -2576,6 +2584,7 @@ export function Workspace({
             onJumpToPage={jumpToPage}
             onOpenReviews={(reviewId) => {
               if (!showReviews) pushBack();
+              setTableScope({ wholeProject: false, token: Date.now() });
               setPeekOpen(false);
               setShowReviews(true);
               setTableFocus(reviewId ? { id: reviewId, token: Date.now() } : null);

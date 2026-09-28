@@ -65,42 +65,30 @@ export function AiReviewQueueCard({
       className="shrink-0 border-b border-accent/20 bg-accent/5 pto-t-sm text-text"
       data-ai-queue=""
     >
-      <div className="flex items-start gap-2 px-2 py-1.5">
+      <div className="flex items-center gap-1.5 px-2 py-1">
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-            <span className="font-semibold text-text">Очередь ИИ</span>
-            <span className="tabular-nums text-muted">
+          <div className="flex min-w-0 items-baseline gap-x-2">
+            <span className="shrink-0 font-semibold text-text">Разбор ИИ</span>
+            <span className="shrink-0 tabular-nums text-muted">
               {index + 1} из {total}
             </span>
-            <span className="font-semibold tabular-nums">
+            <span className="shrink-0 font-semibold tabular-nums">
               № {review.number}
             </span>
-            <span className="text-muted">
+            <span className="min-w-0 truncate text-muted">
               {REVIEW_SEVERITY_LABEL[review.severity].toLowerCase()}
+              {" · "}
+              {quote
+                ? remarkWording(quote)
+                : remarkWording(review.text || review.aiFinding || "—")}
             </span>
           </div>
-          <p className="mt-0.5 line-clamp-2 leading-snug text-text">
-            {quote
-              ? remarkWording(quote)
-              : remarkWording(review.text || review.aiFinding || "—")}
-          </p>
         </div>
-        <button
-          type="button"
-          title="Закрыть очередь ИИ"
-          aria-label="Закрыть очередь ИИ"
-          onClick={onClose}
-          className="shrink-0 rounded p-0.5 text-muted hover:bg-accent/10 hover:text-text"
-        >
-          <IconClose className="h-3.5 w-3.5" />
-        </button>
-      </div>
-      <div className="flex flex-wrap items-center gap-1 border-t border-accent/15 px-2 py-1.5">
         <button
           type="button"
           disabled={busy}
           onClick={onAccept}
-          className="rounded-md bg-emerald-600 px-2 py-1 font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+          className="shrink-0 rounded-md bg-emerald-600 px-2 py-1 font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
         >
           Принять
         </button>
@@ -111,7 +99,7 @@ export function AiReviewQueueCard({
             setReason("");
             setWrongOpen(true);
           }}
-          className="rounded-md border border-rose-300 bg-white px-2 py-1 font-semibold text-rose-800 hover:bg-rose-50 disabled:opacity-50"
+          className="shrink-0 rounded-md border border-rose-300 bg-white px-2 py-1 font-semibold text-rose-800 hover:bg-rose-50 disabled:opacity-50"
         >
           Ложное
         </button>
@@ -119,32 +107,39 @@ export function AiReviewQueueCard({
           type="button"
           disabled={busy}
           onClick={onEdit}
-          className="rounded-md border border-border bg-white px-2 py-1 font-medium text-text hover:bg-surface-2 disabled:opacity-50"
+          className="shrink-0 rounded-md border border-border bg-white px-2 py-1 font-medium text-text hover:bg-surface-2 disabled:opacity-50"
         >
           В таблице
         </button>
-        <span className="ml-auto flex items-center gap-0.5">
-          <button
-            type="button"
-            disabled={!canPrev || busy}
-            onClick={onPrev}
-            title="Предыдущее от ИИ (↑)"
-            aria-label="Предыдущее от ИИ"
-            className="rounded border border-border bg-white px-1 py-1 text-text hover:bg-surface-2 disabled:opacity-40"
-          >
-            <IconChevronLeft className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            disabled={!canNext || busy}
-            onClick={onNext}
-            title="Следующее от ИИ (↓)"
-            aria-label="Следующее от ИИ"
-            className="rounded border border-border bg-white px-1 py-1 text-text hover:bg-surface-2 disabled:opacity-40"
-          >
-            <IconChevronRight className="h-3.5 w-3.5" />
-          </button>
-        </span>
+        <button
+          type="button"
+          disabled={!canPrev || busy}
+          onClick={onPrev}
+          title="Предыдущая находка ИИ (↑)"
+          aria-label="Предыдущая находка ИИ"
+          className="shrink-0 rounded border border-border bg-white px-1 py-1 text-text hover:bg-surface-2 disabled:opacity-40"
+        >
+          <IconChevronLeft className="h-3.5 w-3.5" />
+        </button>
+        <button
+          type="button"
+          disabled={!canNext || busy}
+          onClick={onNext}
+          title="Следующая находка ИИ (↓)"
+          aria-label="Следующая находка ИИ"
+          className="shrink-0 rounded border border-border bg-white px-1 py-1 text-text hover:bg-surface-2 disabled:opacity-40"
+        >
+          <IconChevronRight className="h-3.5 w-3.5" />
+        </button>
+        <button
+          type="button"
+          title="Закрыть разбор ИИ"
+          aria-label="Закрыть разбор ИИ"
+          onClick={onClose}
+          className="shrink-0 rounded p-0.5 text-muted hover:bg-accent/10 hover:text-text"
+        >
+          <IconClose className="h-3.5 w-3.5" />
+        </button>
       </div>
       {wrongOpen ? (
         <div className="border-t border-rose-200 bg-white px-2 py-2">
@@ -218,7 +213,7 @@ export function AiQueueEntryButton({
       className="shrink-0 rounded-md border border-accent/40 bg-accent/5 px-2 py-1 pto-t-sm font-semibold text-accent hover:bg-accent/10"
       data-ai-queue-entry=""
     >
-      Очередь ИИ · {count}
+      Разбор ИИ · {count}
     </button>
   );
 }
