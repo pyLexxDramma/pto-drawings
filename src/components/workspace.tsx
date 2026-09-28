@@ -2560,7 +2560,6 @@ export function Workspace({
               onReviewsMutated={() => setReviewsEpoch((n) => n + 1)}
               focusReview={tableFocus}
               onFocusReviewHandled={() => setTableFocus(null)}
-              onBack={goBack}
               onUndo={remarkUndo ? () => void undoRemark() : undefined}
               undoBusy={undoBusy}
             />
