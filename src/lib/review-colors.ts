@@ -44,7 +44,7 @@ export const SEVERITY_ITEM: Record<ReviewSeverity, string> = {
   skip: "border-slate-300 bg-white opacity-60",
 };
 
-/** Чип места «№1»: та же важность, что у замечания. */
+/** Чип места «л.1»: та же важность, что у замечания. */
 export const SEVERITY_PLACE: Record<ReviewSeverity, string> = {
   unset: "border-slate-400 bg-white text-slate-600",
   high: "border-rose-500 bg-rose-50 text-rose-800",

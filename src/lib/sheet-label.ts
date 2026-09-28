@@ -33,15 +33,50 @@ export function sheetLabel(location: {
   return `${base} (в штампе ${stamp})`;
 }
 
-/** Подпись места на листе: «Ошибка 1», без «из 2». Для подсказок и заголовков. */
+/** Подсказка места: «Место 1 этой фразы», без «из 2». */
 export function placeOrdinal(index: number): string {
-  return `Ошибка ${index + 1}`;
+  return `Место ${index + 1} этой фразы`;
 }
 
 /**
- * То же место в тесной строке: «№1». Три чипса «Ошибка 1 Ошибка 2 Ошибка 3»
- * съедали всю полосу, а слово в них повторялось и ничего не добавляло —
- * полная подпись осталась в подсказке под курсором.
+ * Чип места в строке замечания. Номер «№1» читался как другое замечание
+ * («№ 5» стоит в той же строке), поэтому на кнопке — лист, где эта фраза.
+ * Повтор на том же листе: «л.2 · 2». Два файла с одним номером листа — короткое имя файла.
+ */
+export function placeChipLabel(
+  location: { documentId: string | null; documentName: string; pageNumber: number | null },
+  index: number,
+  places: ReadonlyArray<{
+    documentId: string | null;
+    documentName: string;
+    pageNumber: number | null;
+  }>,
+): string {
+  const page = location.pageNumber;
+  const sheet = page ? `л.${page}` : "—";
+  const sameSheet = places.filter(
+    (item) => item.documentId === location.documentId && item.pageNumber === page,
+  );
+  if (sameSheet.length > 1) {
+    const n = places
+      .slice(0, index + 1)
+      .filter(
+        (item) => item.documentId === location.documentId && item.pageNumber === page,
+      ).length;
+    return `${sheet} · ${n}`;
+  }
+  const samePageOtherFile = places.some(
+    (item) => item.pageNumber === page && item.documentId !== location.documentId,
+  );
+  if (!samePageOtherFile) return sheet;
+  const name = location.documentName.replace(/\.[^.]+$/, "");
+  const short = name.length > 12 ? `${name.slice(0, 11)}…` : name;
+  return short ? `${short} ${sheet}` : sheet;
+}
+
+/**
+ * Порядковый номер места в таблице, рядом с адресом листа: «№1».
+ * В строке замечания на чертеже номер не пишем — там чип «л.N», см. placeChipLabel.
  */
 export function placeShort(index: number): string {
   return `№${index + 1}`;

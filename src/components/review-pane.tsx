@@ -47,7 +47,7 @@ import {
 import { quoteBannerKind } from "@/lib/quote-banner";
 import { SEVERITY_PLACE } from "@/lib/review-colors";
 import type { DrawingRemarkPin } from "@/lib/review-colors";
-import { placeOrdinal, placeShort, sheetLabel } from "@/lib/sheet-label";
+import { placeChipLabel, sheetLabel } from "@/lib/sheet-label";
 import {
   SPLIT_MAX,
   SPLIT_MIN,
@@ -883,25 +883,24 @@ export function ReviewPane({
     if (places.length < 2) return null;
     return (
       <span className="inline-flex shrink-0 items-center gap-0.5">
-        <span className="pto-t-xs font-medium text-muted">места</span>
+        <span className="pto-t-xs font-medium text-muted">та же на</span>
         {places.map((place, index) => {
           const here =
             place.documentId === document.id && place.pageNumber === pageNumber;
           const current = activeReviewId === review.id && index === siblingIndex;
-          const label = placeOrdinal(index);
+          const where = sheetLabel(place) ?? "лист не указан";
           return (
             <button
               key={`${place.documentId}-${place.pageNumber}-${index}`}
               type="button"
               onClick={() => focusLocation(place, review.id)}
-              title={`${label} · ${
-                sheetLabel(place) ?? "лист не указан"
-              }${here ? "" : " · другой лист или файл"}`}
+              title={`Та же фраза · ${where}${here ? "" : " · другой лист или файл"}`}
+              aria-label={`Та же фраза, ${where}`}
               className={`whitespace-nowrap rounded px-1 py-[1px] font-semibold tabular-nums ${
                 current ? "border-2" : "border"
               } ${SEVERITY_PLACE[review.severity]}`}
             >
-              {placeShort(index)}
+              {placeChipLabel(place, index, places)}
             </button>
           );
         })}
