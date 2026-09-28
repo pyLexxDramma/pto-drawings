@@ -14,6 +14,45 @@ export function IconChevronLeft({ className = "h-3.5 w-3.5" }: IconProps) {
   );
 }
 
+/** Назад по ошибкам: залитый треугольник, не шеврон панели. */
+export function IconTriangleLeft({ className = "h-3.5 w-3.5" }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+      <path d="M12 2.2 3.2 8 12 13.8V2.2Z" />
+    </svg>
+  );
+}
+
+/** Следующая ошибка: стрелка со стержнем, не шеврон. */
+export function IconArrowRight({ className = "h-3.5 w-3.5" }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M2.5 8h9.2M8.2 4.2 12.8 8 8.2 11.8"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/** Свернуть панель: две стрелки, чтобы не путать с переходом к ошибке. */
+export function IconChevronsRight({ className = "h-3.5 w-3.5" }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M2.5 3.5 7 8l-4.5 4.5M8.5 3.5 13 8 8.5 12.5"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function IconChevronRight({ className = "h-3.5 w-3.5" }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 16 16" fill="none" aria-hidden>

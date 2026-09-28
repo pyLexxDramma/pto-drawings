@@ -22,10 +22,11 @@ import { PdfPage } from "@/components/pdf-page";
 import { SheetTextPane } from "@/components/sheet-text-pane";
 import { SheetToolbar } from "@/components/sheet-toolbar";
 import type { RemarkUndo } from "@/lib/remark-undo";
-import { PaneToggle, SegmentedTabs } from "@/components/ui-chrome";
+import { SegmentedTabs } from "@/components/ui-chrome";
 import {
   IconChevronLeft,
   IconChevronRight,
+  IconChevronsRight,
   IconClose,
 } from "@/components/tool-icons";
 import { KEYMAP, KEYMAP_GROUPS } from "@/lib/keymap";
@@ -1253,32 +1254,6 @@ export function ReviewPane({
     aiQueueOn && activeReviewId
       ? (reviews.find((review) => review.id === activeReviewId) ?? null)
       : null;
-  const aiQueueCard = queueReview ? (
-    <AiReviewQueueCard
-      review={queueReview}
-      index={aiQueueIndex}
-      total={aiPendingReviews.length}
-      busy={aiQueueBusy}
-      onPrev={() => stepAiQueue(-1)}
-      onNext={() => stepAiQueue(1)}
-      canPrev={canPrevAi}
-      canNext={canNextAi}
-      onAccept={() => {
-        void patchReview(queueReview.id, { verdict: "confirmed" });
-      }}
-      onWrong={(reason) => {
-        void patchReview(queueReview.id, {
-          verdict: "wrong",
-          wrongReason: reason,
-        });
-      }}
-      onEdit={() => {
-        closeAiQueue();
-        onOpenReviews?.(queueReview.id);
-      }}
-      onClose={closeAiQueue}
-    />
-  ) : null;
 
   const aiQueueEntry =
     !aiQueueOn && aiPendingReviews.length > 0 ? (
@@ -1317,6 +1292,45 @@ export function ReviewPane({
       undoBusy={undoBusy}
     />
   );
+  const collapseSheet = (
+    <button
+      type="button"
+      title="Свернуть текст, оставить чертёж"
+      aria-label="Только лист — свернуть проекты и расшифровку"
+      onClick={toggleDrawingFullscreen}
+      className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-accent/50 bg-accent/5 text-accent hover:border-accent hover:bg-accent/10"
+    >
+      <IconChevronsRight className="h-3.5 w-3.5" />
+    </button>
+  );
+  const aiQueueCard = queueReview ? (
+    <AiReviewQueueCard
+      review={queueReview}
+      index={aiQueueIndex}
+      total={aiPendingReviews.length}
+      busy={aiQueueBusy}
+      onPrev={() => stepAiQueue(-1)}
+      onNext={() => stepAiQueue(1)}
+      canPrev={canPrevAi}
+      canNext={canNextAi}
+      onAccept={() => {
+        void patchReview(queueReview.id, { verdict: "confirmed" });
+      }}
+      onWrong={(reason) => {
+        void patchReview(queueReview.id, {
+          verdict: "wrong",
+          wrongReason: reason,
+        });
+      }}
+      onEdit={() => {
+        closeAiQueue();
+        onOpenReviews?.(queueReview.id);
+      }}
+      onClose={closeAiQueue}
+      leading={sheetToolButtons}
+      trailing={collapseSheet}
+    />
+  ) : null;
 
   const pageNav = {
     onPrevPage: () => stepVisible(-1),
@@ -2063,19 +2077,15 @@ export function ReviewPane({
               />
             ) : (
               <>
+            {queueReview ? null : (
             <div className="flex flex-nowrap items-center gap-1 border-b border-border px-1.5 py-0.5">
               {sheetToolButtons}
               {aiQueueEntry}
               <span className="ml-auto flex shrink-0 items-center gap-1">
-                <PaneToggle
-                  expanded
-                  align="right"
-                  expandLabel="Показать текст"
-                  collapseLabel="Только лист — свернуть проекты и расшифровку"
-                  onToggle={toggleDrawingFullscreen}
-                />
+                {collapseSheet}
               </span>
             </div>
+            )}
 
             {sidePanel === "notes" ? (
               notesPanel

@@ -1,11 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import {
-  IconChevronLeft,
-  IconChevronRight,
-  IconClose,
-} from "@/components/tool-icons";
+import { useState, type ReactNode } from "react";
+import { IconArrowRight, IconClose, IconTriangleLeft } from "@/components/tool-icons";
 import { remarkWording } from "@/lib/sheet-label";
 import {
   REVIEW_SEVERITY_LABEL,
@@ -37,6 +33,8 @@ export function AiReviewQueueCard({
   onWrong,
   onEdit,
   onClose,
+  leading,
+  trailing,
 }: {
   review: Review;
   index: number;
@@ -50,6 +48,10 @@ export function AiReviewQueueCard({
   onWrong: (reason: string) => void;
   onEdit: () => void;
   onClose: () => void;
+  /** Поиск: в одной полосе с разбором, а не строкой выше. */
+  leading?: ReactNode;
+  /** Свернуть текст: две стрелки, отдельно от перехода к ошибке. */
+  trailing?: ReactNode;
 }) {
   const [wrongOpen, setWrongOpen] = useState(false);
   const [reason, setReason] = useState("");
@@ -65,7 +67,8 @@ export function AiReviewQueueCard({
       className="shrink-0 border-b border-accent/20 bg-accent/5 pto-t-sm text-text"
       data-ai-queue=""
     >
-      <div className="flex items-center gap-1.5 px-2 py-1">
+      <div className="flex items-center gap-1.5 px-1.5 py-1">
+        {leading}
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-baseline gap-x-2">
             <span className="shrink-0 font-semibold text-text">Разбор ИИ</span>
@@ -121,7 +124,7 @@ export function AiReviewQueueCard({
           aria-label="Предыдущая находка ИИ"
           className="shrink-0 rounded border border-border bg-white px-1 py-1 text-text hover:bg-surface-2 disabled:opacity-40"
         >
-          <IconChevronLeft className="h-3.5 w-3.5" />
+          <IconTriangleLeft className="h-3.5 w-3.5" />
         </button>
         <button
           type="button"
@@ -131,7 +134,7 @@ export function AiReviewQueueCard({
           aria-label="Следующая находка ИИ"
           className="shrink-0 rounded border border-border bg-white px-1 py-1 text-text hover:bg-surface-2 disabled:opacity-40"
         >
-          <IconChevronRight className="h-3.5 w-3.5" />
+          <IconArrowRight className="h-3.5 w-3.5" />
         </button>
         <button
           type="button"
@@ -142,6 +145,7 @@ export function AiReviewQueueCard({
         >
           <IconClose className="h-3.5 w-3.5" />
         </button>
+        {trailing}
       </div>
       {wrongOpen ? (
         <div className="border-t border-rose-200 bg-white px-2 py-2">
