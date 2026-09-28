@@ -33,7 +33,7 @@ import {
   Spinner,
   menuItemClass,
 } from "@/components/ui-chrome";
-import { IconChevronDown, IconChevronRight } from "@/components/tool-icons";
+import { IconBack, IconChevronDown, IconChevronRight } from "@/components/tool-icons";
 import { UserMenu } from "@/components/user-menu";
 import { UsersPanel } from "@/components/users-panel";
 import {
@@ -1888,6 +1888,22 @@ export function Workspace({
     }
   }, []);
 
+  const showNavBack = Boolean(selectedId) || showReviews || peekOpen;
+
+  const navBackButton = showNavBack ? (
+    <button
+      type="button"
+      onClick={goBack}
+      title="На предыдущий экран"
+      aria-label="Назад"
+      data-nav-back=""
+      className="inline-flex w-full items-center justify-center gap-1.5 rounded-md border border-accent bg-accent px-2 py-1.5 pto-t-sm font-semibold text-white shadow-sm hover:bg-[#1d4ed8]"
+    >
+      <IconBack className="h-3.5 w-3.5" />
+      назад
+    </button>
+  ) : null;
+
   const undoRemark = useCallback(async () => {
     if (!remarkUndo || undoBusy) return;
     setUndoBusy(true);
@@ -1978,18 +1994,21 @@ export function Workspace({
       />
 
       <header className="sticky top-0 z-30 flex shrink-0 items-center gap-1.5 border-b border-border bg-surface px-2 py-0.5 sm:px-3">
-          <button
-            type="button"
-            onClick={openProjectsList}
-            className="flex shrink-0 items-center gap-1.5 text-left"
-            title="Ко всем проектам"
-            aria-label="К проектам"
-          >
-            <PtoLogo className="h-5 w-5 shrink-0" title="PTO — проверка чертежей" />
-            <div className="hidden min-w-0 sm:block">
-              <div className="text-xs font-semibold leading-none tracking-tight">PTO</div>
-            </div>
-          </button>
+          <div className="flex w-[7.25rem] shrink-0 flex-col items-stretch gap-0.5 sm:w-[8.5rem]">
+            <button
+              type="button"
+              onClick={openProjectsList}
+              className="flex shrink-0 items-center gap-1.5 text-left"
+              title="Ко всем проектам"
+              aria-label="К проектам"
+            >
+              <PtoLogo className="h-5 w-5 shrink-0" title="PTO — проверка чертежей" />
+              <div className="hidden min-w-0 sm:block">
+                <div className="text-xs font-semibold leading-none tracking-tight">PTO</div>
+              </div>
+            </button>
+            {focusMode || showReviews || projectsCollapsed ? navBackButton : null}
+          </div>
           {currentProject ? (
             <ProjectStagesBar
               embedded
@@ -2159,6 +2178,11 @@ export function Workspace({
             className="flex min-h-0 shrink-0 flex-col bg-surface"
             style={{ width: projectsWidth, maxWidth: "100%" }}
           >
+            {navBackButton ? (
+              <div className="shrink-0 border-b border-border bg-surface px-1.5 py-1.5">
+                {navBackButton}
+              </div>
+            ) : null}
             <div className="flex items-start gap-1 border-b-2 border-slate-300 bg-slate-200 px-2 py-1.5">
               <div className="min-w-0 flex-1">
               {showNewProject || projects.length === 0 ? (
