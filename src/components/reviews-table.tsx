@@ -370,10 +370,6 @@ export function ReviewsTable({
     void load().catch(() => undefined);
   }, [load, refreshToken]);
 
-  useEffect(() => {
-    setFileScopeOff(false);
-  }, [currentDocumentId]);
-
   const filtersOn =
     Object.keys(colFilters).length > 0 || query.trim().length > 0;
 
