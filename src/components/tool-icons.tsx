@@ -38,6 +38,21 @@ export function IconArrowRight({ className = "h-3.5 w-3.5" }: IconProps) {
   );
 }
 
+/** Вернуть панель: две стрелки влево, пара к свёртке листа. */
+export function IconChevronsLeft({ className = "h-3.5 w-3.5" }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M13.5 3.5 9 8l4.5 4.5M7.5 3.5 3 8l4.5 4.5"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 /** Свернуть панель: две стрелки, чтобы не путать с переходом к ошибке. */
 export function IconChevronsRight({ className = "h-3.5 w-3.5" }: IconProps) {
   return (

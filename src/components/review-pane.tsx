@@ -25,6 +25,7 @@ import type { RemarkUndo } from "@/lib/remark-undo";
 import { SegmentedTabs } from "@/components/ui-chrome";
 import {
   IconChevronRight,
+  IconChevronsLeft,
   IconChevronsRight,
   IconClose,
 } from "@/components/tool-icons";
@@ -1822,6 +1823,19 @@ export function ReviewPane({
                     : { width: `${split}%`, height: "100%" }
               }
             >
+              {paneSolo === "pdf" ? (
+                <button
+                  type="button"
+                  title="Вернуть расшифровку и замечания (Esc)"
+                  aria-label="К расшифровке"
+                  onClick={exitSheetOnly}
+                  onMouseDown={(event) => event.stopPropagation()}
+                  className="absolute left-1.5 top-1.5 z-40 inline-flex h-6 items-center gap-1 rounded border border-accent/50 bg-white/95 px-1.5 text-accent shadow-sm hover:border-accent hover:bg-accent/10"
+                >
+                  <IconChevronsLeft className="h-3.5 w-3.5" />
+                  <span className="pto-t-sm font-medium">К расшифровке</span>
+                </button>
+              ) : null}
               {quoteMiss ? (
                 // Выше строки состояния: на её уровне плашка обрезалась, и
                 // кнопка «Показать в тексте» уезжала под подсказку про мышь.
