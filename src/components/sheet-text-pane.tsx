@@ -103,7 +103,7 @@ export function SheetTextPane({
         // Горизонталь у широкой таблицы — внутри .pto-md-table. Полоса на всю
         // панель (overflow-x-scroll + gutter) всегда висела внизу, даже когда
         // переносить было нечего: ширина и так тянется сплитом.
-        className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-x-contain"
+        className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-x-contain bg-white"
       >
         {filterEmpty ? (
           <div className="p-4 text-xs text-muted">{filterEmptyText}</div>

@@ -198,18 +198,27 @@ export function ProjectStagesBar({
 
   return (
     <div
-      className={`flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5 ${
+      className={`flex min-w-0 flex-1 flex-nowrap items-center gap-x-2 ${
         embedded
           ? "border-b-4 border-slate-800 bg-slate-200 px-1 py-1"
           : "shrink-0 border-b border-border bg-white px-2 py-0.5 sm:px-3"
       }`}
     >
       <span
-        className="max-w-[10rem] shrink-0 truncate pto-t-sm font-medium text-text sm:max-w-[18rem] xl:max-w-[26rem]"
+        className="max-w-[9rem] shrink-0 truncate pto-t-sm font-medium text-text sm:max-w-[14rem]"
         title={projectName}
       >
         {projectName}
       </span>
+
+      {docTitle ? (
+        <span
+          className="min-w-0 max-w-[16rem] shrink truncate pto-t-sm font-medium text-slate-700 sm:max-w-[22rem]"
+          title={docTitle}
+        >
+          {docTitle}
+        </span>
+      ) : null}
 
       <div className="flex min-w-0 flex-1 items-stretch gap-2">
         {stages.map((stage) => {
@@ -262,15 +271,6 @@ export function ProjectStagesBar({
           <IconBack className="h-3 w-3" />
           {backLabel}
         </button>
-      ) : null}
-
-      {docTitle ? (
-        <span
-          className="hidden w-full whitespace-normal break-all rounded border border-slate-500 bg-slate-100 px-1.5 py-0.5 pto-t-sm font-medium leading-tight text-slate-800 lg:block"
-          title={docTitle}
-        >
-          {docTitle}
-        </span>
       ) : null}
 
       {busy ? <Spinner className="h-3.5 w-3.5 shrink-0 text-accent" /> : null}

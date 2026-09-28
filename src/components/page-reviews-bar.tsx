@@ -90,7 +90,7 @@ export function PageReviewsBar({
      * плашкой состояния, и лист с замечаниями выглядел как упавшая обработка.
      * Про замечания говорит красная точка у числа.
      */
-    <div className="shrink-0 border-b border-border bg-surface-2 pto-t-sm leading-snug text-text">
+    <div className="shrink-0 border-b-2 border-slate-500 bg-slate-100 pto-t-sm leading-snug text-text">
       <div className="flex items-center justify-between gap-2 px-2 py-1">
         <button
           type="button"
