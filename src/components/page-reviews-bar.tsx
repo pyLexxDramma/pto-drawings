@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import {
   IconChevronDown,
   IconChevronLeft,
@@ -50,10 +50,29 @@ export function PageReviewsBar({
   /** В разборе ИИ свои стрелки — эту пару прячем. */
   showStep?: boolean;
 }) {
+  const listRef = useRef<HTMLUListElement>(null);
+  const ordered = [...reviews].sort((a, b) => a.number - b.number);
+
+  useEffect(() => {
+    const list = listRef.current;
+    if (!open || !list || !activeReview) return;
+    const row = list.querySelector<HTMLElement>(
+      `[data-review-id="${activeReview.id}"]`,
+    );
+    if (!row) return;
+    const listRect = list.getBoundingClientRect();
+    const rowRect = row.getBoundingClientRect();
+    const delta =
+      rowRect.top - listRect.top - (list.clientHeight - rowRect.height) / 2;
+    const max = list.scrollHeight - list.clientHeight;
+    list.scrollTop = Math.min(max, Math.max(0, list.scrollTop + delta));
+  }, [open, activeReview?.id]);
+
   if (!reviews.length) return null;
 
-  /** Строка активна, если подсвечена её цитата или сама формулировка. */
+  /** Строка активна, если это текущее замечание или подсвечена его цитата. */
   function isActive(review: Review) {
+    if (activeReview?.id === review.id) return true;
     if (focusQuote.length < 2) return false;
     const needle = normalizeQuote(focusQuote);
     return (
@@ -149,10 +168,14 @@ export function PageReviewsBar({
         ) : null}
       </div>
       {open ? (
-        <ul className="max-h-40 space-y-1 overflow-auto border-t border-border px-1.5 py-1.5">
-          {reviews.map((review) => (
+        <ul
+          ref={listRef}
+          className="max-h-40 space-y-1 overflow-auto border-t border-border px-1.5 py-1.5"
+        >
+          {ordered.map((review) => (
             <li
               key={review.id}
+              data-review-id={review.id}
               className={`flex w-full items-start gap-1 rounded border px-2 py-1 ${
                 SEVERITY_ITEM[review.severity]
               } ${isActive(review) ? "outline outline-2 outline-accent" : ""}`}
