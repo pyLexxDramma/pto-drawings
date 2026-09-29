@@ -1830,7 +1830,7 @@ export function ReviewPane({
                   aria-label="К расшифровке"
                   onClick={exitSheetOnly}
                   onMouseDown={(event) => event.stopPropagation()}
-                  className="absolute left-1.5 top-1.5 z-40 inline-flex h-6 items-center gap-1 rounded border border-accent/50 bg-white/95 px-1.5 text-accent shadow-sm hover:border-accent hover:bg-accent/10"
+                  className="absolute right-1.5 top-1.5 z-40 inline-flex h-6 items-center gap-1 rounded border border-accent/50 bg-white/95 px-1.5 text-accent shadow-sm hover:border-accent hover:bg-accent/10"
                 >
                   <IconChevronsLeft className="h-3.5 w-3.5" />
                   <span className="pto-t-sm font-medium">К расшифровке</span>
