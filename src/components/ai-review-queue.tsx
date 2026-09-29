@@ -67,10 +67,10 @@ export function AiReviewQueueCard({
       className="shrink-0 border-b border-accent/20 bg-accent/5 pto-t-sm text-text"
       data-ai-queue=""
     >
-      <div className="flex items-center gap-1.5 px-1.5 py-1">
-        {leading}
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-baseline gap-x-2">
+      <div className="flex flex-col gap-1 px-1.5 py-1">
+        <div className="flex min-w-0 items-center gap-1.5">
+          {leading}
+          <div className="flex min-w-0 flex-1 items-baseline gap-x-2 overflow-hidden">
             <span className="shrink-0 font-semibold text-text">Разбор ИИ</span>
             {index >= 0 ? (
               <span className="shrink-0 tabular-nums text-muted">
@@ -88,7 +88,9 @@ export function AiReviewQueueCard({
                 : remarkWording(review.text || review.aiFinding || "—")}
             </span>
           </div>
+          {trailing}
         </div>
+        <div className="flex flex-wrap items-center gap-1">
         <button
           type="button"
           disabled={busy}
@@ -145,7 +147,7 @@ export function AiReviewQueueCard({
         >
           <IconClose className="h-3.5 w-3.5" />
         </button>
-        {trailing}
+        </div>
       </div>
       {wrongOpen ? (
         <div className="border-t border-rose-200 bg-white px-2 py-2">
