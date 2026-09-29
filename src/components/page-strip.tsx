@@ -8,15 +8,8 @@ import {
   type ReviewVerdict,
 } from "@/types";
 
-function sheetMark(input: {
-  isWorking: boolean;
-  isReady: boolean;
-  pending: number;
-  resolved: boolean;
-}): string {
+function sheetMark(input: { isWorking: boolean; isReady: boolean }): string {
   if (input.isWorking) return "обрабатывается";
-  if (input.pending > 0) return `не разобрано ${input.pending}`;
-  if (input.resolved) return "разобраны";
   if (input.isReady) return "текст готов";
   return "ждёт текст";
 }
@@ -92,12 +85,7 @@ function SheetRow({
           L{pageNumber}
         </span>
         <span className="shrink-0 truncate pto-t-xs font-semibold tabular-nums text-muted">
-          {sheetMark({
-            isWorking,
-            isReady,
-            pending: dots?.pending ?? 0,
-            resolved: allResolved,
-          })}
+          {sheetMark({ isWorking, isReady })}
         </span>
       </span>
     </button>

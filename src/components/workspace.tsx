@@ -392,7 +392,7 @@ export function Workspace({
   const [peekOpen, setPeekOpen] = useState(false);
   const [reviewStats, setReviewStats] = useState<ReviewStats | null>(null);
   /** Лист открыт из таблицы замечаний (в т.ч. новая вкладка) — «Назад» ведёт туда. */
-  const [, setNavFromReviews] = useState(false);
+  const [navFromReviews, setNavFromReviews] = useState(false);
   const [projectReviews, setProjectReviews] = useState<Review[]>([]);
   const [reviewsEpoch, setReviewsEpoch] = useState(0);
   const [, setSheetBackHint] = useState<string | null>(null);
@@ -407,9 +407,11 @@ export function Workspace({
   const selectedIdRef = useRef<string | null>(null);
   const showReviewsRef = useRef(false);
   const peekOpenRef = useRef(false);
+  const navFromReviewsRef = useRef(false);
   selectedIdRef.current = selectedId;
   showReviewsRef.current = showReviews;
   peekOpenRef.current = peekOpen;
+  navFromReviewsRef.current = navFromReviews;
   /** Прогресс-бары этапов открыты: сразу видно, где проект встал. */
   const [documentsProjectId, setDocumentsProjectId] = useState<string | null>(
     null,
@@ -422,6 +424,10 @@ export function Workspace({
     quote?: string;
     /** Клик по плашке прогресса — панель «По листам», без прыжка на активный лист. */
     showProgress?: boolean;
+  } | null>(null);
+  const [sheetPage, setSheetPage] = useState<{
+    documentId: string;
+    page: number;
   } | null>(null);
   const autoReadyJumpRef = useRef<string | null>(null);
   const statusPrevRef = useRef<Map<string, DocumentStatus>>(new Map());
@@ -448,7 +454,7 @@ export function Workspace({
     );
   }, [projectReviews, selected]);
   const headerReviewStats = useMemo(() => {
-    if (!selected || showReviews || !openFileReviews) return reviewStats;
+    if (!selected || !openFileReviews) return reviewStats;
     return {
       total: openFileReviews.length,
       pending: openFileReviews.filter((item) => item.verdict === "pending")
@@ -457,7 +463,7 @@ export function Workspace({
         (item) => item.origin === "ai" && item.verdict === "pending",
       ).length,
     };
-  }, [openFileReviews, reviewStats, selected, showReviews]);
+  }, [openFileReviews, reviewStats, selected]);
   const kitSibling = useMemo(() => {
     if (!selected?.kitId) return null;
     return (
@@ -636,12 +642,14 @@ export function Workspace({
     (stage: StageId) => {
       if (stage === "reviews") {
         if (!showReviews) pushBack();
-        setTableScope({ wholeProject: true, token: Date.now() });
+        setTableScope({ wholeProject: !selectedId, token: Date.now() });
         setPeekOpen(false);
         setShowReviews(true);
         return;
       }
       setShowReviews(false);
+      setPeekOpen(false);
+      setNavFromReviews(false);
       // Уже в файле — просто вернуться к расшифровке, не прыгать на другой лист.
       if (selectedId) return;
 
@@ -941,11 +949,6 @@ export function Workspace({
           }
           void refreshDocument(deepDoc, ac.signal);
           clearRemarkJump();
-          window.history.replaceState(
-            { pto: fromReviews ? "doc-from-reviews" : "doc" },
-            "",
-            window.location.pathname,
-          );
         }
       } catch {
         if (ac.signal.aborted) return;
@@ -962,6 +965,39 @@ export function Workspace({
     // Только первый заход в workspace — иначе сброс projectId / remount input ломает выбор файла.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (loading) return;
+    const params = new URLSearchParams();
+    if (projectId) params.set("project", projectId);
+    if (selectedId) {
+      params.set("doc", selectedId);
+      const page =
+        sheetPage?.documentId === selectedId && sheetPage.page > 0
+          ? sheetPage.page
+          : openPage?.documentId === selectedId && openPage.page > 0
+            ? openPage.page
+            : 0;
+      if (page > 0) params.set("page", String(page));
+      if (openPage?.documentId === selectedId && openPage.reviewId) {
+        params.set("review", openPage.reviewId);
+      }
+      const quote =
+        openPage?.documentId === selectedId
+          ? (openPage.quote ?? "").trim()
+          : "";
+      if (quote && quote.length <= 180) params.set("quote", quote);
+    }
+    if (navFromReviews) params.set("from", "reviews");
+    const search = params.toString();
+    const next = search
+      ? `${window.location.pathname}?${search}`
+      : window.location.pathname;
+    const current = `${window.location.pathname}${window.location.search}`;
+    if (next !== current) {
+      window.history.replaceState({ pto: "sheet" }, "", next);
+    }
+  }, [loading, navFromReviews, openPage, projectId, selectedId, sheetPage]);
 
   useEffect(() => {
     const fromList = pickLiveJob(documents, selectedId);
@@ -1259,6 +1295,28 @@ export function Workspace({
     setProjectQuery("");
     setHits([]);
     setError(null);
+  }
+
+  async function openProjectInTable(id: string) {
+    if (!id || id === projectId) return;
+    setShowReviews(true);
+    setPeekOpen(false);
+    setNavFromReviews(false);
+    setSelectedId(null);
+    setFocusMode(false);
+    setTableScope({ wholeProject: true, token: Date.now() });
+    setProjectId(id);
+    setProjectQuery("");
+    setHits([]);
+    const project = projects.find((item) => item.id === id);
+    setDescriptionDraft(project?.description ?? "");
+    setFilesLoading(true);
+    setDocuments([]);
+    try {
+      await loadDocuments(id);
+    } finally {
+      setFilesLoading(false);
+    }
   }
 
   async function selectProject(id: string) {
@@ -1857,7 +1915,7 @@ export function Workspace({
   /** Жёлтая: только один шаг назад. Проект не бросает. */
   const goBack = useCallback(() => {
     if (consumeSheetBackRef.current?.()) return;
-    if (peekOpenRef.current) {
+    if (peekOpenRef.current && navFromReviewsRef.current) {
       setPeekOpen(false);
       setShowReviews(true);
       setNavFromReviews(false);
@@ -2011,7 +2069,7 @@ export function Workspace({
               documents={documents}
               documentsReady={documentsProjectId === currentProject.id}
               reviews={headerReviewStats}
-              reviewsOfFile={Boolean(selected && !showReviews)}
+              reviewsOfFile={Boolean(selected)}
               reviewsOpen={showReviews}
               onOpenStage={openStage}
               docOpen={Boolean(selected) && !showReviews}
@@ -2029,7 +2087,7 @@ export function Workspace({
           )}
 
           <div className="flex min-w-0 shrink-0 items-center gap-2">
-            {currentProject && !selected ? (
+            {currentProject && (!selected || (showReviews && !peekOpen)) ? (
               <ProjectSearch
                 query={projectQuery}
                 onQueryChange={setProjectQuery}
@@ -2037,7 +2095,17 @@ export function Workspace({
                 searching={searching}
                 open={projectSearchOpen}
                 onOpenChange={setProjectSearchOpen}
-                onPick={openProjectSearchHit}
+                onPick={(hit) => {
+                  if (showReviewsRef.current && !peekOpenRef.current) {
+                    setSelectedId(hit.documentId);
+                    setTableScope({ wholeProject: false, token: Date.now() });
+                    setShowReviews(true);
+                    setPeekOpen(false);
+                    void refreshDocument(hit.documentId);
+                    return;
+                  }
+                  openProjectSearchHit(hit);
+                }}
               />
             ) : null}
             {visibleQueueChip ? (
@@ -2501,10 +2569,10 @@ export function Workspace({
                 className="mt-2 min-h-[6rem] flex-1 overflow-hidden border-t-2 border-slate-300 bg-surface-2 p-1.5"
               />
             ) : null}
-            {currentProject ? (
+            {currentProject && !selected ? (
               <div className="shrink-0 border-t-2 border-slate-300 bg-surface-2 px-1.5 py-1.5">
                 <ResolvedSummary
-                  reviews={selected ? (openFileReviews ?? []) : projectReviews}
+                  reviews={projectReviews}
                   projectId={currentProject.id}
                 />
               </div>
@@ -2542,6 +2610,11 @@ export function Workspace({
                 id: item.id,
                 name: item.originalName,
               }))}
+              projects={projects.map((item) => ({
+                id: item.id,
+                name: item.name,
+              }))}
+              onSelectProject={(id) => void openProjectInTable(id)}
               onJumpToPage={jumpToPage}
               onOpenTranscript={() => openStage("transcribe")}
               onStatsChange={setReviewStats}
@@ -2581,7 +2654,9 @@ export function Workspace({
             document={selected}
             projectId={currentProject?.id}
             reviews={projectReviews}
-            onJumpToPage={jumpToPage}
+            onSheetPage={(page) => {
+              if (page > 0) setSheetPage({ documentId: selected.id, page });
+            }}
             onOpenReviews={(reviewId) => {
               if (!showReviews) pushBack();
               setTableScope({ wholeProject: false, token: Date.now() });

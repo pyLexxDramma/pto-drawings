@@ -235,6 +235,8 @@ export function ReviewsTable({
   scopeToken = 0,
   runFinished = false,
   projectFiles = [],
+  projects = [],
+  onSelectProject,
 }: {
   projectId: string;
   projectName: string;
@@ -283,6 +285,9 @@ export function ReviewsTable({
   }) => void;
   /** Статус из таблицы сразу виден в расшифровке и в полосе слева. */
   onReviewPatched?: (review: Review) => void;
+  /** Тот же список, что слева. Выбор остаётся в таблице. */
+  projects?: { id: string; name: string }[];
+  onSelectProject?: (projectId: string) => void;
 }) {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [events, setEvents] = useState<ReviewEvent[]>([]);
@@ -396,7 +401,7 @@ export function ReviewsTable({
   }, [currentDocumentId, currentFileKey, fileScopeOff, reviews]);
 
   const visible = useMemo(() => {
-    const needle = query.trim().toLowerCase();
+    const needle = query.trim().toLowerCase().replace(/[-\s]+/g, "");
     return applyExcelFilters(scoped, colFilters).filter((item) => {
       if (!needle) return true;
       const haystack = [
@@ -405,13 +410,15 @@ export function ReviewsTable({
         item.comment,
         item.section,
         reviewAuthor(item),
+        currentDocumentName,
         ...item.locations.map((loc) => `${loc.documentName} ${loc.quote}`),
       ]
         .join(" ")
-        .toLowerCase();
+        .toLowerCase()
+        .replace(/[-\s]+/g, "");
       return haystack.includes(needle);
     });
-  }, [colFilters, query, scoped]);
+  }, [colFilters, currentDocumentName, query, scoped]);
 
   const filterValues = useMemo(() => {
     const cols: ExcelCol[] = [
@@ -764,6 +771,20 @@ export function ReviewsTable({
           <span className="min-w-0 truncate font-semibold text-text">
             Замечания · {projectName}
           </span>
+          {projects.length > 0 ? (
+            <select
+              aria-label="Проект"
+              value={projectId}
+              onChange={(event) => onSelectProject?.(event.target.value)}
+              className="max-w-[14rem] shrink truncate rounded-md border border-border bg-white px-1.5 py-0.5 pto-t-sm font-medium text-text"
+            >
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name}
+                </option>
+              ))}
+            </select>
+          ) : null}
           {loading ? <span className="shrink-0 text-muted"> · загрузка…</span> : null}
           {currentDocumentId ? (
             <span

@@ -613,6 +613,10 @@ export async function listProjectAnnotations(
   });
 }
 
+function foldSearch(value: string) {
+  return value.toLowerCase().replace(/[-\s]+/g, "");
+}
+
 function snippetAround(text: string, needle: string) {
   const index = text.toLowerCase().indexOf(needle);
   if (index < 0) return "";
@@ -628,7 +632,7 @@ export async function searchProject(
   query: string,
   limit = 60,
 ): Promise<SearchHit[]> {
-  const needle = query.trim().toLowerCase();
+  const needle = foldSearch(query);
   if (needle.length < 2) return [];
 
   return withDataLock(async () => {
@@ -637,16 +641,30 @@ export async function searchProject(
     for (const meta of db.documents) {
       if (meta.projectId !== projectId) continue;
       const body = await readBody(meta.id);
+      if (foldSearch(meta.originalName).includes(needle)) {
+        const page = body.pages[0];
+        hits.push({
+          documentId: meta.id,
+          originalName: meta.originalName,
+          pageNumber: page?.pageNumber ?? 1,
+          kind: page?.kind ?? "text",
+          snippet: meta.originalName,
+        });
+        if (hits.length >= limit) return hits;
+      }
       for (const page of body.pages) {
         if (hits.length >= limit) return hits;
         const haystack = `${page.markdown}\n${page.extractedText}`;
-        if (!haystack.toLowerCase().includes(needle)) continue;
+        if (!foldSearch(haystack).includes(needle)) continue;
+        const raw = query.trim().toLowerCase();
         hits.push({
           documentId: meta.id,
           originalName: meta.originalName,
           pageNumber: page.pageNumber,
           kind: page.kind,
-          snippet: snippetAround(haystack, needle),
+          snippet: haystack.toLowerCase().includes(raw)
+            ? snippetAround(haystack, raw)
+            : meta.originalName,
         });
       }
     }

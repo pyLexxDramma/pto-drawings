@@ -132,11 +132,7 @@ function buildStages(
           // ставим сколько замечаний всего, вторым — сколько разобрано.
           count:
             reviewsTotal > 0
-              ? `${reviewsTotal} · разобрано ${reviewsDone}${
-                  (reviews.aiPending ?? 0) > 0
-                    ? ` · ИИ ждёт ${reviews.aiPending}`
-                    : ""
-                }`
+              ? `${reviewsTotal} · разобрано ${reviewsDone} · не разобрано ${reviewsTotal - reviewsDone}`
               : shownTotal > 0 && shownReady >= shownTotal
                 ? "замечаний 0"
                 : "ещё нет",
@@ -152,11 +148,9 @@ function buildStages(
               ? shownTotal > 0 && shownReady >= shownTotal
                 ? "Прогон закончен, замечаний нет."
                 : "Замечаний пока нет — конвейер их ещё не присылал"
-              : (reviews.aiPending ?? 0) > 0
-                ? `Замечаний: ${reviewsTotal}, разобрано: ${reviewsDone}. Находки ИИ ждут человека: ${reviews.aiPending}`
-                : reviewsOfFile
-                  ? `Замечаний в этом файле: ${reviewsTotal}, разобрано: ${reviewsDone}`
-                  : `Замечаний в проекте: ${reviewsTotal}, разобрано с заказчиком: ${reviewsDone}`,
+              : reviewsOfFile
+                ? `Замечаний в этом файле: ${reviewsTotal}, разобрано: ${reviewsDone}, не разобрано: ${reviewsTotal - reviewsDone}`
+                : `Замечаний в проекте: ${reviewsTotal}, разобрано: ${reviewsDone}, не разобрано: ${reviewsTotal - reviewsDone}`,
         },
   ];
 }

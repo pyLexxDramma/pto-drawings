@@ -113,21 +113,25 @@ export function ResolvedSummary({
 
   if (compact) {
     const pending = total - resolved;
-    const label =
-      pending > 0 ? `Не разобрано ${pending}` : "Все разобраны";
+    if (pending === 0) {
+      return (
+        <span
+          title="Все замечания разобраны"
+          className={`inline-flex shrink-0 items-center whitespace-nowrap pto-t-md font-medium leading-none text-muted ${className}`}
+        >
+          Все разобраны
+        </span>
+      );
+    }
     return (
       <button
         type="button"
         onClick={onShowUnresolved}
-        disabled={!onShowUnresolved || pending === 0}
-        title={
-          pending > 0
-            ? "Показать в этой таблице только неразобранные"
-            : "Все замечания разобраны"
-        }
-        className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-md border border-border bg-white px-1.5 py-0.5 pto-t-md font-medium leading-none tabular-nums text-text hover:border-accent hover:bg-accent/5 disabled:cursor-default disabled:hover:border-border disabled:hover:bg-white ${className}`}
+        disabled={!onShowUnresolved}
+        title="Показать в этой таблице только неразобранные"
+        className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-md border border-border bg-white px-1.5 py-0.5 pto-t-md font-medium leading-none tabular-nums text-text hover:border-accent hover:bg-accent/5 disabled:cursor-default ${className}`}
       >
-        {label}
+        {`Не разобрано ${pending}`}
       </button>
     );
   }

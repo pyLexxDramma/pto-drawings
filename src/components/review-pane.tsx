@@ -120,12 +120,8 @@ type ReviewPaneProps = {
   notesRefreshToken?: number;
   /** Те же строки, что в «Замечаний по листу» — открыть таблицу по этому файлу. */
   onOpenReviews?: (reviewId?: string) => void;
-  /** Другой файл того же замечания — из «место 2 из 3». */
-  onJumpToPage?: (
-    documentId: string,
-    pageNumber: number,
-    options?: { reviewId?: string; quote?: string },
-  ) => void;
+  /** Текущий лист — чтобы адрес страницы переживал обновление. */
+  onSheetPage?: (page: number) => void;
   /** Миниатюры листов в колонке проектов — сворачиваются вместе с ней. */
   stripHost?: HTMLElement | null;
   /** Очередь ИИ живёт в workspace: иначе смена файла сбрасывает режим. */
@@ -227,7 +223,7 @@ export function ReviewPane({
   undoBusy = false,
   notesRefreshToken = 0,
   onOpenReviews,
-  onJumpToPage,
+  onSheetPage,
   stripHost = null,
   aiQueueOn = false,
   onAiQueueOnChange,
@@ -475,6 +471,9 @@ export function ReviewPane({
         Math.max(kitCadDoc.pageCount, kitCadDoc.pages.length, 1),
       )
     : pageNumber;
+  useEffect(() => {
+    onSheetPage?.(pageNumber);
+  }, [onSheetPage, pageNumber]);
   const page = document.pages.find((item) => item.pageNumber === pageNumber);
   const pageNotes = notes.filter((item) => item.pageNumber === pageNumber);
   const pageReviews = reviewsByPage.get(pageNumber) ?? [];
@@ -495,26 +494,23 @@ export function ReviewPane({
         .sort((a, b) => a.number - b.number),
     [fileReviews],
   );
-  /** Очередь ИИ по всему проекту — origin ai, ещё не разобраны. */
+  /** Очередь ИИ этого файла: одно замечание на нескольких листах — одна позиция. */
   const aiPendingReviews = useMemo(
     () =>
-      reviews
+      fileReviews
         .filter(
-          (review) =>
-            review.origin === "ai" &&
-            review.verdict === "pending" &&
-            review.severity !== "skip",
+          (review) => review.origin === "ai" && review.verdict === "pending",
         )
         .sort((a, b) => a.number - b.number),
-    [reviews],
+    [fileReviews],
   );
-  /** Все находки ИИ по номеру, включая уже разобранные: иначе первая не открывается. */
+  /** Находки ИИ этого файла, включая уже разобранные: иначе первая не открывается. */
   const aiReviews = useMemo(
     () =>
-      reviews
-        .filter((review) => review.origin === "ai" && review.severity !== "skip")
+      fileReviews
+        .filter((review) => review.origin === "ai")
         .sort((a, b) => a.number - b.number),
-    [reviews],
+    [fileReviews],
   );
   const pendingSheetCount = useMemo(
     () => pageReviews.filter((review) => review.verdict === "pending").length,
@@ -623,26 +619,7 @@ export function ReviewPane({
     focusReviewOnSheet(review);
   }
   function selectAiReview(review: Review) {
-    const location =
-      review.locations.find(
-        (item) => item.documentId && item.pageNumber,
-      ) ?? review.locations[0];
-    if (!location?.documentId || !location.pageNumber) {
-      selectFileReview(review);
-      return;
-    }
-    if (location.documentId !== document.id) {
-      onJumpToPage?.(location.documentId, location.pageNumber, {
-        reviewId: review.id,
-        quote: (
-          location.quote ||
-          review.text ||
-          review.aiFinding ||
-          ""
-        ).trim() || undefined,
-      });
-      return;
-    }
+    // Очередь этого файла. Чужой файл открывается только из таблицы.
     selectFileReview(review);
   }
   function stepPending(dir: 1 | -1) {
@@ -724,6 +701,8 @@ export function ReviewPane({
   async function patchReview(reviewId: string, body: Partial<Review>) {
     if (!projectId) return false;
     const fromAiQueue = aiQueueOn;
+    const previous = reviews.find((item) => item.id === reviewId);
+    if (previous) onReviewPatched?.({ ...previous, ...body });
     try {
       setAiQueueBusy(true);
       const response = await fetch(
@@ -734,7 +713,10 @@ export function ReviewPane({
           body: JSON.stringify(body),
         },
       );
-      if (!response.ok) return false;
+      if (!response.ok) {
+        if (previous) onReviewPatched?.(previous);
+        return false;
+      }
       const payload = (await response.json()) as { review: Review };
       onReviewPatched?.(payload.review);
       if (body.verdict && body.verdict !== "pending") {
@@ -742,6 +724,7 @@ export function ReviewPane({
       }
       return true;
     } catch {
+      if (previous) onReviewPatched?.(previous);
       return false;
     } finally {
       setAiQueueBusy(false);
@@ -903,10 +886,6 @@ export function ReviewPane({
   ) {
     const quote = (location.quote || focusQuote || "").trim();
     if (location.documentId && location.documentId !== document.id) {
-      onJumpToPage?.(location.documentId, location.pageNumber!, {
-        reviewId,
-        quote: quote || undefined,
-      });
       return;
     }
     if (location.pageNumber) goToPage(location.pageNumber);
@@ -937,16 +916,31 @@ export function ReviewPane({
             place.documentId === document.id && place.pageNumber === pageNumber;
           const current = activeReviewId === review.id && index === siblingIndex;
           const where = sheetLabel(place) ?? "лист не указан";
+          const otherFile = Boolean(
+            place.documentId && place.documentId !== document.id,
+          );
+          const className = `whitespace-nowrap rounded px-1 py-[1px] font-semibold tabular-nums ${
+            current ? "border-2" : "border"
+          } ${SEVERITY_PLACE[review.severity]}`;
+          if (otherFile) {
+            return (
+              <span
+                key={`${place.documentId}-${place.pageNumber}-${index}`}
+                title={`Та же фраза · ${where}. Другой файл открывается из таблицы`}
+                className={className}
+              >
+                {placeChipLabel(place, index, places)}
+              </span>
+            );
+          }
           return (
             <button
               key={`${place.documentId}-${place.pageNumber}-${index}`}
               type="button"
               onClick={() => focusLocation(place, review.id)}
-              title={`Та же фраза · ${where}${here ? "" : " · другой лист или файл"}`}
+              title={`Та же фраза · ${where}${here ? "" : " · другой лист"}`}
               aria-label={`Та же фраза, ${where}`}
-              className={`whitespace-nowrap rounded px-1 py-[1px] font-semibold tabular-nums ${
-                current ? "border-2" : "border"
-              } ${SEVERITY_PLACE[review.severity]}`}
+              className={className}
             >
               {placeChipLabel(place, index, places)}
             </button>
