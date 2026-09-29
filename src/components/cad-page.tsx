@@ -39,7 +39,7 @@ import { normalizeQuote } from "@/lib/remark-jump";
 import {
   SEVERITY_FRAME,
   SEVERITY_PIN,
-  pinNumberShift,
+  pinNumberPlace,
   type DrawingRemarkPin,
 } from "@/lib/review-colors";
 import {
@@ -672,9 +672,7 @@ export function CadPage({
                     pin.active ? "ring-2 ring-offset-1 ring-slate-800" : ""
                   }`}
                   style={{
-                    left: 0,
-                    top: 0,
-                    transform: pinNumberShift(box),
+                    ...pinNumberPlace(box),
                     padding: `${1 / viewport.scale}px ${4 / viewport.scale}px`,
                     borderRadius: 3 / viewport.scale,
                     fontSize: Math.max(7, 12 / viewport.scale),
