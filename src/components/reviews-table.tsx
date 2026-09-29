@@ -1583,6 +1583,10 @@ function ReviewLocations({
   onJumpToPage: JumpToPage;
 }) {
   const many = review.locations.length > 1;
+  const severalFiles =
+    new Set(
+      review.locations.map((item) => item.documentId || item.documentName),
+    ).size > 1;
 
   return (
     <ul className="min-w-0 space-y-0.5">
@@ -1602,7 +1606,7 @@ function ReviewLocations({
           <div className="min-w-0 flex-1">
             <LocationLine
               location={location}
-              omitFile
+              omitFile={!severalFiles && Boolean(location.quote)}
               needle={needle}
               wording={wording}
               reviewId={review.id}
@@ -1846,7 +1850,8 @@ function ReviewRow({
         />
       </td>
       <td className={CELL}>
-        {review.needsRecheck ? (
+        {review.needsRecheck &&
+        !review.locations.some((item) => item.documentId && item.pageNumber) ? (
           <div className="mb-1 pto-t-sm font-medium text-amber-800">
             нужно перепроверить
           </div>

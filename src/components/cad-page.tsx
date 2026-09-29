@@ -61,7 +61,7 @@ type CadPageProps = {
   highlightRegions?: PageTextRegion[];
   highlightSeverity?: ReviewSeverity;
   remarkPins?: DrawingRemarkPin[];
-  onSelectRemarkPin?: (reviewId: string) => void;
+  onSelectRemarkPin?: (reviewId: string, quote?: string) => void;
   panToHighlight?: boolean;
   remarkFocus?: boolean;
   hoverRegions?: PageTextRegion[];
@@ -648,7 +648,7 @@ export function CadPage({
               />
             ))}
             {remarkPins.map((pin) => {
-              const box = pin.active && quoteHit ? quoteHit : pin;
+              const box = pin;
               return (
               <button
                 key={`pin-${pin.id}-${pin.x}-${pin.y}`}
@@ -656,7 +656,7 @@ export function CadPage({
                 title={`Замечание № ${pin.number}`}
                 onClick={(event) => {
                   event.stopPropagation();
-                  onSelectRemarkPin?.(pin.id);
+                  onSelectRemarkPin?.(pin.id, pin.quote);
                 }}
                 onMouseDown={(event) => event.stopPropagation()}
                 className="absolute z-[6]"

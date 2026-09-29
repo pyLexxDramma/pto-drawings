@@ -441,6 +441,23 @@ export function Workspace({
   const { items: toasts, push: pushToast, dismiss: dismissToast } = useToasts();
 
   const selected = documents.find((doc) => doc.id === selectedId) ?? null;
+  const openFileReviews = useMemo(() => {
+    if (!selected) return null;
+    return projectReviews.filter((review) =>
+      review.locations.some((loc) => loc.documentId === selected.id),
+    );
+  }, [projectReviews, selected]);
+  const headerReviewStats = useMemo(() => {
+    if (!selected || showReviews || !openFileReviews) return reviewStats;
+    return {
+      total: openFileReviews.length,
+      pending: openFileReviews.filter((item) => item.verdict === "pending")
+        .length,
+      aiPending: openFileReviews.filter(
+        (item) => item.origin === "ai" && item.verdict === "pending",
+      ).length,
+    };
+  }, [openFileReviews, reviewStats, selected, showReviews]);
   const kitSibling = useMemo(() => {
     if (!selected?.kitId) return null;
     return (
@@ -1993,7 +2010,8 @@ export function Workspace({
               projectName={currentProject.name}
               documents={documents}
               documentsReady={documentsProjectId === currentProject.id}
-              reviews={reviewStats}
+              reviews={headerReviewStats}
+              reviewsOfFile={Boolean(selected && !showReviews)}
               reviewsOpen={showReviews}
               onOpenStage={openStage}
               docOpen={Boolean(selected) && !showReviews}
@@ -2486,7 +2504,7 @@ export function Workspace({
             {currentProject ? (
               <div className="shrink-0 border-t-2 border-slate-300 bg-surface-2 px-1.5 py-1.5">
                 <ResolvedSummary
-                  reviews={projectReviews}
+                  reviews={selected ? (openFileReviews ?? []) : projectReviews}
                   projectId={currentProject.id}
                 />
               </div>

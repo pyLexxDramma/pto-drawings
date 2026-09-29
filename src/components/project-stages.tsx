@@ -74,6 +74,7 @@ function buildStages(
   documentsReady: boolean,
   reviews: ReviewStats | null,
   filePages: { ready: number; total: number } | null,
+  reviewsOfFile = false,
 ): Stage[] {
   if (!documentsReady) {
     return [
@@ -153,7 +154,9 @@ function buildStages(
                 : "Замечаний пока нет — конвейер их ещё не присылал"
               : (reviews.aiPending ?? 0) > 0
                 ? `Замечаний: ${reviewsTotal}, разобрано: ${reviewsDone}. Находки ИИ ждут человека: ${reviews.aiPending}`
-                : `Замечаний в проекте: ${reviewsTotal}, разобрано с заказчиком: ${reviewsDone}`,
+                : reviewsOfFile
+                  ? `Замечаний в этом файле: ${reviewsTotal}, разобрано: ${reviewsDone}`
+                  : `Замечаний в проекте: ${reviewsTotal}, разобрано с заказчиком: ${reviewsDone}`,
         },
   ];
 }
@@ -171,6 +174,7 @@ export function ProjectStagesBar({
   docOpen,
   docTitle,
   filePages = null,
+  reviewsOfFile = false,
   onBackHome,
   backLabel,
   embedded = false,
@@ -185,11 +189,19 @@ export function ProjectStagesBar({
   docTitle?: string | null;
   /** Листы открытого файла. Без этого полоса суммирует весь проект. */
   filePages?: { ready: number; total: number } | null;
+  /** Счётчик замечаний уже по открытому файлу, не по всему проекту. */
+  reviewsOfFile?: boolean;
   onBackHome?: () => void;
   backLabel?: string | null;
   embedded?: boolean;
 }) {
-  const stages = buildStages(documents, documentsReady, reviews, filePages);
+  const stages = buildStages(
+    documents,
+    documentsReady,
+    reviews,
+    filePages,
+    reviewsOfFile,
+  );
   const busy =
     documentsReady &&
     documents.some(

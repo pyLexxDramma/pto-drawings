@@ -96,7 +96,35 @@ const SERVICE_SECTION =
  * «Что где на листе» без строк — шапка таблицы и пустота. На плане прогона
  * блок занимал место и ничего не говорил.
  */
-/** Шифр, стадия и номер из блока «Штамп листа» — одна строка над свёрнутыми разделами. */
+/** Номер из графы «Лист» в дословном слое, в хвосте листа, где стоит штамп. */
+function drawnSheetNumber(markdown: string): string | null {
+  const start = markdown.search(/##\s*Лист дословно/i);
+  if (start < 0) return null;
+  const rest = markdown.slice(start);
+  const end = rest.slice(1).search(/\n##\s+/);
+  const body = end < 0 ? rest : rest.slice(0, end + 1);
+  const tail = body.slice(-900);
+  const stacked = tail.match(
+    /(?:^|\n)[ \t]*Лист[ \t]*\n[ \t]*(\d{1,3})[ \t]*(?:\n|$)/i,
+  );
+  if (stacked) return stacked[1];
+  const inline = tail.match(/(?:^|\n)[ \t]*Лист[ \t]+(\d{1,3})[ \t]*(?:\n|$)/i);
+  return inline?.[1] ?? null;
+}
+
+function sameSheetNumber(stamp: string, drawn: string): boolean {
+  const left = stamp.match(/\d+/)?.[0];
+  const right = drawn.match(/\d+/)?.[0];
+  if (left && right) return String(Number(left)) === String(Number(right));
+  return stamp.trim() === drawn.trim();
+}
+
+/**
+ * Шифр, стадия и номер из блока «Штамп листа» — одна строка над свёрнутыми
+ * разделами. Если графа «Лист» в этом блоке не совпадает с номером в
+ * дословном слое, строку не собираем: на скане модель писала «лист 25»,
+ * а в штампе стояло 2.
+ */
 export function stampSummary(markdown: string): string | null {
   const start = markdown.search(/\*\*Штамп листа:\*\*/i);
   if (start < 0) return null;
@@ -110,6 +138,8 @@ export function stampSummary(markdown: string): string | null {
     field(/обозначение:\s*([^\n]+)/i) ?? field(/шифр:\s*([^\n]+)/i);
   const stage = field(/стадия:\s*([^\n]+)/i);
   const sheet = field(/[-*]\s*лист:\s*([^\n]+)/i);
+  const drawn = drawnSheetNumber(markdown);
+  if (sheet && drawn && !sameSheetNumber(sheet, drawn)) return null;
   const parts = [
     cipher,
     stage ? `стадия ${stage}` : null,

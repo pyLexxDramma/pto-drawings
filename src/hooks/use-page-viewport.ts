@@ -393,9 +393,9 @@ export function usePageViewport({
     const preferred =
       (viewCacheKey ? getDocumentView(viewCacheKey)?.preferredFit : undefined) ??
       preferredFitRef.current;
-    // Без своего вида — весь лист в кадре. Раньше поднимали «Читаемо» сами
-    // и на А1 оставался угол; инженер сначала хочет видеть лист целиком.
-    fit(preferred ?? "page", { remember: false });
+    // Без своего вида — лист по ширине колонки. «Весь лист» оставлял чертёж
+    // около 35%, и пин читался только после «только лист».
+    fit(preferred ?? "width", { remember: false });
   }, [
     applyView,
     fit,

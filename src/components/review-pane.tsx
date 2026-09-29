@@ -569,12 +569,19 @@ export function ReviewPane({
     }
     return map;
   }, [document.id, fileReviews]);
-  function focusReviewOnSheet(review: (typeof pageReviews)[number]) {
+  function focusReviewOnSheet(
+    review: (typeof pageReviews)[number],
+    quoteHint?: string,
+  ) {
+    const onThisPage = (item: (typeof review.locations)[number]) =>
+      item.documentId === document.id && item.pageNumber === pageNumber;
     const location =
-      review.locations.find(
-        (item) =>
-          item.documentId === document.id && item.pageNumber === pageNumber,
-      ) ??
+      (quoteHint
+        ? review.locations.find(
+            (item) => onThisPage(item) && item.quote === quoteHint,
+          )
+        : undefined) ??
+      review.locations.find(onThisPage) ??
       review.locations.find((item) => item.documentId === document.id) ??
       review.locations[0];
     const quote = (
@@ -599,14 +606,14 @@ export function ReviewPane({
     setPageReviewsOpen(true);
   }
   /** Пин на развёрнутом чертеже возвращает обычный вид и открывает эту ошибку в расшифровке. */
-  function openRemarkFromPin(reviewId: string) {
+  function openRemarkFromPin(reviewId: string, quote?: string) {
     const review = pageReviews.find((item) => item.id === reviewId);
     if (!review) return;
     if (focusMode || paneSolo === "pdf") {
       exitSheetOnly();
       setSidePanel("text");
     }
-    focusReviewOnSheet(review);
+    focusReviewOnSheet(review, quote);
   }
   function selectFileReview(review: Review) {
     const location =
@@ -865,13 +872,15 @@ export function ReviewPane({
           y: loc.rect.y,
           w: loc.rect.w,
           h: loc.rect.h,
-          active: review.id === activeReviewId,
+          quote: loc.quote,
+          active:
+            review.id === activeReviewId &&
+            (!focusQuote || !loc.quote || loc.quote === focusQuote),
         });
-        break;
       }
     }
     return pins;
-  }, [pageReviews, document.id, pageNumber, activeReviewId]);
+  }, [pageReviews, document.id, pageNumber, activeReviewId, focusQuote]);
 
   // Переключатель источника листа едет внутрь тулбара вьюера: отдельной плашкой
   // он был четвёртым независимым слоем поверх чертежа.

@@ -77,8 +77,10 @@ export const SEVERITY_PIN: Record<ReviewSeverity, string> = {
 /**
  * Номер относительно рамки. Проценты в translate считаются от самого номера,
  * поэтому сдвиг «вбок на 115%» оставлял цифру на границе рамки.
- * Узкая рамка: номер за её краем. У правого края листа — слева, иначе справа.
- * Обычная рамка — выше и левее, как раньше.
+ * Узкая ячейка (буква в штампе): номер целиком за краем, не на букве.
+ * У правого края листа — слева, иначе справа.
+ * Длинная строка: номер над серединой, а не в левом углу, где он закрывал
+ * подпись над цитатой.
  */
 export function pinNumberPlace(pin: { x: number; w: number }): {
   left: number | string;
@@ -92,12 +94,16 @@ export function pinNumberPlace(pin: { x: number; w: number }): {
         left: "auto",
         right: "100%",
         top: "50%",
-        transform: "translate(-6px, -50%)",
+        transform: "translate(-12px, -50%)",
       };
     }
-    return { left: "100%", top: "50%", transform: "translate(6px, -50%)" };
+    return { left: "100%", top: "50%", transform: "translate(12px, -50%)" };
   }
-  return { left: 0, top: 0, transform: "translate(-35%, -130%)" };
+  return {
+    left: "50%",
+    top: 0,
+    transform: "translate(-50%, calc(-100% - 3px))",
+  };
 }
 
 /** Мини-пин замечания на чертеже: номер + место + важность. */
@@ -109,6 +115,8 @@ export type DrawingRemarkPin = {
   y: number;
   w: number;
   h: number;
+  /** Цитата этого места: клик открывает его, а не первое место замечания. */
+  quote?: string;
   active?: boolean;
 };
 
