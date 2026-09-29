@@ -29,6 +29,7 @@ export function SheetTextPane({
   highlightQuery,
   focusFirst,
   flagQuotes,
+  pageWarning,
 }: {
   paneRef: RefObject<HTMLDivElement | null>;
   searchRef: RefObject<HTMLInputElement | null>;
@@ -50,6 +51,7 @@ export function SheetTextPane({
   highlightQuery: string;
   focusFirst: boolean;
   flagQuotes: string[];
+  pageWarning?: string | null;
 }) {
   return (
     <>
@@ -132,6 +134,11 @@ export function SheetTextPane({
               highlightQuery={highlightQuery}
               focusFirst={focusFirst}
               flagQuotes={flagQuotes}
+              pageWarning={
+                pageWarning ||
+                page.warnings?.filter((item) => item.trim()).join(" ") ||
+                null
+              }
             />
           </div>
         )}

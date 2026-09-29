@@ -21,6 +21,7 @@ import { findLayerHits, hitsInsideRegion, nearestHit } from "@/lib/highlight-tex
 import {
   SEVERITY_FRAME,
   SEVERITY_PIN,
+  pinNumberShift,
   type DrawingRemarkPin,
 } from "@/lib/review-colors";
 import {
@@ -181,6 +182,23 @@ export function PdfPage({
   const [legibleTextPx, setLegibleTextPx] = useState(0);
   const [widestLine, setWidestLine] = useState(0);
   const [hintOn, setHintOn] = useState(() => shouldShowViewerHint(loadViewerPrefs()));
+  const hintPage = useRef<number | null>(null);
+  useEffect(() => {
+    const prefs = loadViewerPrefs();
+    if (prefs.hintDismissed || !shouldShowViewerHint(prefs)) {
+      setHintOn(false);
+      return;
+    }
+    if (hintPage.current == null) {
+      hintPage.current = pageNumber;
+      setHintOn(true);
+      return;
+    }
+    if (hintPage.current !== pageNumber) {
+      saveViewerPrefs({ ...prefs, hintDismissed: true });
+      setHintOn(false);
+    }
+  }, [pageNumber]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const pdfDocRef = useRef<{ url: string; pdf: any } | null>(null);
   const textContentRef = useRef<{
@@ -642,10 +660,9 @@ export function PdfPage({
                     pin.active ? "ring-2 ring-offset-1 ring-slate-800" : ""
                   }`}
                   style={{
-                    // Чуть выше и левее зоны места — квадратик не накрывает подпись.
                     left: 0,
                     top: 0,
-                    transform: "translate(-35%, -130%)",
+                    transform: pinNumberShift(box),
                     padding: `${1 / viewport.scale}px ${4 / viewport.scale}px`,
                     borderRadius: 3 / viewport.scale,
                     fontSize: Math.max(7, 12 / viewport.scale),

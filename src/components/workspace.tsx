@@ -1971,7 +1971,7 @@ export function Workspace({
         }}
       />
 
-      <header className="sticky top-0 z-30 flex shrink-0 items-center gap-1.5 border-b border-border bg-surface px-2 py-0.5 sm:px-3">
+      <header className="sticky top-0 z-30 flex shrink-0 items-center gap-1.5 border-b border-border bg-surface px-2 py-1 sm:px-3">
           <div className="flex w-auto shrink-0 flex-col items-start gap-0.5 pr-1">
             <button
               type="button"
@@ -2512,6 +2512,12 @@ export function Workspace({
               key={currentProject.id}
               projectId={currentProject.id}
               projectName={currentProject.name}
+              runFinished={
+                documents.length > 0 &&
+                documents.every(
+                  (item) => item.status === "done" || item.status === "error",
+                )
+              }
               currentDocumentId={selectedId}
               currentDocumentName={selected?.originalName ?? null}
               onJumpToPage={jumpToPage}

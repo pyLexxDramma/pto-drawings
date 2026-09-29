@@ -149,7 +149,7 @@ function buildStages(
           hint:
             reviewsTotal === 0
               ? shownTotal > 0 && shownReady >= shownTotal
-                ? "Замечаний в проекте: 0"
+                ? "Прогон закончен, замечаний нет."
                 : "Замечаний пока нет — конвейер их ещё не присылал"
               : (reviews.aiPending ?? 0) > 0
                 ? `Замечаний: ${reviewsTotal}, разобрано: ${reviewsDone}. Находки ИИ ждут человека: ${reviews.aiPending}`

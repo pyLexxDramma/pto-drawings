@@ -7,6 +7,7 @@ import {
   omitEmptyPlacement,
   parseMarkdownBlocks,
   splitMarkdownSections,
+  stampSummary,
   tidyVerbatim,
 } from "@/lib/content-sync";
 import { findQuoteRanges, type FocusHighlightState } from "@/lib/highlight-text";
@@ -21,6 +22,8 @@ type SheetTextProps = {
   highlightQuery?: string;
   flagQuotes?: string[];
   focusFirst?: boolean;
+  /** Предупреждение конвейера по этой странице — одна жёлтая строка у штампа. */
+  pageWarning?: string | null;
 };
 
 /**
@@ -34,6 +37,7 @@ export function SheetText({
   highlightQuery = "",
   flagQuotes = [],
   focusFirst = false,
+  pageWarning = null,
 }: SheetTextProps) {
   const sections = useMemo(
     () =>
@@ -89,8 +93,22 @@ export function SheetText({
   // документе, поэтому секциям нечего делить между собой.
   const focusState: FocusHighlightState | null = focusFirst && q ? { focusStyle: true } : null;
 
+  const stamp = stampSummary(markdown);
+
   return (
     <>
+      {stamp || pageWarning ? (
+        <div className="mb-2 space-y-1">
+          {stamp ? (
+            <p className="pto-t-md font-medium text-text">{stamp}</p>
+          ) : null}
+          {pageWarning ? (
+            <p className="rounded border border-sem-attn-line bg-sem-attn-soft px-2 py-1 pto-t-sm text-sem-attn-text">
+              {pageWarning}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
       {sections.map((section, index) => {
         if (!section.title) {
           return (

@@ -96,6 +96,28 @@ const SERVICE_SECTION =
  * «Что где на листе» без строк — шапка таблицы и пустота. На плане прогона
  * блок занимал место и ничего не говорил.
  */
+/** Шифр, стадия и номер из блока «Штамп листа» — одна строка над свёрнутыми разделами. */
+export function stampSummary(markdown: string): string | null {
+  const start = markdown.search(/\*\*Штамп листа:\*\*/i);
+  if (start < 0) return null;
+  const chunk = markdown.slice(start, start + 900);
+  const field = (label: RegExp) => {
+    const match = chunk.match(label);
+    const value = match?.[1]?.replace(/\*+/g, "").trim();
+    return value && value !== "-" ? value : null;
+  };
+  const cipher =
+    field(/обозначение:\s*([^\n]+)/i) ?? field(/шифр:\s*([^\n]+)/i);
+  const stage = field(/стадия:\s*([^\n]+)/i);
+  const sheet = field(/[-*]\s*лист:\s*([^\n]+)/i);
+  const parts = [
+    cipher,
+    stage ? `стадия ${stage}` : null,
+    sheet ? `лист ${sheet}` : null,
+  ].filter((item): item is string => Boolean(item));
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
 export function omitEmptyPlacement(markdown: string): string {
   return markdown.replace(
     /(?:^|\n)[ \t]*\*\*Что где на листе\*\*[ \t]*(?:\n[ \t]*)+\|[^\n]*\|\s*\n\|[-:| \t]*\|[ \t]*(?=\n(?![ \t]*\|)|$)/g,

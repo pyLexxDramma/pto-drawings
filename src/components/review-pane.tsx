@@ -66,6 +66,7 @@ import {
 import {
   REVIEW_SEVERITY_LABEL,
   type AnnotationRect,
+  type DocumentPage,
   type DocumentRecord,
   type PageAnnotation,
   type PageKind,
@@ -132,10 +133,28 @@ type ReviewPaneProps = {
   onAiQueueOnChange?: (on: boolean) => void;
 };
 
+const SHEET_INTRO_KEY = "pto-sheet-intro-dismissed";
+
 function canScrollX(element: HTMLElement) {
   if (element.scrollWidth - element.clientWidth <= 1) return false;
   const overflow = window.getComputedStyle(element).overflowX;
   return overflow === "auto" || overflow === "scroll";
+}
+
+function sheetQuietSummary(
+  status: DocumentRecord["status"],
+  pageError: string | null,
+  numbers: DocumentPage["numbers"],
+  reviewCount: number,
+): string | null {
+  if (reviewCount > 0 || status !== "done") return null;
+  if (pageError) return "Ошибка проверки этого листа";
+  if (numbers?.checked) {
+    const found = numbers.found ?? 0;
+    const total = numbers.total ?? 0;
+    return `Замечаний нет. В тексте нашлись ${found} из ${total} чисел.`;
+  }
+  return "Замечаний нет. Сверка чисел на этом листе не выполнялась.";
 }
 
 function stepLabel(document: DocumentRecord) {
@@ -309,6 +328,14 @@ export function ReviewPane({
   const [kitDrawingView, setKitDrawingView] = useState<"pdf" | "cad">(
     isCadSource ? "cad" : "pdf",
   );
+  const [sheetIntro, setSheetIntro] = useState(false);
+  useEffect(() => {
+    try {
+      setSheetIntro(localStorage.getItem(SHEET_INTRO_KEY) !== "1");
+    } catch {
+      setSheetIntro(false);
+    }
+  }, []);
   useEffect(() => {
     setKitDrawingView(isCadSource ? "cad" : "pdf");
   }, [document.id, isCadSource]);
@@ -1239,6 +1266,13 @@ export function ReviewPane({
   const sheetOrder = [...pageReviews].sort((a, b) => a.number - b.number);
   const sheetIndex = sheetOrder.findIndex((review) => review.id === activeReviewId);
 
+  const sheetQuietLine = sheetQuietSummary(
+    document.status,
+    document.pageErrors?.[String(pageNumber)] ?? null,
+    page?.numbers,
+    pageReviews.length,
+  );
+
   const pageReviewsBar = pageReviews.length > 0 ? (
     <PageReviewsBar
       reviews={pageReviews}
@@ -1258,6 +1292,10 @@ export function ReviewPane({
       }
       showStep={!aiQueueOn}
     />
+  ) : sheetQuietLine ? (
+    <div className="shrink-0 border-b-2 border-slate-500 bg-slate-100 px-2 py-1 pto-t-sm text-text">
+      {sheetQuietLine}
+    </div>
   ) : null;
 
   const queueReview =
@@ -2070,6 +2108,28 @@ export function ReviewPane({
               />
             ) : (
               <>
+            {sheetIntro && !queueReview ? (
+              <div className="flex items-center gap-2 border-b border-border bg-surface-2 px-2 py-1 pto-t-sm text-muted">
+                <span className="min-w-0 flex-1">
+                  Слева лист, справа текст, свою ошибку отмечают карандашом.
+                </span>
+                <button
+                  type="button"
+                  aria-label="Закрыть подсказку"
+                  className="shrink-0 rounded px-1 hover:bg-white hover:text-text"
+                  onClick={() => {
+                    setSheetIntro(false);
+                    try {
+                      localStorage.setItem(SHEET_INTRO_KEY, "1");
+                    } catch {
+                      // private mode
+                    }
+                  }}
+                >
+                  <IconClose className="h-3 w-3" />
+                </button>
+              </div>
+            ) : null}
             {queueReview ? null : (
             <div className="flex flex-nowrap items-center gap-1 border-b border-border px-1.5 py-0.5">
               {sheetToolButtons}
@@ -2113,6 +2173,7 @@ export function ReviewPane({
               highlightQuery={textHighlightQuery}
               focusFirst={focusDrawing}
               flagQuotes={pageReviewQuotes}
+              pageWarning={pageWarning}
               reviewsBar={
                 <>
                   {aiQueueCard}

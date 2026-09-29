@@ -233,6 +233,7 @@ export function ReviewsTable({
   onFocusReviewHandled,
   initialWholeProject = false,
   scopeToken = 0,
+  runFinished = false,
 }: {
   projectId: string;
   projectName: string;
@@ -261,6 +262,8 @@ export function ReviewsTable({
    */
   initialWholeProject?: boolean;
   scopeToken?: number;
+  /** Все файлы проекта дошли до конца. Пустой список тогда не «ещё не прислал». */
+  runFinished?: boolean;
   /** Открыть место в ПД в просмотрщике (новая вкладка + подсветка). */
   onJumpToPage: (
     documentId: string,
@@ -1037,6 +1040,7 @@ export function ReviewsTable({
                 <tr>
                   <td colSpan={colCount} className="px-3 py-12">
                     <EmptyReviews
+                      runFinished={runFinished}
                       kind={
                         filtersOn
                           ? "filtered"
@@ -1132,25 +1136,31 @@ export function ReviewsTable({
 function EmptyReviews({
   kind,
   fileName,
+  runFinished = false,
   onOpenTranscript,
   onShowWholeProject,
   onResetFilters,
 }: {
   kind: "none" | "file" | "filtered";
   fileName: string | null;
+  runFinished?: boolean;
   onOpenTranscript?: () => void;
   onShowWholeProject?: () => void;
   onResetFilters: () => void;
 }) {
   const title =
     kind === "none"
-      ? "Замечаний пока нет"
+      ? runFinished
+        ? "Прогон закончен, замечаний нет."
+        : "Замечаний пока нет"
       : kind === "file"
         ? `По файлу ${fileName ?? "этому"} замечаний нет`
         : "Под фильтры ничего не попало";
   const hint =
     kind === "none"
-      ? "Конвейер их ещё не присылал. Своё замечание ставят на чертеже: откройте лист и нажмите «Отметить ошибку» — строка появится здесь сама."
+      ? runFinished
+        ? "Свою ошибку отмечают карандашом на чертеже."
+        : "Конвейер их ещё не присылал. Своё замечание ставят на чертеже: откройте лист и нажмите «Отметить ошибку» — строка появится здесь сама."
       : kind === "file"
         ? "По другим файлам проекта замечания могут быть."
         : "Снимите фильтры по колонкам или очистите поиск.";

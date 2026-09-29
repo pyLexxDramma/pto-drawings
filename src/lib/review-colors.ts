@@ -74,6 +74,18 @@ export const SEVERITY_PIN: Record<ReviewSeverity, string> = {
   skip: "border border-slate-500/60 bg-slate-400/40 text-slate-800",
 };
 
+/**
+ * Куда сдвинуть номер относительно рамки.
+ * Узкая рамка (буква в штампе) — номер сбоку, чтобы не закрыть графу над ней.
+ * Обычная рамка — выше и левее, как раньше.
+ */
+export function pinNumberShift(pin: { x: number; w: number }): string {
+  if (pin.w < 0.03) {
+    return pin.x > 0.82 ? "translate(-115%, 0)" : "translate(115%, 0)";
+  }
+  return "translate(-35%, -130%)";
+}
+
 /** Мини-пин замечания на чертеже: номер + место + важность. */
 export type DrawingRemarkPin = {
   id: string;

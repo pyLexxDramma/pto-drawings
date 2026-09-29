@@ -58,9 +58,10 @@ export function SheetToolbar({
         title={searchOpen ? "Закрыть поиск (Esc)" : "Поиск по файлу (/ или Ctrl+F)"}
         aria-label={searchOpen ? "Закрыть поиск" : "Поиск по файлу"}
         onClick={() => (searchOpen ? onCloseSearch() : onOpenSearch())}
-        className={`${searchOpen ? BTN_ACTIVE : BTN} w-6`}
+        className={`${searchOpen ? BTN_ACTIVE : BTN} gap-1 px-1.5`}
       >
         <IconSearch className="h-3 w-3" />
+        <span className="pto-t-sm font-semibold">Найти</span>
       </button>
       {onToggleMark ? (
         <button
@@ -81,13 +82,14 @@ export function SheetToolbar({
           }
           aria-pressed={markMode}
           onClick={() => onToggleMark()}
-          className={`pto-tool pto-tool--slim relative inline-flex w-6 items-center justify-center rounded border ${
+          className={`pto-tool pto-tool--slim relative inline-flex items-center justify-center gap-1 rounded border px-1.5 ${
             markMode
               ? "border-rose-700 bg-rose-100 text-rose-950"
               : "border-rose-500 bg-rose-50 text-rose-800 hover:bg-rose-100"
           }`}
         >
           <IconMark className="h-3 w-3" />
+          <span className="pto-t-sm font-semibold">Ошибка</span>
           {markCount > 0 && !markMode ? (
             <span className="absolute -right-1 -top-1 min-w-3 rounded-full bg-rose-700 px-0.5 text-center text-[8px] font-bold leading-3 text-white">
               {markCount}
