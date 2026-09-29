@@ -56,7 +56,7 @@ export function SheetToolbar({
       <button
         type="button"
         title={searchOpen ? "Закрыть поиск (Esc)" : "Поиск по файлу (/ или Ctrl+F)"}
-        aria-label={searchOpen ? "Закрыть поиск" : "Поиск по файлу"}
+        aria-label={searchOpen ? "Закрыть поиск" : "Найти"}
         onClick={() => (searchOpen ? onCloseSearch() : onOpenSearch())}
         className={`${searchOpen ? BTN_ACTIVE : BTN} gap-1 px-1.5`}
       >
@@ -77,8 +77,8 @@ export function SheetToolbar({
             markMode
               ? "Отменить разметку"
               : markCount > 0
-                ? `Отметить ошибку, пометок: ${markCount}`
-                : "Отметить ошибку"
+                ? `Ошибка, пометок: ${markCount}`
+                : "Ошибка"
           }
           aria-pressed={markMode}
           onClick={() => onToggleMark()}
