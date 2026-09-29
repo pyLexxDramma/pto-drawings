@@ -636,7 +636,7 @@ export function PdfPage({
               />
             ))}
             {remarkPins.map((pin) => {
-              const box = pin;
+              const box = pin.active && frameRegion ? frameRegion : pin;
               return (
               <button
                 key={`pin-${pin.id}-${pin.x}-${pin.y}`}
