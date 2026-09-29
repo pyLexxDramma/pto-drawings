@@ -141,7 +141,7 @@ describe("exportableReviews", () => {
     assert.match(sheet, /первое/);
     assert.match(sheet, /второе/);
     assert.ok(!sheet.includes('r="A4"'));
-    assert.match(sheet, /<autoFilter ref="A1:E3"\/>/);
+    assert.match(sheet, /<autoFilter ref="A1:F3"\/>/);
   });
 });
 
@@ -176,13 +176,29 @@ describe("buildReviewsXlsx", () => {
     const sheet = parts(file)["xl/worksheets/sheet1.xml"];
     assert.match(sheet, /Где в ПД/);
     assert.match(sheet, /Автор/);
+    assert.match(sheet, /Разбор/);
+    assert.match(sheet, /Не разобрано/);
     assert.match(sheet, /ИИ/);
-    assert.ok(!sheet.includes('r="F1"'), "лишних колонок быть не должно");
+    assert.ok(!sheet.includes('r="G1"'), "лишних колонок быть не должно");
     // Формулировки инженера нет — берём обоснование ИИ.
     assert.match(sheet, /Объём резервуара расходится/);
     // Адрес листа один во всей выгрузке: «лист N» — номер листа тома (0097).
     assert.match(sheet, /лист 919/);
     assert.match(sheet, /лист 4089/);
+  });
+
+  it("в колонке «Разбор» отличает разобранное от неразобранного", () => {
+    const sheet = parts(
+      buildReviewsXlsx({
+        projectName: "P",
+        reviews: [
+          review({ id: "a", text: "ещё", verdict: "pending" }),
+          review({ id: "b", text: "уже", verdict: "confirmed" }),
+        ],
+      }),
+    )["xl/worksheets/sheet1.xml"];
+    assert.match(sheet, /Не разобрано/);
+    assert.match(sheet, /Разобрано/);
   });
 
   it("пишет «нужно перепроверить», если агент не нашёл место", () => {

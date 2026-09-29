@@ -128,14 +128,7 @@ function buildStages(
       : {
           id: "reviews",
           label: "Таблица замечаний",
-          // «0/2» на демо прочли как «нашлось 0 замечаний из 2». Первым числом
-          // ставим сколько замечаний всего, вторым — сколько разобрано.
-          count:
-            reviewsTotal > 0
-              ? `${reviewsTotal} · разобрано ${reviewsDone} · не разобрано ${reviewsTotal - reviewsDone}`
-              : shownTotal > 0 && shownReady >= shownTotal
-                ? "замечаний 0"
-                : "ещё нет",
+          count: "",
           percent: percent(reviewsDone, reviewsTotal),
           state:
             reviewsTotal === 0
@@ -149,8 +142,8 @@ function buildStages(
                 ? "Прогон закончен, замечаний нет."
                 : "Замечаний пока нет — конвейер их ещё не присылал"
               : reviewsOfFile
-                ? `Замечаний в этом файле: ${reviewsTotal}, разобрано: ${reviewsDone}, не разобрано: ${reviewsTotal - reviewsDone}`
-                : `Замечаний в проекте: ${reviewsTotal}, разобрано: ${reviewsDone}, не разобрано: ${reviewsTotal - reviewsDone}`,
+                ? "Замечания этого файла"
+                : "Замечания проекта",
         },
   ];
 }
@@ -248,14 +241,16 @@ export function ProjectStagesBar({
                 <span className="truncate pto-t-md font-semibold leading-tight">
                   {stage.label}
                 </span>
-                <span
-                  className={`truncate pto-t-sm tabular-nums ${
-                    current ? "text-accent" : "opacity-75"
-                  }`}
-                >
-                  {stage.count}
-                  {stage.state === "done" ? " ✓" : ""}
-                </span>
+                {stage.count ? (
+                  <span
+                    className={`truncate pto-t-sm tabular-nums ${
+                      current ? "text-accent" : "opacity-75"
+                    }`}
+                  >
+                    {stage.count}
+                    {stage.state === "done" ? " ✓" : ""}
+                  </span>
+                ) : null}
               </span>
               <ProgressTrack
                 className={`mt-0.5 h-0.5 ${current ? "opacity-90" : ""}`}

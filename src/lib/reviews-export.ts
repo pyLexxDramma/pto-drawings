@@ -9,9 +9,9 @@ import {
   type ReviewSeverity,
 } from "@/types";
 
-/** Как в таблице на экране: № · Раздел · Замечание · Где в ПД · Автор. */
-const HEADERS = ["№", "Раздел", "Замечание", "Где в ПД", "Автор"];
-const WIDTHS = [6, 12, 70, 46, 16];
+/** Как в таблице на экране: № · Раздел · Замечание · Где в ПД · Автор · Разбор. */
+const HEADERS = ["№", "Раздел", "Замечание", "Где в ПД", "Автор", "Разбор"];
+const WIDTHS = [6, 12, 70, 46, 16, 16];
 
 const SEVERITY_FILL: Record<ReviewSeverity, CellFill> = {
   unset: "none",
@@ -44,6 +44,11 @@ function wording(review: Review): string {
   return remarkWording(review.text || review.aiFinding);
 }
 
+/** В файле для проектировщика — только разобрано это или ещё нет. */
+function splitLabel(review: Review): string {
+  return review.verdict === "pending" ? "Не разобрано" : "Разобрано";
+}
+
 /**
  * В выгрузку не идут «Не задана», «Не нужно», «Неактуально» и «Неверно».
  */
@@ -67,6 +72,7 @@ export function buildReviewsXlsx(input: {
       { value: wording(review), fill, wrap: true },
       { value: whereInPd(review), fill, wrap: true },
       { value: reviewAuthor(review), fill, wrap: true },
+      { value: splitLabel(review), fill, wrap: true },
     ]);
   });
 
