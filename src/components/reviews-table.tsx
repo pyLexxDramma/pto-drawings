@@ -234,6 +234,7 @@ export function ReviewsTable({
   initialWholeProject = false,
   scopeToken = 0,
   runFinished = false,
+  projectFiles = [],
 }: {
   projectId: string;
   projectName: string;
@@ -264,6 +265,8 @@ export function ReviewsTable({
   scopeToken?: number;
   /** Все файлы проекта дошли до конца. Пустой список тогда не «ещё не прислал». */
   runFinished?: boolean;
+  /** Файлы проекта: замечание без рамки на второй файл ведёт ссылкой, если имя есть в тексте. */
+  projectFiles?: { id: string; name: string }[];
   /** Открыть место в ПД в просмотрщике (новая вкладка + подсветка). */
   onJumpToPage: (
     documentId: string,
@@ -1078,6 +1081,7 @@ export function ReviewsTable({
                     </tr>
                   ) : null}
                     <ReviewRow
+                      projectFiles={projectFiles}
                       review={review}
                       needle={query.trim().toLowerCase()}
                       active={activeId === review.id}
@@ -1571,22 +1575,51 @@ function LocationLine({
 }
 
 /** Все места одного расхождения сразу видны — иначе инженер правит одно и не видит второе. */
+function filesNamedInRemark(
+  wording: string,
+  locations: ReviewLocation[],
+  files: { id: string; name: string }[],
+): { id: string; name: string; page: number }[] {
+  const found: { id: string; name: string; page: number }[] = [];
+  const re = /([^()\n]+?\.pdf)\s*\(\s*лист\s*(\d+)/gi;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(wording))) {
+    const raw = match[1].replace(/^.*\bPDF\s+/i, "").trim().toLowerCase();
+    const page = Number(match[2]);
+    const file = files.find((item) => {
+      const name = item.name.toLowerCase();
+      return name === raw || name.endsWith(raw) || raw.endsWith(name);
+    });
+    if (!file) continue;
+    if (locations.some((loc) => loc.documentId === file.id && loc.pageNumber === page)) {
+      continue;
+    }
+    if (found.some((item) => item.id === file.id && item.page === page)) continue;
+    found.push({ id: file.id, name: file.name, page });
+  }
+  return found;
+}
+
 function ReviewLocations({
   review,
   needle,
   wording,
   onJumpToPage,
+  projectFiles = [],
 }: {
   review: Review;
   needle: string;
   wording: string;
   onJumpToPage: JumpToPage;
+  projectFiles?: { id: string; name: string }[];
 }) {
   const many = review.locations.length > 1;
+  const named = filesNamedInRemark(wording, review.locations, projectFiles);
   const severalFiles =
-    new Set(
-      review.locations.map((item) => item.documentId || item.documentName),
-    ).size > 1;
+    new Set([
+      ...review.locations.map((item) => item.documentId || item.documentName),
+      ...named.map((item) => item.id),
+    ]).size > 1;
 
   return (
     <ul className="min-w-0 space-y-0.5">
@@ -1613,6 +1646,21 @@ function ReviewLocations({
               onJumpToPage={onJumpToPage}
             />
           </div>
+        </li>
+      ))}
+      {named.map((item) => (
+        <li key={`${item.id}-${item.page}`}>
+          <button
+            type="button"
+            title={`Открыть ${item.name}, лист ${item.page}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              onJumpToPage(item.id, item.page, { reviewId: review.id });
+            }}
+            className="block max-w-full truncate text-left pto-t-md font-medium text-accent underline decoration-dotted"
+          >
+            {item.name} · лист {item.page}
+          </button>
         </li>
       ))}
     </ul>
@@ -1738,6 +1786,7 @@ function StatusPicker<T extends string>({
 }
 
 function ReviewRow({
+  projectFiles = [],
   review,
   needle,
   active,
@@ -1769,6 +1818,7 @@ function ReviewRow({
     pageNumber: number,
     options?: { reviewId?: string; quote?: string; newTab?: boolean },
   ) => void;
+  projectFiles?: { id: string; name: string }[];
 }) {
   const [comment, setComment] = useState(review.comment);
   const commentRef = useRef(review.comment);
@@ -1868,6 +1918,7 @@ function ReviewRow({
             needle={needle}
             wording={wording}
             onJumpToPage={onJumpToPage}
+            projectFiles={projectFiles}
           />
         )}
       </td>

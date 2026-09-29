@@ -2538,6 +2538,10 @@ export function Workspace({
               }
               currentDocumentId={selectedId}
               currentDocumentName={selected?.originalName ?? null}
+              projectFiles={documents.map((item) => ({
+                id: item.id,
+                name: item.originalName,
+              }))}
               onJumpToPage={jumpToPage}
               onOpenTranscript={() => openStage("transcribe")}
               onStatsChange={setReviewStats}

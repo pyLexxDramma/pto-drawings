@@ -137,9 +137,21 @@ export function stampSummary(markdown: string): string | null {
   const cipher =
     field(/обозначение:\s*([^\n]+)/i) ?? field(/шифр:\s*([^\n]+)/i);
   const stage = field(/стадия:\s*([^\n]+)/i);
-  const sheet = field(/[-*]\s*лист:\s*([^\n]+)/i);
-  const drawn = drawnSheetNumber(markdown);
+  let sheet = field(/[-*]\s*лист:\s*([^\n]+)/i);
+  const layerLine = markdown.match(/Строки штампа из слоя:[^\n]*/i)?.[0] ?? "";
+  const layerSheet = layerLine.match(/Лист\s+(\d{1,3})/i)?.[1] ?? null;
+  const drawn = drawnSheetNumber(markdown) ?? layerSheet;
   if (sheet && drawn && !sameSheetNumber(sheet, drawn)) return null;
+  // «лист 25» при шифре «1/25» — это год из шифра, не графа «Лист».
+  const yearInCipher = cipher?.match(/\/(\d{2})(?!\d)/)?.[1];
+  if (
+    sheet &&
+    !drawn &&
+    yearInCipher &&
+    sameSheetNumber(sheet, yearInCipher)
+  ) {
+    sheet = null;
+  }
   const parts = [
     cipher,
     stage ? `стадия ${stage}` : null,
