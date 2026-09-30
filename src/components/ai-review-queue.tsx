@@ -16,6 +16,67 @@ const WRONG_TAGS = [
   "Формулировка мимо",
 ];
 
+/** Одна форма и у очереди, и у выбранной строки листа. Без текста не сохраняется. */
+export function WrongReasonForm({
+  busy,
+  onSubmit,
+  onCancel,
+}: {
+  busy?: boolean;
+  onSubmit: (reason: string) => void;
+  onCancel: () => void;
+}) {
+  const [reason, setReason] = useState("");
+  return (
+    <div className="border-t border-rose-200 bg-white px-2 py-2">
+      <div className="mb-1 font-medium text-rose-900">Почему ложное?</div>
+      <textarea
+        autoFocus
+        rows={2}
+        value={reason}
+        onChange={(event) => setReason(event.target.value)}
+        placeholder="Что неверно…"
+        className="w-full resize-none rounded-md border border-border px-2 py-1 text-xs outline-none focus:border-accent"
+      />
+      <div className="mt-1 flex flex-wrap gap-1">
+        {WRONG_TAGS.map((tag) => (
+          <button
+            key={tag}
+            type="button"
+            onClick={() =>
+              setReason((prev) => (prev.trim() ? `${prev.trim()}. ${tag}` : tag))
+            }
+            className="rounded-full border border-rose-200 px-2 py-0.5 pto-t-xs text-rose-800 hover:bg-rose-50"
+          >
+            {tag}
+          </button>
+        ))}
+      </div>
+      <div className="mt-2 flex gap-2">
+        <button
+          type="button"
+          disabled={busy || !reason.trim()}
+          onClick={() => {
+            const text = reason.trim();
+            if (!text) return;
+            onSubmit(text);
+          }}
+          className="rounded-md bg-rose-600 px-2 py-1 font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
+        >
+          Снять как ложное
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-md border border-border px-2 py-1 text-text"
+        >
+          Отмена
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /**
  * Очередь подтверждения находок конвейера: принять / ложное / в таблицу,
  * без поиска глазами в общей куче.
@@ -54,7 +115,6 @@ export function AiReviewQueueCard({
   trailing?: ReactNode;
 }) {
   const [wrongOpen, setWrongOpen] = useState(false);
-  const [reason, setReason] = useState("");
   const quote = (
     review.locations.find((item) => item.quote)?.quote ||
     review.text ||
@@ -102,10 +162,7 @@ export function AiReviewQueueCard({
         <button
           type="button"
           disabled={busy}
-          onClick={() => {
-            setReason("");
-            setWrongOpen(true);
-          }}
+          onClick={() => setWrongOpen(true)}
           className="shrink-0 rounded-md border border-rose-300 bg-white px-2 py-1 font-semibold text-rose-800 hover:bg-rose-50 disabled:opacity-50"
         >
           Ложное
@@ -150,55 +207,14 @@ export function AiReviewQueueCard({
         </div>
       </div>
       {wrongOpen ? (
-        <div className="border-t border-rose-200 bg-white px-2 py-2">
-          <div className="mb-1 font-medium text-rose-900">Почему ложное?</div>
-          <textarea
-            autoFocus
-            rows={2}
-            value={reason}
-            onChange={(event) => setReason(event.target.value)}
-            placeholder="Что неверно…"
-            className="w-full resize-none rounded-md border border-border px-2 py-1 text-xs outline-none focus:border-accent"
-          />
-          <div className="mt-1 flex flex-wrap gap-1">
-            {WRONG_TAGS.map((tag) => (
-              <button
-                key={tag}
-                type="button"
-                onClick={() =>
-                  setReason((prev) =>
-                    prev.trim() ? `${prev.trim()}. ${tag}` : tag,
-                  )
-                }
-                className="rounded-full border border-rose-200 px-2 py-0.5 pto-t-xs text-rose-800 hover:bg-rose-50"
-              >
-                {tag}
-              </button>
-            ))}
-          </div>
-          <div className="mt-2 flex gap-2">
-            <button
-              type="button"
-              disabled={busy || !reason.trim()}
-              onClick={() => {
-                const text = reason.trim();
-                if (!text) return;
-                onWrong(text);
-                setWrongOpen(false);
-              }}
-              className="rounded-md bg-rose-600 px-2 py-1 font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
-            >
-              Снять как ложное
-            </button>
-            <button
-              type="button"
-              onClick={() => setWrongOpen(false)}
-              className="rounded-md border border-border px-2 py-1 text-text"
-            >
-              Отмена
-            </button>
-          </div>
-        </div>
+        <WrongReasonForm
+          busy={busy}
+          onSubmit={(text) => {
+            onWrong(text);
+            setWrongOpen(false);
+          }}
+          onCancel={() => setWrongOpen(false)}
+        />
       ) : null}
     </div>
   );

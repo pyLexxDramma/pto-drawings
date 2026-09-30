@@ -1294,6 +1294,24 @@ export function ReviewPane({
         sheetOrder.length > 0 && sheetIndex < sheetOrder.length - 1
       }
       showStep={!aiQueueOn}
+      verdictBusy={aiQueueBusy}
+      onAcceptReview={
+        readOnly
+          ? undefined
+          : (review) => {
+              void patchReview(review.id, { verdict: "confirmed" });
+            }
+      }
+      onWrongReview={
+        readOnly
+          ? undefined
+          : (review, reason) => {
+              void patchReview(review.id, {
+                verdict: "wrong",
+                wrongReason: reason,
+              });
+            }
+      }
     />
   ) : sheetQuietLine ? (
     <div className="shrink-0 border-b-2 border-slate-500 bg-slate-100 px-2 py-1 pto-t-sm text-text">
