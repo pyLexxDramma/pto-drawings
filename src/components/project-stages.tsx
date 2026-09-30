@@ -101,9 +101,7 @@ function buildStages(
       // подсказку под курсором на демо никто не наводит (баг 0099).
       count:
         shownTotal > 0
-          ? fileOpen
-            ? `файл ${shownReady} из ${shownTotal}`
-            : `проект ${shownReady} из ${shownTotal}`
+          ? ""
           : filesTotal === 0
             ? "нет файлов"
             : "режем на листы",

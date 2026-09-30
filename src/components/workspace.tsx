@@ -1853,17 +1853,7 @@ export function Workspace({
               : ""
           }`
         : null;
-    const lanes = pipelineHealth.currentJobs;
-    const laneHint =
-      !liveBusy && (lanes?.model || lanes?.vector)
-        ? `считается: ${[lanes.model ? "модель" : null, lanes.vector ? "вектор" : null]
-            .filter(Boolean)
-            .join(" + ")}`
-        : liveBusy
-          ? `считается: ${liveBusy}`
-          : processing > 0
-            ? `считается: ${processing}`
-            : null;
+    const laneHint = liveBusy ? `считается: ${liveBusy}` : null;
     const parts = [
       queued > 0 ? `в очереди ${queued}` : null,
       laneHint,
@@ -2087,7 +2077,7 @@ export function Workspace({
           )}
 
           <div className="flex min-w-0 shrink-0 items-center gap-2">
-            {currentProject && (!selected || (showReviews && !peekOpen)) ? (
+            {currentProject && !selected && !showReviews ? (
               <ProjectSearch
                 query={projectQuery}
                 onQueryChange={setProjectQuery}
