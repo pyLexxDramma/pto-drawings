@@ -459,16 +459,20 @@ export function Workspace({
     );
   }, [projectReviews, selected]);
   const headerReviewStats = useMemo(() => {
-    if (!selected || !openFileReviews) return reviewStats;
+    if (reviewStats === null) return null;
+    const source = selected ? (openFileReviews ?? []) : projectReviews;
     return {
-      total: openFileReviews.length,
-      pending: openFileReviews.filter((item) => item.verdict === "pending")
-        .length,
-      aiPending: openFileReviews.filter(
+      total: source.length,
+      pending: source.filter((item) => item.verdict === "pending").length,
+      aiPending: source.filter(
         (item) => item.origin === "ai" && item.verdict === "pending",
       ).length,
+      aiTotal: source.filter(
+        (item) => item.origin === "ai" || item.origin === "both",
+      ).length,
+      engineerTotal: source.filter((item) => item.origin === "engineer").length,
     };
-  }, [openFileReviews, reviewStats, selected]);
+  }, [openFileReviews, projectReviews, reviewStats, selected]);
   const kitSibling = useMemo(() => {
     if (!selected?.kitId) return null;
     return (
@@ -2104,7 +2108,12 @@ export function Workspace({
               }
               filePages={
                 selected && !showReviews
-                  ? { ready: selected.readyPages, total: selected.pageCount }
+                  ? {
+                      ready: selected.readyPages,
+                      total: selected.pageCount,
+                      status: selected.status,
+                      processingPage: selected.processingPage,
+                    }
                   : null
               }
             />

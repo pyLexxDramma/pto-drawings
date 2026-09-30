@@ -9,6 +9,17 @@ export type ReviewStats = {
   pending: number;
   /** Неразобранные находки конвейера (origin ai) — для очереди подтверждения. */
   aiPending?: number;
+  /** Сколько строк прислал помощник. */
+  aiTotal?: number;
+  /** Сколько строк инженер поставил сам. */
+  engineerTotal?: number;
+};
+
+type FilePages = {
+  ready: number;
+  total: number;
+  status?: DocumentRecord["status"];
+  processingPage?: number | null;
 };
 
 /**
@@ -62,6 +73,64 @@ function percent(done: number, total: number): number {
   return Math.round((done / total) * 100);
 }
 
+function ruCount(n: number, one: string, few: string, many: string): string {
+  const n10 = n % 10;
+  const n100 = n % 100;
+  const word =
+    n10 === 1 && n100 !== 11
+      ? one
+      : n10 >= 2 && n10 <= 4 && (n100 < 12 || n100 > 14)
+        ? few
+        : many;
+  return `${n} ${word}`;
+}
+
+function remarksCount(ai: number, engineer: number): string {
+  const parts: string[] = [];
+  if (ai > 0) parts.push(ruCount(ai, "замечание", "замечания", "замечаний"));
+  if (engineer > 0) {
+    parts.push(`${engineer} от инженера`);
+  }
+  if (parts.length === 0) return "0 замечаний";
+  return parts.join(" · ");
+}
+
+function transcriptCount(
+  documents: DocumentRecord[],
+  filePages: FilePages | null,
+  pagesReady: number,
+  pagesTotal: number,
+): string {
+  if (
+    filePages &&
+    (filePages.status === "processing" || filePages.status === "queued")
+  ) {
+    if (filePages.status === "processing" && filePages.processingPage) {
+      return `лист ${filePages.processingPage}`;
+    }
+    if (filePages.status === "processing") return "идёт";
+    return "в очереди";
+  }
+
+  if (!filePages) {
+    const live = documents.find((doc) => doc.status === "processing");
+    if (live?.processingPage) return `лист ${live.processingPage}`;
+    if (live) return "идёт";
+    if (
+      documents.some((doc) => doc.status === "queued") &&
+      pagesReady === 0
+    ) {
+      return "в очереди";
+    }
+  }
+
+  const ready = filePages ? filePages.ready : pagesReady;
+  const total = filePages ? filePages.total : pagesTotal;
+  if (total > 0) return ruCount(ready, "лист", "листа", "листов");
+  if (documents.length === 0) return "нет файлов";
+  return "режем на листы";
+}
+
 const PENDING: Omit<Stage, "id" | "label"> = {
   count: "…",
   percent: 0,
@@ -73,7 +142,7 @@ function buildStages(
   documents: DocumentRecord[],
   documentsReady: boolean,
   reviews: ReviewStats | null,
-  filePages: { ready: number; total: number } | null,
+  filePages: FilePages | null,
   reviewsOfFile = false,
 ): Stage[] {
   if (!documentsReady) {
@@ -97,14 +166,7 @@ function buildStages(
     {
       id: "transcribe",
       label: "Расшифровка",
-      // «32/32» читалось как «нашли 32 из 32»: числа подписываем прямо в полосе,
-      // подсказку под курсором на демо никто не наводит (баг 0099).
-      count:
-        shownTotal > 0
-          ? ""
-          : filesTotal === 0
-            ? "нет файлов"
-            : "режем на листы",
+      count: transcriptCount(documents, filePages, pagesReady, pagesTotal),
       percent: percent(shownReady, shownTotal),
       state:
         shownTotal === 0
@@ -126,7 +188,7 @@ function buildStages(
       : {
           id: "reviews",
           label: "Таблица замечаний",
-          count: "",
+          count: remarksCount(reviews.aiTotal ?? 0, reviews.engineerTotal ?? 0),
           percent: percent(reviewsDone, reviewsTotal),
           state:
             reviewsTotal === 0
@@ -173,7 +235,7 @@ export function ProjectStagesBar({
   docOpen?: boolean;
   docTitle?: string | null;
   /** Листы открытого файла. Без этого полоса суммирует весь проект. */
-  filePages?: { ready: number; total: number } | null;
+  filePages?: FilePages | null;
   /** Счётчик замечаний уже по открытому файлу, не по всему проекту. */
   reviewsOfFile?: boolean;
   onBackHome?: () => void;

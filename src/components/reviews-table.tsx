@@ -500,6 +500,10 @@ export function ReviewsTable({
   const [colFilters, setColFilters] = useState<ExcelColFilters>(
     () => initialColFilters ?? {},
   );
+  /** Срез по цифрам в шапке: разобранные или поставленные инженером. */
+  const [countSlice, setCountSlice] = useState<null | "done" | "pending" | "engineer">(
+    null,
+  );
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<ExcelCol>("severity");
   const [sortDir, setSortDir] = useState<1 | -1>(1);
@@ -594,7 +598,9 @@ export function ReviewsTable({
   }, [load, refreshToken]);
 
   const filtersOn =
-    Object.keys(colFilters).length > 0 || query.trim().length > 0;
+    Object.keys(colFilters).length > 0 ||
+    query.trim().length > 0 ||
+    countSlice !== null;
   const unresolvedOn =
     colFilters.verdict?.length === 1 &&
     colFilters.verdict[0] === REVIEW_VERDICT_LABEL.pending;
@@ -621,6 +627,9 @@ export function ReviewsTable({
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase().replace(/[-\s]+/g, "");
     return applyExcelFilters(scoped, colFilters).filter((item) => {
+      if (countSlice === "done" && item.verdict === "pending") return false;
+      if (countSlice === "pending" && item.verdict !== "pending") return false;
+      if (countSlice === "engineer" && item.origin !== "engineer") return false;
       if (!needle) return true;
       const haystack = [
         item.text,
@@ -636,7 +645,7 @@ export function ReviewsTable({
         .replace(/[-\s]+/g, "");
       return haystack.includes(needle);
     });
-  }, [colFilters, currentDocumentName, query, scoped]);
+  }, [colFilters, countSlice, currentDocumentName, query, scoped]);
 
   const filterValues = useMemo(() => {
     const cols: ExcelCol[] = [
@@ -653,6 +662,42 @@ export function ReviewsTable({
       cols.map((col) => [col, excelUniqueValues(scoped, col, colFilters)]),
     ) as Record<ExcelCol, string[]>;
   }, [colFilters, scoped]);
+
+  const scopeStats = useMemo(() => {
+    const total = scoped.length;
+    const done = scoped.filter((item) => item.verdict !== "pending").length;
+    const pending = total - done;
+    const engineer = scoped.filter((item) => item.origin === "engineer").length;
+    return { total, done, pending, engineer };
+  }, [scoped]);
+
+  function openCountSlice(kind: "done" | "pending" | "engineer") {
+    if (countSlice === kind) {
+      setCountSlice(null);
+      return;
+    }
+    setCountSlice(kind);
+    const rows = scoped.filter((item) => {
+      if (kind === "done") return item.verdict !== "pending";
+      if (kind === "pending") return item.verdict === "pending";
+      return item.origin === "engineer";
+    });
+    const first = rows[0];
+    if (!first) return;
+    if (kind === "engineer") {
+      const location = first.locations.find(
+        (item) => item.documentId && item.pageNumber,
+      );
+      if (location?.documentId && location.pageNumber) {
+        onJumpToPage(location.documentId, location.pageNumber, {
+          reviewId: first.id,
+          quote: location.quote || undefined,
+        });
+        return;
+      }
+    }
+    setActiveId(first.id);
+  }
 
   /** Разбор идёт построчно, поэтому счётчик «сколько осталось» всегда на виду. */
   const stats = useMemo(() => {
@@ -782,16 +827,27 @@ export function ReviewsTable({
   }, [fileOf, sortDir, sortKey, visible]);
 
   useEffect(() => {
+    if (!countSlice || loading) return;
+    const first = sorted[0];
+    if (!first) return;
+    setActiveId(first.id);
+    listRef.current
+      ?.querySelector(`[data-review-id="${first.id}"]`)
+      ?.scrollIntoView({ block: "center" });
+  }, [countSlice, loading, sorted]);
+
+  useEffect(() => {
     if (!focusReview || loading) return;
     if (!reviews.some((item) => item.id === focusReview.id)) {
       if (reviews.length > 0) onFocusReviewHandled?.();
       return;
     }
     if (!visible.some((item) => item.id === focusReview.id)) {
-      if (query || Object.keys(colFilters).length > 0 || scopeFileId) {
+      if (query || Object.keys(colFilters).length > 0 || scopeFileId || countSlice) {
         setQuery("");
         setColFilters({});
         setScopeFileId("");
+        setCountSlice(null);
       } else {
         onFocusReviewHandled?.();
       }
@@ -804,6 +860,7 @@ export function ReviewsTable({
     onFocusReviewHandled?.();
   }, [
     colFilters,
+    countSlice,
     scopeFileId,
     focusReview,
     loading,
@@ -912,6 +969,7 @@ export function ReviewsTable({
       }
       await load();
       setColFilters({});
+      setCountSlice(null);
       setError(null);
       const added = payload.added ?? 0;
       const skipped = payload.skipped ?? 0;
@@ -1007,6 +1065,49 @@ export function ReviewsTable({
           ) : null}
           {loading ? <span className="shrink-0 text-muted"> · загрузка…</span> : null}
         </div>
+
+        {!loading ? (
+          <span className="shrink-0 whitespace-nowrap pto-t-md tabular-nums text-slate-700">
+            <button
+              type="button"
+              disabled={scopeStats.done === 0}
+              aria-pressed={countSlice === "done"}
+              title="Показать только разобранные замечания"
+              onClick={() => openCountSlice("done")}
+              className={`rounded px-0.5 underline decoration-dotted disabled:cursor-default disabled:no-underline disabled:opacity-60 ${
+                countSlice === "done" ? "bg-accent/10 font-semibold text-accent" : "hover:bg-surface-2"
+              }`}
+            >
+              разобрано {scopeStats.done} из {scopeStats.total}
+            </button>
+            <span className="px-1 text-slate-400">·</span>
+            <button
+              type="button"
+              disabled={scopeStats.pending === 0}
+              aria-pressed={countSlice === "pending"}
+              title="Показать только неразобранные замечания"
+              onClick={() => openCountSlice("pending")}
+              className={`rounded px-0.5 underline decoration-dotted disabled:cursor-default disabled:no-underline disabled:opacity-60 ${
+                countSlice === "pending" ? "bg-accent/10 font-semibold text-accent" : "hover:bg-surface-2"
+              }`}
+            >
+              не разобрано {scopeStats.pending}
+            </button>
+            <span className="px-1 text-slate-400">·</span>
+            <button
+              type="button"
+              disabled={scopeStats.engineer === 0}
+              aria-pressed={countSlice === "engineer"}
+              title="Открыть на чертеже замечания, которые поставил инженер"
+              onClick={() => openCountSlice("engineer")}
+              className={`rounded px-0.5 underline decoration-dotted disabled:cursor-default disabled:no-underline disabled:opacity-60 ${
+                countSlice === "engineer" ? "bg-accent/10 font-semibold text-accent" : "hover:bg-surface-2"
+              }`}
+            >
+              {scopeStats.engineer} от инженера
+            </button>
+          </span>
+        ) : null}
 
         <div className="ml-auto flex shrink-0 items-center gap-1.5">
           {onUndo ? (
@@ -1257,6 +1358,7 @@ export function ReviewsTable({
                       onResetFilters={() => {
                         setColFilters({});
                         setQuery("");
+                        setCountSlice(null);
                       }}
                     />
                   </td>
