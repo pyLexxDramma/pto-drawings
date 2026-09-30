@@ -23,6 +23,8 @@ import {
   type ReviewOrigin,
   type ReviewSeverity,
   type ReviewVerdict,
+  type SheetCheck,
+  type SheetCheckStatus,
 } from "@/types";
 
 const severities: ReviewSeverity[] = [...REVIEW_SEVERITY_ORDER];
@@ -277,7 +279,93 @@ function renumber(items: Review[]): Review[] {
   }));
 }
 
-type Store = { reviews: Review[]; events: ReviewEvent[] };
+const sheetStatuses: SheetCheckStatus[] = ["checked", "not_checked", "error"];
+
+type Store = {
+  reviews: Review[];
+  events: ReviewEvent[];
+  sheetChecks: SheetCheck[];
+};
+
+function sheetDocKey(item: { documentId: string | null; documentName: string }): string {
+  return (
+    item.documentId ||
+    item.documentName.toLowerCase().replace(/\s+/g, " ").trim()
+  );
+}
+
+/** Статус листа из пакета конвейера. Чужие поля и кривой статус отбрасываем. */
+export function normalizeSheetCheck(raw: unknown): SheetCheck | null {
+  const bag = asRecord(raw);
+  if (!bag) return null;
+  const statusRaw = text(bag.status ?? bag.state).replace(/-/g, "_");
+  const status = sheetStatuses.includes(statusRaw as SheetCheckStatus)
+    ? (statusRaw as SheetCheckStatus)
+    : statusRaw === "unchecked"
+      ? "not_checked"
+      : null;
+  if (!status) return null;
+  const page = Number(bag.pageNumber ?? bag.page);
+  if (!Number.isFinite(page) || page < 1) return null;
+  const count = Number(
+    bag.count ?? bag.remarkCount ?? bag.remarks ?? bag.findings ?? bag.reviewCount,
+  );
+  return {
+    documentId: text(bag.documentId) || null,
+    documentName: text(bag.documentName),
+    pageNumber: Math.trunc(page),
+    status,
+    count: Number.isFinite(count) && count > 0 ? Math.trunc(count) : 0,
+    reason: text(bag.reason ?? bag.message ?? bag.error),
+  };
+}
+
+function normalizeSheetChecks(raw: unknown): SheetCheck[] {
+  if (Array.isArray(raw)) {
+    return raw
+      .map((item) => normalizeSheetCheck(item))
+      .filter((item): item is SheetCheck => Boolean(item));
+  }
+  const bag = asRecord(raw);
+  if (!bag) return [];
+  const checks: SheetCheck[] = [];
+  for (const [documentId, pages] of Object.entries(bag)) {
+    if (Array.isArray(pages)) {
+      for (const page of pages) {
+        const check = normalizeSheetCheck({
+          ...(asRecord(page) ?? {}),
+          documentId,
+        });
+        if (check) checks.push(check);
+      }
+      continue;
+    }
+    const pageBag = asRecord(pages);
+    if (!pageBag) continue;
+    for (const [pageNumber, page] of Object.entries(pageBag)) {
+      const check = normalizeSheetCheck({
+        ...(asRecord(page) ?? {}),
+        documentId,
+        pageNumber: Number(pageNumber),
+      });
+      if (check) checks.push(check);
+    }
+  }
+  return checks;
+}
+
+/**
+ * Повторный прогон заменяет статусы своих файлов и не трогает остальные.
+ * Пустая пачка статус не стирает: её просто не прислали.
+ */
+function mergeSheetChecks(prev: SheetCheck[], incoming: SheetCheck[]): SheetCheck[] {
+  if (incoming.length === 0) return prev;
+  const docs = new Set(incoming.map((item) => sheetDocKey(item)));
+  return [
+    ...prev.filter((item) => !docs.has(sheetDocKey(item))),
+    ...incoming,
+  ];
+}
 
 function normalizeEvent(
   raw: Partial<ReviewEvent> & { id: string },
@@ -296,9 +384,13 @@ function normalizeEvent(
 
 async function readStore(projectId: string): Promise<Store> {
   const raw = await readReviewsText(projectId);
-  if (!raw) return { reviews: [], events: [] };
+  if (!raw) return { reviews: [], events: [], sheetChecks: [] };
   try {
-    const parsed = JSON.parse(raw) as { reviews?: unknown; events?: unknown };
+    const parsed = JSON.parse(raw) as {
+      reviews?: unknown;
+      events?: unknown;
+      sheetChecks?: unknown;
+    };
     const list = Array.isArray(parsed.reviews) ? parsed.reviews : [];
     const log = Array.isArray(parsed.events) ? parsed.events : [];
     return {
@@ -314,6 +406,7 @@ async function readStore(projectId: string): Promise<Store> {
             Boolean(item) && typeof (item as { id?: unknown }).id === "string",
         )
         .map((item) => normalizeEvent(item)),
+      sheetChecks: normalizeSheetChecks(parsed.sheetChecks),
     };
   } catch {
     // Не перезаписываем битый файл молча — иначе потеряем разбор с заказчиком.
@@ -329,12 +422,14 @@ async function writeStore(
   projectId: string,
   items: Review[],
   events: ReviewEvent[],
+  sheetChecks?: SheetCheck[],
 ) {
   const reviews = renumber(items);
   const log = events.slice(0, EVENT_LIMIT);
+  const checks = sheetChecks ?? (await readStore(projectId)).sheetChecks;
   await writeReviewsText(
     projectId,
-    JSON.stringify({ reviews, events: log }, null, 2),
+    JSON.stringify({ reviews, events: log, sheetChecks: checks }, null, 2),
   );
   return reviews;
 }
@@ -466,6 +561,11 @@ export async function listReviewEvents(
   projectId: string,
 ): Promise<ReviewEvent[]> {
   return withDataLock(async () => (await readStore(projectId)).events);
+}
+
+/** Статусы проверки листов, которые конвейер прислал вместе с замечаниями. */
+export async function listSheetChecks(projectId: string): Promise<SheetCheck[]> {
+  return withDataLock(async () => (await readStore(projectId)).sheetChecks);
 }
 
 export async function createReview(
@@ -701,10 +801,13 @@ export async function ingestReviews(
      * нет, снимаем. Иначе смена мест плодила вторую строку вместо замены.
      */
     pruneAi?: boolean;
+    /** Статусы листов этого прогона. Пусто — уже сохранённые не трогаем. */
+    sheetChecks?: unknown;
   },
 ): Promise<IngestResult> {
   return withDataLock(async () => {
-    const items = await readAll(projectId);
+    const stored = await readStore(projectId);
+    const items = stored.reviews;
     const byId = new Map(items.map((item) => [item.id, item]));
     const touched = new Set<string>();
     const idByKey = new Map(items.map((item) => [ingestKey(item), item.id]));
@@ -856,13 +959,15 @@ export async function ingestReviews(
 
     const next = [...byId.values()];
     const keep = new Set(next.map((item) => item.id));
-    const { events } = await readStore(projectId);
+    const events =
+      removed > 0
+        ? stored.events.filter((event) => keep.has(event.reviewId))
+        : stored.events;
     const saved = await writeStore(
       projectId,
       next,
-      removed > 0
-        ? events.filter((event) => keep.has(event.reviewId))
-        : events,
+      events,
+      mergeSheetChecks(stored.sheetChecks, normalizeSheetChecks(options?.sheetChecks)),
     );
     return {
       added,

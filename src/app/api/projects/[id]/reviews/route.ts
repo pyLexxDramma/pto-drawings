@@ -7,6 +7,7 @@ import {
   ingestReviews,
   listReviewEvents,
   listReviews,
+  listSheetChecks,
   pruneDeadReviews,
 } from "@/lib/reviews";
 import { getProject, listDocuments, listProjects } from "@/lib/storage";
@@ -41,11 +42,13 @@ export async function GET(request: Request, context: RouteContext) {
     docs.map((item) => item.originalName),
   );
   const reviews = await listReviews(id);
-  // Журнал отдаём вместе с таблицей: он нужен той же строке, отдельный запрос
-  // на каждый разбор ничего не экономит.
-  const events = await listReviewEvents(id);
+  // Журнал и статусы листов отдаём вместе с таблицей: они нужны той же полосе.
+  const [events, sheetChecks] = await Promise.all([
+    listReviewEvents(id),
+    listSheetChecks(id),
+  ]);
   return NextResponse.json(
-    { reviews, events },
+    { reviews, events, sheetChecks },
     { headers: { "Cache-Control": "private, max-age=0, must-revalidate" } },
   );
 }
@@ -106,6 +109,8 @@ export async function PUT(request: Request, context: RouteContext) {
     reviews?: ReviewIngestItem[];
     /** Полный набор по файлам прогона: лишние строки ИИ снять. */
     pruneAi?: boolean;
+    /** Статус проверки по каждому листу прогона. */
+    sheetChecks?: unknown;
   };
   if (!Array.isArray(body.reviews)) {
     return NextResponse.json(
@@ -126,6 +131,7 @@ export async function PUT(request: Request, context: RouteContext) {
 
   const result = await ingestReviews(id, body.reviews, {
     pruneAi: Boolean(body.pruneAi),
+    sheetChecks: body.sheetChecks,
   });
   return NextResponse.json(result);
 }

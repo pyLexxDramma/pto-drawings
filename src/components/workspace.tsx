@@ -96,6 +96,7 @@ import {
   type PublicUser,
   type Review,
   type SearchHit,
+  type SheetCheck,
 } from "@/types";
 
 type UploadItem = {
@@ -394,6 +395,7 @@ export function Workspace({
   /** Лист открыт из таблицы замечаний (в т.ч. новая вкладка) — «Назад» ведёт туда. */
   const [navFromReviews, setNavFromReviews] = useState(false);
   const [projectReviews, setProjectReviews] = useState<Review[]>([]);
+  const [sheetChecks, setSheetChecks] = useState<SheetCheck[]>([]);
   const [reviewsEpoch, setReviewsEpoch] = useState(0);
   const [, setSheetBackHint] = useState<string | null>(null);
   const [remarkUndo, setRemarkUndo] = useState<RemarkUndo | null>(null);
@@ -685,9 +687,13 @@ export function Workspace({
   const loadProjectReviews = useCallback(async (id: string, signal?: AbortSignal) => {
     const response = await fetch(`/api/projects/${id}/reviews`, { signal });
     if (!response.ok) return;
-    const payload = (await response.json()) as { reviews?: Review[] };
+    const payload = (await response.json()) as {
+      reviews?: Review[];
+      sheetChecks?: SheetCheck[];
+    };
     if (!payload.reviews) return;
     setProjectReviews(payload.reviews);
+    setSheetChecks(payload.sheetChecks ?? []);
     setReviewStats({
       total: payload.reviews.length,
       pending: payload.reviews.filter((item) => item.verdict === "pending").length,
@@ -702,11 +708,13 @@ export function Workspace({
     if (!projectId) {
       setReviewStats(null);
       setProjectReviews([]);
+      setSheetChecks([]);
       return;
     }
     const controller = new AbortController();
     setReviewStats(null);
     setProjectReviews([]);
+    setSheetChecks([]);
     setRemarkUndo(null);
     setAiQueueOn(false);
     setProjectQuery("");
@@ -2644,6 +2652,7 @@ export function Workspace({
             document={selected}
             projectId={currentProject?.id}
             reviews={projectReviews}
+            sheetChecks={sheetChecks}
             onSheetPage={(page) => {
               if (page > 0) setSheetPage({ documentId: selected.id, page });
             }}

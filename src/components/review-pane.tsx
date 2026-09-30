@@ -72,6 +72,7 @@ import {
   type PageKind,
   type Review,
   type ReviewSeverity,
+  type SheetCheck,
 } from "@/types";
 
 type KindFilter = "all" | "drawing" | "table" | "text" | "flagged";
@@ -82,6 +83,8 @@ type ReviewPaneProps = {
   projectId?: string;
   /** Замечания проекта из таблицы — счётчик по листам и подсветка мест. */
   reviews?: Review[];
+  /** Статус проверки конвейера по листам этого проекта. */
+  sheetChecks?: SheetCheck[];
   onReviewPatched?: (review: Review) => void;
   focusMode: boolean;
   openPage?: {
@@ -201,6 +204,7 @@ export function ReviewPane({
   document,
   projectId,
   reviews = [],
+  sheetChecks = [],
   onReviewPatched,
   focusMode,
   openPage,
@@ -565,6 +569,21 @@ export function ReviewPane({
     }
     return map;
   }, [document.id, fileReviews]);
+  const sheetCheckByPage = useMemo(() => {
+    const map = new Map<number, SheetCheck>();
+    for (const item of sheetChecks ?? []) {
+      if (item.documentId) {
+        if (item.documentId !== document.id) continue;
+      } else if (
+        item.documentName &&
+        item.documentName !== document.originalName
+      ) {
+        continue;
+      }
+      map.set(item.pageNumber, item);
+    }
+    return map;
+  }, [document.id, document.originalName, sheetChecks]);
   function focusReviewOnSheet(
     review: (typeof pageReviews)[number],
     quoteHint?: string,
@@ -1855,6 +1874,7 @@ export function ReviewPane({
                 edited={editedPages}
                 viewed={viewedSet}
                 pageDots={pageDots}
+                sheetChecks={sheetCheckByPage}
                 ready={ready}
                 annotated={annotatedPages}
                 hidden={hidden}

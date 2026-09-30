@@ -131,6 +131,20 @@ export type ReviewVerdict =
 
 export type ReviewOrigin = "ai" | "engineer" | "both";
 
+/** Прошёл ли лист проверки конвейера. Приходит в пакете замечаний, не в строке. */
+export type SheetCheckStatus = "checked" | "not_checked" | "error";
+
+export type SheetCheck = {
+  documentId: string | null;
+  documentName: string;
+  pageNumber: number;
+  status: SheetCheckStatus;
+  /** Сколько замечаний проверка нашла на этом листе. */
+  count: number;
+  /** Почему лист не проверен или проверка упала. */
+  reason: string;
+};
+
 /**
  * Место в ПД. Расхождение живёт сразу в двух местах, поэтому у замечания
  * список локаций, а не одно поле.

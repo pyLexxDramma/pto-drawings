@@ -650,3 +650,73 @@ describe("журнал разбора", () => {
     assert.equal(removed?.userName, "Дархан");
   });
 });
+
+describe("sheetChecks", () => {
+  const project = "aa11bb22-3333-4444-8555-666666666666";
+  const docA = "11111111-1111-4111-8111-111111111111";
+  const docB = "22222222-2222-4222-8222-222222222222";
+
+  it("сохраняет статус листа и не стирает его пустой пачкой", async () => {
+    await store.ingestReviews(
+      project,
+      [finding("Штамп не сходится")],
+      {
+        sheetChecks: [
+          {
+            documentId: docA,
+            documentName: "ИОС2",
+            pageNumber: 32,
+            status: "checked",
+            count: 2,
+            reason: "",
+          },
+          {
+            documentId: docA,
+            documentName: "ИОС2",
+            pageNumber: 33,
+            status: "error",
+            remarkCount: 0,
+            message: "не прочитался штамп",
+          },
+          {
+            documentId: docB,
+            documentName: "АС3",
+            pageNumber: 5,
+            status: "not_checked",
+            reason: "лист ещё считается",
+          },
+        ],
+      },
+    );
+    const checks = await store.listSheetChecks(project);
+    assert.equal(checks.length, 3);
+    assert.equal(checks.find((item) => item.pageNumber === 33)?.reason, "не прочитался штамп");
+    assert.equal(checks.find((item) => item.pageNumber === 32)?.count, 2);
+
+    await store.ingestReviews(project, [finding("Штамп не сходится")]);
+    assert.equal((await store.listSheetChecks(project)).length, 3);
+  });
+
+  it("повторный прогон заменяет листы своего файла и оставляет чужой", async () => {
+    await store.ingestReviews(project, [], {
+      sheetChecks: [
+        {
+          documentId: docA,
+          documentName: "ИОС2",
+          pageNumber: 32,
+          status: "not_checked",
+        },
+      ],
+    });
+    const checks = await store.listSheetChecks(project);
+    assert.equal(checks.filter((item) => item.documentId === docA).length, 1);
+    assert.equal(checks.find((item) => item.documentId === docA)?.status, "not_checked");
+    assert.equal(checks.filter((item) => item.documentId === docB).length, 1);
+  });
+
+  it("правка замечания не сбрасывает статусы листов", async () => {
+    const [review] = await store.listReviews(project);
+    await store.updateReview(project, review.id, { verdict: "confirmed" });
+    assert.equal((await store.listSheetChecks(project)).length, 2);
+  });
+});

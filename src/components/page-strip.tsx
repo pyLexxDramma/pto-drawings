@@ -6,7 +6,16 @@ import {
   REVIEW_VERDICT_LABEL,
   type PageKind,
   type ReviewVerdict,
+  type SheetCheck,
 } from "@/types";
+
+function checkLabel(check: SheetCheck): string {
+  if (check.status === "checked") {
+    return check.count > 0 ? `проверен · ${check.count}` : "проверен";
+  }
+  if (check.status === "error") return "ошибка";
+  return "не проверен";
+}
 
 function sheetMark(input: { isWorking: boolean; isReady: boolean }): string {
   if (input.isWorking) return "обрабатывается";
@@ -24,6 +33,7 @@ type SheetRowProps = {
   isFlagged: boolean;
   isEdited: boolean;
   dots?: { count: number; verdict: ReviewVerdict; pending: number };
+  check?: SheetCheck;
   onSelect: (page: number) => void;
 };
 
@@ -37,10 +47,14 @@ function SheetRow({
   isFlagged,
   isEdited,
   dots,
+  check,
   onSelect,
 }: SheetRowProps) {
+  const status = check ? checkLabel(check) : null;
   const fallback = [
     isWorking ? "сейчас обрабатывается" : isReady ? "текст готов" : "ждёт текст",
+    status,
+    check?.reason || null,
     isUnseen ? "не открывали" : null,
     dots
       ? `${dots.count} · ${REVIEW_VERDICT_LABEL[dots.verdict].toLowerCase()}`
@@ -75,7 +89,9 @@ function SheetRow({
               ? "border-amber-500 bg-amber-50 hover:border-amber-600 hover:bg-amber-100"
               : allResolved
                 ? "border-emerald-600 bg-emerald-100 hover:border-emerald-700 hover:bg-emerald-200"
-                : // Замечаний нет — цвета нет. Зелёный значит только «разобрано»,
+                : check?.status === "error"
+                  ? "border-rose-400 bg-rose-50 hover:border-rose-500"
+                  : // Замечаний нет — цвета нет. Зелёный значит только «разобрано»,
                   // и красить им каждый обычный лист значило бы обесценить его.
                   "border-border bg-white hover:border-accent/30 hover:bg-surface-2"
       }`}
@@ -84,8 +100,17 @@ function SheetRow({
         <span className="min-w-0 flex-1 truncate pto-t-sm font-medium leading-tight tabular-nums">
           L{pageNumber}
         </span>
-        <span className="shrink-0 truncate pto-t-xs font-semibold tabular-nums text-muted">
-          {sheetMark({ isWorking, isReady })}
+        <span
+          className={`shrink-0 truncate pto-t-xs font-semibold tabular-nums ${
+            check?.status === "error"
+              ? "text-rose-800"
+              : check?.status === "checked"
+                ? "text-emerald-800"
+                : "text-muted"
+          }`}
+          title={check?.reason || undefined}
+        >
+          {status ?? sheetMark({ isWorking, isReady })}
         </span>
       </span>
     </button>
@@ -99,6 +124,7 @@ type PageStripProps = {
   edited: Set<number>;
   viewed: Set<number>;
   pageDots?: Map<number, { count: number; verdict: ReviewVerdict; pending: number }>;
+  sheetChecks?: Map<number, SheetCheck>;
   ready: Set<number>;
   annotated?: Set<number>;
   hidden?: Set<number>;
@@ -118,6 +144,7 @@ export function PageStrip({
   edited,
   viewed,
   pageDots,
+  sheetChecks,
   ready,
   annotated,
   hidden,
@@ -181,6 +208,7 @@ export function PageStrip({
               isFlagged={annotated?.has(pageNumber) ?? false}
               isEdited={edited.has(pageNumber)}
               dots={pageDots?.get(pageNumber)}
+              check={sheetChecks?.get(pageNumber)}
               onSelect={onSelect}
             />
           );
