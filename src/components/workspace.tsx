@@ -2424,9 +2424,9 @@ export function Workspace({
                                 .filter(Boolean)
                                 .join(" · ")}
                             >
-                              <span className="flex items-start gap-1.5">
+                              <span className="flex items-center gap-1.5">
                                 <span
-                                  className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${
+                                  className={`h-1.5 w-1.5 shrink-0 rounded-full ${
                                     failed
                                       ? "bg-red-500"
                                       : canceled
@@ -2442,10 +2442,27 @@ export function Workspace({
                                   }
                                   aria-hidden
                                 />
-                                <span className="min-w-0 flex-1 break-words">{doc.originalName}</span>
+                                <span className="min-w-0 flex-1 truncate">{doc.originalName}</span>
+                                {doc.status === "processing" || doc.status === "queued" ? (
+                                  <Spinner className="h-2.5 w-2.5 shrink-0 text-accent" />
+                                ) : null}
+                              </span>
+                              <span className="mt-0.5 flex min-w-0 items-center gap-1 pl-3 pto-t-xs font-normal text-muted">
+                                <span className="min-w-0 flex-1 truncate tabular-nums">
+                                  {[
+                                    uploadedLabel,
+                                    elapsedLabel
+                                      ? `обр. ${elapsedLabel}`
+                                      : doc.status === "processing" || doc.status === "queued"
+                                        ? "обработка…"
+                                        : null,
+                                  ]
+                                    .filter(Boolean)
+                                    .join(" · ")}
+                                </span>
                                 {failed ? (
                                   <span
-                                    className="shrink-0 rounded bg-red-600 px-1 pto-t-xs font-bold uppercase tracking-wide text-white"
+                                    className="shrink-0 rounded bg-red-600 px-1 font-bold uppercase tracking-wide text-white"
                                     title={processingFailureReason(doc)}
                                   >
                                     не обработан
@@ -2453,7 +2470,7 @@ export function Workspace({
                                 ) : null}
                                 {canceled ? (
                                   <span
-                                    className="shrink-0 rounded bg-red-600 px-1 pto-t-xs font-bold uppercase tracking-wide text-white"
+                                    className="shrink-0 rounded bg-red-600 px-1 font-bold uppercase tracking-wide text-white"
                                     title={doc.errorMessage ?? "остановлен"}
                                   >
                                     остановлен
@@ -2461,27 +2478,12 @@ export function Workspace({
                                 ) : null}
                                 {doc.kitId ? (
                                   <span
-                                    className="shrink-0 rounded border border-accent/30 bg-accent/5 px-1 pto-t-xs font-medium text-accent"
+                                    className="shrink-0 rounded border border-accent/30 bg-accent/5 px-1 font-medium text-accent"
                                     title={doc.kitLabel ?? "PDF + DWG"}
                                   >
                                     PDF+DWG
                                   </span>
                                 ) : null}
-                                {doc.status === "processing" || doc.status === "queued" ? (
-                                  <Spinner className="h-2.5 w-2.5 shrink-0 text-accent" />
-                                ) : null}
-                              </span>
-                              <span className="mt-0.5 block truncate pl-3 pto-t-xs font-normal tabular-nums text-muted">
-                                {[
-                                  uploadedLabel,
-                                  elapsedLabel
-                                    ? `обр. ${elapsedLabel}`
-                                    : doc.status === "processing" || doc.status === "queued"
-                                      ? "обработка…"
-                                      : null,
-                                ]
-                                  .filter(Boolean)
-                                  .join(" · ")}
                               </span>
                             </button>
                             <div className="flex items-start pt-0.5 pr-0.5">
