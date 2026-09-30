@@ -106,6 +106,89 @@ export function pinNumberPlace(pin: { x: number; w: number }): {
   };
 }
 
+type PinBadgeBox = {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  number: number;
+  active?: boolean;
+};
+
+/** Сдвиг номера в пикселях листа, если соседние пины закрывают друг друга. */
+export function pinBadgeShifts(
+  pins: PinBadgeBox[],
+  page: { w: number; h: number },
+  scale: number,
+): { dx: number; dy: number }[] {
+  const gap = 3;
+  const ideals = pins.map((pin) => pinBadgeRect(pin, page, scale));
+  const placed: { l: number; t: number; r: number; b: number }[] = [];
+  const shifts = pins.map(() => ({ dx: 0, dy: 0 }));
+  const order = pins
+    .map((_, index) => index)
+    .sort((a, b) => {
+      const active = Number(Boolean(pins[b].active)) - Number(Boolean(pins[a].active));
+      if (active !== 0) return active;
+      return ideals[a].t - ideals[b].t || ideals[a].l - ideals[b].l;
+    });
+  for (const index of order) {
+    const rect = { ...ideals[index] };
+    for (let step = 0; step < 12 && placed.some((other) => pinRectsHit(rect, other, gap)); step += 1) {
+      const jump = rect.r - rect.l + gap;
+      const roomRight = page.w - rect.r;
+      const roomLeft = rect.l;
+      if (roomRight >= jump || roomRight >= roomLeft) {
+        rect.l += jump;
+        rect.r += jump;
+      } else if (roomLeft >= jump) {
+        rect.l -= jump;
+        rect.r -= jump;
+      } else {
+        const rise = rect.b - rect.t + gap;
+        rect.t -= rise;
+        rect.b -= rise;
+      }
+    }
+    shifts[index] = {
+      dx: rect.l - ideals[index].l,
+      dy: rect.t - ideals[index].t,
+    };
+    placed.push(rect);
+  }
+  return shifts;
+}
+
+function pinBadgeRect(pin: PinBadgeBox, page: { w: number; h: number }, scale: number) {
+  const font = Math.max(7, 12 / Math.max(scale, 0.05));
+  const digits = Math.max(1, String(Math.abs(pin.number)).length);
+  const bw = font * 0.62 * digits + 8 / Math.max(scale, 0.05) + 4;
+  const bh = font * 1.3 + 2 / Math.max(scale, 0.05) + 2;
+  const boxW = Math.max(0.015, pin.w) * page.w;
+  const boxH = Math.max(0.01, pin.h) * page.h;
+  const boxL = pin.x * page.w;
+  const boxT = pin.y * page.h;
+  if (pin.w < 0.03) {
+    if (pin.x > 0.82) {
+      const r = boxL - 12;
+      return { l: r - bw, t: boxT + boxH / 2 - bh / 2, r, b: boxT + boxH / 2 + bh / 2 };
+    }
+    const l = boxL + boxW + 12;
+    return { l, t: boxT + boxH / 2 - bh / 2, r: l + bw, b: boxT + boxH / 2 + bh / 2 };
+  }
+  const cx = boxL + boxW / 2;
+  const b = boxT - 3;
+  return { l: cx - bw / 2, t: b - bh, r: cx + bw / 2, b };
+}
+
+function pinRectsHit(
+  a: { l: number; t: number; r: number; b: number },
+  b: { l: number; t: number; r: number; b: number },
+  gap: number,
+) {
+  return a.l < b.r + gap && a.r + gap > b.l && a.t < b.b + gap && a.b + gap > b.t;
+}
+
 /** Мини-пин замечания на чертеже: номер + место + важность. */
 export type DrawingRemarkPin = {
   id: string;

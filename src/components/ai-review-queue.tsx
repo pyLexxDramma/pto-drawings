@@ -165,7 +165,7 @@ export function AiReviewQueueCard({
           onClick={() => setWrongOpen(true)}
           className="shrink-0 rounded-md border border-rose-300 bg-white px-2 py-1 font-semibold text-rose-800 hover:bg-rose-50 disabled:opacity-50"
         >
-          Ложное
+          Отклонить
         </button>
         <button
           type="button"

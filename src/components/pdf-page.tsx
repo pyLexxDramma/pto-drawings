@@ -21,6 +21,7 @@ import { findLayerHits, hitsInsideRegion, nearestHit } from "@/lib/highlight-tex
 import {
   SEVERITY_FRAME,
   SEVERITY_PIN,
+  pinBadgeShifts,
   pinNumberPlace,
   type DrawingRemarkPin,
 } from "@/lib/review-colors";
@@ -504,6 +505,15 @@ export function PdfPage({
           ? "cursor-grab"
           : "cursor-default";
 
+  const pinShifts = pinBadgeShifts(
+    remarkPins.map((item) => {
+      const itemBox = item.active && frameRegion ? frameRegion : item;
+      return { ...itemBox, number: item.number, active: item.active };
+    }),
+    natural,
+    viewport.scale,
+  );
+
   return (
     <div className="group relative flex h-full min-h-0 flex-col">
       <div
@@ -635,8 +645,10 @@ export function PdfPage({
                 }}
               />
             ))}
-            {remarkPins.map((pin) => {
+            {remarkPins.map((pin, index) => {
               const box = pin.active && frameRegion ? frameRegion : pin;
+              const shift = pinShifts[index];
+              const place = pinNumberPlace(box);
               return (
               <button
                 key={`pin-${pin.id}-${pin.x}-${pin.y}`}
@@ -660,7 +672,11 @@ export function PdfPage({
                     pin.active ? "ring-2 ring-offset-1 ring-slate-800" : ""
                   }`}
                   style={{
-                    ...pinNumberPlace(box),
+                    ...place,
+                    transform:
+                      shift && (shift.dx || shift.dy)
+                        ? `translate(${shift.dx}px, ${shift.dy}px) ${place.transform}`
+                        : place.transform,
                     padding: `${1 / viewport.scale}px ${4 / viewport.scale}px`,
                     borderRadius: 3 / viewport.scale,
                     fontSize: Math.max(7, 12 / viewport.scale),
