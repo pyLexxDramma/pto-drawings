@@ -4,6 +4,7 @@ import {
   Fragment,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -232,7 +233,9 @@ function ProjectFileMenu({
   const [hoverProjectId, setHoverProjectId] = useState<string | null>(null);
   const [hoverFiles, setHoverFiles] = useState<{ id: string; name: string }[]>([]);
   const [hoverLoading, setHoverLoading] = useState(false);
+  const [fileTop, setFileTop] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
   const cacheRef = useRef(new Map<string, { id: string; name: string }[]>());
   const ticketRef = useRef(0);
   const currentProject = projects.find((item) => item.id === projectId);
@@ -256,6 +259,21 @@ function ProjectFileMenu({
   useEffect(() => {
     if (hoverProjectId === projectId) setHoverFiles(projectFiles);
   }, [hoverProjectId, projectFiles, projectId]);
+
+  const alignFiles = useCallback((id: string | null) => {
+    const list = listRef.current;
+    if (!list || !id) return;
+    const row = list.querySelector(`[data-project-id="${CSS.escape(id)}"]`);
+    if (!(row instanceof HTMLElement)) return;
+    const top =
+      row.getBoundingClientRect().top - list.getBoundingClientRect().top;
+    setFileTop(top);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    alignFiles(hoverProjectId);
+  }, [alignFiles, hoverProjectId, open]);
 
   async function showFiles(id: string) {
     const ticket = ++ticketRef.current;
@@ -302,7 +320,7 @@ function ProjectFileMenu({
   }
 
   const buttonClass =
-    "max-w-[14rem] shrink truncate rounded-md border border-border bg-white px-1.5 py-0.5 text-left pto-t-sm font-medium text-text";
+    "max-w-[14rem] shrink truncate rounded-md border-2 border-slate-500 bg-slate-100 px-1.5 py-0.5 text-left pto-t-sm font-semibold text-text hover:bg-slate-200";
 
   return (
     <div ref={rootRef} className="relative flex min-w-0 items-center gap-1.5">
@@ -330,11 +348,13 @@ function ProjectFileMenu({
       {open ? (
         <div className="absolute left-0 top-full z-40 mt-1 flex items-start">
           <ul
+            ref={listRef}
             aria-label="Проект"
+            onScroll={() => alignFiles(hoverProjectId)}
             className="max-h-80 w-72 overflow-auto rounded-md border border-border bg-white py-0.5 shadow-lg"
           >
             {projects.map((project) => (
-              <li key={project.id}>
+              <li key={project.id} data-project-id={project.id}>
                 <button
                   type="button"
                   onMouseEnter={() => void showFiles(project.id)}
@@ -357,7 +377,8 @@ function ProjectFileMenu({
           {hoverProjectId ? (
             <ul
               aria-label="Файл"
-              className="max-h-80 w-64 overflow-auto rounded-md border border-border bg-white py-0.5 shadow-lg"
+              style={{ marginTop: fileTop }}
+              className="max-h-80 w-64 overflow-auto rounded-md border border-slate-300 bg-surface-2 py-0.5 shadow-lg"
             >
               {hoverLoading ? (
                 <li className="px-2 py-1 text-muted">загрузка…</li>
@@ -1018,7 +1039,7 @@ export function ReviewsTable({
             type="button"
             disabled={importing}
             onClick={() => importRef.current?.click()}
-            className="whitespace-nowrap rounded-md border border-slate-300 bg-white px-2 py-0.5 pto-t-md font-semibold leading-none text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+            className="whitespace-nowrap rounded-md border-2 border-slate-500 bg-slate-100 px-2 py-0.5 pto-t-md font-semibold leading-none text-slate-900 hover:bg-slate-200 disabled:opacity-50"
             title="Загрузить свой список замечаний из файла Excel"
           >
             {importing ? "Загрузка…" : "Мои замечания из Excel"}
@@ -1027,7 +1048,7 @@ export function ReviewsTable({
             type="button"
             disabled={exporting || visibleExportable.length === 0}
             onClick={() => void downloadVisibleXlsx()}
-            className="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-accent px-2 py-0.5 pto-t-md font-semibold leading-none text-white hover:bg-[#1d4ed8] disabled:opacity-50"
+            className="inline-flex items-center gap-1 whitespace-nowrap rounded-md border-2 border-[#1d4ed8] bg-accent px-2 py-0.5 pto-t-md font-semibold leading-none text-white hover:bg-[#1d4ed8] disabled:opacity-50"
             title={
               visibleExportable.length === 0
                 ? "Нечего выгружать: нужны важность и разбор (не «Не нужно» / «Неверно»)"
