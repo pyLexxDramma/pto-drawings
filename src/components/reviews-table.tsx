@@ -14,7 +14,7 @@ import {
 import { ExcelColFilter } from "@/components/excel-col-filter";
 import { Tooltip } from "@/components/tooltip";
 import { Spinner, VerdictDot } from "@/components/ui-chrome";
-import { IconBack, IconDoc, IconDownload } from "@/components/tool-icons";
+import { IconBack, IconChevronDown, IconDoc, IconDownload } from "@/components/tool-icons";
 import {
   applyExcelFilters,
   excelColValues,
@@ -320,7 +320,7 @@ function ProjectFileMenu({
   }
 
   const buttonClass =
-    "max-w-[14rem] shrink truncate rounded-md border-2 border-slate-500 bg-slate-100 px-1.5 py-0.5 text-left pto-t-sm font-semibold text-text hover:bg-slate-200";
+    "max-w-[14rem] shrink truncate rounded-md border-2 border-blue-700 bg-blue-100 px-1.5 py-0.5 text-left pto-t-sm font-semibold text-blue-950 hover:bg-blue-200";
 
   return (
     <div ref={rootRef} className="relative flex min-w-0 items-center gap-1.5">
@@ -330,9 +330,10 @@ function ProjectFileMenu({
         aria-expanded={open}
         aria-haspopup="listbox"
         onClick={toggle}
-        className={buttonClass}
+        className="inline-flex max-w-[14rem] shrink items-center gap-1 rounded-md border-2 border-blue-700 bg-blue-100 px-1.5 py-0.5 text-left pto-t-sm font-semibold text-blue-950 hover:bg-blue-200"
       >
-        {currentProject?.name ?? "Проект"}
+        <span className="min-w-0 truncate">{currentProject?.name ?? "Проект"}</span>
+        <IconChevronDown className="h-3 w-3 shrink-0" />
       </button>
       {scopeFileName ? (
         <button
@@ -1039,7 +1040,7 @@ export function ReviewsTable({
             type="button"
             disabled={importing}
             onClick={() => importRef.current?.click()}
-            className="whitespace-nowrap rounded-md border-2 border-slate-500 bg-slate-100 px-2 py-0.5 pto-t-md font-semibold leading-none text-slate-900 hover:bg-slate-200 disabled:opacity-50"
+            className="whitespace-nowrap rounded-md border-2 border-blue-700 bg-blue-100 px-2 py-0.5 pto-t-md font-semibold leading-none text-blue-950 hover:bg-blue-200 disabled:opacity-50"
             title="Загрузить свой список замечаний из файла Excel"
           >
             {importing ? "Загрузка…" : "Мои замечания из Excel"}
