@@ -4,6 +4,7 @@ import {
   extractObjectId,
   linkBlocksToRegions,
   omitEmptyPlacement,
+  omitNumberCheck,
   parseMarkdownBlocks,
   regionsFromCadTexts,
   splitMarkdownSections,
@@ -113,6 +114,16 @@ describe("splitMarkdownSections", () => {
       "**Что где на листе**\n\n| Блок | Где |\n|---|---|\n| штамп | справа |\n",
     );
     assert.equal(filled.includes("штамп"), true);
+  });
+
+  it("убирает сверку чисел и оставляет соседние строки", () => {
+    const text = omitNumberCheck(
+      "**Надёжность:** высокая\n\n**Проверка чисел:** 106 из 106 чисел описания найдены в документе\n\n- size_pt: 595×842",
+    );
+    assert.equal(text.includes("Проверка чисел"), false);
+    assert.equal(text.includes("106"), false);
+    assert.equal(text.includes("Надёжность"), true);
+    assert.equal(text.includes("size_pt"), true);
   });
 
   it("does not mark the sheet text and the stamp as service", () => {

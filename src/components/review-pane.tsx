@@ -45,6 +45,7 @@ import {
   preferHighlightQuery,
   remarkTermsInMarkdown,
 } from "@/lib/highlight-text";
+import { omitNumberCheck } from "@/lib/content-sync";
 import { quoteBannerKind } from "@/lib/quote-banner";
 import { SEVERITY_PLACE } from "@/lib/review-colors";
 import type { DrawingRemarkPin } from "@/lib/review-colors";
@@ -1564,7 +1565,9 @@ export function ReviewPane({
       .join("[-\\s]*");
     const re = new RegExp(pattern, "i");
     return document.pages.flatMap((item) => {
-      const source = `${item.markdown}\n${item.extractedText}`;
+      const source = omitNumberCheck(
+        `${item.markdown}\n${item.extractedText}`,
+      );
       const match = re.exec(source);
       if (!match) return [];
       const snippet = source

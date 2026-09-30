@@ -167,6 +167,18 @@ export function omitEmptyPlacement(markdown: string): string {
   );
 }
 
+/** «106 из 106 чисел» — сверка конвейера с собой. На листе её не показываем. */
+export function isNumberCheckNotice(text: string): boolean {
+  return /проверка\s+чисел/i.test(text);
+}
+
+export function omitNumberCheck(markdown: string): string {
+  return markdown
+    .split("\n")
+    .filter((line) => !isNumberCheckNotice(line))
+    .join("\n");
+}
+
 /** `## Страница N` — номер листа и так есть в интерфейсе, в тексте он мешает. */
 const PAGE_HEADING = /^##\s*страница\s+\d+\s*$/i;
 /** «Лист 1» уже стоит в полоске слева. «Лист дословно» — это ## , его не трогаем. */

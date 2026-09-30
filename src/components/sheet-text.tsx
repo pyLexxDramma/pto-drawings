@@ -5,6 +5,7 @@ import { MarkdownView } from "@/components/markdown-view";
 import { IconChevronDown, IconChevronRight } from "@/components/tool-icons";
 import {
   omitEmptyPlacement,
+  omitNumberCheck,
   parseMarkdownBlocks,
   splitMarkdownSections,
   stampSummary,
@@ -42,7 +43,7 @@ export function SheetText({
   const sections = useMemo(
     () =>
       splitMarkdownSections(markdown).map((section) => {
-        const body = omitEmptyPlacement(section.body);
+        const body = omitNumberCheck(omitEmptyPlacement(section.body));
         return /дословно/i.test(section.title)
           ? { ...section, body: tidyVerbatim(body) }
           : { ...section, body };

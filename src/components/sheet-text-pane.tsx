@@ -2,9 +2,22 @@
 
 import type { ReactNode, RefObject } from "react";
 import { SheetText } from "@/components/sheet-text";
+import { isNumberCheckNotice } from "@/lib/content-sync";
 import type { DocumentPage } from "@/types";
 
 export type SheetSearchHit = { pageNumber: number; snippet: string };
+
+function visibleSheetNotice(
+  pageWarning: string | null | undefined,
+  warnings: string[] | undefined,
+): string | null {
+  const primary = pageWarning?.trim() ?? "";
+  if (primary && !isNumberCheckNotice(primary)) return primary;
+  const rest = (warnings ?? [])
+    .map((item) => item.trim())
+    .filter((item) => item && !isNumberCheckNotice(item));
+  return rest.join(" ") || null;
+}
 
 /**
  * Правая панель листа: поиск по файлу, полоса замечаний и сама расшифровка.
@@ -134,11 +147,7 @@ export function SheetTextPane({
               highlightQuery={highlightQuery}
               focusFirst={focusFirst}
               flagQuotes={flagQuotes}
-              pageWarning={
-                pageWarning ||
-                page.warnings?.filter((item) => item.trim()).join(" ") ||
-                null
-              }
+              pageWarning={visibleSheetNotice(pageWarning, page.warnings)}
             />
           </div>
         )}
