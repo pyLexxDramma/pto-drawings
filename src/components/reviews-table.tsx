@@ -319,9 +319,6 @@ function ProjectFileMenu({
     setOpen((prev) => !prev);
   }
 
-  const buttonClass =
-    "max-w-[14rem] shrink truncate rounded-md border-2 border-blue-700 bg-blue-100 px-1.5 py-0.5 text-left pto-t-sm font-semibold text-blue-950 hover:bg-blue-200";
-
   return (
     <div ref={rootRef} className="relative flex min-w-0 items-center gap-1.5">
       <button
@@ -336,15 +333,12 @@ function ProjectFileMenu({
         <IconChevronDown className="h-3 w-3 shrink-0" />
       </button>
       {scopeFileName ? (
-        <button
-          type="button"
-          aria-label="Файл"
-          aria-expanded={open}
-          onClick={toggle}
-          className={buttonClass}
+        <span
+          title={scopeFileName}
+          className="max-w-[14rem] shrink truncate rounded-md border border-slate-300 bg-slate-100 px-1.5 py-0.5 pto-t-sm text-slate-800"
         >
           {scopeFileName}
-        </button>
+        </span>
       ) : null}
       {open ? (
         <div className="absolute left-0 top-full z-40 mt-1 flex items-start">
