@@ -199,20 +199,47 @@ function normalizeReview(raw: Partial<Review> & { id: string }): Review {
 }
 
 /**
- * Ключ дедупликации: раздел + находка ИИ + места в ПД. Повторный прогон агента
- * обновляет найденное, а не плодит дубли и не сбрасывает разбор с заказчиком.
+ * Ключ дедупликации: раздел и текст находки, без мест. Один и тот же шифр
+ * на листах 1, 2 и 4 — одна строка; повторный прогон дописывает листы,
+ * а не плодит дубль и не сбрасывает разбор с заказчиком.
  */
-function ingestKey(item: {
-  section: string;
-  aiFinding: string;
-  locations: ReviewLocation[];
-}): string {
+function ingestKey(item: { section: string; aiFinding: string }): string {
   const flat = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
-  const places = item.locations
-    .map((loc) => `${flat(loc.documentName)}#${loc.pageNumber ?? "-"}`)
-    .sort()
-    .join("|");
-  return `${flat(item.section)}::${flat(item.aiFinding)}::${places}`;
+  return `${flat(item.section)}::${flat(item.aiFinding)}`;
+}
+
+/** Одно место в ПД: файл, лист и цитата. Повтор того же места не плодит вторую точку. */
+function locationPlaceKey(location: ReviewLocation): string {
+  const flat = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
+  return `${locationDocKey(location)}#${location.pageNumber ?? "-"}#${flat(location.quote)}`;
+}
+
+/**
+ * Места складываются. Более короткий пакет не затирает листы, которые уже были.
+ * Повтор того же места оставляет рамку и номер штампа, если в новом пакете их нет.
+ */
+function unionLocations(
+  current: ReviewLocation[],
+  incoming: ReviewLocation[],
+): ReviewLocation[] {
+  const byPlace = new Map<string, ReviewLocation>();
+  for (const loc of [...current, ...incoming]) {
+    const key = locationPlaceKey(loc);
+    const prev = byPlace.get(key);
+    if (!prev) {
+      byPlace.set(key, loc);
+      continue;
+    }
+    byPlace.set(key, {
+      ...prev,
+      documentId: loc.documentId || prev.documentId,
+      documentName: loc.documentName || prev.documentName,
+      quote: loc.quote || prev.quote,
+      rect: loc.rect ?? prev.rect,
+      stampSheet: loc.stampSheet ?? prev.stampSheet,
+    });
+  }
+  return [...byPlace.values()];
 }
 
 /**
@@ -908,7 +935,7 @@ export async function ingestReviews(
             : existing.text || text(raw.text),
         aiFinding: candidate.aiFinding,
         locations: candidate.locations.length
-          ? candidate.locations
+          ? unionLocations(existing.locations, candidate.locations)
           : existing.locations,
         needsRecheck:
           raw.needsRecheck ??

@@ -517,7 +517,7 @@ describe("pruneAi: полный набор прогона заменяет ст�
       },
     ]);
 
-    // Тот же лист, место переехало: без pruneAi это была бы вторая строка.
+    // Тот же текст на другом листе — одна строка, оба листа остаются.
     const result = await store.ingestReviews(
       project,
       [
@@ -530,13 +530,17 @@ describe("pruneAi: полный набор прогона заменяет ст�
       { pruneAi: true },
     );
 
-    assert.equal(result.added, 1);
-    assert.equal(result.removed, 1);
+    assert.equal(result.added, 0);
+    assert.equal(result.updated, 1);
+    assert.equal(result.removed, 0);
     assert.equal(result.total, 1);
 
     const list = await store.listReviews(project);
     assert.equal(list.length, 1);
-    assert.equal(list[0].locations[0].pageNumber, 12);
+    assert.deepEqual(
+      list[0].locations.map((item) => item.pageNumber).sort((a, b) => (a ?? 0) - (b ?? 0)),
+      [10, 12],
+    );
   });
 
   it("не трогает файлы вне прогона", async () => {
@@ -648,6 +652,64 @@ describe("журнал разбора", () => {
     const events = await store.listReviewEvents(project);
     const removed = events.find((item) => item.field === "deleted");
     assert.equal(removed?.userName, "Дархан");
+  });
+});
+
+describe("одна находка — одна строка", () => {
+  const project = "cc33dd44-5555-4666-8777-888888888888";
+
+  function place(page: number) {
+    return {
+      documentId: "doc-cipher",
+      documentName: "эталон-сложный.pdf",
+      pageNumber: page,
+      quote: "шифр",
+    };
+  }
+
+  it("два пакета с одним текстом и разными листами дают одну строку и все листы", async () => {
+    const first = await store.ingestReviews(project, [
+      {
+        section: "ИОС5",
+        aiFinding: "Шифр не совпадает с титулом",
+        locations: [place(1), place(2)],
+      },
+    ]);
+    assert.equal(first.added, 1);
+
+    const row = (await store.listReviews(project))[0];
+    await store.updateReview(project, row.id, {
+      verdict: "confirmed",
+      comment: "оставили",
+    });
+
+    const second = await store.ingestReviews(project, [
+      {
+        section: "ИОС5",
+        aiFinding: "Шифр не совпадает с титулом",
+        locations: [place(4)],
+      },
+    ]);
+    assert.equal(second.added, 0);
+    assert.equal(second.updated, 1);
+
+    const shorter = await store.ingestReviews(project, [
+      {
+        section: "ИОС5",
+        aiFinding: "Шифр не совпадает с титулом",
+        locations: [place(1)],
+      },
+    ]);
+    assert.equal(shorter.added, 0);
+
+    const list = await store.listReviews(project);
+    assert.equal(list.length, 1);
+    assert.deepEqual(
+      list[0].locations.map((item) => item.pageNumber).sort((a, b) => (a ?? 0) - (b ?? 0)),
+      [1, 2, 4],
+    );
+    assert.equal(list[0].verdict, "confirmed");
+    assert.equal(list[0].comment, "оставили");
   });
 });
 

@@ -616,12 +616,15 @@ export function Workspace({
   }
 
   const openDocument = useCallback(
-    async (id: string, page?: number) => {
+    async (id: string, page?: number, options?: { fromList?: boolean }) => {
       const alreadyOpen =
         selectedIdRef.current === id &&
         !showReviewsRef.current &&
         !peekOpenRef.current;
-      if (!alreadyOpen) pushBack();
+      if (!alreadyOpen) {
+        // Файл из списка слева: «Назад» возвращает к списку, а не в таблицу.
+        pushBack(options?.fromList ? { kind: "files" } : undefined);
+      }
       setShowReviews(false);
       setPeekOpen(false);
       setNavFromReviews(false);
@@ -639,8 +642,8 @@ export function Workspace({
   );
 
   /**
-   * Полоса этапов — не индикатор, а навигация: «Расшифровка» ведёт к первому
-   * листу без текста, «Замечания» — к таблице.
+   * Полоса этапов — не индикатор, а навигация: «Расшифровка» возвращает
+   * к файлу, который был открыт, «Замечания» — к таблице.
    */
   const openStage = useCallback(
     (stage: StageId) => {
@@ -659,16 +662,26 @@ export function Workspace({
       setShowReviews(false);
       setPeekOpen(false);
       setNavFromReviews(false);
-      // Уже в файле — просто вернуться к расшифровке, не прыгать на другой лист.
-      if (selectedId) return;
-
-      const target =
-        documents.find((doc) => doc.readyPages < doc.pageCount) ?? documents[0];
-      if (!target) return;
-      const page = Math.min(target.readyPages + 1, target.pageCount || 1);
-      void openDocument(target.id, page);
+      const stack = backStackRef.current;
+      while (stack.length > 0 && stack[stack.length - 1]?.kind === "reviews") {
+        stack.pop();
+      }
+      // Файл, который был открыт до таблицы. Чужой недописанный не открываем.
+      if (selectedId) {
+        const top = stack[stack.length - 1];
+        if (top?.kind === "drawing" && top.documentId === selectedId) stack.pop();
+        return;
+      }
+      for (let i = stack.length - 1; i >= 0; i -= 1) {
+        const view = stack[i];
+        if (view?.kind !== "drawing") continue;
+        stack.splice(i, 1);
+        setSelectedId(view.documentId);
+        setOpenPage(null);
+        return;
+      }
     },
-    [documents, openDocument, selectedId, showReviews],
+    [selectedId, showReviews],
   );
 
   const loadEdits = useCallback(async (id: string, signal?: AbortSignal) => {
@@ -1142,10 +1155,8 @@ export function Workspace({
       doc.pages.find((page) => page.markdown.length > 0)?.pageNumber ?? 1;
     autoReadyJumpRef.current = selectedId;
     setOpenPage((prev) => {
-      // Не затирать переход из таблицы замечаний (quote / reviewId).
-      if (prev?.documentId === selectedId && (prev.quote || prev.reviewId)) {
-        return prev;
-      }
+      // Уже выбранный лист не подменяем первым готовым.
+      if (prev?.documentId === selectedId && prev.page > 0) return prev;
       return {
         nonce: Date.now(),
         page: firstReady,
@@ -2431,7 +2442,7 @@ export function Workspace({
                           <div className="flex items-stretch gap-0.5">
                             <button
                               type="button"
-                              onClick={() => void openDocument(doc.id)}
+                              onClick={() => void openDocument(doc.id, undefined, { fromList: true })}
                               className={`min-w-0 flex-1 rounded px-1 py-0.5 text-left pto-t-md ${
                                 selectedId === doc.id
                                   ? "font-medium text-text"

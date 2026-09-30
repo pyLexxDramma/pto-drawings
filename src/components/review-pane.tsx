@@ -226,6 +226,9 @@ export function ReviewPane({
   onAiQueueOnChange,
 }: ReviewPaneProps) {
   const [rawPage, setRawPage] = useState(() => {
+    if (openPage?.documentId === document.id && openPage.page > 0) {
+      return openPage.page;
+    }
     const cached = getDocumentView(document.id);
     if (cached?.pageNumber && cached.pageNumber > 0) return cached.pageNumber;
     return loadCachedProgress(document.id).lastPage;
@@ -1551,14 +1554,22 @@ export function ReviewPane({
   ]);
 
   const hits = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    if (needle.length < 2) return [];
+    const parts = query
+      .trim()
+      .toLowerCase()
+      .split(/[-\s]+/)
+      .filter((part) => part.length > 0);
+    if (parts.join("").length < 2) return [];
+    const pattern = parts
+      .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+      .join("[-\\s]*");
+    const re = new RegExp(pattern, "i");
     return document.pages.flatMap((item) => {
       const source = `${item.markdown}\n${item.extractedText}`;
-      const index = source.toLowerCase().indexOf(needle);
-      if (index < 0) return [];
+      const match = re.exec(source);
+      if (!match) return [];
       const snippet = source
-        .slice(Math.max(0, index - 24), index + needle.length + 36)
+        .slice(Math.max(0, match.index - 24), match.index + match[0].length + 36)
         .replace(/\s+/g, " ");
       return [{ pageNumber: item.pageNumber, snippet }];
     });
