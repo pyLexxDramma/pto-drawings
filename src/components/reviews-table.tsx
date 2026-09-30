@@ -11,7 +11,6 @@ import {
   type ReactNode,
 } from "react";
 import { ExcelColFilter } from "@/components/excel-col-filter";
-import { ResolvedSummary } from "@/components/resolved-summary";
 import { Tooltip } from "@/components/tooltip";
 import { Spinner, VerdictDot } from "@/components/ui-chrome";
 import { IconBack, IconDoc, IconDownload } from "@/components/tool-icons";
@@ -317,15 +316,17 @@ function ProjectFileMenu({
       >
         {currentProject?.name ?? "Проект"}
       </button>
-      <button
-        type="button"
-        aria-label="Файл"
-        aria-expanded={open}
-        onClick={toggle}
-        className={buttonClass}
-      >
-        {scopeFileName ?? "все файлы"}
-      </button>
+      {scopeFileName ? (
+        <button
+          type="button"
+          aria-label="Файл"
+          aria-expanded={open}
+          onClick={toggle}
+          className={buttonClass}
+        >
+          {scopeFileName}
+        </button>
+      ) : null}
       {open ? (
         <div className="absolute left-0 top-full z-40 mt-1 flex items-start">
           <ul
@@ -358,22 +359,6 @@ function ProjectFileMenu({
               aria-label="Файл"
               className="max-h-80 w-64 overflow-auto rounded-md border border-border bg-white py-0.5 shadow-lg"
             >
-              <li>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setOpen(false);
-                    onPick(hoverProjectId, "", null);
-                  }}
-                  className={`block w-full truncate px-2 py-1 text-left ${
-                    hoverProjectId === projectId && !scopeFileId
-                      ? "bg-accent/10 font-semibold text-text"
-                      : "text-text hover:bg-accent hover:text-white"
-                  }`}
-                >
-                  все файлы
-                </button>
-              </li>
               {hoverLoading ? (
                 <li className="px-2 py-1 text-muted">загрузка…</li>
               ) : hoverFiles.length === 0 ? (
@@ -421,7 +406,6 @@ export function ReviewsTable({
   onUndo,
   undoBusy = false,
   initialColFilters,
-  standalone = false,
   focusReview = null,
   onFocusReviewHandled,
   initialWholeProject = false,
@@ -449,8 +433,6 @@ export function ReviewsTable({
   undoBusy?: boolean;
   /** Стартовый фильтр колонок — вкладка «Разобрано» приходит уже на статусе. */
   initialColFilters?: ExcelColFilters;
-  /** Отдельная вкладка: без окошка «Разобрано», оно открыло бы ещё одну такую же. */
-  standalone?: boolean;
   /** Строка выбранного пина: прокрутить к ней, когда таблицу открыли с листа. */
   focusReview?: { id: string; token: number } | null;
   onFocusReviewHandled?: () => void;
@@ -1011,22 +993,6 @@ export function ReviewsTable({
         </div>
 
         <div className="ml-auto flex shrink-0 items-center gap-1.5">
-          {standalone ? null : (
-            <ResolvedSummary
-              reviews={scoped}
-              projectId={projectId}
-              compact
-              pressed={unresolvedOn}
-              onShowUnresolved={() => {
-                const label = REVIEW_VERDICT_LABEL.pending;
-                const current = colFilters.verdict;
-                applyColFilter(
-                  "verdict",
-                  current?.length === 1 && current[0] === label ? null : [label],
-                );
-              }}
-            />
-          )}
           {onUndo ? (
             <button
               type="button"

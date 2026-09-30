@@ -94,59 +94,14 @@ export function ResolvedSummary({
   reviews,
   projectId,
   className = "",
-  compact = false,
-  onShowUnresolved,
-  pressed = false,
 }: {
   reviews: Review[];
   projectId: string;
   className?: string;
-  /** Одна строка: для шапки таблицы, где высота на счёт. */
-  compact?: boolean;
-  /** Шапка таблицы: отфильтровать «Не разобрано» здесь, без новой вкладки. */
-  onShowUnresolved?: () => void;
-  /** Фильтр «Не разобрано» уже включён. */
-  pressed?: boolean;
 }) {
   const { counts, resolved, total } = resolvedCounts(reviews);
   if (total === 0) return null;
-  const shown = (compact ? RESOLVED_ORDER : SIDEBAR_ORDER).filter(
-    (verdict) => (counts.get(verdict) ?? 0) > 0,
-  );
-
-  if (compact) {
-    const pending = total - resolved;
-    if (pending === 0 && !pressed) {
-      return (
-        <span
-          title="Все замечания разобраны"
-          className={`inline-flex shrink-0 items-center whitespace-nowrap pto-t-md font-medium leading-none text-muted ${className}`}
-        >
-          Все разобраны
-        </span>
-      );
-    }
-    return (
-      <button
-        type="button"
-        onClick={onShowUnresolved}
-        disabled={!onShowUnresolved}
-        aria-pressed={pressed}
-        title={
-          pressed
-            ? "Фильтр «Не разобрано» включён. Нажмите, чтобы снять"
-            : "Показать в этой таблице только неразобранные"
-        }
-        className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-md border px-1.5 py-0.5 pto-t-md font-medium leading-none tabular-nums disabled:cursor-default ${
-          pressed
-            ? "border-accent bg-accent text-white"
-            : "border-border bg-white text-text hover:border-accent hover:bg-accent/5"
-        } ${className}`}
-      >
-        {pending === 0 ? "Не разобрано" : `Не разобрано ${pending}`}
-      </button>
-    );
-  }
+  const shown = SIDEBAR_ORDER.filter((verdict) => (counts.get(verdict) ?? 0) > 0);
 
   return (
     <div

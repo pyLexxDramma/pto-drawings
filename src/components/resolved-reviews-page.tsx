@@ -127,7 +127,6 @@ export function ResolvedReviewsPage() {
         key={`${projectId}:${initialVerdict ?? "all"}`}
         projectId={projectId}
         projectName={projectName || "проект"}
-        standalone
         initialColFilters={
           initialVerdict
             ? { verdict: [REVIEW_VERDICT_LABEL[initialVerdict]] }
