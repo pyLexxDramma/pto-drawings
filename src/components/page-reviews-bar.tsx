@@ -157,7 +157,7 @@ export function PageReviewsBar({
             </button>
           </span>
         ) : null}
-        {onOpenReviews ? (
+        {onOpenReviews && showStep ? (
           <button
             type="button"
             onClick={() => onOpenReviews?.(activeReview?.id)}
