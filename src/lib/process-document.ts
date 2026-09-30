@@ -245,7 +245,7 @@ function pipelinePatch(job: BackendJob, options?: { finished?: boolean }) {
 function cancelMessage(job: BackendJob | null) {
   const ready = job?.pagesDoneCount ?? 0;
   return ready > 0
-    ? `Обработка отменена. Сохранено листов: ${ready}. Можно «Обработать заново» — готовые не пересчитаются.`
+    ? `Обработка отменена. Сохранено листов: ${ready}. Можно «Запустить заново» — готовые не пересчитаются.`
     : "Обработка отменена.";
 }
 
@@ -300,7 +300,7 @@ export async function reconcileOrphanedJobs() {
           errorMessage:
             job.status === "canceled"
               ? "Обработка отменена."
-              : "Ошибка конвейера. Нажмите «Обработать заново».",
+              : "Ошибка конвейера. Нажмите «Запустить заново».",
         });
         continue;
       }
@@ -309,7 +309,7 @@ export async function reconcileOrphanedJobs() {
         processingStep: null,
         processingPage: null,
         pipelineFinishedAt: new Date().toISOString(),
-        errorMessage: "Обработка прервалась. Нажмите «Повтор».",
+        errorMessage: "Обработка прервалась. Нажмите «Запустить заново».",
       });
     } catch (error) {
       console.warn(
@@ -680,7 +680,7 @@ export async function processDocument(
       processingStep: null,
       processingPage: null,
       pipelineFinishedAt: new Date().toISOString(),
-      errorMessage: `${message}. Нажмите «Обработать заново».`,
+      errorMessage: `${message}. Нажмите «Запустить заново».`,
     });
   } finally {
     if (slotHeld) releaseJobSlot();

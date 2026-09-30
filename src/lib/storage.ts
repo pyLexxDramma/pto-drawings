@@ -1187,7 +1187,7 @@ export async function resetStuckDocuments(activeIds: Set<string>): Promise<strin
       meta.status = "error";
       meta.processingStep = null;
       meta.processingPage = null;
-      meta.errorMessage = "Обработка прервалась. Нажмите «Повтор».";
+      meta.errorMessage = "Обработка прервалась. Нажмите «Запустить заново».";
       reset.push(meta.id);
     }
     if (reset.length > 0) await writeIndex(db);

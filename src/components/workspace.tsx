@@ -55,6 +55,7 @@ import {
 import { LiveProgressDock } from "@/components/processing-progress-panel";
 import { processingStepLabel } from "@/lib/processing-progress";
 import {
+  alignRestartHint,
   collectProcessingAlerts,
   isCancelMessage,
   processingCanceled,
@@ -2502,7 +2503,9 @@ export function Workspace({
                                 {canceled ? (
                                   <span
                                     className="shrink-0 rounded bg-red-600 px-1 font-bold uppercase tracking-wide text-white"
-                                    title={doc.errorMessage ?? "остановлен"}
+                                    title={alignRestartHint(
+                                      doc.errorMessage ?? "остановлен",
+                                    )}
                                   >
                                     остановлен
                                   </span>
@@ -2555,7 +2558,9 @@ export function Workspace({
                                   {canceled ? "Остановлен." : "Не обработан."}
                                 </span>{" "}
                                 {canceled
-                                  ? (doc.errorMessage ?? "Обработка отменена.")
+                                  ? alignRestartHint(
+                                      doc.errorMessage ?? "Обработка отменена.",
+                                    )
                                   : processingFailureReason(doc)}
                               </div>
                               <div className="flex gap-1">

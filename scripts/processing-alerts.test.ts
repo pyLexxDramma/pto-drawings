@@ -99,4 +99,19 @@ describe("processingFailureReason", () => {
       "лист 8: OOM killed",
     );
   });
+
+  it("называет кнопку «Запустить заново», а не «Повтор»", () => {
+    assert.equal(
+      processingFailureReason({
+        id: "d4",
+        originalName: "Обрыв.pdf",
+        status: "error",
+        errorMessage: "Обработка прервалась. Нажмите «Повтор».",
+        pageErrors: {},
+        pipelineFinishedAt: null,
+        createdAt: "2026-09-30T15:00:00.000Z",
+      }),
+      "Обработка прервалась. Нажмите «Запустить заново».",
+    );
+  });
 });

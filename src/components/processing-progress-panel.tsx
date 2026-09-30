@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { IconChevronRight, IconClose } from "@/components/tool-icons";
 import { ProgressTrack, Spinner } from "@/components/ui-chrome";
 import { useSmoothProgress } from "@/hooks/use-smooth-progress";
+import { alignRestartHint } from "@/lib/processing-alerts";
 import {
   formatProcessingPercent,
   pageProgressRows,
@@ -231,7 +232,7 @@ export function ProcessingSummaryStrip({
         <span className="text-red-700">
           Ошибка обработки
           {document.errorMessage && document.status === "error"
-            ? `: ${document.errorMessage}`
+            ? `: ${alignRestartHint(document.errorMessage)}`
             : errorCount > 0
               ? `: не вышло листов ${errorCount}`
               : ""}

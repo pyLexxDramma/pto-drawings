@@ -47,7 +47,7 @@ export function collectProcessingAlerts(
         documentId: doc.id,
         documentName: doc.originalName,
         page: Number(page) || null,
-        message: reason.trim(),
+        message: alignRestartHint(reason.trim()),
         at,
       });
     }
@@ -61,7 +61,7 @@ export function collectProcessingAlerts(
       documentId: doc.id,
       documentName: doc.originalName,
       page: null,
-      message,
+      message: alignRestartHint(message),
       at,
     });
   }
@@ -73,6 +73,13 @@ export function processingFailed(doc: AlertSource): boolean {
   if (isCancelMessage(doc.errorMessage)) return false;
   if (doc.status === "error") return true;
   return Object.keys(doc.pageErrors ?? {}).length > 0;
+}
+
+/** Старый текст звал несуществующую кнопку «Повтор». На карточке она «Запустить заново». */
+export function alignRestartHint(message: string): string {
+  return message
+    .replaceAll("«Повтор»", "«Запустить заново»")
+    .replaceAll("«Обработать заново»", "«Запустить заново»");
 }
 
 /** Причина, которую показываем рядом со статусом и кнопкой «Запустить заново». */
@@ -91,6 +98,6 @@ export function processingFailureReason(doc: AlertSource): string {
       .join(" · ")}`;
   }
   const message = (doc.errorMessage ?? "").trim();
-  if (message && !isCancelMessage(message)) return message;
+  if (message && !isCancelMessage(message)) return alignRestartHint(message);
   return "файл не обработан до конца";
 }
