@@ -2085,7 +2085,7 @@ export function Workspace({
                 <div className="text-xs font-semibold leading-none tracking-tight">PTO</div>
               </div>
             </button>
-            {focusMode || showReviews || projectsCollapsed ? navBackButton : null}
+            {(showReviews && !peekOpen) || focusMode ? navBackButton : null}
           </div>
           {currentProject ? (
             <ProjectStagesBar
@@ -2273,7 +2273,6 @@ export function Workspace({
             style={{ width: projectsWidth, maxWidth: "100%" }}
           >
             <div className="flex h-7 shrink-0 items-center gap-1 border-b-2 border-slate-300 bg-slate-200 px-1.5">
-              {navBackButton}
               <div
                 className="min-w-0 flex-1 truncate pto-t-xs leading-tight text-text"
                 title={currentProject?.name}

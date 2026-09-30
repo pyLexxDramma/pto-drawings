@@ -34,7 +34,7 @@ export function SheetToolbar({
   backLabel?: string;
   onUndo?: () => void;
   undoBusy?: boolean;
-  /** false — кнопку рисует панель чертежа слева, не шапка расшифровки. */
+  /** false — «Назад» рисует шапка, не ряд «Найти». */
   showBack?: boolean;
   markMode?: boolean;
   onToggleMark?: () => void;
@@ -48,9 +48,11 @@ export function SheetToolbar({
           onClick={onBack}
           title={backLabel}
           aria-label={backLabel}
-          className={`${BTN} w-6`}
+          data-nav-back=""
+          className={`${BTN} gap-1 px-1.5`}
         >
           <IconBack className="h-3 w-3" />
+          <span className="pto-t-sm font-semibold">Назад</span>
         </button>
       ) : null}
       <button

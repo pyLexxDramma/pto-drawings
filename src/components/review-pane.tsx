@@ -1370,7 +1370,6 @@ export function ReviewPane({
       onCloseSearch={closeSearch}
       onBack={onBackToProjects}
       backLabel={backLabel}
-      showBack={false}
       onUndo={canUndoRemark ? onUndoRemark : undefined}
       undoBusy={undoBusy}
       markMode={markMode}
