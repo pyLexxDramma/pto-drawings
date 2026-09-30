@@ -309,14 +309,16 @@ export function ReviewsTable({
   const importRef = useRef<HTMLInputElement>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
-  /** true — весь проект; false — только открытый файл. */
-  const [fileScopeOff, setFileScopeOff] = useState(initialWholeProject);
+  /** Пустая строка — все файлы проекта. Иначе id файла в списке. */
+  const [scopeFileId, setScopeFileId] = useState(() =>
+    initialWholeProject || !currentDocumentId ? "" : currentDocumentId,
+  );
   const scopeTokenRef = useRef(scopeToken);
   useEffect(() => {
     if (scopeToken === scopeTokenRef.current) return;
     scopeTokenRef.current = scopeToken;
-    setFileScopeOff(initialWholeProject);
-  }, [initialWholeProject, scopeToken]);
+    setScopeFileId(initialWholeProject || !currentDocumentId ? "" : currentDocumentId);
+  }, [currentDocumentId, initialWholeProject, scopeToken]);
 
   const load = useCallback(
     async (signal?: AbortSignal) => {
@@ -383,22 +385,27 @@ export function ReviewsTable({
 
   const filtersOn =
     Object.keys(colFilters).length > 0 || query.trim().length > 0;
+  const unresolvedOn =
+    colFilters.verdict?.length === 1 &&
+    colFilters.verdict[0] === REVIEW_VERDICT_LABEL.pending;
 
-  const currentFileKey = useMemo(
-    () => fileNameKey(currentDocumentName),
-    [currentDocumentName],
-  );
+  const scopeFileName =
+    projectFiles?.find((item) => item.id === scopeFileId)?.name ??
+    (scopeFileId && scopeFileId === currentDocumentId ? currentDocumentName : null);
+  const scopeFileKey = fileNameKey(scopeFileName);
 
   const scoped = useMemo(() => {
-    if (!currentDocumentId || fileScopeOff) return reviews;
+    if (!scopeFileId) return reviews;
     return reviews.filter((item) =>
       item.locations.some(
         (loc) =>
-          loc.documentId === currentDocumentId ||
-          (!loc.documentId && fileNameKey(loc.documentName) === currentFileKey),
+          loc.documentId === scopeFileId ||
+          (!loc.documentId &&
+            Boolean(scopeFileKey) &&
+            fileNameKey(loc.documentName) === scopeFileKey),
       ),
     );
-  }, [currentDocumentId, currentFileKey, fileScopeOff, reviews]);
+  }, [reviews, scopeFileId, scopeFileKey]);
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase().replace(/[-\s]+/g, "");
@@ -570,10 +577,10 @@ export function ReviewsTable({
       return;
     }
     if (!visible.some((item) => item.id === focusReview.id)) {
-      if (query || Object.keys(colFilters).length > 0 || !fileScopeOff) {
+      if (query || Object.keys(colFilters).length > 0 || scopeFileId) {
         setQuery("");
         setColFilters({});
-        setFileScopeOff(true);
+        setScopeFileId("");
       } else {
         onFocusReviewHandled?.();
       }
@@ -586,7 +593,7 @@ export function ReviewsTable({
     onFocusReviewHandled?.();
   }, [
     colFilters,
-    fileScopeOff,
+    scopeFileId,
     focusReview,
     loading,
     onFocusReviewHandled,
@@ -786,45 +793,34 @@ export function ReviewsTable({
             </select>
           ) : null}
           {loading ? <span className="shrink-0 text-muted"> · загрузка…</span> : null}
-          {currentDocumentId ? (
-            <span
-              className="inline-flex shrink-0 overflow-hidden rounded-md border border-border"
-              title="Какие замечания сейчас в таблице"
+          {projectFiles && projectFiles.length > 0 ? (
+            <select
+              aria-label="Файл"
+              value={scopeFileId}
+              onChange={(event) => setScopeFileId(event.target.value)}
+              className="max-w-[14rem] shrink truncate rounded-md border border-border bg-white px-1.5 py-0.5 pto-t-sm font-medium text-text"
             >
-              <button
-                type="button"
-                onClick={() => setFileScopeOff(false)}
-                aria-pressed={!fileScopeOff}
-                className={`px-1.5 py-0.5 pto-t-sm font-semibold leading-none ${
-                  fileScopeOff
-                    ? "bg-white text-muted hover:text-text"
-                    : "bg-accent text-white"
-                }`}
-              >
-                этот файл
-              </button>
-              <button
-                type="button"
-                onClick={() => setFileScopeOff(true)}
-                aria-pressed={fileScopeOff}
-                className={`px-1.5 py-0.5 pto-t-sm font-semibold leading-none ${
-                  fileScopeOff
-                    ? "bg-accent text-white"
-                    : "bg-white text-muted hover:text-text"
-                }`}
-              >
-                весь проект
-              </button>
-            </span>
+              <option value="">все файлы</option>
+              {scopeFileId &&
+              !projectFiles.some((item) => item.id === scopeFileId) ? (
+                <option value={scopeFileId}>{scopeFileName ?? "этот файл"}</option>
+              ) : null}
+              {projectFiles.map((file) => (
+                <option key={file.id} value={file.id}>
+                  {file.name}
+                </option>
+              ))}
+            </select>
           ) : null}
         </div>
 
         <div className="ml-auto flex shrink-0 items-center gap-1.5">
           {standalone ? null : (
             <ResolvedSummary
-              reviews={reviews}
+              reviews={scoped}
               projectId={projectId}
               compact
+              pressed={unresolvedOn}
               onShowUnresolved={() => {
                 const label = REVIEW_VERDICT_LABEL.pending;
                 const current = colFilters.verdict;
@@ -1070,16 +1066,15 @@ export function ReviewsTable({
                           ? "filtered"
                           : reviews.length === 0
                             ? "none"
-                            : currentDocumentId
+                            : scopeFileId
                               ? "file"
                               : "filtered"
                       }
-                      fileName={currentDocumentName}
+                      fileName={scopeFileName ?? currentDocumentName}
+                      unresolvedOnly={unresolvedOn}
                       onOpenTranscript={onOpenTranscript}
                       onShowWholeProject={
-                        currentDocumentId && !fileScopeOff
-                          ? () => setFileScopeOff(true)
-                          : undefined
+                        scopeFileId ? () => setScopeFileId("") : undefined
                       }
                       onResetFilters={() => {
                         setColFilters({});
@@ -1165,6 +1160,7 @@ function EmptyReviews({
   onOpenTranscript,
   onShowWholeProject,
   onResetFilters,
+  unresolvedOnly = false,
 }: {
   kind: "none" | "file" | "filtered";
   fileName: string | null;
@@ -1172,9 +1168,13 @@ function EmptyReviews({
   onOpenTranscript?: () => void;
   onShowWholeProject?: () => void;
   onResetFilters: () => void;
+  /** Фильтр статуса «Не разобрано» ещё включён, строк под него не осталось. */
+  unresolvedOnly?: boolean;
 }) {
   const title =
-    kind === "none"
+    unresolvedOnly && kind === "filtered"
+      ? "Фильтр «Не разобрано» включён"
+      : kind === "none"
       ? runFinished
         ? "Прогон закончен, замечаний нет."
         : "Замечаний пока нет"
@@ -1182,7 +1182,9 @@ function EmptyReviews({
         ? `По файлу ${fileName ?? "этому"} замечаний нет`
         : "Под фильтры ничего не попало";
   const hint =
-    kind === "none"
+    unresolvedOnly && kind === "filtered"
+      ? "Неразобранных в этом срезе нет. Сбросьте фильтр, чтобы увидеть остальные."
+      : kind === "none"
       ? runFinished
         ? "Свою ошибку отмечают карандашом на чертеже."
         : "Конвейер их ещё не присылал. Своё замечание ставят на чертеже: откройте лист и нажмите «Отметить ошибку» — строка появится здесь сама."
@@ -1967,7 +1969,7 @@ function ReviewRow({
             else onPatch({ verdict: next });
           }}
         />
-        {review.verdict === "wrong" ? (
+        {review.verdict === "wrong" && !review.wrongReason ? (
           <button
             type="button"
             onClick={(event) => {

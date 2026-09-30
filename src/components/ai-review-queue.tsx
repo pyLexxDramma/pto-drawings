@@ -63,7 +63,7 @@ export function WrongReasonForm({
           }}
           className="rounded-md bg-rose-600 px-2 py-1 font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
         >
-          Снять как ложное
+          Сохранить
         </button>
         <button
           type="button"

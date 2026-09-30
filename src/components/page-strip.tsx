@@ -17,12 +17,6 @@ function checkLabel(check: SheetCheck): string {
   return "не проверен";
 }
 
-function sheetMark(input: { isWorking: boolean; isReady: boolean }): string {
-  if (input.isWorking) return "обрабатывается";
-  if (input.isReady) return "текст готов";
-  return "ждёт текст";
-}
-
 type SheetRowProps = {
   pageNumber: number;
   current: boolean;
@@ -100,18 +94,26 @@ function SheetRow({
         <span className="min-w-0 flex-1 truncate pto-t-sm font-medium leading-tight tabular-nums">
           L{pageNumber}
         </span>
-        <span
-          className={`shrink-0 truncate pto-t-xs font-semibold tabular-nums ${
-            check?.status === "error"
-              ? "text-rose-800"
-              : check?.status === "checked"
-                ? "text-emerald-800"
-                : "text-muted"
-          }`}
-          title={check?.reason || undefined}
-        >
-          {status ?? sheetMark({ isWorking, isReady })}
-        </span>
+        {status || isWorking || !isReady ? (
+          <span
+            className={`shrink-0 truncate pto-t-xs font-semibold tabular-nums ${
+              check?.status === "error"
+                ? "text-rose-800"
+                : check?.status === "checked"
+                  ? "text-emerald-800"
+                  : "text-muted"
+            }`}
+            title={check?.reason || undefined}
+          >
+            {status ?? (isWorking ? "обрабатывается" : "ждёт текст")}
+          </span>
+        ) : (
+          <span
+            className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-600"
+            title="текст готов"
+            aria-label="текст готов"
+          />
+        )}
       </span>
     </button>
   );

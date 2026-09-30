@@ -66,7 +66,6 @@ import {
 import {
   REVIEW_SEVERITY_LABEL,
   type AnnotationRect,
-  type DocumentPage,
   type DocumentRecord,
   type PageAnnotation,
   type PageKind,
@@ -143,17 +142,11 @@ function canScrollX(element: HTMLElement) {
 function sheetQuietSummary(
   status: DocumentRecord["status"],
   pageError: string | null,
-  numbers: DocumentPage["numbers"],
   reviewCount: number,
 ): string | null {
   if (reviewCount > 0 || status !== "done") return null;
   if (pageError) return "Ошибка проверки этого листа";
-  if (numbers?.checked) {
-    const found = numbers.found ?? 0;
-    const total = numbers.total ?? 0;
-    return `Замечаний нет. В тексте нашлись ${found} из ${total} чисел.`;
-  }
-  return "Замечаний нет. Сверка чисел на этом листе не выполнялась.";
+  return "Замечаний нет.";
 }
 
 function stepLabel(document: DocumentRecord) {
@@ -1291,7 +1284,6 @@ export function ReviewPane({
   const sheetQuietLine = sheetQuietSummary(
     document.status,
     document.pageErrors?.[String(pageNumber)] ?? null,
-    page?.numbers,
     pageReviews.length,
   );
 
