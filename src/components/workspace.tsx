@@ -383,6 +383,8 @@ export function Workspace({
   const [tableScope, setTableScope] = useState({
     wholeProject: true,
     token: 0,
+    fileId: "",
+    fileName: null as string | null,
   });
   const [aiQueueOn, setAiQueueOn] = useState(false);
   /** Иконка таблицы с листа: прокрутить к строке выбранного пина. */
@@ -644,7 +646,12 @@ export function Workspace({
     (stage: StageId) => {
       if (stage === "reviews") {
         if (!showReviews) pushBack();
-        setTableScope({ wholeProject: !selectedId, token: Date.now() });
+        setTableScope({
+          wholeProject: !selectedId,
+          token: Date.now(),
+          fileId: "",
+          fileName: null,
+        });
         setPeekOpen(false);
         setShowReviews(true);
         return;
@@ -1305,14 +1312,23 @@ export function Workspace({
     setError(null);
   }
 
-  async function openProjectInTable(id: string) {
+  async function openProjectInTable(
+    id: string,
+    fileId = "",
+    fileName: string | null = null,
+  ) {
     if (!id || id === projectId) return;
     setShowReviews(true);
     setPeekOpen(false);
     setNavFromReviews(false);
     setSelectedId(null);
     setFocusMode(false);
-    setTableScope({ wholeProject: true, token: Date.now() });
+    setTableScope({
+      wholeProject: !fileId,
+      token: Date.now(),
+      fileId,
+      fileName,
+    });
     setProjectId(id);
     setProjectQuery("");
     setHits([]);
@@ -2096,7 +2112,12 @@ export function Workspace({
                 onPick={(hit) => {
                   if (showReviewsRef.current && !peekOpenRef.current) {
                     setSelectedId(hit.documentId);
-                    setTableScope({ wholeProject: false, token: Date.now() });
+                    setTableScope({
+                      wholeProject: false,
+                      token: Date.now(),
+                      fileId: "",
+                      fileName: null,
+                    });
                     setShowReviews(true);
                     setPeekOpen(false);
                     void refreshDocument(hit.documentId);
@@ -2614,7 +2635,9 @@ export function Workspace({
                 id: item.id,
                 name: item.name,
               }))}
-              onSelectProject={(id) => void openProjectInTable(id)}
+              onSelectProject={(id, fileId, fileName) =>
+                void openProjectInTable(id, fileId ?? "", fileName ?? null)
+              }
               onJumpToPage={jumpToPage}
               onOpenTranscript={() => openStage("transcribe")}
               onStatsChange={setReviewStats}
@@ -2640,6 +2663,8 @@ export function Workspace({
               focusReview={tableFocus}
               onFocusReviewHandled={() => setTableFocus(null)}
               initialWholeProject={tableScope.wholeProject}
+              initialFileId={tableScope.fileId}
+              initialFileName={tableScope.fileName}
               scopeToken={tableScope.token}
               onUndo={remarkUndo ? () => void undoRemark() : undefined}
               undoBusy={undoBusy}
@@ -2660,7 +2685,12 @@ export function Workspace({
             }}
             onOpenReviews={(reviewId) => {
               if (!showReviews) pushBack();
-              setTableScope({ wholeProject: false, token: Date.now() });
+              setTableScope({
+                wholeProject: false,
+                token: Date.now(),
+                fileId: "",
+                fileName: null,
+              });
               setPeekOpen(false);
               setShowReviews(true);
               setTableFocus(reviewId ? { id: reviewId, token: Date.now() } : null);

@@ -214,6 +214,199 @@ function ColHead({
   );
 }
 
+function ProjectFileMenu({
+  projects,
+  projectId,
+  projectFiles,
+  scopeFileId,
+  scopeFileName,
+  onPick,
+}: {
+  projects: { id: string; name: string }[];
+  projectId: string;
+  projectFiles: { id: string; name: string }[];
+  scopeFileId: string;
+  scopeFileName: string | null;
+  onPick: (projectId: string, fileId: string, fileName: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [hoverProjectId, setHoverProjectId] = useState<string | null>(null);
+  const [hoverFiles, setHoverFiles] = useState<{ id: string; name: string }[]>([]);
+  const [hoverLoading, setHoverLoading] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const cacheRef = useRef(new Map<string, { id: string; name: string }[]>());
+  const ticketRef = useRef(0);
+  const currentProject = projects.find((item) => item.id === projectId);
+
+  useEffect(() => {
+    if (!open) return;
+    function onPointer(event: MouseEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (hoverProjectId === projectId) setHoverFiles(projectFiles);
+  }, [hoverProjectId, projectFiles, projectId]);
+
+  async function showFiles(id: string) {
+    const ticket = ++ticketRef.current;
+    setHoverProjectId(id);
+    if (id === projectId) {
+      setHoverFiles(projectFiles);
+      setHoverLoading(false);
+      return;
+    }
+    const cached = cacheRef.current.get(id);
+    if (cached) {
+      setHoverFiles(cached);
+      setHoverLoading(false);
+      return;
+    }
+    setHoverFiles([]);
+    setHoverLoading(true);
+    try {
+      const response = await fetch(
+        `/api/documents?projectId=${encodeURIComponent(id)}&lite=1`,
+      );
+      if (!response.ok) throw new Error("Не удалось загрузить файлы");
+      const payload = (await response.json()) as {
+        documents?: { id: string; originalName: string }[];
+      };
+      const files = (payload.documents ?? []).map((doc) => ({
+        id: doc.id,
+        name: doc.originalName,
+      }));
+      cacheRef.current.set(id, files);
+      if (ticketRef.current !== ticket) return;
+      setHoverFiles(files);
+    } catch {
+      if (ticketRef.current !== ticket) return;
+      setHoverFiles([]);
+    } finally {
+      if (ticketRef.current === ticket) setHoverLoading(false);
+    }
+  }
+
+  function toggle() {
+    if (!open) void showFiles(projectId);
+    setOpen((prev) => !prev);
+  }
+
+  const buttonClass =
+    "max-w-[14rem] shrink truncate rounded-md border border-border bg-white px-1.5 py-0.5 text-left pto-t-sm font-medium text-text";
+
+  return (
+    <div ref={rootRef} className="relative flex min-w-0 items-center gap-1.5">
+      <button
+        type="button"
+        aria-label="Проект"
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        onClick={toggle}
+        className={buttonClass}
+      >
+        {currentProject?.name ?? "Проект"}
+      </button>
+      <button
+        type="button"
+        aria-label="Файл"
+        aria-expanded={open}
+        onClick={toggle}
+        className={buttonClass}
+      >
+        {scopeFileName ?? "все файлы"}
+      </button>
+      {open ? (
+        <div className="absolute left-0 top-full z-40 mt-1 flex items-start">
+          <ul
+            aria-label="Проект"
+            className="max-h-80 w-72 overflow-auto rounded-md border border-border bg-white py-0.5 shadow-lg"
+          >
+            {projects.map((project) => (
+              <li key={project.id}>
+                <button
+                  type="button"
+                  onMouseEnter={() => void showFiles(project.id)}
+                  onClick={() => {
+                    setOpen(false);
+                    onPick(project.id, "", null);
+                  }}
+                  className={`block w-full truncate px-2 py-1 text-left ${
+                    hoverProjectId === project.id
+                      ? "bg-accent text-white"
+                      : "text-text hover:bg-surface-2"
+                  }`}
+                  title={project.name}
+                >
+                  {project.name}
+                </button>
+              </li>
+            ))}
+          </ul>
+          {hoverProjectId ? (
+            <ul
+              aria-label="Файл"
+              className="max-h-80 w-64 overflow-auto rounded-md border border-border bg-white py-0.5 shadow-lg"
+            >
+              <li>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpen(false);
+                    onPick(hoverProjectId, "", null);
+                  }}
+                  className={`block w-full truncate px-2 py-1 text-left ${
+                    hoverProjectId === projectId && !scopeFileId
+                      ? "bg-accent/10 font-semibold text-text"
+                      : "text-text hover:bg-accent hover:text-white"
+                  }`}
+                >
+                  все файлы
+                </button>
+              </li>
+              {hoverLoading ? (
+                <li className="px-2 py-1 text-muted">загрузка…</li>
+              ) : hoverFiles.length === 0 ? (
+                <li className="px-2 py-1 text-muted">нет файлов</li>
+              ) : (
+                hoverFiles.map((file) => (
+                  <li key={file.id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOpen(false);
+                        onPick(hoverProjectId, file.id, file.name);
+                      }}
+                      className={`block w-full truncate px-2 py-1 text-left ${
+                        hoverProjectId === projectId && scopeFileId === file.id
+                          ? "bg-accent/10 font-semibold text-text"
+                          : "text-text hover:bg-accent hover:text-white"
+                      }`}
+                      title={file.name}
+                    >
+                      {file.name}
+                    </button>
+                  </li>
+                ))
+              )}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function ReviewsTable({
   projectId,
   projectName,
@@ -237,6 +430,8 @@ export function ReviewsTable({
   projectFiles = [],
   projects = [],
   onSelectProject,
+  initialFileId = "",
+  initialFileName = null,
 }: {
   projectId: string;
   projectName: string;
@@ -287,7 +482,14 @@ export function ReviewsTable({
   onReviewPatched?: (review: Review) => void;
   /** Тот же список, что слева. Выбор остаётся в таблице. */
   projects?: { id: string; name: string }[];
-  onSelectProject?: (projectId: string) => void;
+  onSelectProject?: (
+    projectId: string,
+    fileId?: string | null,
+    fileName?: string | null,
+  ) => void;
+  /** Файл, выбранный вместе с чужим проектом из выпадающего списка. */
+  initialFileId?: string;
+  initialFileName?: string | null;
 }) {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [events, setEvents] = useState<ReviewEvent[]>([]);
@@ -311,14 +513,24 @@ export function ReviewsTable({
   const listRef = useRef<HTMLDivElement>(null);
   /** Пустая строка — все файлы проекта. Иначе id файла в списке. */
   const [scopeFileId, setScopeFileId] = useState(() =>
-    initialWholeProject || !currentDocumentId ? "" : currentDocumentId,
+    initialFileId
+      ? initialFileId
+      : initialWholeProject || !currentDocumentId
+        ? ""
+        : currentDocumentId,
   );
   const scopeTokenRef = useRef(scopeToken);
   useEffect(() => {
     if (scopeToken === scopeTokenRef.current) return;
     scopeTokenRef.current = scopeToken;
-    setScopeFileId(initialWholeProject || !currentDocumentId ? "" : currentDocumentId);
-  }, [currentDocumentId, initialWholeProject, scopeToken]);
+    setScopeFileId(
+      initialFileId
+        ? initialFileId
+        : initialWholeProject || !currentDocumentId
+          ? ""
+          : currentDocumentId,
+    );
+  }, [currentDocumentId, initialFileId, initialWholeProject, scopeToken]);
 
   const load = useCallback(
     async (signal?: AbortSignal) => {
@@ -391,7 +603,8 @@ export function ReviewsTable({
 
   const scopeFileName =
     projectFiles?.find((item) => item.id === scopeFileId)?.name ??
-    (scopeFileId && scopeFileId === currentDocumentId ? currentDocumentName : null);
+    (scopeFileId && scopeFileId === currentDocumentId ? currentDocumentName : null) ??
+    (scopeFileId && scopeFileId === initialFileId ? initialFileName : null);
   const scopeFileKey = fileNameKey(scopeFileName);
 
   const scoped = useMemo(() => {
@@ -779,39 +992,22 @@ export function ReviewsTable({
             Замечания · {projectName}
           </span>
           {projects.length > 0 ? (
-            <select
-              aria-label="Проект"
-              value={projectId}
-              onChange={(event) => onSelectProject?.(event.target.value)}
-              className="max-w-[14rem] shrink truncate rounded-md border border-border bg-white px-1.5 py-0.5 pto-t-sm font-medium text-text"
-            >
-              {projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
+            <ProjectFileMenu
+              projects={projects}
+              projectId={projectId}
+              projectFiles={projectFiles}
+              scopeFileId={scopeFileId}
+              scopeFileName={scopeFileName}
+              onPick={(nextProjectId, fileId, fileName) => {
+                if (nextProjectId === projectId) {
+                  setScopeFileId(fileId);
+                  return;
+                }
+                onSelectProject?.(nextProjectId, fileId || null, fileName);
+              }}
+            />
           ) : null}
           {loading ? <span className="shrink-0 text-muted"> · загрузка…</span> : null}
-          {projectFiles && projectFiles.length > 0 ? (
-            <select
-              aria-label="Файл"
-              value={scopeFileId}
-              onChange={(event) => setScopeFileId(event.target.value)}
-              className="max-w-[14rem] shrink truncate rounded-md border border-border bg-white px-1.5 py-0.5 pto-t-sm font-medium text-text"
-            >
-              <option value="">все файлы</option>
-              {scopeFileId &&
-              !projectFiles.some((item) => item.id === scopeFileId) ? (
-                <option value={scopeFileId}>{scopeFileName ?? "этот файл"}</option>
-              ) : null}
-              {projectFiles.map((file) => (
-                <option key={file.id} value={file.id}>
-                  {file.name}
-                </option>
-              ))}
-            </select>
-          ) : null}
         </div>
 
         <div className="ml-auto flex shrink-0 items-center gap-1.5">
