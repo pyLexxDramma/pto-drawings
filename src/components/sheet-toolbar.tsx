@@ -58,7 +58,7 @@ export function SheetToolbar({
       <button
         type="button"
         title={searchOpen ? "Закрыть поиск (Esc)" : "Поиск по файлу (/ или Ctrl+F)"}
-        aria-label={searchOpen ? "Закрыть поиск" : "Найти"}
+        aria-label={searchOpen ? "Закрыть поиск" : "Найти в этом файле"}
         onClick={() => (searchOpen ? onCloseSearch() : onOpenSearch())}
         className={`${searchOpen ? BTN_ACTIVE : BTN} gap-1 px-1.5`}
       >

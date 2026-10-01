@@ -140,7 +140,7 @@ export function AiReviewQueueCard({
             <span className="shrink-0 font-semibold tabular-nums">
               № {review.number}
             </span>
-            <span className="min-w-0 truncate text-muted">
+            <span className="min-w-0 line-clamp-3 text-muted">
               {REVIEW_SEVERITY_LABEL[review.severity].toLowerCase()}
               {" · "}
               {quote

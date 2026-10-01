@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { WrongReasonForm } from "@/components/ai-review-queue";
+import { useEffect, useRef, type ReactNode } from "react";
 import {
   IconChevronDown,
   IconChevronLeft,
@@ -33,9 +32,6 @@ export function PageReviewsBar({
   canPrevPending = false,
   canNextPending = false,
   showStep = true,
-  onAcceptReview,
-  onWrongReview,
-  verdictBusy = false,
 }: {
   reviews: Review[];
   open: boolean;
@@ -53,14 +49,8 @@ export function PageReviewsBar({
   canNextPending?: boolean;
   /** В разборе ИИ свои стрелки — эту пару прячем. */
   showStep?: boolean;
-  /** Принять выбранное замечание, не открывая очередь. */
-  onAcceptReview?: (review: Review) => void;
-  /** Снять как ложное с причиной. */
-  onWrongReview?: (review: Review, reason: string) => void;
-  verdictBusy?: boolean;
 }) {
   const listRef = useRef<HTMLUListElement>(null);
-  const [wrongFor, setWrongFor] = useState<string | null>(null);
   const ordered = [...reviews].sort((a, b) => a.number - b.number);
 
   useEffect(() => {
@@ -205,46 +195,7 @@ export function PageReviewsBar({
                   )}`}
                 </button>
                 {renderPlaceChips(review)}
-                {isActive(review) &&
-                review.verdict === "pending" &&
-                onAcceptReview &&
-                onWrongReview ? (
-                  <span className="flex shrink-0 items-center gap-1">
-                    <button
-                      type="button"
-                      disabled={verdictBusy}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onAcceptReview(review);
-                      }}
-                      className="shrink-0 rounded-md bg-emerald-600 px-2 py-1 font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
-                    >
-                      Принять
-                    </button>
-                    <button
-                      type="button"
-                      disabled={verdictBusy}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setWrongFor(review.id);
-                      }}
-                      className="shrink-0 rounded-md border border-rose-300 bg-white px-2 py-1 font-semibold text-rose-800 hover:bg-rose-50 disabled:opacity-50"
-                    >
-                      Отклонить
-                    </button>
-                  </span>
-                ) : null}
               </div>
-              {wrongFor === review.id && onWrongReview ? (
-                <WrongReasonForm
-                  busy={verdictBusy}
-                  onSubmit={(reason) => {
-                    onWrongReview(review, reason);
-                    setWrongFor(null);
-                  }}
-                  onCancel={() => setWrongFor(null)}
-                />
-              ) : null}
             </li>
           ))}
         </ul>

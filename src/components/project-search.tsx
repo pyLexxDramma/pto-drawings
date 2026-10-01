@@ -50,8 +50,9 @@ export function ProjectSearch({
           type="search"
           value={query}
           data-project-search=""
-          placeholder="Поиск по проекту…"
-          aria-label="Поиск по проекту"
+          placeholder="Расшифровки этого проекта"
+          title="Ищет по расшифровкам и именам файлов открытого проекта. Другой проект — в списке проектов."
+          aria-label="Поиск по расшифровкам этого проекта"
           aria-expanded={showPanel}
           aria-controls={listId}
           autoComplete="off"

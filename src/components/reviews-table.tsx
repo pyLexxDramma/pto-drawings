@@ -1176,8 +1176,10 @@ export function ReviewsTable({
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Поиск"
-          className="w-32 shrink-0 rounded-md border border-border bg-white px-1.5 py-0.5 pto-t-md outline-none placeholder:text-muted focus:border-accent"
+          placeholder="По замечаниям"
+          title="Ищет по тексту замечаний в таблице"
+          aria-label="Поиск по замечаниям"
+          className="w-40 shrink-0 rounded-md border border-border bg-white px-1.5 py-0.5 pto-t-md outline-none placeholder:text-muted focus:border-accent"
         />
       </header>
 
