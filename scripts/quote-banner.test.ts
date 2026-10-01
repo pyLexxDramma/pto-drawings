@@ -51,15 +51,29 @@ describe("quoteBannerKind", () => {
     );
   });
 
-  it("shows only when both drawing and text said no", () => {
+  it("stays hidden when the text layer exists but the quote did not match", () => {
     assert.equal(
       quoteBannerKind({
         bannerOn: true,
         focusDrawing: true,
+        pageSource: "heuristic",
         textHitFound: false,
         drawingHitCount: 0,
       }),
-      "miss-both",
+      null,
+    );
+  });
+
+  it("shows when the sheet has no text layer and neither side matched", () => {
+    assert.equal(
+      quoteBannerKind({
+        bannerOn: true,
+        focusDrawing: true,
+        pageSource: "model",
+        textHitFound: false,
+        drawingHitCount: 0,
+      }),
+      "model-no-layer",
     );
   });
 
@@ -68,6 +82,7 @@ describe("quoteBannerKind", () => {
       quoteBannerKind({
         bannerOn: true,
         focusDrawing: true,
+        pageSource: "model",
         textHitFound: false,
         drawingHitCount: 0,
         hasPin: true,
@@ -81,6 +96,7 @@ describe("quoteBannerKind", () => {
       quoteBannerKind({
         bannerOn: true,
         focusDrawing: true,
+        pageSource: "model",
         textHitFound: false,
         drawingHitCount: 0,
         highlighted: true,

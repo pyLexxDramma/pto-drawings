@@ -43,6 +43,7 @@ export function SheetTextPane({
   focusFirst,
   flagQuotes,
   pageWarning,
+  footer,
 }: {
   paneRef: RefObject<HTMLDivElement | null>;
   searchRef: RefObject<HTMLInputElement | null>;
@@ -65,6 +66,8 @@ export function SheetTextPane({
   focusFirst: boolean;
   flagQuotes: string[];
   pageWarning?: string | null;
+  /** Полоса внизу расшифровки, не поверх чертежа. */
+  footer?: ReactNode;
 }) {
   return (
     <>
@@ -152,6 +155,7 @@ export function SheetTextPane({
           </div>
         )}
       </div>
+      {footer}
     </>
   );
 }

@@ -2004,76 +2004,6 @@ export function ReviewPane({
                   <span className="pto-t-sm font-medium">К расшифровке</span>
                 </button>
               ) : null}
-              {quoteMiss ? (
-                // Выше строки состояния: на её уровне плашка обрезалась, и
-                // кнопка «Показать в тексте» уезжала под подсказку про мышь.
-                <div className="pointer-events-none absolute inset-x-0 bottom-11 z-20 flex justify-center px-2">
-                  <div
-                    className={`pointer-events-auto inline-flex max-w-full items-start gap-2 rounded-md border px-2.5 py-1 pto-t-md shadow-sm ${
-                      quoteMiss === "model-no-layer" || quoteMiss === "miss-both"
-                        ? "border-sem-attn-line bg-sem-attn-soft text-amber-950"
-                        : quoteMiss === "miss-drawing"
-                          ? "border-sem-issue-line bg-sem-issue-soft text-rose-950"
-                          : "border-border bg-surface-2 text-text"
-                    }`}
-                  >
-                    <span className="min-w-0">
-                      {quoteMiss === "model-no-layer" ? (
-                        <>
-                          На листе нет текстового слоя — на чертеже подсветить
-                          нечего.
-                          {textHitFound === true ? (
-                            <>
-                              {" "}
-                              <button
-                                type="button"
-                                className="font-semibold underline decoration-dotted"
-                                onClick={() => {
-                                  setPaneSolo(null);
-                                  setSidePanel("text");
-                                  setFocusNonce(Date.now());
-                                }}
-                              >
-                                Показать в тексте
-                              </button>
-                            </>
-                          ) : textHitFound === false ? (
-                            " В расшифровке точного совпадения тоже нет."
-                          ) : null}
-                        </>
-                      ) : quoteMiss === "miss-both" ? (
-                        "Цитата не найдена на чертеже и в тексте"
-                      ) : quoteMiss === "miss-drawing" ? (
-                        <>
-                          Цитата не найдена на чертеже.{" "}
-                          <button
-                            type="button"
-                            className="font-semibold underline decoration-dotted"
-                            onClick={() => {
-                              setPaneSolo(null);
-                              setSidePanel("text");
-                              setFocusNonce(Date.now());
-                            }}
-                          >
-                            Показать в тексте
-                          </button>
-                        </>
-                      ) : (
-                        "Цитата на чертеже · в тексте не найдена"
-                      )}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setQuoteBannerOn(false)}
-                        className="inline-flex shrink-0 items-center rounded px-1 opacity-70 hover:bg-black/5 hover:opacity-100"
-                        title="Закрыть"
-                        aria-label="Закрыть"
-                      >
-                        <IconClose className="h-3 w-3" />
-                      </button>
-                  </div>
-                </div>
-              ) : null}
               {hasKitDrawing && kitDrawingView === "cad" && kitCadDoc ? (
                 <CadPage
                   documentId={kitCadDoc.id}
@@ -2301,6 +2231,25 @@ export function ReviewPane({
                   {aiQueueCard}
                   {pageReviewsBar}
                 </>
+              }
+              footer={
+                quoteMiss ? (
+                  <div className="flex shrink-0 items-start gap-2 border-t border-sem-attn-line bg-sem-attn-soft px-2.5 py-1.5 pto-t-md text-amber-950">
+                    <span className="min-w-0 flex-1">
+                      На листе нет текстового слоя — на чертеже подсветить нечего.
+                      В расшифровке точного совпадения тоже нет.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setQuoteBannerOn(false)}
+                      className="inline-flex shrink-0 items-center rounded px-1 opacity-70 hover:bg-black/5 hover:opacity-100"
+                      title="Закрыть"
+                      aria-label="Закрыть"
+                    >
+                      <IconClose className="h-3 w-3" />
+                    </button>
+                  </div>
+                ) : null
               }
             />
 
