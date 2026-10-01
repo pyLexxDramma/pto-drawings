@@ -127,10 +127,10 @@ export function AiReviewQueueCard({
       className="shrink-0 border-b border-accent/20 bg-accent/5 pto-t-sm text-text"
       data-ai-queue=""
     >
-      <div className="flex flex-col gap-1 px-1.5 py-1">
-        <div className="flex min-w-0 items-center gap-1.5">
+      <div className="flex flex-col gap-0.5 px-1.5 py-0.5">
+        <div className="flex h-6 min-w-0 items-center gap-1">
           {leading}
-          <div className="flex min-w-0 flex-1 items-baseline gap-x-2 overflow-hidden">
+          <div className="flex min-w-0 flex-1 items-center gap-x-1.5 overflow-hidden leading-none">
             <span className="shrink-0 font-semibold text-text">Разбор ИИ</span>
             {index >= 0 ? (
               <span className="shrink-0 tabular-nums text-muted">
@@ -140,7 +140,7 @@ export function AiReviewQueueCard({
             <span className="shrink-0 font-semibold tabular-nums">
               № {review.number}
             </span>
-            <span className="min-w-0 line-clamp-3 text-muted">
+            <span className="min-w-0 truncate text-muted">
               {REVIEW_SEVERITY_LABEL[review.severity].toLowerCase()}
               {" · "}
               {quote
