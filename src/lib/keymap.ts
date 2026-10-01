@@ -12,6 +12,7 @@ export const KEYMAP: KeymapItem[] = [
   { group: "view", keys: "Shift + протяжка", action: "Зум рамкой" },
   { group: "view", keys: "Двойной клик", action: "Вписать страницу" },
   { group: "view", keys: "Shift + двойной клик", action: "100%" },
+  { group: "view", keys: "Правая кнопка", action: "Сдвинуть лист, в том числе при отметке ошибки" },
   { group: "view", keys: "Пробел + тянуть / средняя кнопка", action: "Сдвинуть вид" },
   { group: "view", keys: "← → ↑ ↓", action: "Сдвинуть вид" },
   { group: "view", keys: "F", action: "Только лист" },
