@@ -18,7 +18,7 @@ export const KEYMAP: KeymapItem[] = [
   { group: "sheets", keys: "J / PageDown", action: "Следующий лист" },
   { group: "sheets", keys: "K / PageUp", action: "Предыдущий лист" },
   { group: "search", keys: "/ · Ctrl+F", action: "Поиск в файле" },
-  { group: "search", keys: "Шапка", action: "Поиск по расшифровкам этого проекта" },
+  { group: "search", keys: "Шапка", action: "Поиск по расшифровкам проекта, пока файл не открыт" },
   { group: "remarks", keys: "E", action: "Отметить ошибку" },
   { group: "remarks", keys: "↑ ↓", action: "Замечания листа или находки разбора ИИ" },
   { group: "remarks", keys: "1 / 2 / 3", action: "Важность низ / сред / выс" },

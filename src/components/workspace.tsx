@@ -2122,7 +2122,7 @@ export function Workspace({
           )}
 
           <div className="flex min-w-0 shrink-0 items-center gap-2">
-            {currentProject ? (
+            {currentProject && !selected && !showReviews ? (
               <ProjectSearch
                 query={projectQuery}
                 onQueryChange={setProjectQuery}
