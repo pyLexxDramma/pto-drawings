@@ -26,7 +26,8 @@ export function PageReviewsBar({
   onToggle,
   onFocusReview,
   onOpenReviews,
-  sheetNo,
+  pageNumber,
+  stampNo,
   pendingCount = 0,
   onPrevPending,
   onNextPending,
@@ -43,8 +44,10 @@ export function PageReviewsBar({
   onToggle: () => void;
   onFocusReview: (review: Review) => void;
   onOpenReviews?: (reviewId?: string) => void;
-  /** Номер листа для подписи: из штампа, иначе страница PDF. */
-  sheetNo: string;
+  /** Страница файла. Тот же номер, что на чипах «л.N». */
+  pageNumber: number;
+  /** Номер в штампе, если он отличается от страницы файла. */
+  stampNo: string | null;
   pendingCount?: number;
   onPrevPending?: () => void;
   onNextPending?: () => void;
@@ -99,7 +102,11 @@ export function PageReviewsBar({
           type="button"
           onClick={onToggle}
           className="flex min-w-0 flex-1 items-center gap-1 text-left font-medium hover:text-accent"
-          title={open ? "Свернуть список замечаний" : "Показать замечания листа"}
+          title={
+            stampNo
+              ? `Страница файла ${pageNumber}, в штампе лист ${stampNo}`
+              : `Страница файла ${pageNumber}`
+          }
         >
           <span className="shrink-0">
             {open ? (
@@ -113,9 +120,10 @@ export function PageReviewsBar({
             aria-hidden
           />
           <span className="shrink-0">
-            Лист {sheetNo} · ошибок {reviews.length}
+            Лист {pageNumber}
+            {stampNo ? ` (в штампе ${stampNo})` : ""} · ошибок {reviews.length}
           </span>
-          {pendingCount > 0 ? (
+          {pendingCount > 0 && pendingCount < reviews.length ? (
             <span className="shrink-0 font-normal opacity-70">
               · не разобрано {pendingCount}
             </span>

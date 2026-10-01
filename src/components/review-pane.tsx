@@ -512,8 +512,8 @@ export function ReviewPane({
     }
     return map;
   }, [document.id, document.pages, fileReviews]);
-  const sheetNo =
-    stampSheetNumber(stampByPage.get(pageNumber)) ?? String(pageNumber);
+  const stampNo = stampSheetNumber(stampByPage.get(pageNumber));
+  const stampDiffers = Boolean(stampNo && stampNo !== String(pageNumber));
   /** Очередь разбора: неразобранные файла по номеру. */
   const pendingFileReviews = useMemo(
     () =>
@@ -961,46 +961,52 @@ export function ReviewPane({
       documentId: document.id,
       pageNumber,
     });
+    const onThisSheet = (place: (typeof places)[number]) =>
+      place.documentId === document.id && place.pageNumber === pageNumber;
+    const here = places.filter(onThisSheet);
+    const elsewhere = places.filter((place) => !onThisSheet(place));
+    const chip = (place: (typeof places)[number], index: number) => {
+      const onSheet =
+        place.documentId === document.id && place.pageNumber === pageNumber;
+      const current = activeReviewId === review.id && index === siblingIndex;
+      const where = sheetLabel(place) ?? "лист не указан";
+      const otherFile = Boolean(
+        place.documentId && place.documentId !== document.id,
+      );
+      const className = `whitespace-nowrap rounded px-1 py-[1px] font-semibold tabular-nums ${
+        current ? "border-2" : "border"
+      } ${SEVERITY_PLACE[review.severity]}`;
+      if (otherFile) {
+        return (
+          <span
+            key={`${place.documentId}-${place.pageNumber}-${index}`}
+            title={`Та же фраза · ${where}. Другой файл открывается из таблицы`}
+            className={className}
+          >
+            {placeChipLabel(place, index, places)}
+          </span>
+        );
+      }
+      return (
+        <button
+          key={`${place.documentId}-${place.pageNumber}-${index}`}
+          type="button"
+          onClick={() => focusLocation(place, review.id)}
+          title={`Та же фраза · ${where}${onSheet ? "" : " · другой лист"}`}
+          aria-label={`Та же фраза, ${where}`}
+          className={className}
+        >
+          {placeChipLabel(place, index, places)}
+        </button>
+      );
+    };
     return (
       <span className="inline-flex shrink-0 items-center gap-0.5">
-        {places.length > 1 ? (
+        {here.map((place) => chip(place, places.indexOf(place)))}
+        {elsewhere.length > 0 ? (
           <span className="pto-t-xs font-medium text-muted">та же на</span>
         ) : null}
-        {places.map((place, index) => {
-          const here =
-            place.documentId === document.id && place.pageNumber === pageNumber;
-          const current = activeReviewId === review.id && index === siblingIndex;
-          const where = sheetLabel(place) ?? "лист не указан";
-          const otherFile = Boolean(
-            place.documentId && place.documentId !== document.id,
-          );
-          const className = `whitespace-nowrap rounded px-1 py-[1px] font-semibold tabular-nums ${
-            current ? "border-2" : "border"
-          } ${SEVERITY_PLACE[review.severity]}`;
-          if (otherFile) {
-            return (
-              <span
-                key={`${place.documentId}-${place.pageNumber}-${index}`}
-                title={`Та же фраза · ${where}. Другой файл открывается из таблицы`}
-                className={className}
-              >
-                {placeChipLabel(place, index, places)}
-              </span>
-            );
-          }
-          return (
-            <button
-              key={`${place.documentId}-${place.pageNumber}-${index}`}
-              type="button"
-              onClick={() => focusLocation(place, review.id)}
-              title={`Та же фраза · ${where}${here ? "" : " · другой лист"}`}
-              aria-label={`Та же фраза, ${where}`}
-              className={className}
-            >
-              {placeChipLabel(place, index, places)}
-            </button>
-          );
-        })}
+        {elsewhere.map((place) => chip(place, places.indexOf(place)))}
       </span>
     );
   }
@@ -1351,7 +1357,8 @@ export function ReviewPane({
   const pageReviewsBar = pageReviews.length > 0 ? (
     <PageReviewsBar
       reviews={pageReviews}
-      sheetNo={sheetNo}
+      pageNumber={pageNumber}
+      stampNo={stampDiffers ? stampNo : null}
       open={pageReviewsOpen}
       focusQuote={focusQuote}
       activeReview={activePageReview}
