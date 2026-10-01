@@ -411,15 +411,13 @@ export function CadPage({
         }
       : null;
 
-  const cursor = markMode
-    ? "cursor-crosshair"
-    : zoomBox
+  const cursor = viewport.grabbing
+    ? "cursor-grabbing"
+    : markMode || zoomBox || viewport.spaceHeld
       ? "cursor-crosshair"
-      : viewport.grabbing
-        ? "cursor-grabbing"
-        : viewport.canPan
-          ? "cursor-grab"
-          : "cursor-default";
+      : viewport.canPan
+        ? "cursor-grab"
+        : "cursor-default";
 
   const viewBox = geometry
     ? `${geometry.bbox.x0} ${-geometry.bbox.y1} ${bboxSize(geometry.bbox).w} ${bboxSize(geometry.bbox).h}`
@@ -483,8 +481,10 @@ export function CadPage({
             viewport.panBy(0, -step);
           }
         }}
+        onContextMenu={(event) => event.preventDefault()}
         onMouseDown={(event) => {
-          if (event.button === 1 || viewport.spaceHeld) {
+          // Правая — сдвиг и в режиме «Ошибка»: левая в этом режиме рисует рамку.
+          if (event.button === 1 || event.button === 2 || viewport.spaceHeld) {
             event.preventDefault();
             viewport.startPan(event.clientX, event.clientY);
             return;
@@ -503,9 +503,9 @@ export function CadPage({
           viewport.startPan(event.clientX, event.clientY);
         }}
         onMouseMove={(event) => {
+          if (viewport.movePan(event.clientX, event.clientY)) return;
           // Рамку и зум-рамку ведёт слушатель окна: он не теряет курсор за краем.
           if (markMode || draw || zoomBox) return;
-          if (viewport.movePan(event.clientX, event.clientY)) return;
           if (onHoverRegion && hoverRegions.length) {
             const point = viewport.toPagePoint(event.clientX, event.clientY);
             const hit = regionAtPoint(hoverRegions, point.x, point.y);
@@ -513,8 +513,8 @@ export function CadPage({
           }
         }}
         onMouseUp={(event) => {
-          if (markMode || draw || zoomBox) return;
           const wasClick = viewport.endPan();
+          if (markMode || draw || zoomBox) return;
           if (wasClick && onSelectRegion && hoverRegions.length) {
             const point = viewport.toPagePoint(event.clientX, event.clientY);
             const hit = regionAtPoint(hoverRegions, point.x, point.y);
@@ -805,7 +805,7 @@ export function CadPage({
       {markMode ? (
         <div className="pointer-events-none absolute left-2 top-11 z-20 flex max-w-[calc(100%-0.75rem)] flex-wrap items-center gap-1">
           <span className="rounded bg-red-600 px-2 py-0.5 pto-t-sm font-medium leading-none text-white shadow-md">
-            Обведите место на чертеже · Esc — отмена
+            Обведите место на чертеже · правая кнопка — двигать · Esc — отмена
           </span>
         </div>
       ) : null}

@@ -498,15 +498,13 @@ export function PdfPage({
         }
       : null;
 
-  const cursor = markMode
-    ? "cursor-crosshair"
-    : zoomBox || viewport.spaceHeld
+  const cursor = viewport.grabbing
+    ? "cursor-grabbing"
+    : markMode || zoomBox || viewport.spaceHeld
       ? "cursor-crosshair"
-      : viewport.grabbing
-        ? "cursor-grabbing"
-        : viewport.canPan
-          ? "cursor-grab"
-          : "cursor-default";
+      : viewport.canPan
+        ? "cursor-grab"
+        : "cursor-default";
 
   const pinShifts = pinBadgeShifts(
     remarkPins.map((item) => {
@@ -549,8 +547,10 @@ export function PdfPage({
             viewport.panBy(0, -step);
           }
         }}
+        onContextMenu={(event) => event.preventDefault()}
         onMouseDown={(event) => {
-          if (event.button === 1 || viewport.spaceHeld) {
+          // Правая — сдвиг и в режиме «Ошибка»: левая в этом режиме рисует рамку.
+          if (event.button === 1 || event.button === 2 || viewport.spaceHeld) {
             event.preventDefault();
             viewport.startPan(event.clientX, event.clientY);
             return;
@@ -569,9 +569,9 @@ export function PdfPage({
           viewport.startPan(event.clientX, event.clientY);
         }}
         onMouseMove={(event) => {
+          if (viewport.movePan(event.clientX, event.clientY)) return;
           // Рамку и зум-рамку ведёт слушатель окна: он не теряет курсор за краем.
           if (markMode || draw || zoomBox) return;
-          if (viewport.movePan(event.clientX, event.clientY)) return;
           if (onHoverRegion && hoverRegions.length) {
             const point = viewport.toPagePoint(event.clientX, event.clientY);
             const hit = regionAtPoint(hoverRegions, point.x, point.y);
@@ -579,8 +579,8 @@ export function PdfPage({
           }
         }}
         onMouseUp={(event) => {
-          if (markMode || draw || zoomBox) return;
           const wasClick = viewport.endPan();
+          if (markMode || draw || zoomBox) return;
           if (wasClick && onSelectRegion && hoverRegions.length) {
             const point = viewport.toPagePoint(event.clientX, event.clientY);
             const hit = regionAtPoint(hoverRegions, point.x, point.y);
@@ -791,7 +791,7 @@ export function PdfPage({
       {markMode ? (
         <div className="pointer-events-none absolute left-2 top-11 z-20 flex max-w-[calc(100%-0.75rem)] flex-wrap items-center gap-1">
           <span className="rounded bg-red-600 px-2 py-0.5 pto-t-sm font-medium leading-none text-white shadow-md">
-            Обведите место на чертеже · Esc — отмена
+            Обведите место на чертеже · правая кнопка — двигать · Esc — отмена
           </span>
         </div>
       ) : null}
