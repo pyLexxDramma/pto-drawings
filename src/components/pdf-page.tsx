@@ -55,6 +55,8 @@ type PdfPageProps = {
   onSelectRegion?: (regionId: string | null) => void;
   onHighlightHits?: (count: number, nonce: number) => void;
   onMarkRect?: (rect: AnnotationRect) => void;
+  /** Рамка уже отпущенной обводки, пока заметку не сохранили. */
+  pendingRect?: AnnotationRect | null;
   onSelectAnnotation?: (id: string) => void;
   onCancelMark?: () => void;
   onPrevPage?: () => void;
@@ -163,6 +165,7 @@ export function PdfPage({
   onSelectRegion,
   onHighlightHits,
   onMarkRect,
+  pendingRect = null,
   onSelectAnnotation,
   onCancelMark,
   onPrevPage,
@@ -751,6 +754,20 @@ export function PdfPage({
                 </button>
               );
             })}
+            {pendingRect && !draw ? (
+              <div
+                data-pending-mark=""
+                className="pointer-events-none absolute z-[8]"
+                style={{
+                  left: `${pendingRect.x * 100}%`,
+                  top: `${pendingRect.y * 100}%`,
+                  width: `${pendingRect.w * 100}%`,
+                  height: `${pendingRect.h * 100}%`,
+                  border: `${Math.max(2, 2 / viewport.scale)}px solid #dc2626`,
+                  background: "rgba(220,38,38,0.16)",
+                }}
+              />
+            ) : null}
             {preview ? (
               <div
                 data-mark-preview=""

@@ -3,6 +3,8 @@ import { describe, it } from "node:test";
 import {
   locationLabel,
   normalizeInlineAddresses,
+  orderLocations,
+  pickLandingLocation,
   remarkWording,
   sheetLabel,
   stripAddressPrefix,
@@ -66,6 +68,35 @@ describe("адрес листа (0097)", () => {
 
   it("совпадающие номера листа и штампа не удваивает", () => {
     assert.equal(normalizeInlineAddresses("значение (лист 6, стр. 6)"), "значение (лист 6)");
+  });
+
+  it("сначала текущий лист, затем остальные по штампу", () => {
+    const places = [
+      { documentId: "a", pageNumber: 25, stampSheet: "25" },
+      { documentId: "a", pageNumber: 22, stampSheet: "22" },
+      { documentId: "a", pageNumber: 16, stampSheet: "16" },
+    ];
+    const ordered = orderLocations(places, { documentId: "a", pageNumber: 22 });
+    assert.deepEqual(
+      ordered.map((item) => item.pageNumber),
+      [22, 16, 25],
+    );
+    assert.equal(
+      pickLandingLocation(places, { documentId: "a", pageNumber: 22 })?.pageNumber,
+      22,
+    );
+  });
+
+  it("без места на текущем листе открывает меньший номер штампа", () => {
+    const places = [
+      { documentId: "a", pageNumber: 25, stampSheet: "25" },
+      { documentId: "a", pageNumber: 3, stampSheet: null },
+      { documentId: "a", pageNumber: 16, stampSheet: "16" },
+    ];
+    assert.equal(
+      pickLandingLocation(places, { documentId: "a", pageNumber: 1 })?.pageNumber,
+      16,
+    );
   });
 
   it("формулировка для таблицы и выгрузки чистится целиком", () => {

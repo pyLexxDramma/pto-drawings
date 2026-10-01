@@ -140,6 +140,27 @@ export function IconDots({ className = "h-3.5 w-3.5" }: IconProps) {
   );
 }
 
+/** Откат последнего действия: изогнутая стрелка, как в проводнике. */
+export function IconUndo({ className = "h-3.5 w-3.5" }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M6.5 4.2 3.2 7.4l3.3 3.2"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M3.6 7.4H9a3.2 3.2 0 1 1 0 6.4H8"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 export function IconBack({ className = "h-3.5 w-3.5" }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 16 16" fill="none" aria-hidden>

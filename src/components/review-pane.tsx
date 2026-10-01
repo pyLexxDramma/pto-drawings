@@ -28,6 +28,7 @@ import {
   IconChevronsLeft,
   IconChevronsRight,
   IconClose,
+  IconPlus,
 } from "@/components/tool-icons";
 import { KEYMAP, KEYMAP_GROUPS } from "@/lib/keymap";
 import { VoiceNoteButton } from "@/components/voice-note";
@@ -45,11 +46,16 @@ import {
   preferHighlightQuery,
   remarkTermsInMarkdown,
 } from "@/lib/highlight-text";
-import { omitNumberCheck } from "@/lib/content-sync";
+import { omitNumberCheck, stampSheetFromMarkdown } from "@/lib/content-sync";
 import { quoteBannerKind } from "@/lib/quote-banner";
 import { SEVERITY_PLACE } from "@/lib/review-colors";
 import type { DrawingRemarkPin } from "@/lib/review-colors";
-import { placeChipLabel, sheetLabel } from "@/lib/sheet-label";
+import {
+  orderLocations,
+  pickLandingLocation,
+  placeChipLabel,
+  sheetLabel,
+} from "@/lib/sheet-label";
 import {
   SPLIT_MAX,
   SPLIT_MIN,
@@ -249,7 +255,9 @@ export function ReviewPane({
   );
   const [notes, setNotes] = useState<PageAnnotation[]>([]);
   const [markMode, setMarkMode] = useState(false);
+  const [draftNote, setDraftNote] = useState(false);
   const [pendingRect, setPendingRect] = useState<AnnotationRect | null>(null);
+  const [markPage, setMarkPage] = useState<number | null>(null);
   const [noteComment, setNoteComment] = useState("");
   const [noteExpected, setNoteExpected] = useState("");
   const [hoverNoteId, setHoverNoteId] = useState<string | null>(null);
@@ -487,6 +495,23 @@ export function ReviewPane({
       ),
     [document.id, reviews],
   );
+  const stampByPage = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const review of fileReviews) {
+      for (const loc of review.locations) {
+        if (loc.documentId !== document.id || !loc.pageNumber) continue;
+        const stamp = (loc.stampSheet ?? "").trim();
+        if (stamp && !map.has(loc.pageNumber)) map.set(loc.pageNumber, stamp);
+      }
+    }
+    for (const item of document.pages) {
+      if (map.has(item.pageNumber)) continue;
+      const stamp = stampSheetFromMarkdown(item.markdown);
+      if (stamp) map.set(item.pageNumber, stamp);
+    }
+    return map;
+  }, [document.id, document.pages, fileReviews]);
+  const sheetNo = stampByPage.get(pageNumber) ?? String(pageNumber);
   /** Очередь разбора: неразобранные файла по номеру. */
   const pendingFileReviews = useMemo(
     () =>
@@ -584,10 +609,12 @@ export function ReviewPane({
   function focusReviewOnSheet(
     review: (typeof pageReviews)[number],
     quoteHint?: string,
+    prefer?: (typeof review.locations)[number],
   ) {
     const onThisPage = (item: (typeof review.locations)[number]) =>
       item.documentId === document.id && item.pageNumber === pageNumber;
     const location =
+      prefer ??
       (quoteHint
         ? review.locations.find(
             (item) => onThisPage(item) && item.quote === quoteHint,
@@ -628,11 +655,12 @@ export function ReviewPane({
     focusReviewOnSheet(review, quote);
   }
   function selectFileReview(review: Review) {
-    const location =
-      review.locations.find((item) => item.documentId === document.id) ??
-      review.locations[0];
+    const location = pickLandingLocation(review.locations, {
+      documentId: document.id,
+      pageNumber,
+    });
     if (location?.pageNumber) goToPage(location.pageNumber);
-    focusReviewOnSheet(review);
+    focusReviewOnSheet(review, location?.quote, location);
   }
   function selectAiReview(review: Review) {
     // Очередь этого файла. Чужой файл открывается только из таблицы.
@@ -814,10 +842,13 @@ export function ReviewPane({
     pageReviews.find((item) => item.id === activeReviewId) ?? null;
   const siblingLocations = useMemo(
     () =>
-      (activeReview?.locations ?? []).filter(
-        (item) => item.documentId && item.pageNumber,
+      orderLocations(
+        (activeReview?.locations ?? []).filter(
+          (item) => item.documentId && item.pageNumber,
+        ),
+        { documentId: document.id, pageNumber },
       ),
-    [activeReview],
+    [activeReview, document.id, pageNumber],
   );
   const siblingIndex = useMemo(() => {
     if (siblingLocations.length === 0) return -1;
@@ -920,13 +951,19 @@ export function ReviewPane({
    * Места замечания — чипсами в самой строке замечания.
    */
   function renderPlaceChips(review: Review) {
-    const places = review.locations.filter(
+    const raw = review.locations.filter(
       (item) => item.documentId && item.pageNumber,
     );
-    if (places.length < 2) return null;
+    if (!raw.length) return null;
+    const places = orderLocations(raw, {
+      documentId: document.id,
+      pageNumber,
+    });
     return (
       <span className="inline-flex shrink-0 items-center gap-0.5">
-        <span className="pto-t-xs font-medium text-muted">та же на</span>
+        {places.length > 1 ? (
+          <span className="pto-t-xs font-medium text-muted">та же на</span>
+        ) : null}
         {places.map((place, index) => {
           const here =
             place.documentId === document.id && place.pageNumber === pageNumber;
@@ -1223,23 +1260,45 @@ export function ReviewPane({
 
   function cancelMark() {
     setMarkMode(false);
+    setDraftNote(false);
     setPendingRect(null);
+    setMarkPage(null);
     setNoteComment("");
     setNoteExpected("");
     setNoteError(null);
     setSidePanel("text");
   }
 
+  function holdMark(rect: AnnotationRect, sheet: number) {
+    setPendingRect(rect);
+    setMarkPage(sheet);
+    setDraftNote(true);
+    setMarkMode(true);
+    setSidePanel("notes");
+  }
+
+  function startDraftNote() {
+    if (readOnly) return;
+    setNoteComment("");
+    setNoteExpected("");
+    setNoteError(null);
+    setPendingRect(null);
+    setMarkPage(null);
+    setDraftNote(true);
+    setMarkMode(true);
+    setSidePanel("notes");
+  }
+
   useEffect(() => {
     if (searchOpen) {
       onSheetBackHint?.("← Закрыть поиск");
-    } else if (markMode || pendingRect) {
+    } else if (markMode || pendingRect || draftNote) {
       onSheetBackHint?.("← Отменить пометку");
     } else {
       onSheetBackHint?.(null);
     }
     return () => onSheetBackHint?.(null);
-  }, [markMode, onSheetBackHint, pendingRect, searchOpen]);
+  }, [draftNote, markMode, onSheetBackHint, pendingRect, searchOpen]);
 
   useEffect(() => {
     if (!onConsumeBack) return;
@@ -1248,27 +1307,23 @@ export function ReviewPane({
         closeSearch();
         return true;
       }
-      if (markMode || pendingRect) {
+      if (markMode || pendingRect || draftNote) {
         cancelMark();
         return true;
       }
       return false;
     });
     return () => onConsumeBack(null);
-  }, [markMode, onConsumeBack, pendingRect, searchOpen]);
+  }, [draftNote, markMode, onConsumeBack, pendingRect, searchOpen]);
 
   function toggleMark() {
     if (readOnly) return;
-    if (markMode) {
-      setMarkMode(false);
-      setPendingRect(null);
-      setNoteComment("");
-      setNoteExpected("");
-      setNoteError(null);
-      setSidePanel("text");
+    if (markMode || draftNote) {
+      cancelMark();
       return;
     }
     setPendingRect(null);
+    setMarkPage(null);
     setMarkMode(true);
     setSidePanel("notes");
   }
@@ -1294,6 +1349,7 @@ export function ReviewPane({
   const pageReviewsBar = pageReviews.length > 0 ? (
     <PageReviewsBar
       reviews={pageReviews}
+      sheetNo={sheetNo}
       open={pageReviewsOpen}
       focusQuote={focusQuote}
       activeReview={activePageReview}
@@ -1340,7 +1396,7 @@ export function ReviewPane({
   }, [aiQueueOn, activeReviewId, aiReviews]);
 
   // Стрелку рисует сама кнопка иконкой, в подписи остаётся только назначение.
-  const backLabel = markMode || pendingRect
+  const backLabel = markMode || pendingRect || draftNote
     ? "Отменить пометку"
     : searchOpen
       ? "Закрыть поиск"
@@ -1416,6 +1472,19 @@ export function ReviewPane({
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
         event.preventDefault();
         openSearch();
+        return;
+      }
+
+      if (
+        (event.ctrlKey || event.metaKey) &&
+        event.key.toLowerCase() === "z" &&
+        !event.shiftKey
+      ) {
+        if (typing) return;
+        if (canUndoRemark && onUndoRemark && !undoBusy) {
+          event.preventDefault();
+          onUndoRemark();
+        }
         return;
       }
 
@@ -1518,8 +1587,12 @@ export function ReviewPane({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     focusMode,
+    canUndoRemark,
+    draftNote,
     markMode,
+    onUndoRemark,
     pendingRect,
+    undoBusy,
     onBackToProjects,
     onToggleFocus,
     visiblePages,
@@ -1606,7 +1679,7 @@ export function ReviewPane({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        pageNumber,
+        pageNumber: markPage ?? pageNumber,
         rect: pendingRect,
         comment,
         expected: noteExpected.trim(),
@@ -1631,7 +1704,10 @@ export function ReviewPane({
       expected: noteExpected.trim(),
     });
     setNotes((prev) => [payload.annotation!, ...prev]);
+    setHoverNoteId(payload.annotation.id);
     setPendingRect(null);
+    setMarkPage(null);
+    setDraftNote(false);
     setMarkMode(false);
     setNoteComment("");
     setNoteExpected("");
@@ -1713,11 +1789,15 @@ export function ReviewPane({
     if (pendingRect) setSidePanel("notes");
   }, [pendingRect]);
 
+  const noteDraftOpen = draftNote || Boolean(pendingRect);
   const notesPanel = (
     <div className="flex min-h-0 flex-1 flex-col">
-      {pendingRect ? (
+      {noteDraftOpen ? (
         <div className="shrink-0 border-b border-red-200 bg-red-50 px-3 py-2">
           <div className="pto-t-md font-medium text-red-700">Новое замечание</div>
+          {pendingRect ? null : (
+            <div className="mt-1 pto-t-sm text-red-800">Обведите место на чертеже</div>
+          )}
           <div className="mt-1 flex items-start gap-1.5">
             <textarea
               autoFocus
@@ -1770,7 +1850,8 @@ export function ReviewPane({
             <button
               type="button"
               onClick={() => void submitNote()}
-              className="rounded-md bg-accent px-2.5 py-1 text-xs font-medium text-white"
+              disabled={!pendingRect || !noteComment.trim()}
+              className="rounded-md bg-accent px-2.5 py-1 text-xs font-medium text-white disabled:opacity-50"
             >
               Сохранить
             </button>
@@ -1786,9 +1867,9 @@ export function ReviewPane({
       ) : null}
       <div className="min-h-0 flex-1 space-y-1.5 overflow-auto p-3">
         {pageNotes.length === 0 ? (
-          pendingRect ? null : (
+          noteDraftOpen ? null : (
           <div className="rounded-md border border-dashed border-slate-300 bg-[#fafbfc] px-3 py-8 text-center pto-t-lg leading-relaxed text-muted">
-            Нажмите «Отметить ошибку» и обведите место на чертеже
+            Нажмите «Добавить ошибку» и обведите место на чертеже
           </div>
           )
         ) : (
@@ -1835,6 +1916,16 @@ export function ReviewPane({
             </div>
           ))
         )}
+        {!readOnly && !noteDraftOpen ? (
+          <button
+            type="button"
+            onClick={startDraftNote}
+            className="flex w-full items-center justify-center gap-1.5 rounded-md border border-dashed border-rose-300 bg-white px-2.5 py-2 pto-t-md font-medium text-rose-800 hover:bg-rose-50"
+          >
+            <IconPlus className="h-3.5 w-3.5" />
+            Добавить ошибку
+          </button>
+        ) : null}
       </div>
     </div>
   );
@@ -1867,6 +1958,7 @@ export function ReviewPane({
                 annotated={annotatedPages}
                 hidden={hidden}
                 processingPage={document.processingPage}
+                stamps={stampByPage}
                 emptyLabel={
                   filter === "flagged"
                     ? "Замечаний по этому файлу пока нет."
@@ -1992,12 +2084,10 @@ export function ReviewPane({
                   onHighlightHits={handleHighlightHits}
                   toolbarLeading={kitSwitch}
                   {...pageNav}
-                  onMarkRect={(rect) => setPendingRect(rect)}
+                  pendingRect={markPage === drawingCadPage ? pendingRect : null}
+                  onMarkRect={(rect) => holdMark(rect, drawingCadPage)}
                   onSelectAnnotation={(id) => setHoverNoteId(id)}
-                  onCancelMark={() => {
-                    setMarkMode(false);
-                    setPendingRect(null);
-                  }}
+                  onCancelMark={cancelMark}
                 />
               ) : hasKitDrawing && kitDrawingView === "pdf" && kitPdfDoc ? (
                 <PdfPage
@@ -2019,12 +2109,10 @@ export function ReviewPane({
                   onHighlightHits={handleHighlightHits}
                   toolbarLeading={kitSwitch}
                   {...pageNav}
-                  onMarkRect={(rect) => setPendingRect(rect)}
+                  pendingRect={markPage === drawingPdfPage ? pendingRect : null}
+                  onMarkRect={(rect) => holdMark(rect, drawingPdfPage)}
                   onSelectAnnotation={(id) => setHoverNoteId(id)}
-                  onCancelMark={() => {
-                    setMarkMode(false);
-                    setPendingRect(null);
-                  }}
+                  onCancelMark={cancelMark}
                 />
               ) : isCadSource ? (
                 <CadPage
@@ -2044,12 +2132,10 @@ export function ReviewPane({
                   highlightNonce={focusNonce}
                   onHighlightHits={handleHighlightHits}
                   {...pageNav}
-                  onMarkRect={(rect) => setPendingRect(rect)}
+                  pendingRect={markPage === pageNumber ? pendingRect : null}
+                  onMarkRect={(rect) => holdMark(rect, pageNumber)}
                   onSelectAnnotation={(id) => setHoverNoteId(id)}
-                  onCancelMark={() => {
-                    setMarkMode(false);
-                    setPendingRect(null);
-                  }}
+                  onCancelMark={cancelMark}
                 />
               ) : isOfficeSource ? (
                 <div className="flex h-full min-h-0 flex-col items-center justify-center gap-2 bg-[#f7f8fa] px-6 text-center text-sm text-muted">
@@ -2078,12 +2164,10 @@ export function ReviewPane({
                   highlightNonce={focusNonce}
                   onHighlightHits={handleHighlightHits}
                   {...pageNav}
-                  onMarkRect={(rect) => setPendingRect(rect)}
+                  pendingRect={markPage === pageNumber ? pendingRect : null}
+                  onMarkRect={(rect) => holdMark(rect, pageNumber)}
                   onSelectAnnotation={(id) => setHoverNoteId(id)}
-                  onCancelMark={() => {
-                    setMarkMode(false);
-                    setPendingRect(null);
-                  }}
+                  onCancelMark={cancelMark}
                 />
               )}
             </div>

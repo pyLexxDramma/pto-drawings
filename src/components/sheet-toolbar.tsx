@@ -1,6 +1,6 @@
 "use client";
 
-import { IconBack, IconMark, IconSearch } from "@/components/tool-icons";
+import { IconBack, IconMark, IconSearch, IconUndo } from "@/components/tool-icons";
 
 const BTN =
   "pto-tool pto-tool--slim inline-flex items-center justify-center rounded border border-slate-400 bg-slate-100 text-slate-800 hover:bg-slate-200";
@@ -104,11 +104,11 @@ export function SheetToolbar({
           type="button"
           onClick={onUndo}
           disabled={undoBusy}
-          title="Отменить последнее добавление или удаление замечания"
-          aria-label="Отменить"
-          className={`${BTN} px-1.5 pto-t-xs font-semibold disabled:opacity-50`}
+          title="Отменить последнее добавление или удаление"
+          aria-label="Отменить последнее добавление или удаление"
+          className={`${BTN} px-1.5 disabled:opacity-50`}
         >
-          Отменить
+          <IconUndo className="h-3.5 w-3.5" />
         </button>
       ) : null}
       {readOnly ? (

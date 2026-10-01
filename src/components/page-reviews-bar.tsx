@@ -26,6 +26,7 @@ export function PageReviewsBar({
   onToggle,
   onFocusReview,
   onOpenReviews,
+  sheetNo,
   pendingCount = 0,
   onPrevPending,
   onNextPending,
@@ -42,6 +43,8 @@ export function PageReviewsBar({
   onToggle: () => void;
   onFocusReview: (review: Review) => void;
   onOpenReviews?: (reviewId?: string) => void;
+  /** Номер листа для подписи: из штампа, иначе страница PDF. */
+  sheetNo: string;
   pendingCount?: number;
   onPrevPending?: () => void;
   onNextPending?: () => void;
@@ -109,16 +112,20 @@ export function PageReviewsBar({
             className="h-1.5 w-1.5 shrink-0 rounded-full bg-sem-issue"
             aria-hidden
           />
-          <span className="shrink-0">Этот лист · {reviews.length}</span>
+          <span className="shrink-0">
+            Лист {sheetNo} · ошибок {reviews.length}
+          </span>
           {pendingCount > 0 ? (
             <span className="shrink-0 font-normal opacity-70">
               · не разобрано {pendingCount}
             </span>
           ) : null}
           {!open && activeReview ? (
-            <span className="min-w-0 truncate font-normal opacity-70">
+            <span className="min-w-0 truncate font-normal">
               · № {activeReview.number}{" "}
-              {remarkWording(activeReview.text || activeReview.aiFinding || "")}
+              <span className="rounded bg-yellow-200 px-0.5 text-text">
+                {remarkWording(activeReview.text || activeReview.aiFinding || "")}
+              </span>
             </span>
           ) : null}
         </button>
@@ -190,9 +197,10 @@ export function PageReviewsBar({
                   <span className="font-semibold tabular-nums">
                     № {review.number}
                   </span>
-                  {` · ${REVIEW_SEVERITY_LABEL[review.severity].toLowerCase()} · ${remarkWording(
-                    review.text || review.aiFinding || "",
-                  )}`}
+                  {` · ${REVIEW_SEVERITY_LABEL[review.severity].toLowerCase()} · `}
+                  <span className="rounded bg-yellow-200 px-0.5">
+                    {remarkWording(review.text || review.aiFinding || "")}
+                  </span>
                 </button>
                 {renderPlaceChips(review)}
               </div>

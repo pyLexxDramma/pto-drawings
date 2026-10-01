@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { IconArrowRight, IconClose, IconTriangleLeft } from "@/components/tool-icons";
+import { IconChevronLeft, IconChevronRight, IconClose } from "@/components/tool-icons";
 import { remarkWording } from "@/lib/sheet-label";
 import {
   REVIEW_SEVERITY_LABEL,
@@ -183,7 +183,7 @@ export function AiReviewQueueCard({
           aria-label="Предыдущая находка ИИ"
           className="shrink-0 rounded border border-border bg-white px-1 py-1 text-text hover:bg-surface-2 disabled:opacity-40"
         >
-          <IconTriangleLeft className="h-3.5 w-3.5" />
+          <IconChevronLeft className="h-3.5 w-3.5" />
         </button>
         <button
           type="button"
@@ -193,7 +193,7 @@ export function AiReviewQueueCard({
           aria-label="Следующая находка ИИ"
           className="shrink-0 rounded border border-border bg-white px-1 py-1 text-text hover:bg-surface-2 disabled:opacity-40"
         >
-          <IconArrowRight className="h-3.5 w-3.5" />
+          <IconChevronRight className="h-3.5 w-3.5" />
         </button>
         <button
           type="button"

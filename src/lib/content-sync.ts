@@ -119,13 +119,17 @@ function sameSheetNumber(stamp: string, drawn: string): boolean {
   return stamp.trim() === drawn.trim();
 }
 
+type StampFields = {
+  cipher: string | null;
+  stage: string | null;
+  sheet: string | null;
+};
+
 /**
- * Шифр, стадия и номер из блока «Штамп листа» — одна строка над свёрнутыми
- * разделами. Если графа «Лист» в этом блоке не совпадает с номером в
- * дословном слое, строку не собираем: на скане модель писала «лист 25»,
- * а в штампе стояло 2.
+ * Графа «Лист» штампа. null — блока нет или номер штампа спорит с дословным
+ * слоем: тогда не показываем ни строку, ни номер.
  */
-export function stampSummary(markdown: string): string | null {
+function parsedStamp(markdown: string): StampFields | null {
   const start = markdown.search(/\*\*Штамп листа:\*\*/i);
   if (start < 0) return null;
   const chunk = markdown.slice(start, start + 900);
@@ -152,10 +156,28 @@ export function stampSummary(markdown: string): string | null {
   ) {
     sheet = null;
   }
+  return { cipher, stage, sheet };
+}
+
+/** Номер из графы «Лист» штампа, если разбор штампа его принял. */
+export function stampSheetFromMarkdown(markdown: string): string | null {
+  const sheet = parsedStamp(markdown)?.sheet?.trim();
+  return sheet ? sheet : null;
+}
+
+/**
+ * Шифр, стадия и номер из блока «Штамп листа» — одна строка над свёрнутыми
+ * разделами. Если графа «Лист» в этом блоке не совпадает с номером в
+ * дословном слое, строку не собираем: на скане модель писала «лист 25»,
+ * а в штампе стояло 2.
+ */
+export function stampSummary(markdown: string): string | null {
+  const parsed = parsedStamp(markdown);
+  if (!parsed) return null;
   const parts = [
-    cipher,
-    stage ? `стадия ${stage}` : null,
-    sheet ? `лист ${sheet}` : null,
+    parsed.cipher,
+    parsed.stage ? `стадия ${parsed.stage}` : null,
+    parsed.sheet ? `лист ${parsed.sheet}` : null,
   ].filter((item): item is string => Boolean(item));
   return parts.length > 0 ? parts.join(" · ") : null;
 }

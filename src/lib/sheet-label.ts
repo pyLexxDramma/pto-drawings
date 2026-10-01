@@ -33,6 +33,58 @@ export function sheetLabel(location: {
   return `${base} (в штампе ${stamp})`;
 }
 
+/** Число из номера штампа. Без цифр — сортировать нечем. */
+export function stampSortValue(stamp: string | null | undefined): number | null {
+  const raw = (stamp ?? "").trim();
+  if (!raw) return null;
+  const match = raw.match(/\d+/);
+  if (!match) return null;
+  const value = Number(match[0]);
+  return Number.isFinite(value) ? value : null;
+}
+
+type SheetPlace = {
+  documentId: string | null;
+  pageNumber: number | null;
+  stampSheet?: string | null;
+};
+
+/**
+ * Места одного замечания: сначала открытый лист, затем остальные по номеру
+ * штампа. Без штампа — в конце, по номеру страницы PDF.
+ */
+export function orderLocations<T extends SheetPlace>(
+  locations: readonly T[],
+  current: { documentId: string; pageNumber: number },
+): T[] {
+  const here = (item: T) =>
+    item.documentId === current.documentId &&
+    item.pageNumber === current.pageNumber;
+  const rest = locations.filter((item) => !here(item));
+  rest.sort((a, b) => {
+    const left = stampSortValue(a.stampSheet);
+    const right = stampSortValue(b.stampSheet);
+    if (left != null && right != null && left !== right) return left - right;
+    if (left != null && right == null) return -1;
+    if (left == null && right != null) return 1;
+    return (a.pageNumber ?? 0) - (b.pageNumber ?? 0);
+  });
+  return [...locations.filter(here), ...rest];
+}
+
+/**
+ * Куда открыть замечание: место на текущем листе, иначе ближайшее по штампу
+ * в этом файле.
+ */
+export function pickLandingLocation<T extends SheetPlace>(
+  locations: readonly T[],
+  current: { documentId: string; pageNumber: number },
+): T | undefined {
+  const inFile = locations.filter((item) => item.documentId === current.documentId);
+  const pool = inFile.length > 0 ? inFile : locations;
+  return orderLocations(pool, current)[0];
+}
+
 /** Подсказка места: «Место 1 этой фразы», без «из 2». */
 export function placeOrdinal(index: number): string {
   return `Место ${index + 1} этой фразы`;

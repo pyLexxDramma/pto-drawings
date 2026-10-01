@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { PaneToggle } from "@/components/ui-chrome";
+import { stampSortValue } from "@/lib/sheet-label";
 import {
   KIND_LABEL,
   REVIEW_VERDICT_LABEL,
@@ -31,6 +33,7 @@ function checkLabel(check: SheetCheck): string {
 
 type SheetRowProps = {
   pageNumber: number;
+  caption: string;
   current: boolean;
   kindLabel: string;
   isReady: boolean;
@@ -45,6 +48,7 @@ type SheetRowProps = {
 
 function SheetRow({
   pageNumber,
+  caption,
   current,
   kindLabel,
   isReady,
@@ -73,7 +77,6 @@ function SheetRow({
     .filter(Boolean)
     .join(" · ");
 
-  const openIssues = (dots?.pending ?? 0) > 0;
   const allResolved = Boolean(dots && dots.count > 0 && dots.pending === 0);
 
   return (
@@ -81,7 +84,7 @@ function SheetRow({
       type="button"
       data-page={pageNumber}
       aria-current={current ? "page" : undefined}
-      aria-label={`Лист ${pageNumber}, ${kindLabel}${fallback ? `. ${fallback}` : ""}`}
+      aria-label={`${caption === `L${pageNumber}` ? `Лист ${pageNumber}` : `Лист ${caption} по штампу, страница ${pageNumber}`}, ${kindLabel}${fallback ? `. ${fallback}` : ""}`}
       onClick={() => onSelect(pageNumber)}
       className={`mb-0.5 flex w-full flex-col rounded-md border px-1.5 py-0.5 text-left [-webkit-tap-highlight-color:transparent] ${
         current
@@ -89,11 +92,9 @@ function SheetRow({
             // оттенок не читался, а толщина сдвигала бы весь список при
             // листании с клавиатуры. Accent здесь значит «вы находитесь тут».
             "border-accent bg-accent/10 font-semibold"
-          : isWorking
+            : isWorking
             ? "pto-page-working border-accent bg-accent/5"
-            : openIssues
-              ? "border-amber-500 bg-amber-50 hover:border-amber-600 hover:bg-amber-100"
-              : allResolved
+            : allResolved
                 ? "border-emerald-600 bg-emerald-100 hover:border-emerald-700 hover:bg-emerald-200"
                 : check?.status === "error"
                   ? "border-rose-400 bg-rose-50 hover:border-rose-500"
@@ -104,7 +105,7 @@ function SheetRow({
     >
       <span className="flex w-full items-center gap-1.5">
         <span className="min-w-0 flex-1 truncate pto-t-sm font-medium leading-tight tabular-nums">
-          L{pageNumber}
+          {caption}
         </span>
         {status || isWorking || !isReady ? (
           <span
@@ -143,6 +144,8 @@ type PageStripProps = {
   annotated?: Set<number>;
   hidden?: Set<number>;
   processingPage: number | null;
+  /** Номер из штампа по странице PDF. Нет записи — в полосе L{страница}. */
+  stamps?: Map<number, string>;
   width?: number;
   emptyLabel?: string;
   onSelect: (page: number) => void;
@@ -163,14 +166,45 @@ export function PageStrip({
   annotated,
   hidden,
   processingPage,
+  stamps,
   width = 108,
   emptyLabel,
   onSelect,
   onCollapse,
   embedded = false,
 }: PageStripProps) {
+  const [byStamp, setByStamp] = useState(false);
   const pages = Array.from({ length: total }, (_, index) => index + 1).filter(
     (pageNumber) => !hidden?.has(pageNumber),
+  );
+  const ordered = byStamp
+    ? [...pages].sort((a, b) => {
+        const left = stampSortValue(stamps?.get(a));
+        const right = stampSortValue(stamps?.get(b));
+        if (left != null && right != null && left !== right) return left - right;
+        if (left != null && right == null) return -1;
+        if (left == null && right != null) return 1;
+        return a - b;
+      })
+    : pages;
+  const sortButton = (
+    <button
+      type="button"
+      aria-pressed={byStamp}
+      title={
+        byStamp
+          ? "Показать листы в порядке файла"
+          : "Сортировать по номеру из штампа"
+      }
+      onClick={() => setByStamp((value) => !value)}
+      className={`shrink-0 rounded border px-1.5 py-0.5 pto-t-xs font-semibold ${
+        byStamp
+          ? "border-accent bg-accent/10 text-accent"
+          : "border-slate-400 bg-white text-slate-700 hover:bg-slate-50"
+      }`}
+    >
+      {byStamp ? "Как в файле" : "По штампу"}
+    </button>
   );
 
   return (
@@ -184,11 +218,13 @@ export function PageStrip({
       data-page-strip
     >
       {embedded ? (
-        <div className="shrink-0 border-b-2 border-slate-300 bg-slate-200 px-2 py-1 pto-t-sm font-semibold text-text">
-          Листы
+        <div className="flex shrink-0 items-center justify-between gap-1 border-b-2 border-slate-300 bg-slate-200 px-2 py-1 pto-t-sm font-semibold text-text">
+          <span>Листы</span>
+          {sortButton}
         </div>
       ) : onCollapse ? (
-        <div className="flex shrink-0 items-center justify-end border-b border-border px-1 py-1">
+        <div className="flex shrink-0 items-center justify-between gap-1 border-b border-border px-1 py-1">
+          {sortButton}
           <PaneToggle
             expanded
             align="left"
@@ -197,21 +233,29 @@ export function PageStrip({
             onToggle={onCollapse}
           />
         </div>
-      ) : null}
+      ) : (
+        <div className="flex shrink-0 items-center justify-end border-b border-border px-1 py-1">
+          {sortButton}
+        </div>
+      )}
       <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
         {pages.length === 0 && emptyLabel ? (
           <div className="px-1 py-2 pto-t-sm leading-snug text-muted">
             {emptyLabel}
           </div>
         ) : null}
-        {pages.map((pageNumber) => {
+        {ordered.map((pageNumber) => {
           const kind = kinds.get(pageNumber);
           const isWorking = processingPage === pageNumber;
           const isReady = ready.has(pageNumber);
+          const stamp = stamps?.get(pageNumber)?.trim();
+          const caption =
+            stamp && stamp !== String(pageNumber) ? stamp : `L${pageNumber}`;
           return (
             <SheetRow
               key={pageNumber}
               pageNumber={pageNumber}
+              caption={caption}
               current={current === pageNumber}
               kindLabel={
                 kind ? KIND_LABEL[kind] : isWorking ? "сейчас" : "лист"
