@@ -55,6 +55,7 @@ import {
   pickLandingLocation,
   placeChipLabel,
   sheetLabel,
+  stampSheetNumber,
 } from "@/lib/sheet-label";
 import {
   SPLIT_MAX,
@@ -511,7 +512,8 @@ export function ReviewPane({
     }
     return map;
   }, [document.id, document.pages, fileReviews]);
-  const sheetNo = stampByPage.get(pageNumber) ?? String(pageNumber);
+  const sheetNo =
+    stampSheetNumber(stampByPage.get(pageNumber)) ?? String(pageNumber);
   /** Очередь разбора: неразобранные файла по номеру. */
   const pendingFileReviews = useMemo(
     () =>

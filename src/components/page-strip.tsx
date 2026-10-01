@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { PaneToggle } from "@/components/ui-chrome";
-import { stampSortValue } from "@/lib/sheet-label";
+import { stampSheetNumber, stampSheetTotal, stampSortValue } from "@/lib/sheet-label";
 import {
   KIND_LABEL,
   REVIEW_VERDICT_LABEL,
@@ -34,6 +34,10 @@ function checkLabel(check: SheetCheck): string {
 type SheetRowProps = {
   pageNumber: number;
   caption: string;
+  /** Страница файла, если такой номер штампа есть у нескольких листов. */
+  filePage: number | null;
+  /** Всплывающая подсказка: что значит номер и какая это страница файла. */
+  hint: string | null;
   current: boolean;
   kindLabel: string;
   isReady: boolean;
@@ -49,6 +53,8 @@ type SheetRowProps = {
 function SheetRow({
   pageNumber,
   caption,
+  filePage,
+  hint,
   current,
   kindLabel,
   isReady,
@@ -84,7 +90,8 @@ function SheetRow({
       type="button"
       data-page={pageNumber}
       aria-current={current ? "page" : undefined}
-      aria-label={`${caption === `L${pageNumber}` ? `Лист ${pageNumber}` : `Лист ${caption} по штампу, страница ${pageNumber}`}, ${kindLabel}${fallback ? `. ${fallback}` : ""}`}
+      title={hint ?? undefined}
+      aria-label={`${hint ? `${hint}. ` : `Лист ${pageNumber}, `}${kindLabel}${fallback ? `. ${fallback}` : ""}`}
       onClick={() => onSelect(pageNumber)}
       className={`mb-0.5 flex w-full flex-col rounded-md border px-1.5 py-0.5 text-left [-webkit-tap-highlight-color:transparent] ${
         current
@@ -104,8 +111,11 @@ function SheetRow({
       }`}
     >
       <span className="flex w-full items-center gap-1.5">
-        <span className="min-w-0 flex-1 truncate pto-t-sm font-medium leading-tight tabular-nums">
-          {caption}
+        <span className="flex min-w-0 flex-1 items-baseline gap-1 truncate pto-t-sm font-medium leading-tight tabular-nums">
+          <span className="shrink-0">{caption}</span>
+          {filePage != null ? (
+            <span className="truncate font-normal text-muted">· L{filePage}</span>
+          ) : null}
         </span>
         {status || isWorking || !isReady ? (
           <span
@@ -249,13 +259,28 @@ export function PageStrip({
           const isWorking = processingPage === pageNumber;
           const isReady = ready.has(pageNumber);
           const stamp = stamps?.get(pageNumber)?.trim();
-          const caption =
-            stamp && stamp !== String(pageNumber) ? stamp : `L${pageNumber}`;
+          const stampNo = stampSheetNumber(stamp);
+          const asStamp = Boolean(stampNo && stampNo !== String(pageNumber));
+          const caption = asStamp ? stampNo! : `L${pageNumber}`;
+          const sameStamp = asStamp
+            ? ordered.filter((page) => {
+                const other = stampSheetNumber(stamps?.get(page)?.trim());
+                return other === stampNo && other !== String(page);
+              }).length
+            : 0;
+          const total = stampSheetTotal(stamp);
+          const hint = asStamp
+            ? total
+              ? `В штампе лист ${stampNo} из ${total}. Страница файла ${pageNumber}`
+              : `В штампе лист ${stampNo}. Страница файла ${pageNumber}`
+            : null;
           return (
             <SheetRow
               key={pageNumber}
               pageNumber={pageNumber}
               caption={caption}
+              filePage={sameStamp > 1 ? pageNumber : null}
+              hint={hint}
               current={current === pageNumber}
               kindLabel={
                 kind ? KIND_LABEL[kind] : isWorking ? "сейчас" : "лист"

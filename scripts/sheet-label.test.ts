@@ -7,6 +7,8 @@ import {
   pickLandingLocation,
   remarkWording,
   sheetLabel,
+  stampSheetNumber,
+  stampSheetTotal,
   stripAddressPrefix,
 } from "../src/lib/sheet-label.ts";
 import type { ReviewLocation } from "../src/types.ts";
@@ -29,6 +31,15 @@ describe("адрес листа (0097)", () => {
 
   it("номер из штампа идёт справкой в скобках", () => {
     assert.equal(sheetLabel(loc({ stampSheet: "6" })), "лист 28 (в штампе 6)");
+  });
+
+  it("«1 из 3» в полосе — номер листа, «из 3» отдельно", () => {
+    assert.equal(stampSheetNumber("1 из 3"), "1");
+    assert.equal(stampSheetNumber("1 из 1"), "1");
+    assert.equal(stampSheetNumber("6"), "6");
+    assert.equal(stampSheetTotal("1 из 3"), "3");
+    assert.equal(stampSheetTotal("1 из 1"), "1");
+    assert.equal(stampSheetTotal("6"), null);
   });
 
   it("совпадающий номер штампа не дублируем", () => {

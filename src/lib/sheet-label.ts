@@ -43,6 +43,21 @@ export function stampSortValue(stamp: string | null | undefined): number | null 
   return Number.isFinite(value) ? value : null;
 }
 
+/** Номер листа в штампе. «1 из 3» — это лист 1, не подпись кнопки. */
+export function stampSheetNumber(stamp: string | null | undefined): string | null {
+  const value = stampSortValue(stamp);
+  return value == null ? null : String(value);
+}
+
+/** «1 из 3» — в штампе указано, сколько листов у этого чертежа. */
+export function stampSheetTotal(stamp: string | null | undefined): string | null {
+  const raw = (stamp ?? "").trim();
+  const match = raw.match(/^\d+\s*из\s*(\d+)\s*$/i);
+  if (!match) return null;
+  const total = Number(match[1]);
+  return Number.isFinite(total) ? String(total) : null;
+}
+
 type SheetPlace = {
   documentId: string | null;
   pageNumber: number | null;
