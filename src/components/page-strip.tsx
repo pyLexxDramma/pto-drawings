@@ -9,9 +9,21 @@ import {
   type SheetCheck,
 } from "@/types";
 
+function remarkCountLabel(count: number): string {
+  const n10 = count % 10;
+  const n100 = count % 100;
+  const word =
+    n10 === 1 && n100 !== 11
+      ? "замечание"
+      : n10 >= 2 && n10 <= 4 && (n100 < 12 || n100 > 14)
+        ? "замечания"
+        : "замечаний";
+  return `${count} ${word}`;
+}
+
 function checkLabel(check: SheetCheck): string {
   if (check.status === "checked") {
-    return check.count > 0 ? `проверен · ${check.count}` : "проверен";
+    return check.count > 0 ? remarkCountLabel(check.count) : "проверен";
   }
   if (check.status === "error") return "ошибка";
   return "не проверен";
@@ -103,7 +115,7 @@ function SheetRow({
                   ? "text-emerald-800"
                   : "text-muted"
             }`}
-            title={check?.reason || undefined}
+            title={check?.reason || status || undefined}
           >
             {status ?? (isWorking ? "обрабатывается" : "ждёт текст")}
           </span>
