@@ -63,6 +63,19 @@ describe("quoteBannerKind", () => {
     );
   });
 
+  it("hides when the remark already has a pin", () => {
+    assert.equal(
+      quoteBannerKind({
+        bannerOn: true,
+        focusDrawing: true,
+        textHitFound: false,
+        drawingHitCount: 0,
+        hasPin: true,
+      }),
+      null,
+    );
+  });
+
   it("hides when a highlight rect is already on the sheet", () => {
     assert.equal(
       quoteBannerKind({

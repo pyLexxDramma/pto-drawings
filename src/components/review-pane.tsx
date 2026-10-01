@@ -1846,6 +1846,7 @@ export function ReviewPane({
     textHitFound,
     drawingHitCount,
     highlighted: Boolean(focusRect) || (drawingHitCount ?? 0) > 0,
+    hasPin: remarkPins.some((pin) => pin.id === activeReviewId),
   });
 
   return (

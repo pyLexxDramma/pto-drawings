@@ -20,9 +20,11 @@ export function quoteBannerKind(input: {
   drawingHitCount: DrawingHitCount;
   /** Рамка или подсветка на листе уже есть — промах не показываем. */
   highlighted?: boolean;
+  /** Пин замечания уже стоит на листе — плашка поверх него не нужна. */
+  hasPin?: boolean;
 }): QuoteBannerKind | null {
   if (!input.bannerOn || !input.focusDrawing) return null;
-  if (input.highlighted) return null;
+  if (input.highlighted || input.hasPin) return null;
   if (input.drawingHitCount !== null && input.drawingHitCount > 0) return null;
   if (input.textHitFound === true) return null;
   if (input.drawingHitCount === null || input.textHitFound === null) return null;
